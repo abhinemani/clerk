@@ -40,6 +40,8 @@ Three working surfaces, driven by a "City of Riverton" demo fixture:
 | **Application service layer** — use cases over a repository port | ✅ | `src/services/` |
 | **§9 ingestion API + normalization** — on-ramp, idempotent, sensitivity-gated | ✅ | `src/dataplane/`, `src/app/api/` |
 | **Agent capability wiring** — §6 pipelines behind the registry | ✅ | `src/agents/capabilities.ts` |
+| **§11 reporting** — metrics, CSV, audit-export defensibility report, reports UI | ✅ | `src/reporting/`, `/app/reports` |
+| **§6.4/§6.7 AI fulfillment** — public-scoped retriever + grounded answer engine | ✅ | `src/ai/search/`, `src/ai/pipelines/answerEngine.ts` |
 | **Domain logic** — lifecycle, task workflow, IDs, templates, deadline risk | ✅ | `src/domain/` |
 | **Tenant-isolation guard** (§10) | ✅ | `src/db/tenant.ts` |
 | **Eval harness** (§13) — golden set + grader + scorecard | ✅ | `evals/` |

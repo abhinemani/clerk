@@ -41,9 +41,14 @@ export default function Queue() {
           <span className="eyebrow">{DEMO_AGENCY.name} · Records oversight</span>
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Command center</h1>
         </div>
-        <span className="muted" style={{ fontSize: "0.9rem" }}>
-          {DEMO_AGENCY.coordinator} · Records Coordinator
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Link href="/app/reports" className="btn btn-sm">
+            Compliance report →
+          </Link>
+          <span className="muted hide-sm" style={{ fontSize: "0.9rem" }}>
+            {DEMO_AGENCY.coordinator}
+          </span>
+        </div>
       </div>
 
       {/* Oversight metrics leaders track (§8, §11) */}
