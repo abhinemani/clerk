@@ -1,31 +1,51 @@
 # Clerk
 
 An AI-native public records (FOIA) request platform. See the root spec (`foia.md`)
-for the full product vision; this repo is the Phase 1 foundation.
+for the full product vision.
 
 **AI proposes, staff disposes.** Every AI action produces a reviewable, auditable
 draft; nothing legally significant happens without a named human approval.
 
-## Status — Phase 1 (the spine, no AI yet)
+## Try it
 
-This first pass scaffolds the foundation and delivers the two most load-bearing,
-most-testable pieces first, per the spec's suggested starting point:
+```bash
+npm install && npm run dev   # → http://localhost:3000
+```
+
+Three working surfaces, driven by a "City of Riverton" demo fixture:
+
+- **`/`** — the public **portal**: a plain-language question box that answers from
+  already-public records first (deflection, §6.7) before offering to file.
+- **`/app`** — the **staff workspace**: a queue color-banded by real deadline-risk,
+  and a three-pane request detail with the AI panel (triage + routing) and the
+  **coordinator ↔ department workflow** — dispatch a scoped task, the department
+  fulfills it from a no-login link, it comes back for review.
+- **`/task/[token]`** — the **responder page** the department leader uses (no
+  account): see the ask, attach records, submit or push back.
+
+## Status
 
 | Area | Status | Where |
 | --- | --- | --- |
+| Three-surface UI + civic design system (light/dark, WCAG-minded) | ✅ | `src/app/` |
+| **Coordinator ↔ department workflow** — task state machine + rollup | ✅ | `src/domain/taskWorkflow.ts` |
 | Project scaffold (Next.js App Router, TS, Drizzle, Vitest) | ✅ | root config, `src/app` |
-| **§5 data model** (22 tables, corpus-centric, append-only audit) | ✅ | `src/db/schema.ts` |
+| **§5 data model** (21 tables, corpus-centric, append-only audit) | ✅ | `src/db/schema.ts` |
 | Initial migration (incl. `pgvector`) | ✅ | `drizzle/0000_*.sql` |
 | **§7 statute engine** — `computeDueDate()`, pure & unit-tested | ✅ | `src/statute/` |
 | State statute profiles (CA, TX, IL, WA, NY) — data, not code | ✅ | `src/statute/profiles/` |
 | **§16 agentic framework** — tiers, budgets, allowlists, run orchestrator | ✅ | `src/agents/` |
 | **§6 AI pipelines** — harness + intake (§6.1), routing (§6.3), correspondence (§6.6) | ✅ | `src/ai/` |
 | **§6.5 PII scan** — deterministic recall-first redaction pass | ✅ | `src/ai/redaction/` |
-| **Domain logic** — lifecycle, IDs, templates, deadline risk, fees | ✅ | `src/domain/` |
+| **Domain logic** — lifecycle, task workflow, IDs, templates, deadline risk | ✅ | `src/domain/` |
 | **Tenant-isolation guard** (§10) | ✅ | `src/db/tenant.ts` |
 | **Eval harness** (§13) — golden set + grader + scorecard | ✅ | `evals/` |
-| Auth/roles, public portal, staff queue, ingestion API | ⬜ Phase 1 remainder | — |
+| Auth/roles, DB-wired persistence, ingestion API + file-drop | ⬜ Phase 1 remainder | — |
 | Remaining §6 pipelines (dedup, responsive search, LLM redaction, answer engine) | ⬜ Phase 2–4 | — |
+
+> The three surfaces above are driven by a demo fixture (`src/lib/demo.ts`), not
+> a live database yet — the UI, workflow, and design are real; persistence is the
+> next wiring step.
 
 ### The two things worth reading first
 
@@ -112,7 +132,7 @@ ANDs in the `agency_id` predicate, and a missing/blank id throws.
 
 ```bash
 npm install
-npm test          # runs the computeDueDate + calendar suite (27 tests)
+npm test          # full suite (138 tests)
 npm run typecheck # strict TS across schema + statute engine
 ```
 
@@ -128,10 +148,10 @@ npm run db:migrate
 
 ```
 src/
-  app/                 Next.js App Router (placeholder landing page)
+  app/                 three surfaces: portal (/), staff (/app), responder (/task)
   config/branding.ts   single place to rename "Clerk" (§1)
   db/
-    schema.ts          §5 data model — 22 tables
+    schema.ts          §5 data model — 21 tables
     index.ts           Drizzle client
   statute/             §7 statute engine
     businessDays.ts    UTC-only calendar primitives
@@ -151,14 +171,14 @@ src/
     prompts/           versioned prompt files (§4)
     pipelines/         intake (§6.1), routing (§6.3), correspondence (§6.6)
     redaction/piiScan.ts  deterministic PII pass (§6.5 step 1)
-  domain/              lifecycle, publicId, templates, deadlineRisk, fees
+  domain/              lifecycle, taskWorkflow, publicId, templates, deadlineRisk
   db/tenant.ts         tenant-isolation guard (§10)
 evals/                 §13 golden set + grader + scorecard
 docs/agentic-horizon.md  §16.4 strategic-horizon design note
 drizzle/               generated migrations
 ```
 
-Run `npm test` for the full suite (137 tests) and `npm run eval` for the
+Run `npm test` for the full suite (138 tests) and `npm run eval` for the
 intake-triage scorecard.
 
 ## Next steps (Phase 1 remainder, §12)

@@ -23,9 +23,9 @@ describe("renderTemplate", () => {
   });
 
   it("reports missing fields and renders them empty (never leaves {{...}})", () => {
-    const out = renderTemplate("Fee: {{fee.total}} for {{requester.name}}", ctx);
-    expect(out.text).toBe("Fee:  for Jane Doe");
-    expect(out.missing).toEqual(["fee.total"]);
+    const out = renderTemplate("Officer: {{assigned.officer}} for {{requester.name}}", ctx);
+    expect(out.text).toBe("Officer:  for Jane Doe");
+    expect(out.missing).toEqual(["assigned.officer"]);
     expect(out.text).not.toContain("{{");
   });
 

@@ -14,7 +14,6 @@ export type RequestStatus =
   | "clarification_needed"
   | "in_progress"
   | "records_review"
-  | "fee_pending"
   | "partially_fulfilled"
   | "fulfilled"
   | "denied"
@@ -30,8 +29,7 @@ const TRANSITIONS: Record<RequestStatus, readonly RequestStatus[]> = {
   submitted: ["in_review", "withdrawn"],
   in_review: ["clarification_needed", "in_progress", "denied", "withdrawn"],
   clarification_needed: ["in_review", "in_progress", "denied", "withdrawn"],
-  in_progress: ["records_review", "fee_pending", "clarification_needed", "denied", "withdrawn"],
-  fee_pending: ["in_progress", "records_review", "denied", "withdrawn"],
+  in_progress: ["records_review", "clarification_needed", "denied", "withdrawn"],
   records_review: ["partially_fulfilled", "fulfilled", "in_progress", "denied"],
   partially_fulfilled: ["records_review", "fulfilled", "denied", "closed"],
   fulfilled: ["closed"],

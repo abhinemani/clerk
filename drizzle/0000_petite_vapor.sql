@@ -1,23 +1,22 @@
--- pgvector is required for the embedding columns (documents, document_chunks, requests).
 CREATE EXTENSION IF NOT EXISTS vector;--> statement-breakpoint
+CREATE TYPE "public"."agent_run_status" AS ENUM('planning', 'running', 'paused', 'awaiting_checkpoint', 'completed', 'exhausted', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."agent_type" AS ENUM('fulfillment', 'deadline', 'release_prep', 'ingest_steward', 'requester_side');--> statement-breakpoint
 CREATE TYPE "public"."classification" AS ENUM('public', 'internal');--> statement-breakpoint
 CREATE TYPE "public"."document_provenance" AS ENUM('responder_upload', 'staff_upload', 'email_ingest', 'connector', 'prior_release');--> statement-breakpoint
-CREATE TYPE "public"."event_kind" AS ENUM('status_change', 'message', 'ai_action', 'approval', 'extension', 'delivery', 'assignment', 'note');--> statement-breakpoint
-CREATE TYPE "public"."fee_status" AS ENUM('draft', 'sent', 'paid', 'waived', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."event_kind" AS ENUM('status_change', 'message', 'ai_action', 'agent_action', 'approval', 'extension', 'delivery', 'assignment', 'note');--> statement-breakpoint
 CREATE TYPE "public"."message_channel" AS ENUM('portal', 'email');--> statement-breakpoint
 CREATE TYPE "public"."message_direction" AS ENUM('inbound', 'outbound', 'internal_note');--> statement-breakpoint
-CREATE TYPE "public"."payment_status" AS ENUM('pending', 'succeeded', 'failed', 'refunded', 'recorded_manually');--> statement-breakpoint
 CREATE TYPE "public"."processing_status" AS ENUM('received', 'scanning', 'extracting', 'classifying', 'embedding', 'ready', 'held', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."redaction_source" AS ENUM('ai_suggested', 'staff');--> statement-breakpoint
 CREATE TYPE "public"."redaction_status" AS ENUM('suggested', 'accepted', 'rejected');--> statement-breakpoint
-CREATE TYPE "public"."request_status" AS ENUM('draft', 'submitted', 'in_review', 'clarification_needed', 'in_progress', 'records_review', 'fee_pending', 'partially_fulfilled', 'fulfilled', 'denied', 'withdrawn', 'closed');--> statement-breakpoint
+CREATE TYPE "public"."request_status" AS ENUM('draft', 'submitted', 'in_review', 'clarification_needed', 'in_progress', 'records_review', 'partially_fulfilled', 'fulfilled', 'denied', 'withdrawn', 'closed');--> statement-breakpoint
 CREATE TYPE "public"."requester_type" AS ENUM('media', 'legal', 'commercial', 'individual', 'government', 'anonymous');--> statement-breakpoint
 CREATE TYPE "public"."review_decision" AS ENUM('release', 'release_redacted', 'withhold');--> statement-breakpoint
 CREATE TYPE "public"."source_trust" AS ENUM('auto_publish', 'review_queue');--> statement-breakpoint
 CREATE TYPE "public"."source_type" AS ENUM('api_push', 'webhook', 'file_drop', 'scheduled_pull', 'manual');--> statement-breakpoint
 CREATE TYPE "public"."sync_status" AS ENUM('never', 'ok', 'running', 'error');--> statement-breakpoint
 CREATE TYPE "public"."task_status" AS ENUM('assigned', 'in_progress', 'submitted', 'pushed_back', 'done', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."template_kind" AS ENUM('acknowledgment', 'clarification', 'extension', 'fee_estimate', 'partial_release', 'denial', 'closure');--> statement-breakpoint
+CREATE TYPE "public"."template_kind" AS ENUM('acknowledgment', 'clarification', 'extension', 'partial_release', 'denial', 'closure');--> statement-breakpoint
 CREATE TYPE "public"."user_role" AS ENUM('admin', 'coordinator', 'reviewer', 'responder', 'read_only');--> statement-breakpoint
 CREATE TYPE "public"."visibility" AS ENUM('public', 'private');--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "agencies" (
@@ -29,12 +28,30 @@ CREATE TABLE IF NOT EXISTS "agencies" (
 	"branding" jsonb,
 	"statute_config" jsonb,
 	"observed_holidays" jsonb DEFAULT '[]'::jsonb,
-	"fee_schedule" jsonb,
 	"portal_settings" jsonb,
 	"default_routing_rules" jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "agencies_slug_unique" UNIQUE("slug")
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "agent_runs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"agency_id" uuid NOT NULL,
+	"agent_type" "agent_type" NOT NULL,
+	"request_id" uuid,
+	"status" "agent_run_status" DEFAULT 'planning' NOT NULL,
+	"goal" text NOT NULL,
+	"plan" jsonb,
+	"budget_limits" jsonb,
+	"budget_spend" jsonb,
+	"corpus_scope" "classification",
+	"started_by_user_id" uuid,
+	"paused_by_user_id" uuid,
+	"handoff_note" text,
+	"last_step_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "deflections" (
@@ -108,18 +125,6 @@ CREATE TABLE IF NOT EXISTS "exemption_citations" (
 	CONSTRAINT "exemption_citations_agency_section_unique" UNIQUE("agency_id","statute_section")
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "fee_estimates" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"agency_id" uuid NOT NULL,
-	"request_id" uuid NOT NULL,
-	"line_items" jsonb DEFAULT '[]'::jsonb,
-	"total" numeric(12, 2),
-	"status" "fee_status" DEFAULT 'draft' NOT NULL,
-	"waiver_reason" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "messages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"agency_id" uuid NOT NULL,
@@ -131,20 +136,6 @@ CREATE TABLE IF NOT EXISTS "messages" (
 	"ai_drafted" boolean DEFAULT false NOT NULL,
 	"sent_by_user_id" uuid,
 	"sent_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "payments" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"agency_id" uuid NOT NULL,
-	"request_id" uuid NOT NULL,
-	"fee_estimate_id" uuid,
-	"amount" numeric(12, 2) NOT NULL,
-	"status" "payment_status" DEFAULT 'pending' NOT NULL,
-	"provider" text,
-	"provider_ref" text,
-	"recorded_by_user_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -198,6 +189,7 @@ CREATE TABLE IF NOT EXISTS "request_events" (
 	"actor_user_id" uuid,
 	"summary" text NOT NULL,
 	"payload" jsonb,
+	"agent_run_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -332,6 +324,30 @@ CREATE TABLE IF NOT EXISTS "users" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
+ ALTER TABLE "agent_runs" ADD CONSTRAINT "agent_runs_agency_id_agencies_id_fk" FOREIGN KEY ("agency_id") REFERENCES "public"."agencies"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "agent_runs" ADD CONSTRAINT "agent_runs_request_id_requests_id_fk" FOREIGN KEY ("request_id") REFERENCES "public"."requests"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "agent_runs" ADD CONSTRAINT "agent_runs_started_by_user_id_users_id_fk" FOREIGN KEY ("started_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "agent_runs" ADD CONSTRAINT "agent_runs_paused_by_user_id_users_id_fk" FOREIGN KEY ("paused_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
  ALTER TABLE "deflections" ADD CONSTRAINT "deflections_agency_id_agencies_id_fk" FOREIGN KEY ("agency_id") REFERENCES "public"."agencies"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
@@ -386,18 +402,6 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "fee_estimates" ADD CONSTRAINT "fee_estimates_agency_id_agencies_id_fk" FOREIGN KEY ("agency_id") REFERENCES "public"."agencies"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "fee_estimates" ADD CONSTRAINT "fee_estimates_request_id_requests_id_fk" FOREIGN KEY ("request_id") REFERENCES "public"."requests"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
  ALTER TABLE "messages" ADD CONSTRAINT "messages_agency_id_agencies_id_fk" FOREIGN KEY ("agency_id") REFERENCES "public"."agencies"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
@@ -411,30 +415,6 @@ END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "messages" ADD CONSTRAINT "messages_sent_by_user_id_users_id_fk" FOREIGN KEY ("sent_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "payments" ADD CONSTRAINT "payments_agency_id_agencies_id_fk" FOREIGN KEY ("agency_id") REFERENCES "public"."agencies"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "payments" ADD CONSTRAINT "payments_request_id_requests_id_fk" FOREIGN KEY ("request_id") REFERENCES "public"."requests"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "payments" ADD CONSTRAINT "payments_fee_estimate_id_fee_estimates_id_fk" FOREIGN KEY ("fee_estimate_id") REFERENCES "public"."fee_estimates"("id") ON DELETE set null ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "payments" ADD CONSTRAINT "payments_recorded_by_user_id_users_id_fk" FOREIGN KEY ("recorded_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -637,17 +617,18 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "agent_runs_agency_status_idx" ON "agent_runs" USING btree ("agency_id","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "agent_runs_request_idx" ON "agent_runs" USING btree ("request_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "deflections_agency_idx" ON "deflections" USING btree ("agency_id","created_at");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "departments_agency_idx" ON "departments" USING btree ("agency_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "document_chunks_document_idx" ON "document_chunks" USING btree ("document_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "documents_agency_class_idx" ON "documents" USING btree ("agency_id","classification");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "documents_agency_record_type_idx" ON "documents" USING btree ("agency_id","record_type");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "fee_estimates_request_idx" ON "fee_estimates" USING btree ("request_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "messages_request_idx" ON "messages" USING btree ("request_id","created_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "payments_request_idx" ON "payments" USING btree ("request_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "redactions_review_idx" ON "redactions" USING btree ("review_id","page");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "releases_request_idx" ON "releases" USING btree ("request_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "request_events_request_idx" ON "request_events" USING btree ("request_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "request_events_agent_run_idx" ON "request_events" USING btree ("agent_run_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "requests_agency_status_idx" ON "requests" USING btree ("agency_id","status");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "requests_due_idx" ON "requests" USING btree ("statutory_due_at");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "sources_agency_idx" ON "sources" USING btree ("agency_id");--> statement-breakpoint

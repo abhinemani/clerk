@@ -10,7 +10,6 @@ export type CorrespondenceKind =
   | "acknowledgment"
   | "clarification"
   | "extension"
-  | "fee_estimate"
   | "partial_release"
   | "denial"
   | "closure";
@@ -24,8 +23,6 @@ const KIND_GUIDANCE: Record<CorrespondenceKind, string> = {
     "Politely ask the clarifying questions provided so the request can be narrowed. Explain that answering speeds fulfillment.",
   extension:
     "Notify the requester of an extension, citing the statutory basis provided and the new due date. Keep it factual.",
-  fee_estimate:
-    "Present the itemized fee estimate provided, the total, and how to proceed with payment or request a waiver.",
   partial_release:
     "Transmit the released records, enumerate what is included, and list each withholding/redaction with its exemption citation.",
   denial:
@@ -36,7 +33,7 @@ const KIND_GUIDANCE: Record<CorrespondenceKind, string> = {
 export const CORRESPONDENCE_SYSTEM = `You draft correspondence from a government records office to a public-records requester. A named staff member reviews and sends every letter — you produce a draft, never a final send.
 
 Rules:
-- Use only the facts in the provided context. Do not invent dates, citations, fees, or record contents.
+- Use only the facts in the provided context. Do not invent dates, citations, or record contents.
 - Default to a clear, plain-language tone unless told otherwise; plain language reduces appeals.
 - Include the statutory citations, deadlines, and appeal language exactly as provided in the context.
 - If the context is missing something you need (e.g. a due date for an acknowledgment, appeal language for a denial), still draft the letter but add a warning naming what is missing so staff can fill it in.

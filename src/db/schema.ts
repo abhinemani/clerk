@@ -18,7 +18,6 @@ import {
   index,
   integer,
   jsonb,
-  numeric,
   pgEnum,
   pgTable,
   primaryKey,
@@ -70,7 +69,6 @@ export const requestStatus = pgEnum("request_status", [
   "clarification_needed",
   "in_progress",
   "records_review",
-  "fee_pending",
   "partially_fulfilled",
   "fulfilled",
   "denied",
@@ -149,27 +147,10 @@ export const messageDirection = pgEnum("message_direction", [
 
 export const messageChannel = pgEnum("message_channel", ["portal", "email"]);
 
-export const feeStatus = pgEnum("fee_status", [
-  "draft",
-  "sent",
-  "paid",
-  "waived",
-  "cancelled",
-]);
-
-export const paymentStatus = pgEnum("payment_status", [
-  "pending",
-  "succeeded",
-  "failed",
-  "refunded",
-  "recorded_manually",
-]);
-
 export const templateKind = pgEnum("template_kind", [
   "acknowledgment",
   "clarification",
   "extension",
-  "fee_estimate",
   "partial_release",
   "denial",
   "closure",
@@ -231,7 +212,6 @@ export const agencies = pgTable("agencies", {
   // Observed holidays as ISO date strings ("2026-07-03") for the business-day
   // calendar used by computeDueDate() (§7).
   observedHolidays: jsonb("observed_holidays").$type<string[]>().default([]),
-  feeSchedule: jsonb("fee_schedule").$type<Record<string, unknown>>(),
   portalSettings: jsonb("portal_settings").$type<Record<string, unknown>>(),
   defaultRoutingRules: jsonb("default_routing_rules").$type<Record<string, unknown>>(),
   ...timestamps,
@@ -664,7 +644,7 @@ export const redactions = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Messaging, fees, releases, templates (§5)
+// Messaging, releases, templates (§5)
 // ---------------------------------------------------------------------------
 
 export const messages = pgTable(
@@ -690,51 +670,6 @@ export const messages = pgTable(
     ...timestamps,
   },
   (t) => [index("messages_request_idx").on(t.requestId, t.createdAt)],
-);
-
-export const feeEstimates = pgTable(
-  "fee_estimates",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    agencyId: uuid("agency_id")
-      .notNull()
-      .references(() => agencies.id, { onDelete: "cascade" }),
-    requestId: uuid("request_id")
-      .notNull()
-      .references(() => requests.id, { onDelete: "cascade" }),
-    // Line items: [{ label, kind: "staff_time"|"copies"|"media", qty, rate, amount }].
-    lineItems: jsonb("line_items").$type<FeeLineItem[]>().default([]),
-    total: numeric("total", { precision: 12, scale: 2 }),
-    status: feeStatus("status").notNull().default("draft"),
-    waiverReason: text("waiver_reason"),
-    ...timestamps,
-  },
-  (t) => [index("fee_estimates_request_idx").on(t.requestId)],
-);
-
-export const payments = pgTable(
-  "payments",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    agencyId: uuid("agency_id")
-      .notNull()
-      .references(() => agencies.id, { onDelete: "cascade" }),
-    requestId: uuid("request_id")
-      .notNull()
-      .references(() => requests.id, { onDelete: "cascade" }),
-    feeEstimateId: uuid("fee_estimate_id").references(() => feeEstimates.id, {
-      onDelete: "set null",
-    }),
-    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-    status: paymentStatus("status").notNull().default("pending"),
-    provider: text("provider"), // "stripe" | "manual"
-    providerRef: text("provider_ref"),
-    recordedByUserId: uuid("recorded_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    ...timestamps,
-  },
-  (t) => [index("payments_request_idx").on(t.requestId)],
 );
 
 /**
@@ -904,14 +839,6 @@ export interface ExtensionRecord {
   statutoryBasis?: string;
 }
 
-export interface FeeLineItem {
-  label: string;
-  kind: "staff_time" | "copies" | "media" | "other";
-  qty: number;
-  rate: number;
-  amount: number;
-}
-
 export interface ReleaseArtifact {
   blobRef: string;
   filename: string;
@@ -939,12 +866,6 @@ export interface StatuteConfig {
       permittedReasons: string[];
       noticeRequired: boolean;
     };
-  };
-  feeRules: {
-    chargeableItems: string[];
-    staffTimeRatePerHour?: number;
-    copyRatePerPage?: number;
-    waiverStandard?: string;
   };
   exemptions: Array<{
     statuteSection: string;
@@ -978,8 +899,6 @@ export const allTables = {
   reviews,
   redactions,
   messages,
-  feeEstimates,
-  payments,
   releases,
   templates,
   deflections,

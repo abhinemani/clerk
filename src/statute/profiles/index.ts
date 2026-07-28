@@ -39,11 +39,6 @@ export const stateProfiles: Record<string, StatuteConfig> = {
         noticeRequired: true,
       },
     },
-    feeRules: {
-      chargeableItems: ["copies", "media"],
-      copyRatePerPage: 0.1,
-      waiverStandard: "direct cost of duplication only",
-    },
     exemptions: [
       {
         statuteSection: "Cal. Gov. Code § 7927.705",
@@ -76,12 +71,6 @@ export const stateProfiles: Record<string, StatuteConfig> = {
         permittedReasons: ["awaiting Attorney General ruling", "clarification needed"],
         noticeRequired: true,
       },
-    },
-    feeRules: {
-      chargeableItems: ["staff_time", "copies", "media"],
-      staffTimeRatePerHour: 15,
-      copyRatePerPage: 0.1,
-      waiverStandard: "waive/reduce if in the public interest",
     },
     exemptions: [
       { statuteSection: "Tex. Gov. Code § 552.101", shortLabel: "Confidential by law" },
@@ -116,11 +105,6 @@ export const stateProfiles: Record<string, StatuteConfig> = {
         noticeRequired: true,
       },
     },
-    feeRules: {
-      chargeableItems: ["copies"],
-      copyRatePerPage: 0.15,
-      waiverStandard: "first 50 pages of black-and-white letter/legal copies free",
-    },
     exemptions: [
       { statuteSection: "5 ILCS 140/7(1)(b)", shortLabel: "Private information" },
       { statuteSection: "5 ILCS 140/7(1)(c)", shortLabel: "Personal privacy" },
@@ -150,11 +134,6 @@ export const stateProfiles: Record<string, StatuteConfig> = {
         noticeRequired: true,
       },
     },
-    feeRules: {
-      chargeableItems: ["copies", "media"],
-      copyRatePerPage: 0.15,
-      waiverStandard: "customized service charge rules apply",
-    },
     exemptions: [
       { statuteSection: "RCW 42.56.230", shortLabel: "Personal information" },
       { statuteSection: "RCW 42.56.240", shortLabel: "Investigative / law enforcement" },
@@ -181,11 +160,6 @@ export const stateProfiles: Record<string, StatuteConfig> = {
         permittedReasons: ["additional time reasonably necessary"],
         noticeRequired: true,
       },
-    },
-    feeRules: {
-      chargeableItems: ["copies"],
-      copyRatePerPage: 0.25,
-      waiverStandard: "no fee for records of 9x14 inches or less at $0.25/page",
     },
     exemptions: [
       { statuteSection: "N.Y. Pub. Off. Law § 87(2)(b)", shortLabel: "Unwarranted privacy invasion" },

@@ -48,7 +48,7 @@ describe("terminal & open states", () => {
     expect(isOpen("draft")).toBe(false);
     expect(isOpen("closed")).toBe(false);
     expect(isOpen("in_progress")).toBe(true);
-    expect(isOpen("fee_pending")).toBe(true);
+    expect(isOpen("records_review")).toBe(true);
   });
 });
 

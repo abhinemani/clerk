@@ -1,0 +1,308 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import {
+  canTransitionTask,
+  taskOwner,
+  TASK_STATUS_LABEL,
+  type TaskStatus,
+} from "@/domain/taskWorkflow";
+import { AiPill, Avatar, SparkIcon } from "./ui";
+
+export interface TaskVM {
+  id: string;
+  token: string;
+  deptName: string;
+  deptLead: string;
+  deptEmail: string;
+  scope: string;
+  status: TaskStatus;
+  dueLabel: string;
+  uploads: { name: string; pages: number }[];
+  pushbackNote?: string;
+}
+
+export interface SuggestionVM {
+  id: string;
+  deptName: string;
+  scope: string;
+  rationale: string;
+}
+
+export interface TriageVM {
+  interpretedScope: string;
+  recordTypes: string[];
+  redFlags: string[];
+  complexityPct: number;
+  ambiguity?: string;
+}
+
+const STATUS_TONE: Record<TaskStatus, string> = {
+  assigned: "band-due_soon",
+  in_progress: "band-due_soon",
+  submitted: "pill-ai",
+  pushed_back: "band-overdue",
+  done: "band-on_track",
+  cancelled: "",
+};
+
+export function RequestWorkspace(props: {
+  triage: TriageVM;
+  initialTasks: TaskVM[];
+  initialSuggestions: SuggestionVM[];
+  agencySlug: string;
+}) {
+  const [tasks, setTasks] = useState<TaskVM[]>(props.initialTasks);
+  const [suggestions, setSuggestions] = useState<SuggestionVM[]>(props.initialSuggestions);
+  const [triageState, setTriageState] = useState<"proposed" | "accepted" | "dismissed">("proposed");
+
+  function move(id: string, to: TaskStatus) {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id && canTransitionTask(t.status, to) ? { ...t, status: to } : t)),
+    );
+  }
+
+  function dispatch(s: SuggestionVM) {
+    const token = `${s.deptName.toLowerCase().replace(/\s+/g, "-")}-${s.id}`;
+    setTasks((prev) => [
+      ...prev,
+      {
+        id: `new-${s.id}`,
+        token,
+        deptName: s.deptName,
+        deptLead: "Department lead",
+        deptEmail: "lead@riverton.gov",
+        scope: s.scope,
+        status: "assigned",
+        dueLabel: "internal due in 3 days",
+        uploads: [],
+      },
+    ]);
+    setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
+  }
+
+  return (
+    <div className="ws-grid">
+      {/* Center — the working area: department tasks */}
+      <div className="stack" style={{ gap: 18 }}>
+        <div>
+          <h2 style={{ fontSize: "1.15rem" }}>Department tasks</h2>
+          <p className="muted" style={{ fontSize: "0.9rem", marginTop: 2 }}>
+            Each task is a scoped ask to the department that holds the records. You dispatch; they
+            fulfill from a no-login link and send it back.
+          </p>
+        </div>
+
+        {tasks.map((t) => (
+          <TaskCard key={t.id} task={t} onMove={move} agencySlug={props.agencySlug} />
+        ))}
+
+        {tasks.length === 0 && (
+          <div className="card card-pad muted" style={{ fontSize: "0.92rem" }}>
+            No tasks dispatched yet. Accept a routing suggestion to send the first one.
+          </div>
+        )}
+      </div>
+
+      {/* Right — the AI panel: triage + routing suggestions */}
+      <aside className="stack" style={{ gap: 16 }}>
+        <div className="panel-title">AI panel</div>
+
+        {triageState !== "dismissed" && (
+          <div className="ai-card">
+            <div className="ai-head">
+              <AiPill>Intake triage</AiPill>
+              <span className="muted" style={{ fontSize: "0.78rem", marginLeft: "auto" }}>
+                complexity {props.triage.complexityPct}%
+              </span>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{props.triage.interpretedScope}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+              {props.triage.recordTypes.map((rt) => (
+                <span key={rt} className="tag">
+                  {rt}
+                </span>
+              ))}
+            </div>
+            {props.triage.redFlags.map((f) => (
+              <div
+                key={f}
+                className="pill band-overdue"
+                style={{ marginTop: 10, display: "inline-flex" }}
+              >
+                ⚠ {f.replace(/_/g, " ")}
+              </div>
+            ))}
+            {triageState === "accepted" ? (
+              <div className="pill band-on_track" style={{ marginTop: 14 }}>
+                ✓ Accepted by you
+              </div>
+            ) : (
+              <div className="ai-actions">
+                <button className="btn btn-sm btn-primary" onClick={() => setTriageState("accepted")}>
+                  Accept
+                </button>
+                <button className="btn btn-sm">Edit</button>
+                <button className="btn btn-sm btn-ghost" onClick={() => setTriageState("dismissed")}>
+                  Dismiss
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {suggestions.length > 0 && (
+          <div className="stack" style={{ gap: 12 }}>
+            <div className="panel-title">Routing suggestions</div>
+            {suggestions.map((s) => (
+              <div key={s.id} className="ai-card">
+                <div className="ai-head">
+                  <AiPill>Route</AiPill>
+                  <strong style={{ fontSize: "0.9rem" }}>{s.deptName}</strong>
+                </div>
+                <div style={{ fontSize: "0.9rem" }}>{s.scope}</div>
+                <div className="muted" style={{ fontSize: "0.82rem", marginTop: 6 }}>
+                  {s.rationale}
+                </div>
+                <div className="ai-actions">
+                  <button className="btn btn-sm btn-primary" onClick={() => dispatch(s)}>
+                    Dispatch to {s.deptName}
+                  </button>
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => setSuggestions((p) => p.filter((x) => x.id !== s.id))}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </aside>
+
+      <style>{`
+        .ws-grid { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }
+        @media (max-width: 980px) { .ws-grid { grid-template-columns: 1fr; } }
+      `}</style>
+    </div>
+  );
+}
+
+function TaskCard({
+  task,
+  onMove,
+  agencySlug,
+}: {
+  task: TaskVM;
+  onMove: (id: string, to: TaskStatus) => void;
+  agencySlug: string;
+}) {
+  const owner = taskOwner(task.status);
+  const attention = task.status === "pushed_back";
+  void agencySlug;
+
+  return (
+    <div className={`task-card${attention ? " attention" : ""}`}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Avatar name={task.deptLead} tone="primary" />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600 }}>{task.deptName}</div>
+          <div className="muted" style={{ fontSize: "0.82rem" }}>
+            {task.deptLead} · {task.dueLabel}
+          </div>
+        </div>
+        <span className={`pill ${STATUS_TONE[task.status]}`}>{TASK_STATUS_LABEL[task.status]}</span>
+      </div>
+
+      <p style={{ fontSize: "0.92rem", marginTop: 12 }}>{task.scope}</p>
+
+      {task.uploads.length > 0 && (
+        <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 6 }}>
+          {task.uploads.map((u) => (
+            <li
+              key={u.name}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: "0.85rem",
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--r-sm)",
+                padding: "7px 10px",
+              }}
+            >
+              <DocIcon />
+              <span className="mono">{u.name}</span>
+              <span className="muted" style={{ marginLeft: "auto" }}>
+                {u.pages}p
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {task.pushbackNote && (
+        <div
+          style={{
+            marginTop: 12,
+            fontSize: "0.88rem",
+            color: "var(--overdue)",
+            background: "var(--surface)",
+            border: "1px solid var(--overdue-border)",
+            borderRadius: "var(--r-sm)",
+            padding: "10px 12px",
+          }}
+        >
+          <strong>Pushback from {task.deptLead}:</strong> {task.pushbackNote}
+        </div>
+      )}
+
+      {/* Owner-appropriate actions — the workflow's hand-offs */}
+      <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
+        {owner === "responder" && (
+          <>
+            <span className="muted" style={{ fontSize: "0.82rem" }}>
+              Awaiting {task.deptLead}
+            </span>
+            <Link href={`/task/${task.token}`} className="btn btn-sm" style={{ marginLeft: "auto" }}>
+              Open responder view →
+            </Link>
+          </>
+        )}
+        {task.status === "submitted" && (
+          <>
+            <button className="btn btn-sm btn-primary" onClick={() => onMove(task.id, "done")}>
+              Accept records
+            </button>
+            <button className="btn btn-sm" onClick={() => onMove(task.id, "in_progress")}>
+              Send back
+            </button>
+          </>
+        )}
+        {task.status === "pushed_back" && (
+          <>
+            <button className="btn btn-sm btn-primary" onClick={() => onMove(task.id, "assigned")}>
+              Re-scope &amp; reassign
+            </button>
+            <button className="btn btn-sm">Escalate to City Attorney</button>
+          </>
+        )}
+        {task.status === "done" && (
+          <span className="pill band-on_track">✓ Records received</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DocIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M14 3v5h5" />
+      <path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+    </svg>
+  );
+}

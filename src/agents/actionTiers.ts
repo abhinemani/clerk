@@ -55,7 +55,6 @@ export type ActionType =
   | "publish_release"
   | "send_denial"
   | "send_extension_notice"
-  | "send_fee_estimate"
   | "finalize_redactions"
   | "send_requester_message" // substantive requester-facing correspondence
   // ---- Forbidden: never, under any config ----
@@ -94,7 +93,6 @@ export const ALL_ACTIONS = new Set<ActionType>([
   "publish_release",
   "send_denial",
   "send_extension_notice",
-  "send_fee_estimate",
   "finalize_redactions",
   "send_requester_message",
   "modify_audit_log",
@@ -137,7 +135,6 @@ export const ACTION_TIERS: Record<Exclude<ActionType, "modify_audit_log" | "modi
   publish_release: 3,
   send_denial: 3,
   send_extension_notice: 3,
-  send_fee_estimate: 3,
   finalize_redactions: 3,
   send_requester_message: 3,
 };

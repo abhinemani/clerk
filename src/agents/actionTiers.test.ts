@@ -69,7 +69,6 @@ describe("Tier 3 — always human, cannot be escalated (§16.3 core invariant)",
     "publish_release",
     "send_denial",
     "send_extension_notice",
-    "send_fee_estimate",
     "finalize_redactions",
     "send_requester_message",
   ];
