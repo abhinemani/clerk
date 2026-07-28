@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DEMO_AGENCY, DEMO_RELEASES } from "@/lib/demo";
-import { AnswerBox } from "./_components/AnswerBox";
+import { PortalTabs } from "./_components/PortalTabs";
 import { SparkIcon } from "./_components/ui";
 
 export default function Portal() {
@@ -15,15 +15,28 @@ export default function Portal() {
         >
           What public records are you looking for?
         </h1>
-        <p className="muted" style={{ fontSize: "1.1rem", marginTop: 14, marginBottom: 26 }}>
+        <p className="muted" style={{ fontSize: "1.1rem", marginTop: 14, marginBottom: 24 }}>
           Ask in plain language. Many records are already public — you can often get what you need in
           seconds, without filing a request.
         </p>
-        <AnswerBox />
-        <p className="muted" style={{ fontSize: "0.85rem", marginTop: 14 }}>
-          Answers come only from records already released to the public. Nothing here reveals
-          unreleased content.
-        </p>
+        <PortalTabs />
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            justifyContent: "center",
+            marginTop: 18,
+          }}
+        >
+          {["Free", "No account needed", "Plain-language answers", "Typical response: 10 days"].map(
+            (chip) => (
+              <span key={chip} className="tag">
+                {chip}
+              </span>
+            ),
+          )}
+        </div>
       </section>
 
       {/* How it works */}

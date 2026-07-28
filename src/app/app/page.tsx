@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { DEMO_AGENCY, DEMO_NOW, DEMO_REQUESTS } from "@/lib/demo";
+import {
+  DEMO_AGENCY,
+  DEMO_NOW,
+  DEMO_REQUESTS,
+  decisionsNeeded,
+  departmentWorkload,
+} from "@/lib/demo";
 import { deadlineRisk, byRiskDesc, type RiskBand } from "@/domain/deadlineRisk";
 import { isTaskTerminal } from "@/domain/taskWorkflow";
 import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/format";
@@ -25,21 +31,23 @@ export default function Queue() {
 
   const open = rows.length;
   const overdue = rows.filter((x) => x.risk.band === "overdue").length;
-  const needsReview = DEMO_REQUESTS.filter((r) => r.triageReady).length;
+  const decisions = decisionsNeeded();
+  const workload = departmentWorkload();
 
   return (
     <div className="wrap" style={{ paddingBlock: "36px" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
-          <span className="eyebrow">{DEMO_AGENCY.name} · Records Coordinator</span>
-          <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Request queue</h1>
+          <span className="eyebrow">{DEMO_AGENCY.name} · Records oversight</span>
+          <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Command center</h1>
         </div>
         <span className="muted" style={{ fontSize: "0.9rem" }}>
-          Sorted by deadline risk
+          {DEMO_AGENCY.coordinator} · Records Coordinator
         </span>
       </div>
 
-      <div className="stat-row" style={{ marginTop: 20 }}>
+      {/* Oversight metrics leaders track (§8, §11) */}
+      <div className="stat-row" style={{ marginTop: 20, gridTemplateColumns: "repeat(5, 1fr)" }}>
         <div className="stat">
           <div className="stat-num">{open}</div>
           <div className="stat-label">Open requests</div>
@@ -51,18 +59,85 @@ export default function Queue() {
           <div className="stat-label">Overdue</div>
         </div>
         <div className="stat">
-          <div className="stat-num" style={{ color: "var(--ai)" }}>
-            {needsReview}
+          <div className="stat-num" style={{ color: decisions.length ? "var(--due)" : undefined }}>
+            {decisions.length}
           </div>
-          <div className="stat-label">AI triage — needs review</div>
+          <div className="stat-label">Need a decision</div>
         </div>
         <div className="stat">
           <div className="stat-num">94%</div>
           <div className="stat-label">On-time rate (90d)</div>
         </div>
+        <div className="stat">
+          <div className="stat-num" style={{ color: "var(--ai)" }}>
+            41
+          </div>
+          <div className="stat-label">Deflections this month</div>
+        </div>
       </div>
 
-      <div className="card" style={{ marginTop: 20, overflow: "hidden" }}>
+      {/* Two-up: what needs a leader's decision today + department workload */}
+      <div className="cc-grid" style={{ marginTop: 20 }}>
+        <div className="card card-pad">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="panel-title">Needs a decision today</div>
+            <span className="pill">{decisions.length}</span>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 10 }}>
+            {decisions.map(({ request, reason, severity }) => (
+              <li key={request.id}>
+                <Link
+                  href={`/app/requests/${request.id}`}
+                  style={{ display: "flex", gap: 10, alignItems: "center", color: "var(--ink)" }}
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      flex: "none",
+                      background: severity === "high" ? "var(--overdue)" : "var(--due)",
+                    }}
+                  />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: 550, fontSize: "0.92rem" }}>{reason}</span>
+                    <span className="muted mono" style={{ display: "block", fontSize: "0.76rem" }}>
+                      {request.publicId} · {request.requesterName}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+            {decisions.length === 0 && <li className="muted">Nothing needs you right now.</li>}
+          </ul>
+        </div>
+
+        <div className="card card-pad">
+          <div className="panel-title">Department workload</div>
+          <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+            {workload.map((d) => (
+              <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Avatar name={d.lead} tone="primary" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 550, fontSize: "0.9rem" }}>{d.name}</div>
+                  <div className="muted" style={{ fontSize: "0.78rem" }}>
+                    {d.open} open · {d.done} done
+                  </div>
+                </div>
+                {d.pushedBack > 0 && <span className="pill band-overdue">{d.pushedBack} pushback</span>}
+                {d.submitted > 0 && <span className="pill pill-ai">{d.submitted} to review</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <h2 style={{ fontSize: "1.15rem", marginTop: 28, marginBottom: 12 }}>
+        All requests <span className="muted" style={{ fontWeight: 400, fontSize: "0.9rem" }}>· by deadline risk</span>
+      </h2>
+
+      <div className="card" style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table className="queue">
             <thead>
@@ -120,6 +195,12 @@ export default function Queue() {
           </table>
         </div>
       </div>
+
+      <style>{`
+        .cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 820px) { .cc-grid { grid-template-columns: 1fr; }
+          .stat-row { grid-template-columns: repeat(2, 1fr) !important; } }
+      `}</style>
     </div>
   );
 }
