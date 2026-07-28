@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { DEMO_NOW, DEMO_REQUESTS } from "@/lib/demo";
+import { useEffect, useState, useTransition } from "react";
 import { dateShort } from "@/lib/format";
 import { isPublicId } from "@/domain/publicId";
+import { trackRequest, type TrackResult } from "../portal/actions";
 
 /** Plain-language, resident-facing status (no jargon). */
 const RESIDENT_STATUS: Record<string, { headline: string; detail: string; tone: "ok" | "wait" | "action" }> = {
@@ -22,24 +22,39 @@ const RESIDENT_STATUS: Record<string, { headline: string; detail: string; tone: 
   closed: { headline: "Closed", detail: "This request is complete.", tone: "ok" },
 };
 
-const MS_DAY = 86_400_000;
-
 export function RequestTracker({ initialId = "" }: { initialId?: string }) {
   const [q, setQ] = useState(initialId);
-  const [searched, setSearched] = useState(Boolean(initialId));
+  const [result, setResult] = useState<TrackResult | null>(null);
+  const [searchedFor, setSearchedFor] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function lookup(id: string) {
+    const trimmed = id.trim();
+    if (!trimmed) return;
+    startTransition(async () => {
+      const r = await trackRequest(trimmed);
+      setResult(r);
+      setSearchedFor(trimmed);
+    });
+  }
+
+  // Deep link (?id=…) from the filing confirmation: look it up on arrival.
+  useEffect(() => {
+    if (initialId) lookup(initialId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const trimmed = q.trim();
-  const match = DEMO_REQUESTS.find((r) => r.publicId.toLowerCase() === trimmed.toLowerCase());
-  // A freshly-filed request isn't in the demo set — show a friendly generic state
-  // for any well-formed tracking number instead of "not found".
-  const validButUnknown = !match && isPublicId(trimmed.toUpperCase());
+  // A malformed number never left the demo era; a well-formed unknown one gets
+  // a friendly generic state instead of "not found".
+  const validButUnknown = result && !result.found && isPublicId((searchedFor ?? "").toUpperCase());
 
   return (
     <div>
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          setSearched(true);
+          lookup(q);
         }}
         style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
       >
@@ -50,23 +65,29 @@ export function RequestTracker({ initialId = "" }: { initialId?: string }) {
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
-            setSearched(false);
+            setResult(null);
           }}
           aria-label="Request tracking number"
         />
-        <button className="btn btn-primary" type="submit" style={{ paddingInline: 22 }}>
-          Track
+        <button className="btn btn-primary" type="submit" style={{ paddingInline: 22 }} disabled={pending || !trimmed}>
+          {pending ? "Checking…" : "Track"}
         </button>
       </form>
 
-      {searched && trimmed && (
+      {result && searchedFor && (
         <div className="card" style={{ marginTop: 14, overflow: "hidden" }}>
-          {match ? (
-            <TrackerResult publicId={match.publicId} status={match.status} received={match.receivedAt} due={match.dueAt} />
+          {result.found ? (
+            <TrackerResult
+              publicId={result.publicId}
+              status={result.status}
+              received={new Date(result.receivedAtISO)}
+              due={new Date(result.dueAtISO)}
+              daysLeft={result.daysLeft}
+            />
           ) : validButUnknown ? (
             <div style={{ padding: "18px 20px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span className="mono muted">{trimmed.toUpperCase()}</span>
+                <span className="mono muted">{searchedFor.toUpperCase()}</span>
                 <span className="pill" style={{ marginLeft: "auto" }}>
                   Received
                 </span>
@@ -96,14 +117,15 @@ function TrackerResult({
   status,
   received,
   due,
+  daysLeft,
 }: {
   publicId: string;
   status: string;
   received: Date;
   due: Date;
+  daysLeft: number;
 }) {
   const s = RESIDENT_STATUS[status] ?? { headline: status, detail: "", tone: "wait" as const };
-  const daysLeft = Math.round((due.getTime() - DEMO_NOW.getTime()) / MS_DAY);
   const band = s.tone === "ok" ? "band-on_track" : s.tone === "action" ? "band-due_soon" : "pill";
 
   return (

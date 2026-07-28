@@ -11,7 +11,7 @@ import { vector } from "@electric-sql/pglite/vector";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
-import { agencies, users } from "@/db/schema";
+import { agencies, departments, users } from "@/db/schema";
 import { DrizzleRepository } from "./drizzleRepository";
 import { NotFoundError } from "@/services/repository";
 import type { ServiceDeps } from "@/services/deps";
@@ -32,6 +32,10 @@ async function freshRepo(): Promise<DrizzleRepository> {
     { id: AG2, slug: "other", name: "Other City", stateCode: "TX" },
   ]);
   await db.insert(users).values({ id: USER1, agencyId: AG1, email: "clerk@riverton.gov", role: "coordinator" });
+  await db.insert(departments).values([
+    { agencyId: AG1, name: "Public Works", defaultResponderEmails: ["mbell@riverton.gov"] },
+    { agencyId: AG2, name: "Other Dept", defaultResponderEmails: [] },
+  ]);
   return new DrizzleRepository(db);
 }
 
@@ -88,6 +92,48 @@ describe("DrizzleRepository (embedded PGlite)", () => {
     expect(activity.tasks).toHaveLength(1);
     expect(activity.taskRollup.byStatus.done).toBe(1);
     expect(activity.events.some((e) => e.kind === "approval")).toBe(true);
+  });
+
+  it("lists requests newest-first and finds them by public id — the UI read path", async () => {
+    const d = deps(repo);
+    const filed = await submitRequest(d, {
+      agencyId: AG1,
+      rawText: "council minutes 2025",
+      requester: { name: "Pat Doe", type: "individual" },
+    });
+
+    const all = await repo.listRequests(AG1);
+    expect(all.length).toBeGreaterThanOrEqual(1);
+    expect(all.some((r) => r.id === filed.id)).toBe(true);
+    // Tenant isolation on the list path too.
+    expect((await repo.listRequests(AG2)).some((r) => r.id === filed.id)).toBe(false);
+
+    const byPublicId = await repo.findRequestByPublicId(AG1, filed.publicId);
+    expect(byPublicId?.id).toBe(filed.id);
+    expect(await repo.findRequestByPublicId(AG2, filed.publicId)).toBeNull();
+
+    // Requester resolves for the queue's display name.
+    const requester = filed.requesterId ? await repo.getRequester(AG1, filed.requesterId) : null;
+    expect(requester?.name).toBe("Pat Doe");
+  });
+
+  it("lists departments and agency-wide tasks, tenant-scoped", async () => {
+    const d = deps(repo);
+    const depts = await repo.listDepartments(AG1);
+    expect(depts.map((x) => x.name)).toContain("Public Works");
+    expect(depts.map((x) => x.name)).not.toContain("Other Dept");
+
+    const req = await submitRequest(d, { agencyId: AG1, rawText: "permits" });
+    const task = await dispatchTask(d, {
+      agencyId: AG1,
+      requestId: req.id,
+      departmentId: depts[0]!.id,
+      departmentName: depts[0]!.name,
+      scopeText: "pull permits",
+    });
+    const agencyTasks = await repo.listAgencyTasks(AG1);
+    expect(agencyTasks.some((t) => t.id === task.id)).toBe(true);
+    expect((await repo.listAgencyTasks(AG2)).some((t) => t.id === task.id)).toBe(false);
   });
 
   it("idempotently upserts an ingested document by external id", async () => {

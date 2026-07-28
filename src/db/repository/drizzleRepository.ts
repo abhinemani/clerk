@@ -7,11 +7,12 @@
  * Tenant isolation is enforced in every read: queries AND `agency_id` in, and a
  * row from another agency is invisible.
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import {
   agencies,
   deflections,
+  departments,
   documents,
   publicIdCounters,
   requestEvents,
@@ -24,6 +25,7 @@ import {
   NotFoundError,
   type Agency,
   type DeflectionEntity,
+  type Department,
   type DocumentEntity,
   type EventEntity,
   type RequestEntity,
@@ -58,12 +60,30 @@ export class DrizzleRepository implements Repository {
       .limit(1);
     return r ? this.toRequester(r) : null;
   }
+  async getRequester(agencyId: string, id: string): Promise<Requester | null> {
+    const [r] = await this.db
+      .select()
+      .from(requesters)
+      .where(tenantWhere(requesters.agencyId, agencyId, eq(requesters.id, id)))
+      .limit(1);
+    return r ? this.toRequester(r) : null;
+  }
   async createRequester(r: Requester): Promise<Requester> {
     await this.db.insert(requesters).values({ id: r.id, agencyId: r.agencyId, email: r.email, name: r.name, type: r.type });
     return r;
   }
   private toRequester(r: typeof requesters.$inferSelect): Requester {
     return { id: r.id, agencyId: r.agencyId, email: r.email, name: r.name, type: r.type };
+  }
+
+  async listDepartments(agencyId: string): Promise<Department[]> {
+    const rows = await this.db.select().from(departments).where(eq(departments.agencyId, agencyId));
+    return rows.map((d: typeof departments.$inferSelect) => ({
+      id: d.id,
+      agencyId: d.agencyId,
+      name: d.name,
+      defaultResponderEmails: d.defaultResponderEmails ?? [],
+    }));
   }
 
   async nextPublicIdSeq(agencyId: string, year: number): Promise<number> {
@@ -102,6 +122,22 @@ export class DrizzleRepository implements Repository {
       .where(tenantWhere(requests.agencyId, agencyId, eq(requests.id, id)))
       .limit(1);
     return r ? this.toRequest(r) : null;
+  }
+  async findRequestByPublicId(agencyId: string, publicId: string): Promise<RequestEntity | null> {
+    const [r] = await this.db
+      .select()
+      .from(requests)
+      .where(tenantWhere(requests.agencyId, agencyId, eq(requests.publicId, publicId)))
+      .limit(1);
+    return r ? this.toRequest(r) : null;
+  }
+  async listRequests(agencyId: string): Promise<RequestEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(requests)
+      .where(eq(requests.agencyId, agencyId))
+      .orderBy(desc(requests.createdAt));
+    return rows.map((r: typeof requests.$inferSelect) => this.toRequest(r));
   }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>): Promise<RequestEntity> {
     const set: Record<string, unknown> = {};
@@ -161,6 +197,10 @@ export class DrizzleRepository implements Repository {
       .select()
       .from(tasks)
       .where(tenantWhere(tasks.agencyId, agencyId, eq(tasks.requestId, requestId)));
+    return rows.map((r: typeof tasks.$inferSelect) => this.toTask(r));
+  }
+  async listAgencyTasks(agencyId: string): Promise<TaskEntity[]> {
+    const rows = await this.db.select().from(tasks).where(eq(tasks.agencyId, agencyId));
     return rows.map((r: typeof tasks.$inferSelect) => this.toTask(r));
   }
   async updateTask(agencyId: string, id: string, patch: Partial<TaskEntity>): Promise<TaskEntity> {

@@ -1,16 +1,12 @@
 import Link from "next/link";
-import {
-  DEMO_AGENCY,
-  DEMO_NOW,
-  DEMO_REQUESTS,
-  decisionsNeeded,
-  departmentWorkload,
-} from "@/lib/demo";
+import { decisionsFor, getWorkspace, outstandingTasks, workloadFor } from "@/lib/live";
 import { deadlineRisk, byRiskDesc, type RiskBand } from "@/domain/deadlineRisk";
-import { isTaskTerminal } from "@/domain/taskWorkflow";
 import { runDeadlineSweep } from "@/agents/deadlineAgent";
 import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/format";
-import { AiPill, Avatar, DeadlineBand, RiskMeter, SparkIcon, StatusPill } from "../_components/ui";
+import { AiPill, Avatar, DeadlineBand, RiskMeter, StatusPill } from "../_components/ui";
+
+// Reads the live database — never prerender a stale queue at build time.
+export const dynamic = "force-dynamic";
 
 const BAND_LABEL: Record<RiskBand, string> = {
   overdue: "Overdue",
@@ -19,39 +15,42 @@ const BAND_LABEL: Record<RiskBand, string> = {
 };
 
 export default async function Queue() {
+  const ws = await getWorkspace();
+
   // The deadline agent runs its nightly sweep (pure logic, no model) and hands
   // the coordinator a morning digest (§16.1).
   const sweep = await runDeadlineSweep({
-    now: DEMO_NOW,
-    queue: DEMO_REQUESTS.map((r) => ({
+    now: ws.now,
+    queue: ws.requests.map((r) => ({
       publicId: r.publicId,
       dueAt: r.dueAt,
-      outstandingTasks: r.tasks.filter((t) => !isTaskTerminal(t.status)).length,
-      complexityScore: r.complexityScore,
+      outstandingTasks: outstandingTasks(r),
+      complexityScore: r.complexityScore ?? 0, // untriaged → no complexity signal yet
     })),
   });
 
-  const rows = DEMO_REQUESTS.map((r) => {
-    const outstandingTasks = r.tasks.filter((t) => !isTaskTerminal(t.status)).length;
-    const risk = deadlineRisk({
-      dueAt: r.dueAt,
-      now: DEMO_NOW,
-      outstandingTasks,
-      complexityScore: r.complexityScore,
-    });
-    return { r, risk };
-  }).sort((a, b) => byRiskDesc(a.risk, b.risk));
+  const rows = ws.requests
+    .map((r) => {
+      const risk = deadlineRisk({
+        dueAt: r.dueAt,
+        now: ws.now,
+        outstandingTasks: outstandingTasks(r),
+        complexityScore: r.complexityScore ?? 0,
+      });
+      return { r, risk };
+    })
+    .sort((a, b) => byRiskDesc(a.risk, b.risk));
 
   const open = rows.length;
   const overdue = rows.filter((x) => x.risk.band === "overdue").length;
-  const decisions = decisionsNeeded();
-  const workload = departmentWorkload();
+  const decisions = decisionsFor(ws.requests, ws.now);
+  const workload = workloadFor(ws.departments, ws.requests);
 
   return (
     <div className="wrap" style={{ paddingBlock: "36px" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
-          <span className="eyebrow">{DEMO_AGENCY.name} · Records oversight</span>
+          <span className="eyebrow">{ws.agencyName} · Records oversight</span>
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Command center</h1>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -59,10 +58,17 @@ export default async function Queue() {
             Compliance report →
           </Link>
           <span className="muted hide-sm" style={{ fontSize: "0.9rem" }}>
-            {DEMO_AGENCY.coordinator}
+            {ws.coordinator}
           </span>
         </div>
       </div>
+
+      {ws.source === "demo" && (
+        <p className="muted" style={{ fontSize: "0.82rem", marginTop: 8 }}>
+          Showing sample data — run <span className="mono">npm run seed</span> (or file a request in
+          the portal) to switch to the live database.
+        </p>
+      )}
 
       {/* Oversight metrics leaders track (§8, §11) */}
       <div className="stat-row" style={{ marginTop: 20, gridTemplateColumns: "repeat(5, 1fr)" }}>
@@ -229,6 +235,13 @@ export default async function Queue() {
                   </td>
                 </tr>
               ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="muted" style={{ padding: 20 }}>
+                    No requests yet — file one from the portal and it lands here.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

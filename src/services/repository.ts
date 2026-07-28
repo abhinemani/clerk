@@ -36,6 +36,13 @@ export interface Requester {
   type: RequesterType;
 }
 
+export interface Department {
+  id: string;
+  agencyId: string;
+  name: string;
+  defaultResponderEmails: string[];
+}
+
 export interface RequestEntity {
   id: string;
   agencyId: string;
@@ -117,11 +124,18 @@ export interface Repository {
   getAgencyBySlug(slug: string): Promise<Agency | null>;
 
   findRequesterByEmail(agencyId: string, email: string): Promise<Requester | null>;
+  getRequester(agencyId: string, id: string): Promise<Requester | null>;
   createRequester(r: Requester): Promise<Requester>;
+
+  listDepartments(agencyId: string): Promise<Department[]>;
 
   nextPublicIdSeq(agencyId: string, year: number): Promise<number>;
   createRequest(r: RequestEntity): Promise<RequestEntity>;
   getRequest(agencyId: string, id: string): Promise<RequestEntity | null>;
+  /** Public-id lookup for the requester-facing tracker (e.g. "PR-2026-00341"). */
+  findRequestByPublicId(agencyId: string, publicId: string): Promise<RequestEntity | null>;
+  /** All requests for an agency, newest first — the staff queue. */
+  listRequests(agencyId: string): Promise<RequestEntity[]>;
   updateRequest(
     agencyId: string,
     id: string,
@@ -132,6 +146,8 @@ export interface Repository {
   getTask(agencyId: string, id: string): Promise<TaskEntity | null>;
   getTaskByToken(token: string): Promise<TaskEntity | null>;
   listTasks(agencyId: string, requestId: string): Promise<TaskEntity[]>;
+  /** Every task in the agency — queue rollups and department workload (§8, §11). */
+  listAgencyTasks(agencyId: string): Promise<TaskEntity[]>;
   updateTask(agencyId: string, id: string, patch: Partial<TaskEntity>): Promise<TaskEntity>;
 
   appendEvent(e: EventEntity): Promise<EventEntity>;
@@ -158,6 +174,7 @@ export class NotFoundError extends Error {
 export class InMemoryRepository implements Repository {
   private agencies = new Map<string, Agency>();
   private requesters = new Map<string, Requester>();
+  private departments = new Map<string, Department>();
   private requests = new Map<string, RequestEntity>();
   private tasks = new Map<string, TaskEntity>();
   private events: EventEntity[] = [];
@@ -167,6 +184,11 @@ export class InMemoryRepository implements Repository {
 
   seedAgency(a: Agency): this {
     this.agencies.set(a.id, a);
+    return this;
+  }
+
+  seedDepartment(d: Department): this {
+    this.departments.set(d.id, d);
     return this;
   }
 
@@ -184,9 +206,17 @@ export class InMemoryRepository implements Repository {
       ) ?? null
     );
   }
+  async getRequester(agencyId: string, id: string) {
+    const r = this.requesters.get(id);
+    return r && r.agencyId === agencyId ? r : null;
+  }
   async createRequester(r: Requester) {
     this.requesters.set(r.id, r);
     return r;
+  }
+
+  async listDepartments(agencyId: string) {
+    return [...this.departments.values()].filter((d) => d.agencyId === agencyId);
   }
 
   async nextPublicIdSeq(agencyId: string, year: number) {
@@ -203,6 +233,18 @@ export class InMemoryRepository implements Repository {
   async getRequest(agencyId: string, id: string) {
     const r = this.requests.get(id);
     return r && r.agencyId === agencyId ? r : null; // tenant isolation
+  }
+  async findRequestByPublicId(agencyId: string, publicId: string) {
+    return (
+      [...this.requests.values()].find(
+        (r) => r.agencyId === agencyId && r.publicId === publicId,
+      ) ?? null
+    );
+  }
+  async listRequests(agencyId: string) {
+    return [...this.requests.values()]
+      .filter((r) => r.agencyId === agencyId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>) {
     const r = await this.getRequest(agencyId, id);
@@ -227,6 +269,9 @@ export class InMemoryRepository implements Repository {
     return [...this.tasks.values()].filter(
       (t) => t.agencyId === agencyId && t.requestId === requestId,
     );
+  }
+  async listAgencyTasks(agencyId: string) {
+    return [...this.tasks.values()].filter((t) => t.agencyId === agencyId);
   }
   async updateTask(agencyId: string, id: string, patch: Partial<TaskEntity>) {
     const t = await this.getTask(agencyId, id);

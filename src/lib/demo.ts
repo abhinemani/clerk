@@ -252,64 +252,9 @@ export function findTaskByToken(
   return undefined;
 }
 
-// --- management / oversight views (for governmental leaders) ---------------
-
-const MS_DAY = 86_400_000;
-
-export interface DeptLoad {
-  id: string;
-  name: string;
-  lead: string;
-  assigned: number;
-  inProgress: number;
-  submitted: number;
-  pushedBack: number;
-  done: number;
-  open: number;
-}
-
-/** Task load per department — where the bottlenecks are (§8, §11). */
-export function departmentWorkload(): DeptLoad[] {
-  const map = new Map<string, DeptLoad>();
-  for (const d of DEMO_DEPARTMENTS) {
-    map.set(d.id, { id: d.id, name: d.name, lead: d.lead, assigned: 0, inProgress: 0, submitted: 0, pushedBack: 0, done: 0, open: 0 });
-  }
-  for (const r of DEMO_REQUESTS) {
-    for (const t of r.tasks) {
-      const load = map.get(t.departmentId);
-      if (!load) continue;
-      if (t.status === "assigned") load.assigned++;
-      else if (t.status === "in_progress") load.inProgress++;
-      else if (t.status === "submitted") load.submitted++;
-      else if (t.status === "pushed_back") load.pushedBack++;
-      else if (t.status === "done") load.done++;
-    }
-  }
-  for (const load of map.values()) load.open = load.assigned + load.inProgress + load.pushedBack;
-  return [...map.values()];
-}
-
-export interface Decision {
-  request: DemoRequest;
-  reason: string;
-  severity: "high" | "med";
-}
-
-/** "What needs a leader's decision today" — the top of the management view. */
-export function decisionsNeeded(): Decision[] {
-  const out: Decision[] = [];
-  for (const r of DEMO_REQUESTS) {
-    const pushedBack = r.tasks.some((t) => t.status === "pushed_back");
-    const submitted = r.tasks.some((t) => t.status === "submitted");
-    const dueDays = Math.round((r.dueAt.getTime() - DEMO_NOW.getTime()) / MS_DAY);
-    if (pushedBack) out.push({ request: r, reason: "A department pushed back — needs your call", severity: "high" });
-    else if (dueDays < 0) out.push({ request: r, reason: "Overdue", severity: "high" });
-    else if (submitted) out.push({ request: r, reason: "Records submitted — ready for review", severity: "med" });
-    else if (r.triageReady) out.push({ request: r, reason: "AI triage ready — review the draft", severity: "med" });
-    else if (dueDays <= 1) out.push({ request: r, reason: "Due within a day", severity: "med" });
-  }
-  return out.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "high" ? -1 : 1));
-}
+// --- public archive --------------------------------------------------------
+// (Oversight rollups — department workload, decisions needed — live in
+// src/lib/live.ts now, shared by the live-DB and demo-fixture sources.)
 
 /** Naive public-corpus search for the deflection answer box (§6.7). Public data only. */
 export function searchPublicReleases(query: string): DemoRelease[] {

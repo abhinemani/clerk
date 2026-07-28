@@ -2,7 +2,7 @@
 
 Snapshot for picking this up in a fresh session.
 Repo: <https://github.com/abhinemani/clerk> · branch `main`.
-**238 tests pass, typecheck + production build clean.**
+**240 tests pass, typecheck + production build clean.**
 
 ## What this is
 Clerk — an AI-native public records (FOIA) platform. Root spec: `~/Desktop/foia.md`
@@ -49,15 +49,24 @@ Demo scripts: `npm run duedate` (no key), `npm run triage` (needs ANTHROPIC_API_
   now backed by `getRepository()`.
 - **UI** `src/app/` — portal `/` (Find/Track + file-a-request), staff Command center
   `/app`, request detail + coordinator↔department workflow, Redaction Studio
-  `/app/requests/[id]/redact`, responder `/task/[token]`. Driven by `src/lib/demo.ts`.
+  `/app/requests/[id]/redact`, responder `/task/[token]`.
+- **UI ↔ DB wiring (verified end-to-end in the browser)** — filing at `/portal/request`
+  calls the `fileRequest` server action (`src/app/portal/actions.ts`) → real
+  `submitRequest` → PGlite/Postgres; the request gets a minted public id + CA statutory
+  deadline and appears in the staff queue, tracker, and detail page (whose timeline is
+  now the real append-only audit log). `src/lib/live.ts` is the view-model seam: it
+  reads via `getRepository()` when the agency is seeded and falls back to the
+  `src/lib/demo.ts` fixture on a fresh clone (banner says so). First filing bootstraps
+  the agency via `src/lib/bootstrap.ts` (shared with `npm run seed`).
 
-## The next step (the seam is ready)
-The DB layer is done and tested, but the **UI pages still read the demo fixture**
-(`src/lib/demo.ts`), not `getRepository()`. Wire them so a filed request flows
-through to the staff queue/agents:
-1. Portal `/portal/request` → a server action calling `submitRequest(defaultDeps(await getRepository()), …)`.
-2. Tracker + staff queue + request detail → read via the services (`getRequestActivity`, etc.).
-3. Then **Auth.js** for staff roles, and a real **EmbeddingProvider** so hybrid search/dedup run on the live corpus.
+## The next step
+1. **Persist coordinator actions** — `RequestWorkspace` (accept triage / dispatch task /
+   accept records) still mutates client state only. Wire its buttons to server actions
+   over `taskService` (`dispatchTask`, `acceptTaskRecords`…), and `/task/[token]` to
+   `getTaskByToken` + `startTask`/`submitTaskRecords`/`pushBackTask`. The services and
+   tests already exist — it's the same wiring pattern as `src/app/portal/actions.ts`.
+2. **Auth.js** for staff roles (coordinator vs responder vs read-only).
+3. A real **EmbeddingProvider** so hybrid search/dedup run on the live corpus.
 
 ## Deploy (edit → git push → live)
 - **Vercel + Neon**: import repo, add Neon (one-click, injects `DATABASE_URL`, pgvector),

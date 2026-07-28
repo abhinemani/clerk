@@ -1,40 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { computeDueDate } from "@/statute/computeDueDate";
-import { getStateProfile } from "@/statute/profiles";
-import { formatPublicId } from "@/domain/publicId";
 import { dateShort } from "@/lib/format";
+import { fileRequest } from "../portal/actions";
 
 type RequesterType = "individual" | "media" | "legal" | "commercial" | "government";
 
 /**
- * Resident request-submission flow. On submit it mirrors what the service layer
- * does (mint a public id, compute the statutory deadline) and shows a
- * confirmation — a working demo of filing, no account required.
+ * Resident request-submission flow. Submitting calls the `fileRequest` server
+ * action — the real service layer: the request is persisted, gets a public id
+ * and statutory deadline, and lands in the staff queue at /app.
  */
 export function RequestForm({ initialQuery = "" }: { initialQuery?: string }) {
   const [text, setText] = useState(initialQuery);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [type, setType] = useState<RequesterType>("individual");
+  const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<null | { publicId: string; dueLabel: string }>(null);
+  const [pending, startTransition] = useTransition();
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (text.trim().length < 3) return;
-
-    // Mirror submitRequest: public id + statutory deadline (CA profile).
-    const seq = 355 + Math.floor(Math.random() * 90);
-    const publicId = formatPublicId(2026, seq);
-    const profile = getStateProfile("CA");
-    let dueLabel = "within the statutory deadline";
-    if (profile) {
-      const due = computeDueDate({ receivedAt: new Date(), clock: profile.responseClock, holidays: [] });
-      dueLabel = dateShort(due.dueAt);
-    }
-    setSubmitted({ publicId, dueLabel });
+    if (text.trim().length < 3 || pending) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await fileRequest({ text, name, email, type });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      const dueLabel = result.dueAtISO ? dateShort(new Date(result.dueAtISO)) : "the statutory deadline";
+      setSubmitted({ publicId: result.publicId, dueLabel });
+    });
   }
 
   if (submitted) {
@@ -133,9 +132,15 @@ export function RequestForm({ initialQuery = "" }: { initialQuery?: string }) {
         You can request anonymously — an email just lets us send updates. This is free.
       </p>
 
+      {error && (
+        <p className="pill band-overdue" role="alert" style={{ justifySelf: "start" }}>
+          {error}
+        </p>
+      )}
+
       <div>
-        <button className="btn btn-primary" type="submit" disabled={text.trim().length < 3}>
-          File request
+        <button className="btn btn-primary" type="submit" disabled={text.trim().length < 3 || pending}>
+          {pending ? "Filing…" : "File request"}
         </button>
       </div>
 

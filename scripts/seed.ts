@@ -7,52 +7,26 @@
  *
  * Idempotent: re-running is a no-op once seeded.
  */
-import { eq } from "drizzle-orm";
-import { getDb, getRepository } from "../src/db/createRepository";
-import { agencies, departments, users } from "../src/db/schema";
+import { getRepository } from "../src/db/createRepository";
+import { ensureAgency } from "../src/lib/bootstrap";
 import { defaultDeps } from "../src/services/deps";
 import { submitRequest } from "../src/services/requestService";
 
-const AGENCY_ID = "a0000000-0000-4000-8000-000000000001";
-const COORDINATOR_ID = "a0000000-0000-4000-8000-000000000002";
-
 async function main() {
-  const db = await getDb();
-
-  const existing = await db.select().from(agencies).where(eq(agencies.slug, "riverton")).limit(1);
-  if (existing.length) {
+  const { agencyId, created } = await ensureAgency();
+  if (!created) {
     console.log("Already seeded — nothing to do.");
     process.exit(0);
   }
 
-  await db.insert(agencies).values({
-    id: AGENCY_ID,
-    slug: "riverton",
-    name: "City of Riverton",
-    stateCode: "CA",
-    observedHolidays: [],
-  });
-  await db.insert(users).values({
-    id: COORDINATOR_ID,
-    agencyId: AGENCY_ID,
-    email: "dana@riverton.gov",
-    name: "Dana Okafor",
-    role: "coordinator",
-  });
-  await db.insert(departments).values([
-    { agencyId: AGENCY_ID, name: "Public Works", defaultResponderEmails: ["mbell@riverton.gov"] },
-    { agencyId: AGENCY_ID, name: "Police Records", defaultResponderEmails: ["rvann@riverton.gov"] },
-    { agencyId: AGENCY_ID, name: "City Clerk", defaultResponderEmails: ["pshah@riverton.gov"] },
-  ]);
-
   const deps = defaultDeps(await getRepository());
   await submitRequest(deps, {
-    agencyId: AGENCY_ID,
+    agencyId,
     rawText: "All inspection reports for 400 Main St from January 2024 to present.",
     requester: { email: "jordan@rivertonledger.com", name: "Jordan Alvarez", type: "media" },
   });
   await submitRequest(deps, {
-    agencyId: AGENCY_ID,
+    agencyId,
     rawText: "The current janitorial services contract for City Hall.",
     requester: { name: "Wei Chen", type: "individual" },
   });
