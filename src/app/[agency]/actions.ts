@@ -61,6 +61,12 @@ export async function fileRequest(input: {
             type: input.type,
           },
     });
+
+    // AI proposes off the request path: queue intake triage (§6.1). The job
+    // no-ops without ANTHROPIC_API_KEY.
+    const { getJobQueue } = await import("@/jobs/queue");
+    getJobQueue().enqueue("intake_triage", { agencyId, requestId: request.id });
+
     return { ok: true, publicId: request.publicId, dueAtISO: request.statutoryDueAt?.toISOString() ?? null };
   } catch (e) {
     console.error("fileRequest failed", e);

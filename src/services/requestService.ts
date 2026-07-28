@@ -201,6 +201,8 @@ export async function applyTriageDraft(
     complexityScore: number;
     promptVersion: string;
     model: string;
+    /** Statutory red flags surfaced by the pipeline (recorded for the audit log). */
+    redFlags?: string[];
   },
 ): Promise<RequestEntity> {
   const { repo } = deps;
@@ -221,7 +223,12 @@ export async function applyTriageDraft(
     kind: "ai_action",
     actorUserId: null,
     summary: "Intake triage draft applied",
-    payload: { pipeline: "intake_triage", promptVersion: input.promptVersion, model: input.model },
+    payload: {
+      pipeline: "intake_triage",
+      promptVersion: input.promptVersion,
+      model: input.model,
+      redFlags: input.redFlags ?? [],
+    },
     createdAt: at,
   });
 
