@@ -180,11 +180,34 @@ export const eventKind = pgEnum("event_kind", [
   "status_change",
   "message",
   "ai_action",
+  "agent_action", // a single step taken by an agent run (§16.2)
   "approval",
   "extension",
   "delivery",
   "assignment",
   "note",
+]);
+
+// The five agents of §16.1.
+export const agentType = pgEnum("agent_type", [
+  "fulfillment",
+  "deadline",
+  "release_prep",
+  "ingest_steward",
+  "requester_side",
+]);
+
+// Agent run lifecycle (§16.2). Runs are resumable, interruptible, and pause at
+// human checkpoints for Tier-3 actions (§16.3).
+export const agentRunStatus = pgEnum("agent_run_status", [
+  "planning",
+  "running",
+  "paused", // human-initiated pause/redirect
+  "awaiting_checkpoint", // blocked on a required human approval (Tier 3)
+  "completed",
+  "exhausted", // hit a budget cap; handed off gracefully
+  "failed",
+  "cancelled",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -378,10 +401,17 @@ export const requestEvents = pgTable(
     summary: text("summary").notNull(),
     // Structured payload; for ai_action: { model, promptVersion, inputRef,
     // outputRef, inputTokens, outputTokens }. For status_change: { from, to }.
+    // For agent_action: { step, tool/action, disposition, planSnapshot }.
     payload: jsonb("payload").$type<Record<string, unknown>>(),
+    // Links an agent-taken step back to its run so "why did it do that" is always
+    // answerable, and autonomous sends are attributable in the UI (§16.2, §16.3).
+    agentRunId: uuid("agent_run_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("request_events_request_idx").on(t.requestId, t.createdAt)],
+  (t) => [
+    index("request_events_request_idx").on(t.requestId, t.createdAt),
+    index("request_events_agent_run_idx").on(t.agentRunId),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -777,8 +807,94 @@ export const deflections = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Agent runs (§16) — resumable, interruptible, auditable orchestrations
+// ---------------------------------------------------------------------------
+
+/**
+ * agent_runs — persisted plan state for an agent working over time (§16.2).
+ *
+ * "Agents are resumable and interruptible: persist plan state in the DB (an
+ *  agent_runs table), execute steps as queue jobs, survive restarts, and a human
+ *  can pause/redirect any run from the UI."
+ *
+ * Every step also appends to request_events (kind='agent_action', agentRunId set)
+ * so a run is replayable and auditable end-to-end.
+ */
+export const agentRuns = pgTable(
+  "agent_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    agentType: agentType("agent_type").notNull(),
+    // Per-request agents (fulfillment, release_prep) set this; queue-wide /
+    // data-plane agents (deadline, ingest_steward) leave it null (§16.1).
+    requestId: uuid("request_id").references(() => requests.id, { onDelete: "cascade" }),
+    status: agentRunStatus("status").notNull().default("planning"),
+    goal: text("goal").notNull(),
+    // The running plan: goal + ordered steps + cursor (§16.1 "a running plan
+    // with checkpoints, not a chat log").
+    plan: jsonb("plan").$type<AgentPlanState>(),
+    // Budget caps and running spend (§16.2 "Budget caps per run").
+    budgetLimits: jsonb("budget_limits").$type<AgentBudgetLimits>(),
+    budgetSpend: jsonb("budget_spend").$type<AgentBudgetSpend>(),
+    // Retrieval scope; requester_side is hard-scoped to the public corpus (§16.3).
+    corpusScope: classification("corpus_scope"), // null = full corpus
+    // Null actor = system/cron initiated (e.g. the nightly deadline sweep).
+    startedByUserId: uuid("started_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    pausedByUserId: uuid("paused_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    // Graceful "here's where I got to" note on budget exhaustion (§16.2).
+    handoffNote: text("handoff_note"),
+    lastStepAt: timestamp("last_step_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("agent_runs_agency_status_idx").on(t.agencyId, t.status),
+    index("agent_runs_request_idx").on(t.requestId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Shared JSONB payload types (kept here so schema is the single source of truth)
 // ---------------------------------------------------------------------------
+
+export interface AgentBudgetLimits {
+  maxToolCalls: number;
+  maxTokens: number;
+  maxWallClockMs: number;
+}
+
+export interface AgentBudgetSpend {
+  toolCalls: number;
+  tokens: number;
+  wallClockMs: number;
+}
+
+/** A single planned step in an agent run (§16.1 running plan). */
+export interface AgentPlanStep {
+  index: number;
+  // Exactly one of tool / action is set: a tool is a read/compute capability;
+  // an action is a side-effecting move subject to the tier system (§16.3).
+  tool?: string;
+  action?: string;
+  description: string;
+  input?: Record<string, unknown>;
+  status: "pending" | "done" | "skipped" | "blocked" | "awaiting_human";
+  disposition?: "autonomous" | "requires_human" | "forbidden";
+  output?: unknown;
+  note?: string;
+}
+
+export interface AgentPlanState {
+  goal: string;
+  steps: AgentPlanStep[];
+  cursor: number; // index of the next step to execute
+}
 
 export interface ExtensionRecord {
   at: string; // ISO timestamp
@@ -867,6 +983,7 @@ export const allTables = {
   releases,
   templates,
   deflections,
+  agentRuns,
 } as const;
 
 // Silence unused-import warning for `sql` when no raw defaults are used yet; it
