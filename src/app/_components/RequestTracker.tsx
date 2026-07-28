@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DEMO_NOW, DEMO_REQUESTS } from "@/lib/demo";
 import { dateShort } from "@/lib/format";
+import { isPublicId } from "@/domain/publicId";
 
 /** Plain-language, resident-facing status (no jargon). */
 const RESIDENT_STATUS: Record<string, { headline: string; detail: string; tone: "ok" | "wait" | "action" }> = {
@@ -23,13 +24,15 @@ const RESIDENT_STATUS: Record<string, { headline: string; detail: string; tone: 
 
 const MS_DAY = 86_400_000;
 
-export function RequestTracker() {
-  const [q, setQ] = useState("");
-  const [searched, setSearched] = useState(false);
+export function RequestTracker({ initialId = "" }: { initialId?: string }) {
+  const [q, setQ] = useState(initialId);
+  const [searched, setSearched] = useState(Boolean(initialId));
 
-  const match = DEMO_REQUESTS.find(
-    (r) => r.publicId.toLowerCase() === q.trim().toLowerCase(),
-  );
+  const trimmed = q.trim();
+  const match = DEMO_REQUESTS.find((r) => r.publicId.toLowerCase() === trimmed.toLowerCase());
+  // A freshly-filed request isn't in the demo set — show a friendly generic state
+  // for any well-formed tracking number instead of "not found".
+  const validButUnknown = !match && isPublicId(trimmed.toUpperCase());
 
   return (
     <div>
@@ -56,9 +59,24 @@ export function RequestTracker() {
         </button>
       </form>
 
-      {searched && q.trim() && (
+      {searched && trimmed && (
         <div className="card" style={{ marginTop: 14, overflow: "hidden" }}>
-          {match ? <TrackerResult publicId={match.publicId} status={match.status} received={match.receivedAt} due={match.dueAt} /> : (
+          {match ? (
+            <TrackerResult publicId={match.publicId} status={match.status} received={match.receivedAt} due={match.dueAt} />
+          ) : validButUnknown ? (
+            <div style={{ padding: "18px 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span className="mono muted">{trimmed.toUpperCase()}</span>
+                <span className="pill" style={{ marginLeft: "auto" }}>
+                  Received
+                </span>
+              </div>
+              <p style={{ marginTop: 10 }}>
+                We have your request and it&apos;s in the queue for review. You&apos;ll see updates here
+                as it moves through the departments.
+              </p>
+            </div>
+          ) : (
             <div style={{ padding: 20 }}>
               <div style={{ fontWeight: 600 }}>We couldn&apos;t find that tracking number.</div>
               <p className="muted" style={{ fontSize: "0.92rem", marginTop: 4 }}>

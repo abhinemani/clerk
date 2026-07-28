@@ -87,7 +87,8 @@ export function AnswerBox() {
               </ul>
               <div style={{ padding: "12px 16px", fontSize: "0.9rem" }} className="muted">
                 Not what you needed?{" "}
-                <Link href="/portal/request">File a formal request</Link> — we&apos;ll pre-fill what you&apos;ve told us.
+                <Link href={`/portal/request?q=${encodeURIComponent(query.trim())}`}>File a formal request</Link>{" "}
+                — we&apos;ll pre-fill what you&apos;ve told us.
               </div>
             </>
           ) : (
@@ -97,7 +98,11 @@ export function AnswerBox() {
                 That doesn&apos;t mean the record doesn&apos;t exist — it may not be published. File a
                 request and the records office will search their systems.
               </p>
-              <Link href="/portal/request" className="btn btn-primary" style={{ marginTop: 12 }}>
+              <Link
+                href={`/portal/request?q=${encodeURIComponent(query.trim())}`}
+                className="btn btn-primary"
+                style={{ marginTop: 12 }}
+              >
                 File a request for “{query.trim()}”
               </Link>
             </div>
