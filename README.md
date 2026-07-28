@@ -51,7 +51,8 @@ Three working surfaces, driven by a "City of Riverton" demo fixture:
 | **Domain logic** — lifecycle, task workflow, IDs, templates, deadline risk | ✅ | `src/domain/` |
 | **Tenant-isolation guard** (§10) | ✅ | `src/db/tenant.ts` |
 | **Eval harness** (§13) — golden set + grader + scorecard | ✅ | `evals/` |
-| Auth/roles, Postgres-backed repository, file-drop + connectors | ⬜ Phase 1 remainder | — |
+| **Turnkey persistence** — Drizzle repo (embedded PGlite ↔ managed Postgres) + seed | ✅ | `src/db/createRepository.ts`, `scripts/seed.ts` |
+| Auth/roles · wire UI pages to the repository · file-drop + connectors | ⬜ next | — |
 | Remaining §6 pipelines (dedup, responsive search, LLM redaction, answer engine) | ⬜ Phase 2–4 | — |
 
 > The three surfaces above are driven by a demo fixture (`src/lib/demo.ts`), not

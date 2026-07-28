@@ -1,20 +1,11 @@
 /**
- * Process-local dev store so the ingestion API is genuinely callable with
- * `npm run dev` (before a real Postgres is wired). A module-level singleton
- * persists across requests within the dev server process.
+ * Ingestion API config. The repository now comes from `getRepository()` (PGlite
+ * or Postgres); a real deployment would resolve the Source + API key per-agency
+ * from the DB. For the prototype these are fixed dev values.
  */
-import { InMemoryRepository } from "@/services/repository";
 import type { SourceConfig } from "./normalize";
 
 export const DEV_INGEST_KEY = "dev-ingest-key";
-
-export const devRepo = new InMemoryRepository().seedAgency({
-  id: "ag-riverton",
-  slug: "riverton",
-  name: "City of Riverton",
-  stateCode: "CA",
-  observedHolidays: [],
-});
 
 export const DEV_SOURCE: SourceConfig = {
   id: "src-api",

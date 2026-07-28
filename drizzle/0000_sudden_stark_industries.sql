@@ -140,6 +140,13 @@ CREATE TABLE IF NOT EXISTS "messages" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "public_id_counters" (
+	"agency_id" uuid NOT NULL,
+	"year" integer NOT NULL,
+	"seq" integer DEFAULT 0 NOT NULL,
+	CONSTRAINT "public_id_counters_agency_id_year_pk" PRIMARY KEY("agency_id","year")
+);
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "redactions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"agency_id" uuid NOT NULL,
@@ -288,6 +295,7 @@ CREATE TABLE IF NOT EXISTS "tasks" (
 	"due_at" timestamp with time zone,
 	"status" "task_status" DEFAULT 'assigned' NOT NULL,
 	"token" text NOT NULL,
+	"uploads" jsonb DEFAULT '[]'::jsonb,
 	"pushback_notes" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -415,6 +423,12 @@ END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "messages" ADD CONSTRAINT "messages_sent_by_user_id_users_id_fk" FOREIGN KEY ("sent_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "public_id_counters" ADD CONSTRAINT "public_id_counters_agency_id_agencies_id_fk" FOREIGN KEY ("agency_id") REFERENCES "public"."agencies"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

@@ -418,10 +418,28 @@ export const tasks = pgTable(
     status: taskStatus("status").notNull().default("assigned"),
     // Token for no-login access at /task/[token] (§3).
     token: text("token").notNull().unique(),
+    // Files a responder attached against the task (name + page count).
+    uploads: jsonb("uploads").$type<Array<{ name: string; pages?: number }>>().default([]),
     pushbackNotes: text("pushback_notes"),
     ...timestamps,
   },
   (t) => [index("tasks_request_idx").on(t.requestId)],
+);
+
+/**
+ * Per-agency, per-year sequence for human-friendly public ids (PR-2026-00341).
+ * Atomic increment via upsert, so ids don't collide under concurrency.
+ */
+export const publicIdCounters = pgTable(
+  "public_id_counters",
+  {
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    year: integer("year").notNull(),
+    seq: integer("seq").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.agencyId, t.year] })],
 );
 
 // ---------------------------------------------------------------------------
@@ -903,6 +921,7 @@ export const allTables = {
   templates,
   deflections,
   agentRuns,
+  publicIdCounters,
 } as const;
 
 // Silence unused-import warning for `sql` when no raw defaults are used yet; it

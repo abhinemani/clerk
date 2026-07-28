@@ -17,10 +17,12 @@
     "db:studio": "drizzle-kit studio",
     "eval": "vitest run --dir evals",
     "duedate": "tsx scripts/duedate.ts",
-    "triage": "tsx scripts/triage.ts"
+    "triage": "tsx scripts/triage.ts",
+    "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
+    "@electric-sql/pglite": "^0.2.17",
     "drizzle-orm": "^0.36.4",
     "next": "^15.1.2",
     "postgres": "^3.4.5",

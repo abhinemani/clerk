@@ -6,7 +6,11 @@
  *  in-memory store for now; the same handler will front the Postgres repo later.
  */
 import { ingestRecord } from "@/dataplane/ingest";
-import { DEV_INGEST_KEY, DEV_SOURCE, devRepo } from "@/dataplane/store";
+import { DEV_INGEST_KEY, DEV_SOURCE } from "@/dataplane/store";
+import { getRepository } from "@/db/createRepository";
+
+// PGlite/postgres-js need the Node runtime (not edge).
+export const runtime = "nodejs";
 
 function unauthorized() {
   return Response.json({ error: "unauthorized" }, { status: 401 });
@@ -18,8 +22,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ agency:
   const key = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (key !== DEV_INGEST_KEY) return unauthorized();
 
-  const agency = await devRepo.getAgencyBySlug(slug);
-  if (!agency) return Response.json({ error: "unknown_agency" }, { status: 404 });
+  const repo = await getRepository();
+  const agency = await repo.getAgencyBySlug(slug);
+  if (!agency) return Response.json({ error: "unknown_agency (run `npm run seed`)" }, { status: 404 });
 
   let body: unknown;
   try {
@@ -29,13 +34,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ agency:
   }
 
   const outcome = await ingestRecord(
-    {
-      repo: devRepo,
-      agency,
-      source: DEV_SOURCE,
-      genId: () => crypto.randomUUID(),
-      now: () => new Date(),
-    },
+    { repo, agency, source: DEV_SOURCE, genId: () => crypto.randomUUID(), now: () => new Date() },
     body,
   );
 
