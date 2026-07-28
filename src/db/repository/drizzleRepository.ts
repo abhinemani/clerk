@@ -21,6 +21,7 @@ import {
   requestEvents,
   requesters,
   requests,
+  sources,
   tasks,
   users,
 } from "@/db/schema";
@@ -38,6 +39,7 @@ import {
   type RequestEntity,
   type Requester,
   type Repository,
+  type SourceEntity,
   type TaskEntity,
   type UserEntity,
 } from "@/services/repository";
@@ -541,6 +543,36 @@ export class DrizzleRepository implements Repository {
   }
   async markAuthTokenUsed(id: string, usedAt: Date): Promise<void> {
     await this.db.update(authTokens).set({ usedAt }).where(eq(authTokens.id, id));
+  }
+
+  async createSource(s: SourceEntity): Promise<SourceEntity> {
+    await this.db.insert(sources).values({
+      id: s.id,
+      agencyId: s.agencyId,
+      name: s.name,
+      type: s.type,
+      credentialsRef: s.apiKeyHash ? `sha256:${s.apiKeyHash}` : null,
+      trust: s.trust,
+      defaultClassification: s.defaultClassification,
+    });
+    return s;
+  }
+  async findSourceByApiKeyHash(agencyId: string, apiKeyHash: string): Promise<SourceEntity | null> {
+    const [s] = await this.db
+      .select()
+      .from(sources)
+      .where(tenantWhere(sources.agencyId, agencyId, eq(sources.credentialsRef, `sha256:${apiKeyHash}`)))
+      .limit(1);
+    if (!s) return null;
+    return {
+      id: s.id,
+      agencyId: s.agencyId,
+      name: s.name,
+      type: s.type,
+      apiKeyHash,
+      trust: s.trust,
+      defaultClassification: s.defaultClassification,
+    };
   }
 
   async appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity> {

@@ -30,11 +30,24 @@ const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 /**
  * Register a resident account. If prior requests were filed under this email
- * (deduped requester row, no password), registration claims that history.
+ * (deduped requester row, no password), registration claims that history —
+ * but the history stays HIDDEN until the email is verified: knowing someone's
+ * address must never be enough to read what they requested. A fresh email
+ * with nothing to claim is treated as verified immediately.
+ *
+ * When `verifyLinkBase` is provided and verification is needed, a one-time
+ * link (`{verifyLinkBase}?token=...`) is delivered through the notifier.
  */
 export async function registerRequester(
   deps: ServiceDeps,
-  input: { agencyId: string; email: string; name: string; password: string; type?: RequesterType },
+  input: {
+    agencyId: string;
+    email: string;
+    name: string;
+    password: string;
+    type?: RequesterType;
+    verifyLinkBase?: string;
+  },
 ): Promise<Requester> {
   const email = normalizeEmail(input.email);
   if (!email.includes("@")) throw new AccountError("Enter a valid email address.");
@@ -45,21 +58,79 @@ export async function registerRequester(
   if (existing?.passwordHash) throw new AccountError("An account with this email already exists. Sign in instead.");
 
   const passwordHash = hashPassword(input.password);
+  let requester: Requester;
   if (existing) {
-    // Claim the pre-account request history.
-    return deps.repo.updateRequester(input.agencyId, existing.id, {
+    // Claiming a pre-account history → verification required before it shows.
+    requester = await deps.repo.updateRequester(input.agencyId, existing.id, {
       passwordHash,
       name: existing.name ?? input.name,
+      emailVerifiedAt: null,
+    });
+    if (input.verifyLinkBase) {
+      const { mintToken } = await import("@/auth/tokens");
+      const { raw } = await mintToken(deps, {
+        agencyId: input.agencyId,
+        kind: "verify_email",
+        subjectId: requester.id,
+      });
+      await deps.notifier?.send({
+        agencyId: input.agencyId,
+        to: email,
+        subject: "Verify your email to see your earlier requests",
+        body: [
+          `Welcome back. Requests were filed with this email before you created an account.`,
+          `To see them in your account, verify that this address is yours:`,
+          ``,
+          `${input.verifyLinkBase}?token=${raw}`,
+          ``,
+          `The link expires in 48 hours. If this wasn't you, ignore this message.`,
+        ].join("\n"),
+        kind: "account_verify",
+      });
+    }
+  } else {
+    requester = await deps.repo.createRequester({
+      id: deps.genId(),
+      agencyId: input.agencyId,
+      email,
+      name: input.name.trim() || null,
+      type: input.type ?? "individual",
+      passwordHash,
+      emailVerifiedAt: deps.now(), // nothing to claim — nothing to protect
     });
   }
-  return deps.repo.createRequester({
+
+  await deps.repo.appendAdminEvent({
     id: deps.genId(),
     agencyId: input.agencyId,
-    email,
-    name: input.name.trim() || null,
-    type: input.type ?? "individual",
-    passwordHash,
+    kind: "requester_registered",
+    actorLabel: "self-service",
+    summary: `Resident account registered for ${email}${existing ? " (history pending verification)" : ""}`,
+    createdAt: deps.now(),
   });
+  return requester;
+}
+
+/** Burn a verification token and unlock the claimed request history. */
+export async function verifyRequesterEmail(
+  deps: ServiceDeps,
+  rawToken: string,
+): Promise<Requester | null> {
+  const { consumeToken } = await import("@/auth/tokens");
+  const token = await consumeToken(deps, rawToken, "verify_email");
+  if (!token) return null;
+  const requester = await deps.repo.updateRequester(token.agencyId, token.subjectId, {
+    emailVerifiedAt: deps.now(),
+  });
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: token.agencyId,
+    kind: "email_verified",
+    actorLabel: "self-service",
+    summary: `Email verified for ${requester.email ?? requester.id}`,
+    createdAt: deps.now(),
+  });
+  return requester;
 }
 
 export async function authenticateRequester(
@@ -102,7 +173,7 @@ export async function createStaffUser(
   if (await deps.repo.findUserByEmail(input.agencyId, email))
     throw new AccountError("A staff account with this email already exists.");
 
-  return deps.repo.createUser({
+  const user = await deps.repo.createUser({
     id: deps.genId(),
     agencyId: input.agencyId,
     email,
@@ -110,6 +181,16 @@ export async function createStaffUser(
     role: input.role,
     passwordHash: hashPassword(input.password),
   });
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "staff_created",
+    actorLabel: input.actor.name ?? input.actor.email,
+    summary: `Added ${user.name ?? user.email} as ${input.role}`,
+    payload: { userId: user.id, role: input.role },
+    createdAt: deps.now(),
+  });
+  return user;
 }
 
 /** Agency admin changes a colleague's role. Admins cannot demote themselves. */
@@ -122,7 +203,17 @@ export async function changeStaffRole(
     throw new AccountError("You can't remove your own admin role — ask another admin.");
   const user = await deps.repo.getUser(input.agencyId, input.userId);
   if (!user) throw new NotFoundError("User", input.userId);
-  return deps.repo.updateUser(input.agencyId, input.userId, { role: input.role });
+  const updated = await deps.repo.updateUser(input.agencyId, input.userId, { role: input.role });
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "role_changed",
+    actorLabel: input.actor.name ?? input.actor.email,
+    summary: `Changed ${user.name ?? user.email}: ${user.role} → ${input.role}`,
+    payload: { userId: user.id, from: user.role, to: input.role },
+    createdAt: deps.now(),
+  });
+  return updated;
 }
 
 function assertAgencyAdmin(actor: UserEntity, agencyId: string): void {
@@ -136,8 +227,9 @@ function assertAgencyAdmin(actor: UserEntity, agencyId: string): void {
 const RESERVED_SLUGS = new Set(["admin", "api", "task", "login", "register", "account", "app"]);
 
 /**
- * Onboard a new government customer: create the agency and its first admin
- * user in one step. Platform-console only.
+ * Onboard a new government customer: create the agency, its first admin user,
+ * and its ingestion-API source in one step. Platform-console only. The raw
+ * ingest key is returned ONCE — only its hash is stored.
  */
 export async function provisionAgency(
   deps: ServiceDeps,
@@ -147,7 +239,7 @@ export async function provisionAgency(
     stateCode: string;
     admin: { name: string; email: string; password: string };
   },
-): Promise<{ agency: Agency; admin: UserEntity }> {
+): Promise<{ agency: Agency; admin: UserEntity; ingestKey: string }> {
   const slug = input.slug.trim().toLowerCase();
   if (!/^[a-z][a-z0-9-]{1,30}$/.test(slug))
     throw new AccountError("Slug must be lowercase letters, digits, and dashes (e.g. 'riverton').");
@@ -172,17 +264,52 @@ export async function provisionAgency(
     role: "admin",
     passwordHash: hashPassword(input.admin.password),
   });
-  return { agency, admin };
+
+  // Ingestion-API credential: raw key surfaces exactly once, hash at rest.
+  const { randomBytes, createHash } = await import("node:crypto");
+  const ingestKey = `ck_${randomBytes(24).toString("base64url")}`;
+  await deps.repo.createSource({
+    id: deps.genId(),
+    agencyId: agency.id,
+    name: "Ingestion API",
+    type: "api_push",
+    apiKeyHash: createHash("sha256").update(ingestKey).digest("hex"),
+    trust: "auto_publish",
+    defaultClassification: "public",
+  });
+
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: agency.id,
+    kind: "agency_created",
+    actorLabel: "platform operator",
+    summary: `Agency provisioned with admin ${admin.email}`,
+    payload: { slug: agency.slug, stateCode: agency.stateCode },
+    createdAt: deps.now(),
+  });
+  return { agency, admin, ingestKey };
 }
 
 /** Platform console: reset any staff member's password. */
 export async function resetStaffPassword(
   deps: ServiceDeps,
-  input: { agencyId: string; userId: string; password: string },
+  input: { agencyId: string; userId: string; password: string; actorLabel?: string },
 ): Promise<UserEntity> {
   const policyError = passwordPolicyError(input.password);
   if (policyError) throw new AccountError(policyError);
   const user = await deps.repo.getUser(input.agencyId, input.userId);
   if (!user) throw new NotFoundError("User", input.userId);
-  return deps.repo.updateUser(input.agencyId, input.userId, { passwordHash: hashPassword(input.password) });
+  const updated = await deps.repo.updateUser(input.agencyId, input.userId, {
+    passwordHash: hashPassword(input.password),
+  });
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "password_reset",
+    actorLabel: input.actorLabel ?? "platform operator",
+    summary: `Password reset for ${user.name ?? user.email}`,
+    payload: { userId: user.id },
+    createdAt: deps.now(),
+  });
+  return updated;
 }

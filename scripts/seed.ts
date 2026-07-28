@@ -60,13 +60,16 @@ async function main() {
     requester: { name: "Wei Chen", type: "individual" },
   });
   // Registering with the same email claims the filed request into the account.
-  await registerRequester(deps, {
+  const jordan = await registerRequester(deps, {
     agencyId,
     email: "jordan@rivertonledger.com",
     name: "Jordan Alvarez",
     password: "riverton-resident",
     type: "media",
   });
+  // Demo shortcut: mark the claim verified (in real use, Jordan clicks the
+  // verification link that lands in the outbox).
+  await deps.repo.updateRequester(agencyId, jordan.id, { emailVerifiedAt: new Date() });
 
   // Riverton's public archive — what the answer box deflects with (§6.7).
   await publish(deps, agencyId, "riverton-acme-paving-2025", {
@@ -93,7 +96,7 @@ async function main() {
   });
 
   // Bellmar: a second tenant on the same deployment (WA statute profile).
-  const { agency: bellmar } = await provisionAgency(deps, {
+  const { agency: bellmar, ingestKey: bellmarIngestKey } = await provisionAgency(deps, {
     name: "City of Bellmar",
     slug: "bellmar",
     stateCode: "WA",
@@ -126,6 +129,7 @@ async function main() {
   });
 
   console.log("Seeded City of Riverton (/riverton) and City of Bellmar (/bellmar).");
+  console.log(`Bellmar ingestion API key (shown once): ${bellmarIngestKey}`);
   printCredentials();
   process.exit(0);
 }

@@ -30,7 +30,11 @@ export default async function AccountPage({ params }: { params: Promise<{ agency
   const session = await requireRequester(slug);
 
   const repo = await getRepository();
-  const requests = agency.id ? await repo.listRequestsByRequester(agency.id, session.requesterId) : [];
+  const requester = agency.id ? await repo.getRequester(agency.id, session.requesterId) : null;
+  // Claimed history stays hidden until the email is proven (see accountService).
+  const verified = requester?.emailVerifiedAt != null;
+  const requests =
+    agency.id && verified ? await repo.listRequestsByRequester(agency.id, session.requesterId) : [];
 
   return (
     <div className="wrap" style={{ maxWidth: 760, paddingBlock: "40px" }}>
@@ -68,7 +72,15 @@ export default async function AccountPage({ params }: { params: Promise<{ agency
         </span>
       </h2>
 
-      {requests.length === 0 ? (
+      {!verified ? (
+        <div className="card card-pad" style={{ borderColor: "var(--due-border)", background: "var(--due-bg)" }}>
+          <p style={{ margin: 0, fontWeight: 600 }}>Verify your email to see your requests.</p>
+          <p className="muted" style={{ margin: "6px 0 0", fontSize: "0.92rem" }}>
+            We sent a verification link to {session.email}. Requests filed with this email stay
+            hidden until you confirm the address is yours.
+          </p>
+        </div>
+      ) : requests.length === 0 ? (
         <div className="card card-pad">
           <p className="muted" style={{ margin: 0 }}>
             No requests yet. Anything you file while signed in — or filed earlier with this email —

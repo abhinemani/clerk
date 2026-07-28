@@ -19,6 +19,7 @@ import { defaultDeps } from "@/services/deps";
 import type { StaffRole } from "@/services/repository";
 
 export type PlatformResult = { ok: true } | { ok: false; error: string };
+export type CreateAgencyResult = { ok: true; ingestKey: string } | { ok: false; error: string };
 
 export async function platformSignIn(input: { email: string; password: string }): Promise<PlatformResult> {
   try {
@@ -47,17 +48,17 @@ export async function createAgencyAction(input: {
   adminName: string;
   adminEmail: string;
   adminPassword: string;
-}): Promise<PlatformResult> {
+}): Promise<CreateAgencyResult> {
   await requirePlatformAdmin();
   try {
-    await provisionAgency(defaultDeps(await getRepository()), {
+    const { ingestKey } = await provisionAgency(defaultDeps(await getRepository()), {
       name: input.name,
       slug: input.slug,
       stateCode: input.stateCode,
       admin: { name: input.adminName, email: input.adminEmail, password: input.adminPassword },
     });
     revalidatePath("/admin");
-    return { ok: true };
+    return { ok: true, ingestKey };
   } catch (e) {
     if (e instanceof AccountError) return { ok: false, error: e.message };
     console.error("createAgencyAction failed", e);
@@ -95,6 +96,7 @@ export async function platformResetPassword(input: {
       agencyId: input.agencyId,
       userId: input.userId,
       password: input.password,
+      actorLabel: "platform operator",
     });
     revalidatePath(`/admin/${input.agencySlug}`);
     return { ok: true };

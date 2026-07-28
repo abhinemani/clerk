@@ -151,11 +151,13 @@ export async function requesterRegister(input: {
   try {
     const agencyId = await resolveAgencyId(input.agencySlug);
     if (!agencyId) return { ok: false, error: "Unknown agency." };
+    const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
     await registerRequester(defaultDeps(await getRepository()), {
       agencyId,
       email: input.email,
       name: input.name,
       password: input.password,
+      verifyLinkBase: `${baseUrl}/${input.agencySlug}/verify`,
     });
   } catch (e) {
     if (e instanceof AccountError) return { ok: false, error: e.message };

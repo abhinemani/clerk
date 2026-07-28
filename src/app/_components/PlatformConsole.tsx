@@ -86,7 +86,10 @@ export function CreateAgencyForm() {
             setError(r.error);
             return;
           }
-          setDone(`${form.name} is live at /${form.slug} — the admin can sign in at /${form.slug}/app/login.`);
+          setDone(
+            `${form.name} is live at /${form.slug} — admin signs in at /${form.slug}/app/login. ` +
+              `Ingestion API key (copy it NOW, it is not stored): ${r.ingestKey}`,
+          );
           setForm({ name: "", slug: "", stateCode: "CA", adminName: "", adminEmail: "", adminPassword: "" });
         });
       }}

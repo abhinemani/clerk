@@ -158,6 +158,18 @@ export interface DeliveryEntity {
   createdAt: Date;
 }
 
+/** An ingestion source (spec §9.1) — carries its own hashed API key. */
+export interface SourceEntity {
+  id: string;
+  agencyId: string;
+  name: string;
+  type: "api_push" | "webhook" | "file_drop" | "scheduled_pull" | "manual";
+  /** sha-256 hex of the source's API key — never the key itself. */
+  apiKeyHash: string | null;
+  trust: "auto_publish" | "review_queue";
+  defaultClassification: "public" | "internal";
+}
+
 export type AuthTokenKind = "verify_email" | "reset_requester" | "reset_staff" | "staff_invite";
 
 /** Single-use hashed token for verification / reset / invite links. */
@@ -244,6 +256,10 @@ export interface Repository {
   createAuthToken(t: AuthTokenEntity): Promise<AuthTokenEntity>;
   findAuthTokenByHash(tokenHash: string): Promise<AuthTokenEntity | null>;
   markAuthTokenUsed(id: string, usedAt: Date): Promise<void>;
+
+  createSource(s: SourceEntity): Promise<SourceEntity>;
+  /** Key auth for §9.1 push: hash the presented key, look it up per agency. */
+  findSourceByApiKeyHash(agencyId: string, apiKeyHash: string): Promise<SourceEntity | null>;
 }
 
 export class NotFoundError extends Error {
@@ -478,6 +494,19 @@ export class InMemoryRepository implements Repository {
       .filter((d) => d.agencyId === agencyId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, limit);
+  }
+
+  private sources = new Map<string, SourceEntity>();
+  async createSource(s: SourceEntity) {
+    this.sources.set(s.id, s);
+    return s;
+  }
+  async findSourceByApiKeyHash(agencyId: string, apiKeyHash: string) {
+    return (
+      [...this.sources.values()].find(
+        (s) => s.agencyId === agencyId && s.apiKeyHash != null && s.apiKeyHash === apiKeyHash,
+      ) ?? null
+    );
   }
 
   async createAuthToken(t: AuthTokenEntity) {

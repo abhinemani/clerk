@@ -5,6 +5,7 @@
  */
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { getRepository } from "@/db/createRepository";
 import type { StaffRole } from "@/services/repository";
 
 export interface StaffSession {
@@ -24,21 +25,31 @@ export interface RequesterSession {
   email: string | null;
 }
 
-/** Staff member of this agency, optionally restricted to certain roles. */
+/**
+ * Staff member of this agency, optionally restricted to certain roles. The
+ * JWT only *identifies* the user; authority (role, continued existence) is
+ * re-read from the database on every call — a demoted or removed staffer's
+ * old token grants nothing.
+ */
 export async function requireStaff(agencySlug: string, roles?: StaffRole[]): Promise<StaffSession> {
   const session = await auth();
   const u = session?.user;
   if (!u || u.kind !== "staff" || u.agencySlug !== agencySlug || !u.role) {
     redirect(`/${agencySlug}/app/login`);
   }
-  if (roles && !roles.includes(u.role)) redirect(`/${agencySlug}/app`);
+
+  const repo = await getRepository();
+  const dbUser = await repo.getUser(u.agencyId!, u.id);
+  if (!dbUser) redirect(`/${agencySlug}/app/login`); // account removed
+  if (roles && !roles.includes(dbUser.role)) redirect(`/${agencySlug}/app`);
+
   return {
-    userId: u.id,
-    agencyId: u.agencyId!,
+    userId: dbUser.id,
+    agencyId: dbUser.agencyId,
     agencySlug: u.agencySlug!,
-    role: u.role,
-    name: u.name ?? null,
-    email: u.email ?? null,
+    role: dbUser.role,
+    name: dbUser.name ?? u.name ?? null,
+    email: dbUser.email,
   };
 }
 

@@ -14,7 +14,10 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
   const staff = await requireStaff(slug, ["admin"]);
 
   const repo = await getRepository();
-  const users = await repo.listUsers(agency.id);
+  const [users, activity] = await Promise.all([
+    repo.listUsers(agency.id),
+    repo.listAdminEvents(agency.id, 20),
+  ]);
   const rows: RosterRow[] = users
     .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email))
     .map((u) => ({
@@ -40,6 +43,34 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
         coordinators run requests; responders only see tasks shared with them.
       </p>
       <StaffRoster agencySlug={slug} rows={rows} />
+
+      <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>
+        Account activity{" "}
+        <span className="muted" style={{ fontWeight: 400, fontSize: "0.85rem" }}>
+          · append-only audit
+        </span>
+      </h2>
+      <div className="card" style={{ overflow: "hidden" }}>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {activity.map((e) => (
+            <li
+              key={e.id}
+              style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "10px 16px", borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}
+            >
+              <span className="tag">{e.kind.replace(/_/g, " ")}</span>
+              <span style={{ fontSize: "0.9rem", flex: 1, minWidth: 200 }}>{e.summary}</span>
+              <span className="muted" style={{ fontSize: "0.78rem" }}>
+                {e.actorLabel} · {e.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </span>
+            </li>
+          ))}
+          {activity.length === 0 && (
+            <li className="muted" style={{ padding: 14, fontSize: "0.9rem" }}>
+              No account activity recorded yet.
+            </li>
+          )}
+        </ul>
+      </div>
     </div>
   );
 }

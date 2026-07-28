@@ -17,6 +17,7 @@ import { getRepository } from "@/db/createRepository";
 import { defaultDeps } from "@/services/deps";
 import { authenticateRequester, authenticateStaff } from "@/services/accountService";
 import type { StaffRole } from "@/services/repository";
+import { clearFailures, isLockedOut, recordFailure } from "./throttle";
 
 export type PrincipalKind = "staff" | "requester" | "platform";
 
@@ -57,9 +58,24 @@ function constantTimeEquals(a: string, b: string): boolean {
   return timingSafeEqual(ha, hb);
 }
 
+/**
+ * Session-signing secret. In production a missing AUTH_SECRET is a hard boot
+ * failure — the dev fallback is public knowledge, and shipping it would make
+ * every session forgeable.
+ */
+function resolveAuthSecret(): string {
+  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "AUTH_SECRET is required in production (any long random string). Refusing to start with the known dev secret.",
+    );
+  }
+  return "clerk-dev-secret-set-AUTH_SECRET-in-prod";
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  secret: process.env.AUTH_SECRET ?? "clerk-dev-secret-set-AUTH_SECRET-in-prod",
+  secret: resolveAuthSecret(),
   session: { strategy: "jwt" },
   providers: [
     Credentials({
@@ -76,10 +92,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = String(credentials?.password ?? "");
         if (!email || !password) return null;
 
+        // Sliding-window lockout: 5 failures / 15 min per principal.
+        if (isLockedOut(kind, agencySlug, email)) return null;
+        const failed = () => {
+          recordFailure(kind, agencySlug, email);
+          return null;
+        };
+
         // Platform operator — env credentials, cross-tenant, no agency scope.
         if (kind === "platform") {
           const emailOk = email.trim().toLowerCase() === PLATFORM_ADMIN.email.toLowerCase();
-          if (!emailOk || !constantTimeEquals(password, PLATFORM_ADMIN.password)) return null;
+          if (!emailOk || !constantTimeEquals(password, PLATFORM_ADMIN.password)) return failed();
+          clearFailures(kind, agencySlug, email);
           return { id: "platform-admin", email: PLATFORM_ADMIN.email, name: "Platform admin", kind: "platform" };
         }
 
@@ -92,7 +116,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (kind === "staff") {
           const user = await authenticateStaff(deps, { agencyId: agency.id, email, password });
-          if (!user) return null;
+          if (!user) return failed();
+          clearFailures(kind, agencySlug, email);
           return {
             id: user.id,
             email: user.email,
@@ -104,7 +129,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           };
         }
         const requester = await authenticateRequester(deps, { agencyId: agency.id, email, password });
-        if (!requester) return null;
+        if (!requester) return failed();
+        clearFailures(kind, agencySlug, email);
         return {
           id: requester.id,
           email: requester.email,
