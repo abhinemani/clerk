@@ -37,10 +37,13 @@ Three working surfaces, driven by a "City of Riverton" demo fixture:
 | **§16 agentic framework** — tiers, budgets, allowlists, run orchestrator | ✅ | `src/agents/` |
 | **§6 AI pipelines** — harness + intake (§6.1), routing (§6.3), correspondence (§6.6) | ✅ | `src/ai/` |
 | **§6.5 PII scan** — deterministic recall-first redaction pass | ✅ | `src/ai/redaction/` |
+| **Application service layer** — use cases over a repository port | ✅ | `src/services/` |
+| **§9 ingestion API + normalization** — on-ramp, idempotent, sensitivity-gated | ✅ | `src/dataplane/`, `src/app/api/` |
+| **Agent capability wiring** — §6 pipelines behind the registry | ✅ | `src/agents/capabilities.ts` |
 | **Domain logic** — lifecycle, task workflow, IDs, templates, deadline risk | ✅ | `src/domain/` |
 | **Tenant-isolation guard** (§10) | ✅ | `src/db/tenant.ts` |
 | **Eval harness** (§13) — golden set + grader + scorecard | ✅ | `evals/` |
-| Auth/roles, DB-wired persistence, ingestion API + file-drop | ⬜ Phase 1 remainder | — |
+| Auth/roles, Postgres-backed repository, file-drop + connectors | ⬜ Phase 1 remainder | — |
 | Remaining §6 pipelines (dedup, responsive search, LLM redaction, answer engine) | ⬜ Phase 2–4 | — |
 
 > The three surfaces above are driven by a demo fixture (`src/lib/demo.ts`), not
@@ -128,11 +131,35 @@ Domain logic the spine needs is in [`src/domain/`](src/domain/): the request
 (§10) is guarded in [`src/db/tenant.ts`](src/db/tenant.ts) — every scoped query
 ANDs in the `agency_id` predicate, and a missing/blank id throws.
 
+## Application layer, data plane & agent wiring
+
+- **Services** ([`src/services/`](src/services/)) — the use cases (`submitRequest`,
+  `dispatchTask`, transitions, …) over a **repository port**, emitting append-only
+  audit events and enforcing the lifecycle/task state machines and tenant scope.
+  An `InMemoryRepository` backs the tests (incl. a cross-agency-read isolation
+  test); a Postgres adapter drops in without touching business logic.
+- **Ingestion** ([`src/dataplane/`](src/dataplane/), §9.1/§9.3) — `POST
+  /api/v1/{agency}/records` with API-key auth, **idempotent on external ID**, and
+  a pure normalization pass where the **sensitivity pre-scan can force any item
+  into review** even from an auto-publish source. Callable today:
+
+  ```bash
+  curl -X POST http://localhost:3000/api/v1/riverton/records \
+    -H "authorization: Bearer dev-ingest-key" -H "content-type: application/json" \
+    -d '{"externalId":"minutes-2025-03","classification":"public","text":"Council approved the paving contract."}'
+  ```
+
+- **Capability wiring** ([`src/agents/capabilities.ts`](src/agents/capabilities.ts))
+  — adapts the §6 pipelines (routing, correspondence) and the deterministic PII
+  pass into agent `Capability` implementations registered in the
+  `CapabilityRegistry`. This is the seam that lets an agent orchestrate a real
+  pipeline end-to-end through the guardrails — covered by an integration test.
+
 ## Getting started
 
 ```bash
 npm install
-npm test          # full suite (138 tests)
+npm test          # full suite (163 tests)
 npm run typecheck # strict TS across schema + statute engine
 ```
 
@@ -178,7 +205,7 @@ docs/agentic-horizon.md  §16.4 strategic-horizon design note
 drizzle/               generated migrations
 ```
 
-Run `npm test` for the full suite (138 tests) and `npm run eval` for the
+Run `npm test` for the full suite (163 tests) and `npm run eval` for the
 intake-triage scorecard.
 
 ## Next steps (Phase 1 remainder, §12)
