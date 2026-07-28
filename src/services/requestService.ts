@@ -143,6 +143,53 @@ export async function transitionRequest(
   return updated;
 }
 
+/**
+ * A named human accepts (possibly after editing) the triage draft — the
+ * "dispose" half of accept/edit/dismiss (§6.1, §8). Persists the scope and
+ * moves a fresh request into review.
+ */
+export async function approveTriage(
+  deps: ServiceDeps,
+  input: {
+    agencyId: string;
+    requestId: string;
+    actorUserId: string;
+    interpretedScope: string;
+    recordTypes: string[];
+    complexityScore?: number;
+  },
+): Promise<RequestEntity> {
+  const { repo } = deps;
+  const request = await repo.getRequest(input.agencyId, input.requestId);
+  if (!request) throw new NotFoundError("Request", input.requestId);
+
+  let updated = await repo.updateRequest(input.agencyId, request.id, {
+    interpretedScope: input.interpretedScope,
+    recordTypes: input.recordTypes,
+    ...(input.complexityScore != null ? { complexityScore: input.complexityScore } : {}),
+  });
+  await repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: request.id,
+    kind: "approval",
+    actorUserId: input.actorUserId,
+    summary: "Coordinator accepted the triage scope",
+    payload: { interpretedScope: input.interpretedScope, recordTypes: input.recordTypes },
+    createdAt: deps.now(),
+  });
+  if (request.status === "submitted") {
+    updated = await transitionRequest(deps, {
+      agencyId: input.agencyId,
+      requestId: request.id,
+      to: "in_review",
+      actorUserId: input.actorUserId,
+      note: "Triage accepted",
+    });
+  }
+  return updated;
+}
+
 /** Attach an AI triage draft to a request (§6.1) — staff still review/dispose. */
 export async function applyTriageDraft(
   deps: ServiceDeps,

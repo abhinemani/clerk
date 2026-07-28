@@ -36,6 +36,8 @@ export interface Requester {
   type: RequesterType;
   /** scrypt hash; null = no portal account (anonymous/email-only requester). */
   passwordHash?: string | null;
+  /** When the email was proven. Claimed history stays hidden until set. */
+  emailVerifiedAt?: Date | null;
 }
 
 export type StaffRole = "admin" | "coordinator" | "reviewer" | "responder" | "read_only";
@@ -132,6 +134,44 @@ export interface DeflectionEntity {
   createdAt: Date;
 }
 
+/** Append-only account-administration audit (agency-scoped; spec §10 spirit). */
+export interface AdminEventEntity {
+  id: string;
+  agencyId: string;
+  kind: string;
+  actorLabel: string;
+  summary: string;
+  payload?: Record<string, unknown>;
+  createdAt: Date;
+}
+
+/** One outbox row — every outbound message lands here (dev mailbox). */
+export interface DeliveryEntity {
+  id: string;
+  agencyId: string;
+  toEmail: string;
+  subject: string;
+  body: string;
+  kind: string;
+  requestId: string | null;
+  taskId: string | null;
+  createdAt: Date;
+}
+
+export type AuthTokenKind = "verify_email" | "reset_requester" | "reset_staff" | "staff_invite";
+
+/** Single-use hashed token for verification / reset / invite links. */
+export interface AuthTokenEntity {
+  id: string;
+  agencyId: string;
+  kind: AuthTokenKind;
+  subjectId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+  createdAt: Date;
+}
+
 // --- port ------------------------------------------------------------------
 
 export interface Repository {
@@ -188,9 +228,22 @@ export interface Repository {
   upsertDocumentByExternalId(
     doc: DocumentEntity,
   ): Promise<{ document: DocumentEntity; created: boolean }>;
+  /** The public corpus — what the portal archive and answer box may show (§6.7). */
+  listPublicDocuments(agencyId: string): Promise<DocumentEntity[]>;
 
   appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity>;
   listDeflections(agencyId: string): Promise<DeflectionEntity[]>;
+
+  /** Append-only, like appendEvent — never update or delete (§10). */
+  appendAdminEvent(e: AdminEventEntity): Promise<AdminEventEntity>;
+  listAdminEvents(agencyId: string, limit?: number): Promise<AdminEventEntity[]>;
+
+  createDelivery(d: DeliveryEntity): Promise<DeliveryEntity>;
+  listDeliveries(agencyId: string, limit?: number): Promise<DeliveryEntity[]>;
+
+  createAuthToken(t: AuthTokenEntity): Promise<AuthTokenEntity>;
+  findAuthTokenByHash(tokenHash: string): Promise<AuthTokenEntity | null>;
+  markAuthTokenUsed(id: string, usedAt: Date): Promise<void>;
 }
 
 export class NotFoundError extends Error {
@@ -212,6 +265,9 @@ export class InMemoryRepository implements Repository {
   private events: EventEntity[] = [];
   private documents = new Map<string, DocumentEntity>();
   private deflections: DeflectionEntity[] = [];
+  private adminEvents: AdminEventEntity[] = [];
+  private deliveries: DeliveryEntity[] = [];
+  private authTokens = new Map<string, AuthTokenEntity>();
   private seqs = new Map<string, number>();
 
   seedAgency(a: Agency): this {
@@ -388,11 +444,51 @@ export class InMemoryRepository implements Repository {
     return { document: doc, created: true };
   }
 
+  async listPublicDocuments(agencyId: string) {
+    return [...this.documents.values()]
+      .filter((d) => d.agencyId === agencyId && d.classification === "public")
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
   async appendDeflection(d: DeflectionEntity) {
     this.deflections.push(d);
     return d;
   }
   async listDeflections(agencyId: string) {
     return this.deflections.filter((d) => d.agencyId === agencyId);
+  }
+
+  async appendAdminEvent(e: AdminEventEntity) {
+    this.adminEvents.push(e); // append-only (§10)
+    return e;
+  }
+  async listAdminEvents(agencyId: string, limit = 50) {
+    return this.adminEvents
+      .filter((e) => e.agencyId === agencyId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+
+  async createDelivery(d: DeliveryEntity) {
+    this.deliveries.push(d);
+    return d;
+  }
+  async listDeliveries(agencyId: string, limit = 50) {
+    return this.deliveries
+      .filter((d) => d.agencyId === agencyId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+
+  async createAuthToken(t: AuthTokenEntity) {
+    this.authTokens.set(t.id, t);
+    return t;
+  }
+  async findAuthTokenByHash(tokenHash: string) {
+    return [...this.authTokens.values()].find((t) => t.tokenHash === tokenHash) ?? null;
+  }
+  async markAuthTokenUsed(id: string, usedAt: Date) {
+    const t = this.authTokens.get(id);
+    if (t) this.authTokens.set(id, { ...t, usedAt });
   }
 }

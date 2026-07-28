@@ -73,6 +73,7 @@ export async function dispatchTask(deps: ServiceDeps, input: DispatchTaskInput):
         link,
       });
     const receipt = await deps.notifier.send({
+      agencyId: input.agencyId,
       to: input.departmentEmail,
       subject: drafted.subject,
       body: drafted.body,
@@ -109,6 +110,7 @@ export async function remindResponder(
 
   const link = taskUrl(task.token, deps.baseUrl);
   const receipt = await deps.notifier.send({
+    agencyId: input.agencyId,
     to: input.departmentEmail,
     subject: `Reminder: records still needed`,
     body: `This task is still open. Please attach records or push back:\n${link}\n\nWhat we need: ${task.scopeText}`,
@@ -184,6 +186,51 @@ export async function pushBackTask(
     actorUserId: null,
     summary: "Department pushed the task back",
     payload: { taskId: task.id, note: input.note },
+    createdAt: deps.now(),
+  });
+  return updated;
+}
+
+/** Coordinator sends submitted records back for more work (submitted → in_progress). */
+export async function returnTaskToResponder(
+  deps: ServiceDeps,
+  input: { agencyId: string; taskId: string; actorUserId: string; note?: string },
+): Promise<TaskEntity> {
+  const task = await loadTask(deps, input.agencyId, input.taskId);
+  assertTaskTransition(task.status, "in_progress");
+  const updated = await deps.repo.updateTask(input.agencyId, input.taskId, { status: "in_progress" });
+  await deps.repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: task.requestId,
+    kind: "note",
+    actorUserId: input.actorUserId,
+    summary: "Coordinator sent the records back for more work",
+    payload: { taskId: task.id, note: input.note },
+    createdAt: deps.now(),
+  });
+  return updated;
+}
+
+/** Coordinator re-scopes/reassigns after a pushback (pushed_back → assigned). */
+export async function reassignTask(
+  deps: ServiceDeps,
+  input: { agencyId: string; taskId: string; actorUserId: string; scopeText?: string },
+): Promise<TaskEntity> {
+  const task = await loadTask(deps, input.agencyId, input.taskId);
+  assertTaskTransition(task.status, "assigned");
+  const updated = await deps.repo.updateTask(input.agencyId, input.taskId, {
+    status: "assigned",
+    ...(input.scopeText ? { scopeText: input.scopeText } : {}),
+  });
+  await deps.repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: task.requestId,
+    kind: "assignment",
+    actorUserId: input.actorUserId,
+    summary: "Coordinator re-scoped and reassigned the task after pushback",
+    payload: { taskId: task.id, scopeText: input.scopeText ?? task.scopeText },
     createdAt: deps.now(),
   });
   return updated;

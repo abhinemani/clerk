@@ -12,14 +12,22 @@
  * Every send is recorded as an append-only `delivery` event — the source of
  * truth for who was notified, when, and with what.
  */
-export type NotificationKind = "task_dispatch" | "task_reminder" | "requester_update";
+export type NotificationKind =
+  | "task_dispatch"
+  | "task_reminder"
+  | "requester_update"
+  | "account_verify"
+  | "password_reset"
+  | "staff_invite";
 
 export interface OutboundMessage {
+  agencyId: string;
   to: string;
   subject: string;
   body: string;
   kind: NotificationKind;
-  requestId: string;
+  /** Request-scoped messages carry these; account mail doesn't. */
+  requestId?: string;
   taskId?: string;
 }
 
@@ -46,6 +54,34 @@ export class ConsoleNotifier implements Notifier {
       to: msg.to,
       deliveredAt: this.now(),
     };
+  }
+}
+
+/**
+ * DB-backed outbox adapter: every send is recorded as a `deliveries` row —
+ * in dev this IS the mailbox (browsable at /[agency]/app/outbox). Wrap or
+ * replace with a real SMTP adapter in production; the recording stays either
+ * way, because the outbox is the audit of who was told what.
+ */
+export class DbNotifier implements Notifier {
+  constructor(
+    private readonly repo: import("./repository").Repository,
+    private readonly genId: () => string = () => crypto.randomUUID(),
+    private readonly now: () => Date = () => new Date(),
+  ) {}
+  async send(msg: OutboundMessage): Promise<DeliveryReceipt> {
+    const row = await this.repo.createDelivery({
+      id: this.genId(),
+      agencyId: msg.agencyId,
+      toEmail: msg.to,
+      subject: msg.subject,
+      body: msg.body,
+      kind: msg.kind,
+      requestId: msg.requestId ?? null,
+      taskId: msg.taskId ?? null,
+      createdAt: this.now(),
+    });
+    return { id: row.id, channel: "outbox", to: msg.to, deliveredAt: row.createdAt };
   }
 }
 

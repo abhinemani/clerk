@@ -10,8 +10,11 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import {
+  adminEvents,
   agencies,
+  authTokens,
   deflections,
+  deliveries,
   departments,
   documents,
   publicIdCounters,
@@ -24,8 +27,11 @@ import {
 import { tenantWhere } from "@/db/tenant";
 import {
   NotFoundError,
+  type AdminEventEntity,
   type Agency,
+  type AuthTokenEntity,
   type DeflectionEntity,
+  type DeliveryEntity,
   type Department,
   type DocumentEntity,
   type EventEntity,
@@ -89,14 +95,20 @@ export class DrizzleRepository implements Repository {
     return rows.map((r: typeof requesters.$inferSelect) => this.toRequester(r));
   }
   async createRequester(r: Requester): Promise<Requester> {
-    await this.db
-      .insert(requesters)
-      .values({ id: r.id, agencyId: r.agencyId, email: r.email, name: r.name, type: r.type, passwordHash: r.passwordHash ?? null });
+    await this.db.insert(requesters).values({
+      id: r.id,
+      agencyId: r.agencyId,
+      email: r.email,
+      name: r.name,
+      type: r.type,
+      passwordHash: r.passwordHash ?? null,
+      emailVerifiedAt: r.emailVerifiedAt ?? null,
+    });
     return r;
   }
   async updateRequester(agencyId: string, id: string, patch: Partial<Requester>): Promise<Requester> {
     const set: Record<string, unknown> = {};
-    for (const k of ["name", "email", "type", "passwordHash"] as const) {
+    for (const k of ["name", "email", "type", "passwordHash", "emailVerifiedAt"] as const) {
       if (k in patch) set[k] = patch[k];
     }
     const rows = await this.db
@@ -108,7 +120,15 @@ export class DrizzleRepository implements Repository {
     return this.toRequester(rows[0]);
   }
   private toRequester(r: typeof requesters.$inferSelect): Requester {
-    return { id: r.id, agencyId: r.agencyId, email: r.email, name: r.name, type: r.type, passwordHash: r.passwordHash };
+    return {
+      id: r.id,
+      agencyId: r.agencyId,
+      email: r.email,
+      name: r.name,
+      type: r.type,
+      passwordHash: r.passwordHash,
+      emailVerifiedAt: r.emailVerifiedAt,
+    };
   }
 
   async findUserByEmail(agencyId: string, email: string): Promise<UserEntity | null> {
@@ -416,6 +436,111 @@ export class DrizzleRepository implements Repository {
       metadata: d.metadata,
       createdAt: d.createdAt,
     };
+  }
+
+  async listPublicDocuments(agencyId: string): Promise<DocumentEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .where(and(eq(documents.agencyId, agencyId), eq(documents.classification, "public")))
+      .orderBy(desc(documents.createdAt));
+    return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
+  }
+
+  async appendAdminEvent(e: AdminEventEntity): Promise<AdminEventEntity> {
+    await this.db.insert(adminEvents).values({
+      id: e.id,
+      agencyId: e.agencyId,
+      kind: e.kind,
+      actorLabel: e.actorLabel,
+      summary: e.summary,
+      payload: e.payload,
+      createdAt: e.createdAt,
+    });
+    return e;
+  }
+  async listAdminEvents(agencyId: string, limit = 50): Promise<AdminEventEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(adminEvents)
+      .where(eq(adminEvents.agencyId, agencyId))
+      .orderBy(desc(adminEvents.createdAt))
+      .limit(limit);
+    return rows.map((e: typeof adminEvents.$inferSelect) => ({
+      id: e.id,
+      agencyId: e.agencyId,
+      kind: e.kind,
+      actorLabel: e.actorLabel,
+      summary: e.summary,
+      payload: e.payload ?? undefined,
+      createdAt: e.createdAt,
+    }));
+  }
+
+  async createDelivery(d: DeliveryEntity): Promise<DeliveryEntity> {
+    await this.db.insert(deliveries).values({
+      id: d.id,
+      agencyId: d.agencyId,
+      toEmail: d.toEmail,
+      subject: d.subject,
+      body: d.body,
+      kind: d.kind,
+      requestId: d.requestId,
+      taskId: d.taskId,
+      createdAt: d.createdAt,
+    });
+    return d;
+  }
+  async listDeliveries(agencyId: string, limit = 50): Promise<DeliveryEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(deliveries)
+      .where(eq(deliveries.agencyId, agencyId))
+      .orderBy(desc(deliveries.createdAt))
+      .limit(limit);
+    return rows.map((d: typeof deliveries.$inferSelect) => ({
+      id: d.id,
+      agencyId: d.agencyId,
+      toEmail: d.toEmail,
+      subject: d.subject,
+      body: d.body,
+      kind: d.kind,
+      requestId: d.requestId,
+      taskId: d.taskId,
+      createdAt: d.createdAt,
+    }));
+  }
+
+  async createAuthToken(t: AuthTokenEntity): Promise<AuthTokenEntity> {
+    await this.db.insert(authTokens).values({
+      id: t.id,
+      agencyId: t.agencyId,
+      kind: t.kind,
+      subjectId: t.subjectId,
+      tokenHash: t.tokenHash,
+      expiresAt: t.expiresAt,
+      usedAt: t.usedAt,
+      createdAt: t.createdAt,
+    });
+    return t;
+  }
+  async findAuthTokenByHash(tokenHash: string): Promise<AuthTokenEntity | null> {
+    const [t] = await this.db.select().from(authTokens).where(eq(authTokens.tokenHash, tokenHash)).limit(1);
+    return t
+      ? {
+          id: t.id,
+          agencyId: t.agencyId,
+          kind: t.kind as AuthTokenEntity["kind"],
+          subjectId: t.subjectId,
+          tokenHash: t.tokenHash,
+          expiresAt: t.expiresAt,
+          usedAt: t.usedAt,
+          createdAt: t.createdAt,
+        }
+      : null;
+  }
+  async markAuthTokenUsed(id: string, usedAt: Date): Promise<void> {
+    await this.db.update(authTokens).set({ usedAt }).where(eq(authTokens.id, id));
   }
 
   async appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity> {

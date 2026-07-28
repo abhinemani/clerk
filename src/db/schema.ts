@@ -277,6 +277,10 @@ export const requesters = pgTable(
     // scrypt hash; null = no account (anonymous or email-only requester). A
     // requester with prior email-deduped requests "claims" them on registration.
     passwordHash: text("password_hash"),
+    // Set once the address is proven. Claimed request history stays hidden
+    // until verified (an unverified registrant must not read a stranger's
+    // filings just by knowing their email).
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     type: requesterType("type").notNull().default("individual"),
     requestCount: integer("request_count").notNull().default(0),
     vexatiousFlag: boolean("vexatious_flag").notNull().default(false),
@@ -765,6 +769,79 @@ export const deflections = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Account administration audit, outbox, and one-time tokens
+// ---------------------------------------------------------------------------
+
+/**
+ * admin_events — append-only audit for everything OUTSIDE a request's own
+ * event log: staff created, roles changed, passwords reset, registrations,
+ * agency provisioning. Same defensibility principle as requestEvents (§10),
+ * agency-scoped rather than request-scoped. Insert-only; no update/delete.
+ */
+export const adminEvents = pgTable(
+  "admin_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // e.g. "staff_created" | "role_changed" | "password_reset" | ...
+    /** Who did it — display string ("Dana Okafor", "platform operator", "self-service"). */
+    actorLabel: text("actor_label").notNull(),
+    summary: text("summary").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("admin_events_agency_idx").on(t.agencyId, t.createdAt)],
+);
+
+/**
+ * deliveries — the outbox. Every outbound message (task dispatch, reminder,
+ * verification, reset, invite) is recorded here by the DbNotifier, whether or
+ * not an SMTP adapter actually sent it. In dev this IS the mailbox.
+ */
+export const deliveries = pgTable(
+  "deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    toEmail: text("to_email").notNull(),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    kind: text("kind").notNull(),
+    requestId: uuid("request_id").references(() => requests.id, { onDelete: "set null" }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("deliveries_agency_idx").on(t.agencyId, t.createdAt)],
+);
+
+/**
+ * auth_tokens — single-use, hashed, expiring tokens for email verification,
+ * password resets, and staff invites. Only the sha-256 of the token is stored;
+ * the raw value exists exactly once, inside the delivered link.
+ */
+export const authTokens = pgTable(
+  "auth_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // "verify_email" | "reset_requester" | "reset_staff" | "staff_invite"
+    /** The requester or user this token acts on. */
+    subjectId: uuid("subject_id").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("auth_tokens_subject_idx").on(t.subjectId)],
+);
+
+// ---------------------------------------------------------------------------
 // Agent runs (§16) — resumable, interruptible, auditable orchestrations
 // ---------------------------------------------------------------------------
 
@@ -925,6 +1002,9 @@ export const allTables = {
   releases,
   templates,
   deflections,
+  adminEvents,
+  deliveries,
+  authTokens,
   agentRuns,
   publicIdCounters,
 } as const;

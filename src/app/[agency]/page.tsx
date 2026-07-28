@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { DEMO_RELEASES } from "@/lib/demo";
+import { listArchive } from "@/lib/archive";
 import { getAgencyForSlug } from "@/lib/live";
 import { PortalTabs } from "../_components/PortalTabs";
 import { Seal, SparkIcon } from "../_components/ui";
+
+export const dynamic = "force-dynamic";
 
 export default async function Portal({ params }: { params: Promise<{ agency: string }> }) {
   const { agency: slug } = await params;
   const agency = await getAgencyForSlug(slug);
   if (!agency) notFound();
+  const releases = (await listArchive(slug)).slice(0, 3);
 
   return (
     <div className="wrap" style={{ paddingBlock: "52px 8px" }}>
@@ -101,7 +104,7 @@ export default async function Portal({ params }: { params: Promise<{ agency: str
             marginTop: 18,
           }}
         >
-          {DEMO_RELEASES.map((r) => (
+          {releases.map((r) => (
             <article key={r.id} className="card card-pad hover-lift">
               <div style={{ display: "flex", alignItems: "center", gap: 7, color: "var(--ai)" }}>
                 <SparkIcon />

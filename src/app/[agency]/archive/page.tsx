@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { DEMO_RELEASES } from "@/lib/demo";
+import { listArchive } from "@/lib/archive";
 import { getAgencyForSlug } from "@/lib/live";
+import { DownloadRecordButton } from "../../_components/DownloadRecordButton";
 import { SparkIcon } from "../../_components/ui";
+
+export const dynamic = "force-dynamic";
 
 export default async function ArchivePage({ params }: { params: Promise<{ agency: string }> }) {
   const { agency: slug } = await params;
   const agency = await getAgencyForSlug(slug);
   if (!agency) notFound();
+  const releases = await listArchive(slug);
 
   return (
     <div className="wrap" style={{ paddingBlock: "40px" }}>
@@ -31,7 +35,7 @@ export default async function ArchivePage({ params }: { params: Promise<{ agency
           gap: 16,
         }}
       >
-        {DEMO_RELEASES.map((r) => (
+        {releases.map((r) => (
           <article key={r.id} className="card card-pad hover-lift">
             <div style={{ display: "flex", alignItems: "center", gap: 7, color: "var(--ai)" }}>
               <SparkIcon />
@@ -48,12 +52,13 @@ export default async function ArchivePage({ params }: { params: Promise<{ agency
                   {t}
                 </span>
               ))}
-              <button className="btn btn-sm btn-primary" style={{ marginLeft: "auto" }}>
-                Download
-              </button>
+              <DownloadRecordButton agencySlug={agency.slug} documentId={r.id} />
             </div>
           </article>
         ))}
+        {releases.length === 0 && (
+          <p className="muted">Nothing published yet — released records will appear here.</p>
+        )}
       </div>
     </div>
   );

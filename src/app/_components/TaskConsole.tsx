@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { TASK_STATUS_LABEL, type TaskStatus } from "@/domain/taskWorkflow";
+import { pushBackAction, startTaskAction, submitRecordsAction } from "../task/[token]/actions";
 
 export interface TaskConsoleProps {
+  token: string;
+  /** Live tasks persist via server actions; demo-fixture tasks stay local. */
+  live: boolean;
   requestPublicId: string;
   agencyName: string;
   deptName: string;
@@ -19,11 +23,31 @@ export function TaskConsole(props: TaskConsoleProps) {
   const [uploads, setUploads] = useState(props.initialUploads);
   const [note, setNote] = useState("");
   const [showPushback, setShowPushback] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   function addFile() {
     const n = uploads.length + 1;
     setUploads((u) => [...u, { name: `document-${n}.pdf`, pages: 2 + n }]);
   }
+
+  /** Optimistic move backed by the server action when live. */
+  function run(next: TaskStatus, act: () => Promise<{ ok: boolean; error?: string }>) {
+    setError(null);
+    if (!props.live) {
+      setStatus(next);
+      return;
+    }
+    startTransition(async () => {
+      const result = await act();
+      if (result.ok) setStatus(next);
+      else setError(result.error ?? "Something went wrong.");
+    });
+  }
+
+  const start = () => run("in_progress", () => startTaskAction(props.token));
+  const submit = () => run("submitted", () => submitRecordsAction(props.token, uploads));
+  const sendPushback = () => run("pushed_back", () => pushBackAction(props.token, note));
 
   const done = status === "done" || status === "submitted" || status === "pushed_back";
 
@@ -106,10 +130,16 @@ export function TaskConsole(props: TaskConsoleProps) {
 
         <hr className="divider" style={{ margin: "22px 0" }} />
 
+        {error && (
+          <p className="pill band-overdue" role="alert" style={{ marginBottom: 12 }}>
+            {error}
+          </p>
+        )}
+
         {/* Actions by state */}
         {status === "assigned" && (
-          <button className="btn btn-primary" onClick={() => setStatus("in_progress")}>
-            Start working on this
+          <button className="btn btn-primary" disabled={pending} onClick={start}>
+            {pending ? "One moment…" : "Start working on this"}
           </button>
         )}
 
@@ -117,8 +147,8 @@ export function TaskConsole(props: TaskConsoleProps) {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               className="btn btn-primary"
-              disabled={uploads.length === 0}
-              onClick={() => setStatus("submitted")}
+              disabled={uploads.length === 0 || pending}
+              onClick={submit}
             >
               Submit {uploads.length} record{uploads.length === 1 ? "" : "s"} to the records office
             </button>
@@ -144,8 +174,8 @@ export function TaskConsole(props: TaskConsoleProps) {
             <div style={{ display: "flex", gap: 10 }}>
               <button
                 className="btn btn-danger"
-                disabled={note.trim().length === 0}
-                onClick={() => setStatus("pushed_back")}
+                disabled={note.trim().length === 0 || pending}
+                onClick={sendPushback}
               >
                 Send pushback
               </button>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getRepository } from "@/db/createRepository";
 import { decisionsFor, getWorkspace, outstandingTasks, workloadFor } from "@/lib/live";
 import { deadlineRisk, byRiskDesc, type RiskBand } from "@/domain/deadlineRisk";
 import { runDeadlineSweep } from "@/agents/deadlineAgent";
@@ -52,6 +53,23 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
   const decisions = decisionsFor(ws.requests, ws.now);
   const workload = workloadFor(ws.departments, ws.requests);
 
+  // Honest numbers: computed from the live DB, or the fixture's story numbers
+  // when we're showing the unseeded demo. "—" beats a made-up percentage.
+  let onTimeLabel = "94%";
+  let deflectionsLabel = "41";
+  if (ws.source === "live" && ws.agencyId) {
+    const repo = await getRepository();
+    const deflections = await repo.listDeflections(ws.agencyId);
+    const monthStart = new Date(ws.now.getFullYear(), ws.now.getMonth(), 1);
+    deflectionsLabel = String(deflections.filter((d) => d.createdAt >= monthStart).length);
+
+    const TERMINAL = new Set(["fulfilled", "denied", "withdrawn", "closed", "partially_fulfilled"]);
+    const closedRequests = ws.requests.filter((r) => TERMINAL.has(r.status));
+    onTimeLabel = closedRequests.length
+      ? `${Math.round((closedRequests.filter((r) => ws.now <= r.dueAt).length / closedRequests.length) * 100)}%`
+      : "—";
+  }
+
   return (
     <div className="wrap" style={{ paddingBlock: "36px" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
@@ -62,6 +80,9 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Link href={`/${slug}/app/reports`} className="btn btn-sm">
             Compliance report →
+          </Link>
+          <Link href={`/${slug}/app/outbox`} className="btn btn-sm">
+            Outbox
           </Link>
           {staff.role === "admin" && (
             <Link href={`/${slug}/app/admin`} className="btn btn-sm">
@@ -105,12 +126,12 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
           <div className="stat-label">Need a decision</div>
         </div>
         <div className="stat">
-          <div className="stat-num">94%</div>
-          <div className="stat-label">On-time rate (90d)</div>
+          <div className="stat-num">{onTimeLabel}</div>
+          <div className="stat-label">On-time rate</div>
         </div>
         <div className="stat">
           <div className="stat-num" style={{ color: "var(--ai)" }}>
-            41
+            {deflectionsLabel}
           </div>
           <div className="stat-label">Deflections this month</div>
         </div>

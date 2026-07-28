@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   canTransitionTask,
@@ -8,6 +9,14 @@ import {
   TASK_STATUS_LABEL,
   type TaskStatus,
 } from "@/domain/taskWorkflow";
+import {
+  acceptRecordsAction,
+  acceptTriageAction,
+  dismissTriageAction,
+  dispatchTaskAction,
+  reassignTaskAction,
+  sendBackAction,
+} from "../[agency]/app/(secure)/requests/[id]/actions";
 import { AiPill, Avatar, SparkIcon } from "./ui";
 
 export interface TaskVM {
@@ -48,38 +57,92 @@ const STATUS_TONE: Record<TaskStatus, string> = {
 };
 
 export function RequestWorkspace(props: {
+  requestId: string;
+  /** Live requests persist via server actions; the demo fixture stays local. */
+  live: boolean;
   triage: TriageVM;
   initialTasks: TaskVM[];
   initialSuggestions: SuggestionVM[];
   agencySlug: string;
 }) {
+  const router = useRouter();
   const [tasks, setTasks] = useState<TaskVM[]>(props.initialTasks);
   const [suggestions, setSuggestions] = useState<SuggestionVM[]>(props.initialSuggestions);
   const [triageState, setTriageState] = useState<"proposed" | "accepted" | "dismissed">("proposed");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const base = { agencySlug: props.agencySlug, requestId: props.requestId };
+
+  /** Optimistic update backed by a server action when live; refresh after. */
+  function persist(optimistic: () => void, act: () => Promise<{ ok: boolean; error?: string }>) {
+    setError(null);
+    if (!props.live) {
+      optimistic();
+      return;
+    }
+    startTransition(async () => {
+      const result = await act();
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong.");
+        return;
+      }
+      optimistic();
+      router.refresh(); // pull the authoritative state + audit timeline
+    });
+  }
 
   function move(id: string, to: TaskStatus) {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id && canTransitionTask(t.status, to) ? { ...t, status: to } : t)),
+    const apply = () =>
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id && canTransitionTask(t.status, to) ? { ...t, status: to } : t)),
+      );
+    if (to === "done") persist(apply, () => acceptRecordsAction({ ...base, taskId: id }));
+    else if (to === "in_progress") persist(apply, () => sendBackAction({ ...base, taskId: id }));
+    else if (to === "assigned") persist(apply, () => reassignTaskAction({ ...base, taskId: id }));
+    else apply();
+  }
+
+  function acceptTriage() {
+    persist(
+      () => setTriageState("accepted"),
+      () =>
+        acceptTriageAction({
+          ...base,
+          interpretedScope: props.triage.interpretedScope,
+          recordTypes: props.triage.recordTypes,
+        }),
+    );
+  }
+
+  function dismissTriage() {
+    persist(
+      () => setTriageState("dismissed"),
+      () => dismissTriageAction(base),
     );
   }
 
   function dispatch(s: SuggestionVM) {
-    const token = `${s.deptName.toLowerCase().replace(/\s+/g, "-")}-${s.id}`;
-    setTasks((prev) => [
-      ...prev,
-      {
-        id: `new-${s.id}`,
-        token,
-        deptName: s.deptName,
-        deptLead: "Department lead",
-        deptEmail: "lead@riverton.gov",
-        scope: s.scope,
-        status: "assigned",
-        dueLabel: "internal due in 3 days",
-        uploads: [],
+    persist(
+      () => {
+        setTasks((prev) => [
+          ...prev,
+          {
+            id: `new-${s.id}`,
+            token: "",
+            deptName: s.deptName,
+            deptLead: s.deptName,
+            deptEmail: "",
+            scope: s.scope,
+            status: "assigned",
+            dueLabel: "internal due in 3 days",
+            uploads: [],
+          },
+        ]);
+        setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
       },
-    ]);
-    setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
+      () => dispatchTaskAction({ ...base, departmentId: s.id, scopeText: s.scope }),
+    );
   }
 
   return (
@@ -93,6 +156,12 @@ export function RequestWorkspace(props: {
             fulfill from a no-login link and send it back.
           </p>
         </div>
+
+        {error && (
+          <p className="pill band-overdue" role="alert">
+            {error}
+          </p>
+        )}
 
         {tasks.map((t) => (
           <TaskCard key={t.id} task={t} onMove={move} agencySlug={props.agencySlug} />
@@ -140,11 +209,11 @@ export function RequestWorkspace(props: {
               </div>
             ) : (
               <div className="ai-actions">
-                <button className="btn btn-sm btn-primary" onClick={() => setTriageState("accepted")}>
+                <button className="btn btn-sm btn-primary" disabled={pending} onClick={acceptTriage}>
                   Accept
                 </button>
                 <button className="btn btn-sm">Edit</button>
-                <button className="btn btn-sm btn-ghost" onClick={() => setTriageState("dismissed")}>
+                <button className="btn btn-sm btn-ghost" disabled={pending} onClick={dismissTriage}>
                   Dismiss
                 </button>
               </div>
@@ -166,7 +235,7 @@ export function RequestWorkspace(props: {
                   {s.rationale}
                 </div>
                 <div className="ai-actions">
-                  <button className="btn btn-sm btn-primary" onClick={() => dispatch(s)}>
+                  <button className="btn btn-sm btn-primary" disabled={pending} onClick={() => dispatch(s)}>
                     Dispatch to {s.deptName}
                   </button>
                   <button

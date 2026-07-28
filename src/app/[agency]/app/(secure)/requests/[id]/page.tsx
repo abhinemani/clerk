@@ -143,6 +143,8 @@ export default async function RequestDetail({
 
         {/* Center + right — the interactive workspace (client) */}
         <RequestWorkspace
+          requestId={r.id}
+          live={detail.source === "live"}
           triage={{
             interpretedScope: r.interpretedScope,
             recordTypes: r.recordTypes,

@@ -1,19 +1,58 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { searchPublicReleases } from "@/lib/demo";
+import type { ArchiveItem } from "@/lib/archive";
+import { logDeflectionAction, searchArchiveAction } from "../[agency]/actions";
 import { SparkIcon } from "./ui";
 
 /**
  * The portal front door (§6.7): a question box, not a form. Answers from the
- * public corpus first (deflection), and only pivots to filing a request when the
- * corpus can't help. Retrieval is hard-scoped to public releases.
+ * tenant's own public corpus first (deflection), and only pivots to filing a
+ * request when the corpus can't help. Retrieval is hard-scoped to public
+ * documents server-side; every download or scope-down is logged as a
+ * Deflection — the ROI number agencies show their councils.
  */
 export function AnswerBox({ agencySlug }: { agencySlug: string }) {
   const [query, setQuery] = useState("");
-  const results = useMemo(() => searchPublicReleases(query), [query]);
+  const [results, setResults] = useState<ArchiveItem[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [downloaded, setDownloaded] = useState<string | null>(null);
+  const seq = useRef(0);
+
   const asked = query.trim().length >= 3;
+
+  // Debounced live search against the tenant's public corpus.
+  useEffect(() => {
+    if (!asked) {
+      setResults([]);
+      return;
+    }
+    const mine = ++seq.current;
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const found = await searchArchiveAction(agencySlug, query);
+        if (seq.current === mine) setResults(found);
+      } finally {
+        if (seq.current === mine) setSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query, asked, agencySlug]);
+
+  function download(item: ArchiveItem) {
+    setDownloaded(item.id);
+    // A served download = a request that never needed filing. Log it.
+    void logDeflectionAction({ agencySlug, kind: "download", query: query.trim(), documentId: item.id });
+  }
+
+  function loggedFileLink() {
+    // Filing after seeing partial answers = a narrower request (scope_down).
+    if (results.length > 0) {
+      void logDeflectionAction({ agencySlug, kind: "scope_down", query: query.trim() });
+    }
+  }
 
   return (
     <div>
@@ -37,7 +76,11 @@ export function AnswerBox({ agencySlug }: { agencySlug: string }) {
 
       {asked && (
         <div className="card" style={{ marginTop: 12, overflow: "hidden" }}>
-          {results.length > 0 ? (
+          {searching && results.length === 0 ? (
+            <div className="muted" style={{ padding: "16px 20px", fontSize: "0.92rem" }}>
+              Searching the public archive…
+            </div>
+          ) : results.length > 0 ? (
             <>
               <div
                 style={{
@@ -72,7 +115,7 @@ export function AnswerBox({ agencySlug }: { agencySlug: string }) {
                       <div className="muted" style={{ fontSize: "0.9rem", marginTop: 3 }}>
                         {r.summary}
                       </div>
-                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                         <span className="tag">Released {r.date}</span>
                         {r.tags.map((t) => (
                           <span key={t} className="tag">
@@ -81,13 +124,23 @@ export function AnswerBox({ agencySlug }: { agencySlug: string }) {
                         ))}
                       </div>
                     </div>
-                    <button className="btn btn-sm btn-primary">Download</button>
+                    <button
+                      className={`btn btn-sm ${downloaded === r.id ? "" : "btn-primary"}`}
+                      onClick={() => download(r)}
+                    >
+                      {downloaded === r.id ? "✓ Downloaded" : "Download"}
+                    </button>
                   </li>
                 ))}
               </ul>
               <div style={{ padding: "12px 16px", fontSize: "0.9rem" }} className="muted">
                 Not what you needed?{" "}
-                <Link href={`/${agencySlug}/request?q=${encodeURIComponent(query.trim())}`}>File a formal request</Link>{" "}
+                <Link
+                  href={`/${agencySlug}/request?q=${encodeURIComponent(query.trim())}`}
+                  onClick={loggedFileLink}
+                >
+                  File a formal request
+                </Link>{" "}
                 — we&apos;ll pre-fill what you&apos;ve told us.
               </div>
             </>

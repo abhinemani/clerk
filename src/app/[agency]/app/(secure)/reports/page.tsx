@@ -1,18 +1,51 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getRepository } from "@/db/createRepository";
 import { getAgencyForSlug } from "@/lib/live";
 import { DEFLECTIONS_YTD, reportingDataset } from "@/lib/reportingDemo";
-import { complianceReport } from "@/reporting/metrics";
+import { complianceReport, type RequestForMetrics } from "@/reporting/metrics";
 import { metricsCsv } from "@/reporting/csv";
 import { DownloadButton } from "../../../../_components/DownloadButton";
 
+export const dynamic = "force-dynamic";
+
 const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+const TERMINAL = new Set(["fulfilled", "denied", "withdrawn", "closed"]);
+
+/** Map live rows through the same pure §11 metrics the fixture uses. */
+async function liveDataset(agencyId: string): Promise<{ records: RequestForMetrics[]; deflections: number }> {
+  const repo = await getRepository();
+  const [requests, requesters, deflections] = await Promise.all([
+    repo.listRequests(agencyId),
+    repo.listRequesters(agencyId),
+    repo.listDeflections(agencyId),
+  ]);
+  const typeById = new Map(requesters.map((r) => [r.id, r.type]));
+  return {
+    records: requests.map((r) => ({
+      receivedAt: r.receivedAt ?? r.createdAt,
+      // Closure timestamps land with the release flow; until then terminal
+      // requests count as closed on their due date (conservative).
+      closedAt: TERMINAL.has(r.status) ? (r.statutoryDueAt ?? r.createdAt) : null,
+      statutoryDueAt: r.statutoryDueAt,
+      status: r.status,
+      requesterType: (r.requesterId && typeById.get(r.requesterId)) || "individual",
+      extended: false,
+      exemptionsCited: [],
+    })),
+    deflections: deflections.length,
+  };
+}
 
 export default async function ReportsPage({ params }: { params: Promise<{ agency: string }> }) {
   const { agency: slug } = await params;
   const agency = await getAgencyForSlug(slug);
   if (!agency) notFound();
-  const report = complianceReport(reportingDataset(), DEFLECTIONS_YTD);
+
+  const report = agency.id
+    ? await liveDataset(agency.id).then(({ records, deflections }) => complianceReport(records, deflections))
+    : complianceReport(reportingDataset(), DEFLECTIONS_YTD);
 
   const months = Object.entries(report.volumeByMonth).sort(([a], [b]) => a.localeCompare(b));
   const maxMonth = Math.max(...months.map(([, c]) => c), 1);

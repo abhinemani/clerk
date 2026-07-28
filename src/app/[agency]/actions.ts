@@ -86,6 +86,39 @@ export async function trackRequest(agencySlug: string, publicId: string): Promis
   };
 }
 
+// --- public archive + deflection (§6.7) ------------------------------------
+
+export async function searchArchiveAction(agencySlug: string, query: string) {
+  const { searchArchive } = await import("@/lib/archive");
+  return searchArchive(agencySlug, query);
+}
+
+/**
+ * Log a deflection (download served / request narrowed) — the ROI number.
+ * Fire-and-forget from the portal; never blocks the resident.
+ */
+export async function logDeflectionAction(input: {
+  agencySlug: string;
+  kind: "download" | "scope_down";
+  query?: string;
+  documentId?: string;
+}): Promise<void> {
+  try {
+    const repo = await getRepository();
+    const agency = await repo.getAgencyBySlug(input.agencySlug);
+    if (!agency) return; // demo fixture — nothing to log against
+    const { logDeflection } = await import("@/services/deflectionService");
+    await logDeflection(defaultDeps(repo), {
+      agencyId: agency.id,
+      kind: input.kind,
+      query: input.query,
+      documentId: input.documentId,
+    });
+  } catch (e) {
+    console.error("logDeflection failed", e);
+  }
+}
+
 // --- account flows ---------------------------------------------------------
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
