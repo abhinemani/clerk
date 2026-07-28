@@ -19,12 +19,13 @@ most-testable pieces first, per the spec's suggested starting point:
 | **§7 statute engine** — `computeDueDate()`, pure & unit-tested | ✅ | `src/statute/` |
 | State statute profiles (CA, TX, IL, WA, NY) — data, not code | ✅ | `src/statute/profiles/` |
 | **§16 agentic framework** — tiers, budgets, allowlists, run orchestrator | ✅ | `src/agents/` |
-| **§6 AI pipeline harness** — `runPipeline()` + intake triage (§6.1) | ✅ | `src/ai/` |
-| **Domain logic** — lifecycle state machine, public IDs, templates | ✅ | `src/domain/` |
+| **§6 AI pipelines** — harness + intake (§6.1), routing (§6.3), correspondence (§6.6) | ✅ | `src/ai/` |
+| **§6.5 PII scan** — deterministic recall-first redaction pass | ✅ | `src/ai/redaction/` |
+| **Domain logic** — lifecycle, IDs, templates, deadline risk, fees | ✅ | `src/domain/` |
 | **Tenant-isolation guard** (§10) | ✅ | `src/db/tenant.ts` |
 | **Eval harness** (§13) — golden set + grader + scorecard | ✅ | `evals/` |
 | Auth/roles, public portal, staff queue, ingestion API | ⬜ Phase 1 remainder | — |
-| Remaining §6 pipelines (dedup, routing, redaction, answer engine) | ⬜ Phase 2–4 | — |
+| Remaining §6 pipelines (dedup, responsive search, LLM redaction, answer engine) | ⬜ Phase 2–4 | — |
 
 ### The two things worth reading first
 
@@ -148,15 +149,16 @@ src/
     modelClient.ts     ModelClient iface + SDK client + fake
     runPipeline.ts     the shared harness (retry/validate/log)
     prompts/           versioned prompt files (§4)
-    pipelines/         intake triage (§6.1) — more to come
-  domain/              lifecycle state machine, public IDs, templates
+    pipelines/         intake (§6.1), routing (§6.3), correspondence (§6.6)
+    redaction/piiScan.ts  deterministic PII pass (§6.5 step 1)
+  domain/              lifecycle, publicId, templates, deadlineRisk, fees
   db/tenant.ts         tenant-isolation guard (§10)
 evals/                 §13 golden set + grader + scorecard
 docs/agentic-horizon.md  §16.4 strategic-horizon design note
 drizzle/               generated migrations
 ```
 
-Run `npm test` for the full suite (108 tests) and `npm run eval` for the
+Run `npm test` for the full suite (137 tests) and `npm run eval` for the
 intake-triage scorecard.
 
 ## Next steps (Phase 1 remainder, §12)
