@@ -227,6 +227,8 @@ export const users = pgTable(
     email: text("email").notNull(),
     name: text("name"),
     role: userRole("role").notNull().default("coordinator"),
+    // scrypt hash ("salt:hex"); null = cannot sign in (e.g. provisioned, no invite accepted).
+    passwordHash: text("password_hash"),
     notificationPrefs: jsonb("notification_prefs").$type<Record<string, unknown>>(),
     ...timestamps,
   },
@@ -272,6 +274,9 @@ export const requesters = pgTable(
     name: text("name"),
     email: text("email"), // deduped by email within an agency; null for anonymous
     org: text("org"),
+    // scrypt hash; null = no account (anonymous or email-only requester). A
+    // requester with prior email-deduped requests "claims" them on registration.
+    passwordHash: text("password_hash"),
     type: requesterType("type").notNull().default("individual"),
     requestCount: integer("request_count").notNull().default(0),
     vexatiousFlag: boolean("vexatious_flag").notNull().default(false),

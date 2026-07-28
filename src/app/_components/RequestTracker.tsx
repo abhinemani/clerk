@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { dateShort } from "@/lib/format";
 import { isPublicId } from "@/domain/publicId";
-import { trackRequest, type TrackResult } from "../portal/actions";
+import { trackRequest, type TrackResult } from "../[agency]/actions";
 
 /** Plain-language, resident-facing status (no jargon). */
 const RESIDENT_STATUS: Record<string, { headline: string; detail: string; tone: "ok" | "wait" | "action" }> = {
@@ -22,7 +22,13 @@ const RESIDENT_STATUS: Record<string, { headline: string; detail: string; tone: 
   closed: { headline: "Closed", detail: "This request is complete.", tone: "ok" },
 };
 
-export function RequestTracker({ initialId = "" }: { initialId?: string }) {
+export function RequestTracker({
+  agencySlug,
+  initialId = "",
+}: {
+  agencySlug: string;
+  initialId?: string;
+}) {
   const [q, setQ] = useState(initialId);
   const [result, setResult] = useState<TrackResult | null>(null);
   const [searchedFor, setSearchedFor] = useState<string | null>(null);
@@ -32,7 +38,7 @@ export function RequestTracker({ initialId = "" }: { initialId?: string }) {
     const trimmed = id.trim();
     if (!trimmed) return;
     startTransition(async () => {
-      const r = await trackRequest(trimmed);
+      const r = await trackRequest(agencySlug, trimmed);
       setResult(r);
       setSearchedFor(trimmed);
     });

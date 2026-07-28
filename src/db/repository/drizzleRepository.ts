@@ -19,6 +19,7 @@ import {
   requesters,
   requests,
   tasks,
+  users,
 } from "@/db/schema";
 import { tenantWhere } from "@/db/tenant";
 import {
@@ -32,6 +33,7 @@ import {
   type Requester,
   type Repository,
   type TaskEntity,
+  type UserEntity,
 } from "@/services/repository";
 
 // A Drizzle instance from either the postgres-js or pglite driver.
@@ -47,6 +49,20 @@ export class DrizzleRepository implements Repository {
   async getAgencyBySlug(slug: string): Promise<Agency | null> {
     const [a] = await this.db.select().from(agencies).where(eq(agencies.slug, slug)).limit(1);
     return a ? this.toAgency(a) : null;
+  }
+  async listAgencies(): Promise<Agency[]> {
+    const rows = await this.db.select().from(agencies);
+    return rows.map((a: typeof agencies.$inferSelect) => this.toAgency(a));
+  }
+  async createAgency(a: Agency): Promise<Agency> {
+    await this.db.insert(agencies).values({
+      id: a.id,
+      slug: a.slug,
+      name: a.name,
+      stateCode: a.stateCode,
+      observedHolidays: a.observedHolidays,
+    });
+    return a;
   }
   private toAgency(a: typeof agencies.$inferSelect): Agency {
     return { id: a.id, slug: a.slug, name: a.name, stateCode: a.stateCode, observedHolidays: a.observedHolidays ?? [] };
@@ -73,11 +89,83 @@ export class DrizzleRepository implements Repository {
     return rows.map((r: typeof requesters.$inferSelect) => this.toRequester(r));
   }
   async createRequester(r: Requester): Promise<Requester> {
-    await this.db.insert(requesters).values({ id: r.id, agencyId: r.agencyId, email: r.email, name: r.name, type: r.type });
+    await this.db
+      .insert(requesters)
+      .values({ id: r.id, agencyId: r.agencyId, email: r.email, name: r.name, type: r.type, passwordHash: r.passwordHash ?? null });
     return r;
   }
+  async updateRequester(agencyId: string, id: string, patch: Partial<Requester>): Promise<Requester> {
+    const set: Record<string, unknown> = {};
+    for (const k of ["name", "email", "type", "passwordHash"] as const) {
+      if (k in patch) set[k] = patch[k];
+    }
+    const rows = await this.db
+      .update(requesters)
+      .set(set)
+      .where(tenantWhere(requesters.agencyId, agencyId, eq(requesters.id, id)))
+      .returning();
+    if (!rows[0]) throw new NotFoundError("Requester", id);
+    return this.toRequester(rows[0]);
+  }
   private toRequester(r: typeof requesters.$inferSelect): Requester {
-    return { id: r.id, agencyId: r.agencyId, email: r.email, name: r.name, type: r.type };
+    return { id: r.id, agencyId: r.agencyId, email: r.email, name: r.name, type: r.type, passwordHash: r.passwordHash };
+  }
+
+  async findUserByEmail(agencyId: string, email: string): Promise<UserEntity | null> {
+    const [u] = await this.db
+      .select()
+      .from(users)
+      .where(tenantWhere(users.agencyId, agencyId, eq(users.email, email)))
+      .limit(1);
+    return u ? this.toUser(u) : null;
+  }
+  async getUser(agencyId: string, id: string): Promise<UserEntity | null> {
+    const [u] = await this.db
+      .select()
+      .from(users)
+      .where(tenantWhere(users.agencyId, agencyId, eq(users.id, id)))
+      .limit(1);
+    return u ? this.toUser(u) : null;
+  }
+  async listUsers(agencyId: string): Promise<UserEntity[]> {
+    const rows = await this.db.select().from(users).where(eq(users.agencyId, agencyId));
+    return rows.map((u: typeof users.$inferSelect) => this.toUser(u));
+  }
+  async createUser(u: UserEntity): Promise<UserEntity> {
+    await this.db.insert(users).values({
+      id: u.id,
+      agencyId: u.agencyId,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      passwordHash: u.passwordHash,
+    });
+    return u;
+  }
+  async updateUser(agencyId: string, id: string, patch: Partial<UserEntity>): Promise<UserEntity> {
+    const set: Record<string, unknown> = {};
+    for (const k of ["name", "email", "role", "passwordHash"] as const) {
+      if (k in patch) set[k] = patch[k];
+    }
+    const rows = await this.db
+      .update(users)
+      .set(set)
+      .where(tenantWhere(users.agencyId, agencyId, eq(users.id, id)))
+      .returning();
+    if (!rows[0]) throw new NotFoundError("User", id);
+    return this.toUser(rows[0]);
+  }
+  private toUser(u: typeof users.$inferSelect): UserEntity {
+    return { id: u.id, agencyId: u.agencyId, email: u.email, name: u.name, role: u.role, passwordHash: u.passwordHash };
+  }
+
+  async listRequestsByRequester(agencyId: string, requesterId: string): Promise<RequestEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(requests)
+      .where(tenantWhere(requests.agencyId, agencyId, eq(requests.requesterId, requesterId)))
+      .orderBy(desc(requests.createdAt));
+    return rows.map((r: typeof requests.$inferSelect) => this.toRequest(r));
   }
 
   async listDepartments(agencyId: string): Promise<Department[]> {

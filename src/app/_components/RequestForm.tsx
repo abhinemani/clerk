@@ -3,16 +3,25 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { dateShort } from "@/lib/format";
-import { fileRequest } from "../portal/actions";
+import { fileRequest } from "../[agency]/actions";
 
 type RequesterType = "individual" | "media" | "legal" | "commercial" | "government";
 
 /**
  * Resident request-submission flow. Submitting calls the `fileRequest` server
  * action — the real service layer: the request is persisted, gets a public id
- * and statutory deadline, and lands in the staff queue at /app.
+ * and statutory deadline, and lands in the agency's staff queue. A signed-in
+ * resident's identity is attached server-side; anonymous filing stays open.
  */
-export function RequestForm({ initialQuery = "" }: { initialQuery?: string }) {
+export function RequestForm({
+  agencySlug,
+  initialQuery = "",
+  signedInAs = null,
+}: {
+  agencySlug: string;
+  initialQuery?: string;
+  signedInAs?: { name: string; email: string } | null;
+}) {
   const [text, setText] = useState(initialQuery);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,7 +35,7 @@ export function RequestForm({ initialQuery = "" }: { initialQuery?: string }) {
     if (text.trim().length < 3 || pending) return;
     setError(null);
     startTransition(async () => {
-      const result = await fileRequest({ text, name, email, type });
+      const result = await fileRequest({ agencySlug, text, name, email, type });
       if (!result.ok) {
         setError(result.error);
         return;
@@ -51,7 +60,9 @@ export function RequestForm({ initialQuery = "" }: { initialQuery?: string }) {
           </div>
           <p style={{ marginTop: 12 }}>
             We&apos;ve received your request and will respond by <strong>{submitted.dueLabel}</strong>.
-            {email ? " We&apos;ll email you at each step." : " Save your tracking number to check status."}
+            {signedInAs || email
+              ? " We'll email you at each step."
+              : " Save your tracking number to check status."}
           </p>
           <div className="stat-row" style={{ gridTemplateColumns: "repeat(3, 1fr)", marginTop: 18 }}>
             {[
@@ -68,10 +79,10 @@ export function RequestForm({ initialQuery = "" }: { initialQuery?: string }) {
             ))}
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-            <Link href={`/portal/track?id=${submitted.publicId}`} className="btn btn-primary">
+            <Link href={`/${agencySlug}/track?id=${submitted.publicId}`} className="btn btn-primary">
               Track this request
             </Link>
-            <Link href="/" className="btn btn-ghost">
+            <Link href={`/${agencySlug}`} className="btn btn-ghost">
               Back to portal
             </Link>
           </div>
@@ -100,6 +111,14 @@ export function RequestForm({ initialQuery = "" }: { initialQuery?: string }) {
         </span>
       </div>
 
+      {signedInAs && (
+        <div className="pill" style={{ justifySelf: "start" }}>
+          Filing as {signedInAs.name || signedInAs.email} — updates go to {signedInAs.email}
+        </div>
+      )}
+
+      {!signedInAs && (
+      <>
       <div className="stack" style={{ gap: 6 }}>
         <label className="lbl" htmlFor="type">
           I&apos;m requesting as
@@ -129,8 +148,11 @@ export function RequestForm({ initialQuery = "" }: { initialQuery?: string }) {
       </div>
 
       <p className="muted" style={{ fontSize: "0.82rem" }}>
-        You can request anonymously — an email just lets us send updates. This is free.
+        You can request anonymously — an email just lets us send updates. This is free.{" "}
+        <Link href={`/${agencySlug}/login`}>Sign in</Link> to keep all your requests in one place.
       </p>
+      </>
+      )}
 
       {error && (
         <p className="pill band-overdue" role="alert" style={{ justifySelf: "start" }}>

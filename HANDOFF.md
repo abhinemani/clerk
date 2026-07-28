@@ -2,7 +2,26 @@
 
 Snapshot for picking this up in a fresh session.
 Repo: <https://github.com/abhinemani/clerk> · branch `main`.
-**240 tests pass, typecheck + production build clean.**
+**246 tests pass, typecheck + production build clean.**
+
+## Structure (multi-tenant + auth, since 2026-07-28)
+- `/` — marketing site (Clerk the product). `/admin` — platform operator console
+  (env creds: PLATFORM_ADMIN_EMAIL/PASSWORD, dev default admin@clerk.example /
+  clerk-admin-dev): list/onboard agencies, manage any tenant's accounts.
+- `/[agency]` — each government's portal (seal, official banner, its statute
+  profile). `/[agency]/login|register|account` resident accounts;
+  `/[agency]/app` staff workspace behind Auth.js (v5, credentials + JWT);
+  `/[agency]/app/admin` agency-admin roster. Tenant isolation enforced in
+  guards AND the repository layer. Registration claims prior email-deduped
+  requests. Anonymous filing still works (spec §3).
+- Demo credentials print from `npm run seed` (Riverton CA + Bellmar WA).
+- DB handle is memoized on globalThis (`src/db/createRepository.ts`) — Next dev
+  compiles per-route bundles; module-scope memoization opens multiple PGlite
+  handles on one dataDir and writes vanish. Don't "simplify" this back.
+- Deploy: turnkey — `npm run build && npm start` with NO env vars runs on
+  embedded PGlite (./.pgdata locally, PGLITE_PATH=/data/pgdata on a volume for
+  Railway/Fly/Render). Set AUTH_SECRET + platform admin creds in prod.
+  DATABASE_URL only needed for Vercel (ephemeral FS) / managed Postgres.
 
 ## What this is
 Clerk — an AI-native public records (FOIA) platform. Root spec: `~/Desktop/foia.md`

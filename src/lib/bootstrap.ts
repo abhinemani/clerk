@@ -9,6 +9,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/createRepository";
 import { agencies, departments, users } from "@/db/schema";
+import { hashPassword } from "@/auth/passwords";
 
 export const AGENCY_SLUG = "riverton";
 export const AGENCY_ID = "a0000000-0000-4000-8000-000000000001";
@@ -28,12 +29,14 @@ export async function ensureAgency(): Promise<{ agencyId: string; created: boole
     stateCode: "CA",
     observedHolidays: [],
   });
+  // Demo admin — credentials printed by `npm run seed`.
   await db.insert(users).values({
     id: COORDINATOR_ID,
     agencyId: AGENCY_ID,
     email: "dana@riverton.gov",
     name: "Dana Okafor",
-    role: "coordinator",
+    role: "admin",
+    passwordHash: hashPassword("riverton-demo"),
   });
   await db.insert(departments).values([
     { agencyId: AGENCY_ID, name: "Public Works", defaultResponderEmails: ["mbell@riverton.gov"] },

@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 import { getRequestDetail, outstandingTasks } from "@/lib/live";
 import { deadlineRisk, type RiskBand } from "@/domain/deadlineRisk";
 import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/format";
-import { DeadlineBand, StatusPill } from "../../../_components/ui";
+import { DeadlineBand, StatusPill } from "../../../../../_components/ui";
 import {
   RequestWorkspace,
   type SuggestionVM,
   type TaskVM,
-} from "../../../_components/RequestWorkspace";
+} from "../../../../../_components/RequestWorkspace";
 
 // Reads the live database — render per-request, not at build time.
 export const dynamic = "force-dynamic";
@@ -21,9 +21,13 @@ const BAND_LABEL: Record<RiskBand, string> = {
 
 const MS_DAY = 86_400_000;
 
-export default async function RequestDetail({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const detail = await getRequestDetail(id);
+export default async function RequestDetail({
+  params,
+}: {
+  params: Promise<{ agency: string; id: string }>;
+}) {
+  const { agency: slug, id } = await params;
+  const detail = await getRequestDetail(slug, id);
   if (!detail) notFound();
   const { now, departments, request: r, timeline } = detail;
 
@@ -63,7 +67,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
 
   return (
     <div className="wrap" style={{ paddingBlock: "28px 8px" }}>
-      <Link href="/app" className="muted" style={{ fontSize: "0.9rem" }}>
+      <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Queue
       </Link>
 
@@ -77,7 +81,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <DeadlineBand band={risk.band} label={`${BAND_LABEL[risk.band]} · ${dateShort(r.dueAt)}`} />
           <StatusPill label={requestStatusLabel(r.status)} />
-          <Link href={`/app/requests/${r.id}/redact`} className="btn btn-sm">
+          <Link href={`/${slug}/app/requests/${r.id}/redact`} className="btn btn-sm">
             Redact records →
           </Link>
         </div>
@@ -147,7 +151,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
           }}
           initialTasks={tasks}
           initialSuggestions={suggestions}
-          agencySlug="riverton"
+          agencySlug={slug}
         />
       </div>
 

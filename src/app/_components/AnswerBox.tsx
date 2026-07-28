@@ -10,7 +10,7 @@ import { SparkIcon } from "./ui";
  * public corpus first (deflection), and only pivots to filing a request when the
  * corpus can't help. Retrieval is hard-scoped to public releases.
  */
-export function AnswerBox() {
+export function AnswerBox({ agencySlug }: { agencySlug: string }) {
   const [query, setQuery] = useState("");
   const results = useMemo(() => searchPublicReleases(query), [query]);
   const asked = query.trim().length >= 3;
@@ -87,7 +87,7 @@ export function AnswerBox() {
               </ul>
               <div style={{ padding: "12px 16px", fontSize: "0.9rem" }} className="muted">
                 Not what you needed?{" "}
-                <Link href={`/portal/request?q=${encodeURIComponent(query.trim())}`}>File a formal request</Link>{" "}
+                <Link href={`/${agencySlug}/request?q=${encodeURIComponent(query.trim())}`}>File a formal request</Link>{" "}
                 — we&apos;ll pre-fill what you&apos;ve told us.
               </div>
             </>
@@ -99,7 +99,7 @@ export function AnswerBox() {
                 request and the records office will search their systems.
               </p>
               <Link
-                href={`/portal/request?q=${encodeURIComponent(query.trim())}`}
+                href={`/${agencySlug}/request?q=${encodeURIComponent(query.trim())}`}
                 className="btn btn-primary"
                 style={{ marginTop: 12 }}
               >

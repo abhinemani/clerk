@@ -1,17 +1,23 @@
 import Link from "next/link";
-import { DEMO_AGENCY, DEMO_RELEASES } from "@/lib/demo";
+import { notFound } from "next/navigation";
+import { DEMO_RELEASES } from "@/lib/demo";
+import { getAgencyForSlug } from "@/lib/live";
 import { SparkIcon } from "../../_components/ui";
 
-export default function ArchivePage() {
+export default async function ArchivePage({ params }: { params: Promise<{ agency: string }> }) {
+  const { agency: slug } = await params;
+  const agency = await getAgencyForSlug(slug);
+  if (!agency) notFound();
+
   return (
     <div className="wrap" style={{ paddingBlock: "40px" }}>
-      <Link href="/" className="muted" style={{ fontSize: "0.9rem" }}>
+      <Link href={`/${agency.slug}`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Back to portal
       </Link>
       <span className="eyebrow" style={{ display: "block", marginTop: 14 }}>
-        {DEMO_AGENCY.name} · Public Records
+        {agency.name} · Public Records
       </span>
-      <h1 className="serif" style={{ fontSize: "2rem", marginTop: 8, marginBottom: 6, fontWeight: 600 }}>
+      <h1 style={{ fontSize: "2rem", marginTop: 8, marginBottom: 6, fontWeight: 600 }}>
         Public records archive
       </h1>
       <p className="muted" style={{ fontSize: "1.02rem", marginBottom: 24 }}>

@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { decisionsFor, getWorkspace, outstandingTasks, workloadFor } from "@/lib/live";
 import { deadlineRisk, byRiskDesc, type RiskBand } from "@/domain/deadlineRisk";
 import { runDeadlineSweep } from "@/agents/deadlineAgent";
 import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/format";
-import { AiPill, Avatar, DeadlineBand, RiskMeter, StatusPill } from "../_components/ui";
+import { requireStaff } from "@/auth/guards";
+import { portalSignOut } from "../../actions";
+import { AiPill, Avatar, DeadlineBand, RiskMeter, StatusPill } from "../../../_components/ui";
 
 // Reads the live database — never prerender a stale queue at build time.
 export const dynamic = "force-dynamic";
@@ -14,8 +17,11 @@ const BAND_LABEL: Record<RiskBand, string> = {
   on_track: "On track",
 };
 
-export default async function Queue() {
-  const ws = await getWorkspace();
+export default async function Queue({ params }: { params: Promise<{ agency: string }> }) {
+  const { agency: slug } = await params;
+  const staff = await requireStaff(slug);
+  const ws = await getWorkspace(slug);
+  if (!ws) notFound();
 
   // The deadline agent runs its nightly sweep (pure logic, no model) and hands
   // the coordinator a morning digest (§16.1).
@@ -53,13 +59,23 @@ export default async function Queue() {
           <span className="eyebrow">{ws.agencyName} · Records oversight</span>
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Command center</h1>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Link href="/app/reports" className="btn btn-sm">
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href={`/${slug}/app/reports`} className="btn btn-sm">
             Compliance report →
           </Link>
+          {staff.role === "admin" && (
+            <Link href={`/${slug}/app/admin`} className="btn btn-sm">
+              Manage staff
+            </Link>
+          )}
           <span className="muted hide-sm" style={{ fontSize: "0.9rem" }}>
-            {ws.coordinator}
+            {staff.name ?? staff.email}
           </span>
+          <form action={portalSignOut.bind(null, slug)}>
+            <button className="btn btn-sm btn-ghost" type="submit">
+              Sign out
+            </button>
+          </form>
         </div>
       </div>
 
@@ -111,7 +127,7 @@ export default async function Queue() {
             {decisions.map(({ request, reason, severity }) => (
               <li key={request.id}>
                 <Link
-                  href={`/app/requests/${request.id}`}
+                  href={`/${slug}/app/requests/${request.id}`}
                   style={{ display: "flex", gap: 10, alignItems: "center", color: "var(--ink)" }}
                 >
                   <span
@@ -203,7 +219,7 @@ export default async function Queue() {
                     </div>
                   </td>
                   <td>
-                    <Link href={`/app/requests/${r.id}`} style={{ fontWeight: 600, color: "var(--ink)" }}>
+                    <Link href={`/${slug}/app/requests/${r.id}`} style={{ fontWeight: 600, color: "var(--ink)" }}>
                       {r.interpretedScope}
                     </Link>
                     <div style={{ display: "flex", gap: 8, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>

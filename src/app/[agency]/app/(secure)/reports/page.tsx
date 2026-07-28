@@ -1,13 +1,17 @@
 import Link from "next/link";
-import { DEMO_AGENCY } from "@/lib/demo";
+import { notFound } from "next/navigation";
+import { getAgencyForSlug } from "@/lib/live";
 import { DEFLECTIONS_YTD, reportingDataset } from "@/lib/reportingDemo";
 import { complianceReport } from "@/reporting/metrics";
 import { metricsCsv } from "@/reporting/csv";
-import { DownloadButton } from "../../_components/DownloadButton";
+import { DownloadButton } from "../../../../_components/DownloadButton";
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
-export default function ReportsPage() {
+export default async function ReportsPage({ params }: { params: Promise<{ agency: string }> }) {
+  const { agency: slug } = await params;
+  const agency = await getAgencyForSlug(slug);
+  if (!agency) notFound();
   const report = complianceReport(reportingDataset(), DEFLECTIONS_YTD);
 
   const months = Object.entries(report.volumeByMonth).sort(([a], [b]) => a.localeCompare(b));
@@ -30,12 +34,12 @@ export default function ReportsPage() {
 
   return (
     <div className="wrap" style={{ paddingBlock: "36px" }}>
-      <Link href="/app" className="muted" style={{ fontSize: "0.9rem" }}>
+      <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Command center
       </Link>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 12 }}>
         <div>
-          <span className="eyebrow">{DEMO_AGENCY.name} · Public Records Act</span>
+          <span className="eyebrow">{agency.name} · Public Records Act</span>
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Compliance report · 2026</h1>
         </div>
         <DownloadButton filename="clerk-compliance-2026.csv" content={csv} label="Download CSV" />

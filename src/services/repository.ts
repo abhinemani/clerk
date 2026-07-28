@@ -34,6 +34,21 @@ export interface Requester {
   email: string | null;
   name: string | null;
   type: RequesterType;
+  /** scrypt hash; null = no portal account (anonymous/email-only requester). */
+  passwordHash?: string | null;
+}
+
+export type StaffRole = "admin" | "coordinator" | "reviewer" | "responder" | "read_only";
+
+/** A staff member of an agency (spec §3 roles). */
+export interface UserEntity {
+  id: string;
+  agencyId: string;
+  email: string;
+  name: string | null;
+  role: StaffRole;
+  /** scrypt hash; null = cannot sign in yet (provisioned, no credentials set). */
+  passwordHash: string | null;
 }
 
 export interface Department {
@@ -122,12 +137,26 @@ export interface DeflectionEntity {
 export interface Repository {
   getAgency(agencyId: string): Promise<Agency | null>;
   getAgencyBySlug(slug: string): Promise<Agency | null>;
+  /** Every tenant — platform-operator console only; never expose per-agency. */
+  listAgencies(): Promise<Agency[]>;
+  createAgency(a: Agency): Promise<Agency>;
 
   findRequesterByEmail(agencyId: string, email: string): Promise<Requester | null>;
   getRequester(agencyId: string, id: string): Promise<Requester | null>;
   /** All requesters in the agency — batched name resolution for list views. */
   listRequesters(agencyId: string): Promise<Requester[]>;
   createRequester(r: Requester): Promise<Requester>;
+  updateRequester(agencyId: string, id: string, patch: Partial<Requester>): Promise<Requester>;
+
+  // Staff accounts (agency-scoped; agency admins manage their own roster).
+  findUserByEmail(agencyId: string, email: string): Promise<UserEntity | null>;
+  getUser(agencyId: string, id: string): Promise<UserEntity | null>;
+  listUsers(agencyId: string): Promise<UserEntity[]>;
+  createUser(u: UserEntity): Promise<UserEntity>;
+  updateUser(agencyId: string, id: string, patch: Partial<UserEntity>): Promise<UserEntity>;
+
+  /** A signed-in requester's own filings ("my requests"), newest first. */
+  listRequestsByRequester(agencyId: string, requesterId: string): Promise<RequestEntity[]>;
 
   listDepartments(agencyId: string): Promise<Department[]>;
 
@@ -176,6 +205,7 @@ export class NotFoundError extends Error {
 export class InMemoryRepository implements Repository {
   private agencies = new Map<string, Agency>();
   private requesters = new Map<string, Requester>();
+  private users = new Map<string, UserEntity>();
   private departments = new Map<string, Department>();
   private requests = new Map<string, RequestEntity>();
   private tasks = new Map<string, TaskEntity>();
@@ -200,6 +230,13 @@ export class InMemoryRepository implements Repository {
   async getAgencyBySlug(slug: string) {
     return [...this.agencies.values()].find((a) => a.slug === slug) ?? null;
   }
+  async listAgencies() {
+    return [...this.agencies.values()];
+  }
+  async createAgency(a: Agency) {
+    this.agencies.set(a.id, a);
+    return a;
+  }
 
   async findRequesterByEmail(agencyId: string, email: string) {
     return (
@@ -218,6 +255,44 @@ export class InMemoryRepository implements Repository {
   async createRequester(r: Requester) {
     this.requesters.set(r.id, r);
     return r;
+  }
+
+  async updateRequester(agencyId: string, id: string, patch: Partial<Requester>) {
+    const r = await this.getRequester(agencyId, id);
+    if (!r) throw new NotFoundError("Requester", id);
+    const updated = { ...r, ...patch, id: r.id, agencyId: r.agencyId };
+    this.requesters.set(id, updated);
+    return updated;
+  }
+
+  async findUserByEmail(agencyId: string, email: string) {
+    return (
+      [...this.users.values()].find((u) => u.agencyId === agencyId && u.email === email) ?? null
+    );
+  }
+  async getUser(agencyId: string, id: string) {
+    const u = this.users.get(id);
+    return u && u.agencyId === agencyId ? u : null;
+  }
+  async listUsers(agencyId: string) {
+    return [...this.users.values()].filter((u) => u.agencyId === agencyId);
+  }
+  async createUser(u: UserEntity) {
+    this.users.set(u.id, u);
+    return u;
+  }
+  async updateUser(agencyId: string, id: string, patch: Partial<UserEntity>) {
+    const u = await this.getUser(agencyId, id);
+    if (!u) throw new NotFoundError("User", id);
+    const updated = { ...u, ...patch, id: u.id, agencyId: u.agencyId };
+    this.users.set(id, updated);
+    return updated;
+  }
+
+  async listRequestsByRequester(agencyId: string, requesterId: string) {
+    return [...this.requests.values()]
+      .filter((r) => r.agencyId === agencyId && r.requesterId === requesterId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   async listDepartments(agencyId: string) {

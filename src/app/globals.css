@@ -17,13 +17,16 @@
   --ink-2: #4c5157;
   --muted: #797f88;
 
-  /* Civic navy primary + restrained warm-gold accent */
+  /* The civic triad: navy (structure), gold (ornament), maroon (accent). */
   --primary: #1e3a5f;
   --primary-deep: #142a45;
   --primary-hover: #274b78;
   --primary-ink: #ffffff;
   --primary-tint: #eef2f8;
-  --accent: #8a5a12;
+  /* Deep civic maroon — eyebrows, small-caps labels, official accents */
+  --maroon: #6e1b28;
+  --maroon-tint: #f7eef0;
+  --accent: #6e1b28;
   /* Decorative gold — seals, rules, flourishes only (never body text) */
   --gold: #c9a227;
 
@@ -80,7 +83,9 @@
     --primary-hover: #6295d6;
     --primary-ink: #0f1319;
     --primary-tint: #1f2a3a;
-    --accent: #d0a049;
+    --maroon: #d4909a;
+    --maroon-tint: #2c1a1e;
+    --accent: #d4909a;
     --gold: #d8b13c;
 
     --ai: #3fb6d3;
@@ -184,10 +189,10 @@ h3 {
 }
 .eyebrow {
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--maroon);
 }
 
 /* ---- official-website banner (the "you are on a government site" strip) ---- */
@@ -249,10 +254,10 @@ h3 {
 }
 .brand-name .brand-dept {
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--maroon);
 }
 .nav-links {
   display: flex;
@@ -312,6 +317,16 @@ h3 {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
 }
+.btn-maroon {
+  background: var(--maroon);
+  border-color: var(--maroon);
+  color: #ffffff;
+  box-shadow: var(--shadow-sm);
+}
+.btn-maroon:hover {
+  background: color-mix(in srgb, var(--maroon) 86%, #000);
+  border-color: color-mix(in srgb, var(--maroon) 86%, #000);
+}
 .btn-ghost {
   background: transparent;
   border-color: transparent;
@@ -349,7 +364,7 @@ h3 {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--primary);
 }
 
 /* ---- pills / bands ---- */
@@ -436,6 +451,7 @@ label.lbl {
   font-weight: 680;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  color: var(--primary);
 }
 .stat-label {
   font-size: 0.8rem;
@@ -451,12 +467,13 @@ label.lbl {
 .queue th {
   text-align: left;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--primary);
   padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 2px solid var(--gold);
+  background: var(--surface-2);
 }
 .queue td {
   padding: 14px;

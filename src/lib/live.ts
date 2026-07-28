@@ -11,6 +11,7 @@
  *
  * Keep this module out of client components — it touches the database.
  */
+import { cache } from "react";
 import {
   DEMO_AGENCY,
   DEMO_DEPARTMENTS,
@@ -30,8 +31,6 @@ import type {
   RequestEntity,
   TaskEntity,
 } from "@/services/repository";
-import { AGENCY_SLUG } from "@/lib/bootstrap";
-
 const MS_DAY = 86_400_000;
 
 // --- view models -----------------------------------------------------------
@@ -94,15 +93,37 @@ export interface TimelineEvent {
 
 // --- source resolution -----------------------------------------------------
 
-async function liveAgency(repo: Repository) {
-  return repo.getAgencyBySlug(AGENCY_SLUG);
+export interface AgencyVM {
+  /** Null when serving the unseeded demo fixture. */
+  id: string | null;
+  slug: string;
+  name: string;
+  stateCode: string;
+  source: "live" | "demo";
 }
 
-/** Everything the staff surfaces render, from the DB when seeded, else demo. */
-export async function getWorkspace(): Promise<Workspace> {
+/**
+ * Resolve the tenant for a portal URL. Unknown slug → null (page 404s). The
+ * demo fixture only ever stands in for the unseeded Riverton demo agency.
+ * Cached per request so layout + page share one lookup.
+ */
+export const getAgencyForSlug = cache(async (slug: string): Promise<AgencyVM | null> => {
   const repo = await getRepository();
-  const agency = await liveAgency(repo);
-  if (!agency) return demoWorkspace();
+  const agency = await repo.getAgencyBySlug(slug);
+  if (agency) {
+    return { id: agency.id, slug: agency.slug, name: agency.name, stateCode: agency.stateCode, source: "live" };
+  }
+  if (slug === DEMO_AGENCY.slug) {
+    return { id: null, slug, name: DEMO_AGENCY.name, stateCode: DEMO_AGENCY.state, source: "demo" };
+  }
+  return null;
+});
+
+/** Everything the staff surfaces render, from the DB when seeded, else demo. */
+export async function getWorkspace(slug: string): Promise<Workspace | null> {
+  const repo = await getRepository();
+  const agency = await repo.getAgencyBySlug(slug);
+  if (!agency) return slug === DEMO_AGENCY.slug ? demoWorkspace() : null;
 
   // Four batched queries — no per-request round trips.
   const [requests, allTasks, departments, allRequesters] = await Promise.all([
@@ -152,9 +173,9 @@ export interface RequestDetail {
  * what the page needs (request + its tasks + departments + events, in
  * parallel) rather than assembling the whole workspace.
  */
-export async function getRequestDetail(id: string): Promise<RequestDetail | null> {
+export async function getRequestDetail(slug: string, id: string): Promise<RequestDetail | null> {
   const repo = await getRepository();
-  const agency = await liveAgency(repo);
+  const agency = await repo.getAgencyBySlug(slug);
 
   if (agency) {
     const request = await repo.getRequest(agency.id, id);
@@ -183,6 +204,7 @@ export async function getRequestDetail(id: string): Promise<RequestDetail | null
     };
   }
 
+  if (slug !== DEMO_AGENCY.slug) return null;
   const demo = DEMO_REQUESTS.find((r) => r.id === id);
   if (!demo) return null;
   return {
@@ -196,10 +218,11 @@ export async function getRequestDetail(id: string): Promise<RequestDetail | null
 
 /** Public-id lookup for the requester tracker; live first, demo fallback. */
 export async function trackByPublicId(
+  slug: string,
   publicId: string,
 ): Promise<{ publicId: string; status: RequestStatus; receivedAt: Date; dueAt: Date; now: Date } | null> {
   const repo = await getRepository();
-  const agency = await liveAgency(repo);
+  const agency = await repo.getAgencyBySlug(slug);
   if (agency) {
     const r = await repo.findRequestByPublicId(agency.id, publicId.toUpperCase());
     if (r) {
@@ -213,6 +236,7 @@ export async function trackByPublicId(
       };
     }
   }
+  if (slug !== DEMO_AGENCY.slug) return null;
   const demo = DEMO_REQUESTS.find((r) => r.publicId.toLowerCase() === publicId.toLowerCase());
   if (demo) {
     return { publicId: demo.publicId, status: demo.status, receivedAt: demo.receivedAt, dueAt: demo.dueAt, now: DEMO_NOW };
