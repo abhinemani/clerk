@@ -19,8 +19,12 @@ most-testable pieces first, per the spec's suggested starting point:
 | **§7 statute engine** — `computeDueDate()`, pure & unit-tested | ✅ | `src/statute/` |
 | State statute profiles (CA, TX, IL, WA, NY) — data, not code | ✅ | `src/statute/profiles/` |
 | **§16 agentic framework** — tiers, budgets, allowlists, run orchestrator | ✅ | `src/agents/` |
-| Auth/roles, request lifecycle, portal, queue, ingestion API | ⬜ Phase 1 remainder | — |
-| §6 AI pipelines (the capabilities agents orchestrate) | ⬜ Phase 2–4 | — |
+| **§6 AI pipeline harness** — `runPipeline()` + intake triage (§6.1) | ✅ | `src/ai/` |
+| **Domain logic** — lifecycle state machine, public IDs, templates | ✅ | `src/domain/` |
+| **Tenant-isolation guard** (§10) | ✅ | `src/db/tenant.ts` |
+| **Eval harness** (§13) — golden set + grader + scorecard | ✅ | `evals/` |
+| Auth/roles, public portal, staff queue, ingestion API | ⬜ Phase 1 remainder | — |
+| Remaining §6 pipelines (dedup, routing, redaction, answer engine) | ⬜ Phase 2–4 | — |
 
 ### The two things worth reading first
 
@@ -74,6 +78,35 @@ step links back to its run in `request_events` so *why did it do that* is always
 answerable. The strategic horizon (§16.4) is captured in
 [`docs/agentic-horizon.md`](docs/agentic-horizon.md) — documented, not built.
 
+## The AI pipeline harness (§6, Phase 2)
+
+Every §6 AI capability is one pipeline: deterministic prompt build → model call
+with **structured output** → Zod validation → reviewable draft. The shared
+`runPipeline()` harness ([`src/ai/runPipeline.ts`](src/ai/runPipeline.ts)) owns
+the middle — retries with a corrective message on schema-validation failure, and
+a run record (model, **pinned prompt version**, token counts) emitted for the
+`ai_action` audit log (§6). Pipelines depend only on an injected `ModelClient`,
+so they're fully tested against a fake with **no live calls**.
+
+- **Model tier** ([`src/ai/models.ts`](src/ai/models.ts)) — `claude-sonnet-5` for
+  all pipelines, per spec §4 (Sonnet-class, one edit to change).
+- **Prompts are versioned code** ([`src/ai/prompts/`](src/ai/prompts/)) — each
+  pins a `promptVersion` logged with every run; it doesn't change without the
+  eval scorecard (§13).
+- **First pipeline: intake triage** (§6.1,
+  [`src/ai/pipelines/intakeTriage.ts`](src/ai/pipelines/intakeTriage.ts)) —
+  interpreted scope, record types, custodians, ambiguity flags, complexity
+  score, not-a-request detection, and statutory red flags, as a validated draft.
+- **Evals** ([`evals/`](evals/)) — a golden set + grader + scorecard;
+  `npm run eval` prints the scorecard (live-scored when `ANTHROPIC_API_KEY` is
+  set, grader unit-tested always).
+
+Domain logic the spine needs is in [`src/domain/`](src/domain/): the request
+**lifecycle state machine** (legal status transitions only, §5), `PR-YYYY-NNNNN`
+**public IDs**, and merge-field **template rendering** (§6.6). Tenant isolation
+(§10) is guarded in [`src/db/tenant.ts`](src/db/tenant.ts) — every scoped query
+ANDs in the `agency_id` predicate, and a missing/blank id throws.
+
 ## Getting started
 
 ```bash
@@ -110,10 +143,21 @@ src/
     tools.ts           capability surface + registry
     definitions.ts     the five agents (allowlists)
     runHarness.ts      resumable, auditable orchestrator
-    *.test.ts          64 total tests across statute + agents
+  ai/                  §6 AI pipeline layer (Phase 2)
+    models.ts          model tier (claude-sonnet-5, §4)
+    modelClient.ts     ModelClient iface + SDK client + fake
+    runPipeline.ts     the shared harness (retry/validate/log)
+    prompts/           versioned prompt files (§4)
+    pipelines/         intake triage (§6.1) — more to come
+  domain/              lifecycle state machine, public IDs, templates
+  db/tenant.ts         tenant-isolation guard (§10)
+evals/                 §13 golden set + grader + scorecard
 docs/agentic-horizon.md  §16.4 strategic-horizon design note
 drizzle/               generated migrations
 ```
+
+Run `npm test` for the full suite (108 tests) and `npm run eval` for the
+intake-triage scorecard.
 
 ## Next steps (Phase 1 remainder, §12)
 
