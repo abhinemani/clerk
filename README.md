@@ -42,6 +42,12 @@ Three working surfaces, driven by a "City of Riverton" demo fixture:
 | **Agent capability wiring** — §6 pipelines behind the registry | ✅ | `src/agents/capabilities.ts` |
 | **§11 reporting** — metrics, CSV, audit-export defensibility report, reports UI | ✅ | `src/reporting/`, `/app/reports` |
 | **§6.4/§6.7 AI fulfillment** — public-scoped retriever + grounded answer engine | ✅ | `src/ai/search/`, `src/ai/pipelines/answerEngine.ts` |
+| **§6.5 redaction AI** — LLM exemption pass, redaction profiles, residual-PII check | ✅ | `src/ai/pipelines/exemptionPass.ts`, `src/ai/redaction/` |
+| **§6.7 requester agent** — multi-turn converse + deflection ROI logging | ✅ | `src/ai/pipelines/requesterAgent.ts`, `src/services/deflectionService.ts` |
+| **§6.2/§6.4** — duplicate detection + hybrid (keyword+vector) search | ✅ | `src/ai/dedup/`, `src/ai/search/hybrid.ts` |
+| **§9.3 auto-classification** · **§6.7 archive summaries + proactive-publish** | ✅ | `src/ai/pipelines/`, `src/reporting/proactivePublication.ts` |
+| **§6.8 coordinator copilot** — request-scoped chat, drafts only | ✅ | `src/ai/pipelines/copilot.ts` |
+| **§16.1 deadline agent** — nightly sweep RUNS through the harness → morning digest | ✅ | `src/agents/deadlineAgent.ts` |
 | **Domain logic** — lifecycle, task workflow, IDs, templates, deadline risk | ✅ | `src/domain/` |
 | **Tenant-isolation guard** (§10) | ✅ | `src/db/tenant.ts` |
 | **Eval harness** (§13) — golden set + grader + scorecard | ✅ | `evals/` |

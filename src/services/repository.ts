@@ -99,6 +99,17 @@ export interface DocumentEntity {
   createdAt: Date;
 }
 
+export interface DeflectionEntity {
+  id: string;
+  agencyId: string;
+  /** "download" (satisfied without filing) or "scope_down" (narrowed a request). */
+  kind: "download" | "scope_down";
+  query: string | null;
+  documentId: string | null;
+  estimatedStaffHoursAvoided: number;
+  createdAt: Date;
+}
+
 // --- port ------------------------------------------------------------------
 
 export interface Repository {
@@ -130,6 +141,9 @@ export interface Repository {
   upsertDocumentByExternalId(
     doc: DocumentEntity,
   ): Promise<{ document: DocumentEntity; created: boolean }>;
+
+  appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity>;
+  listDeflections(agencyId: string): Promise<DeflectionEntity[]>;
 }
 
 export class NotFoundError extends Error {
@@ -148,6 +162,7 @@ export class InMemoryRepository implements Repository {
   private tasks = new Map<string, TaskEntity>();
   private events: EventEntity[] = [];
   private documents = new Map<string, DocumentEntity>();
+  private deflections: DeflectionEntity[] = [];
   private seqs = new Map<string, number>();
 
   seedAgency(a: Agency): this {
@@ -246,5 +261,13 @@ export class InMemoryRepository implements Repository {
     }
     this.documents.set(doc.id, doc);
     return { document: doc, created: true };
+  }
+
+  async appendDeflection(d: DeflectionEntity) {
+    this.deflections.push(d);
+    return d;
+  }
+  async listDeflections(agencyId: string) {
+    return this.deflections.filter((d) => d.agencyId === agencyId);
   }
 }

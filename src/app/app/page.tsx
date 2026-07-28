@@ -8,8 +8,9 @@ import {
 } from "@/lib/demo";
 import { deadlineRisk, byRiskDesc, type RiskBand } from "@/domain/deadlineRisk";
 import { isTaskTerminal } from "@/domain/taskWorkflow";
+import { runDeadlineSweep } from "@/agents/deadlineAgent";
 import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/format";
-import { AiPill, Avatar, DeadlineBand, RiskMeter, StatusPill } from "../_components/ui";
+import { AiPill, Avatar, DeadlineBand, RiskMeter, SparkIcon, StatusPill } from "../_components/ui";
 
 const BAND_LABEL: Record<RiskBand, string> = {
   overdue: "Overdue",
@@ -17,7 +18,19 @@ const BAND_LABEL: Record<RiskBand, string> = {
   on_track: "On track",
 };
 
-export default function Queue() {
+export default async function Queue() {
+  // The deadline agent runs its nightly sweep (pure logic, no model) and hands
+  // the coordinator a morning digest (§16.1).
+  const sweep = await runDeadlineSweep({
+    now: DEMO_NOW,
+    queue: DEMO_REQUESTS.map((r) => ({
+      publicId: r.publicId,
+      dueAt: r.dueAt,
+      outstandingTasks: r.tasks.filter((t) => !isTaskTerminal(t.status)).length,
+      complexityScore: r.complexityScore,
+    })),
+  });
+
   const rows = DEMO_REQUESTS.map((r) => {
     const outstandingTasks = r.tasks.filter((t) => !isTaskTerminal(t.status)).length;
     const risk = deadlineRisk({
@@ -136,6 +149,26 @@ export default function Queue() {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="ai-card" style={{ marginTop: 20 }}>
+        <div className="ai-head">
+          <AiPill>Deadline agent</AiPill>
+          <span className="muted" style={{ fontSize: "0.8rem", marginLeft: "auto" }}>
+            nightly sweep · ran {sweep.events.length} steps · {sweep.outcome}
+          </span>
+        </div>
+        <pre
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.82rem",
+            whiteSpace: "pre-wrap",
+            margin: 0,
+            color: "var(--ink-2)",
+          }}
+        >
+          {sweep.digest}
+        </pre>
       </div>
 
       <h2 style={{ fontSize: "1.15rem", marginTop: 28, marginBottom: 12 }}>
