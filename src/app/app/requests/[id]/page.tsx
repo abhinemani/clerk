@@ -79,6 +79,9 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <DeadlineBand band={risk.band} label={`${BAND_LABEL[risk.band]} · ${dateShort(r.dueAt)}`} />
           <StatusPill label={requestStatusLabel(r.status)} />
+          <Link href={`/app/requests/${r.id}/redact`} className="btn btn-sm">
+            Redact records →
+          </Link>
         </div>
       </div>
 

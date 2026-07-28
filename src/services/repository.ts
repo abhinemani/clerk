@@ -120,6 +120,7 @@ export interface Repository {
   createTask(t: TaskEntity): Promise<TaskEntity>;
   getTask(agencyId: string, id: string): Promise<TaskEntity | null>;
   getTaskByToken(token: string): Promise<TaskEntity | null>;
+  listTasks(agencyId: string, requestId: string): Promise<TaskEntity[]>;
   updateTask(agencyId: string, id: string, patch: Partial<TaskEntity>): Promise<TaskEntity>;
 
   appendEvent(e: EventEntity): Promise<EventEntity>;
@@ -206,6 +207,11 @@ export class InMemoryRepository implements Repository {
   }
   async getTaskByToken(token: string) {
     return [...this.tasks.values()].find((t) => t.token === token) ?? null;
+  }
+  async listTasks(agencyId: string, requestId: string) {
+    return [...this.tasks.values()].filter(
+      (t) => t.agencyId === agencyId && t.requestId === requestId,
+    );
   }
   async updateTask(agencyId: string, id: string, patch: Partial<TaskEntity>) {
     const t = await this.getTask(agencyId, id);

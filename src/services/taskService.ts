@@ -9,17 +9,28 @@
 import { assertTaskTransition } from "@/domain/taskWorkflow";
 import type { ServiceDeps } from "./deps";
 import { NotFoundError, type TaskEntity } from "./repository";
+import { defaultDispatchBody, taskUrl } from "./notifications";
 
 export interface DispatchTaskInput {
   agencyId: string;
   requestId: string;
   departmentId?: string;
   departmentName?: string;
+  /** Department head to notify — the person who actually holds the records. */
+  departmentEmail?: string;
+  departmentLead?: string;
   scopeText: string;
   dueAt?: Date;
   actorUserId?: string;
+  /** Optional AI-drafted notice body (§6.6); falls back to the default template. */
+  draftedBody?: { subject: string; body: string };
 }
 
+/**
+ * The clerk shares a scoped request with a department head: create the task,
+ * log the assignment, and — if a notifier and recipient are configured — deliver
+ * the no-login link and record the delivery. The audit log is the source of truth.
+ */
 export async function dispatchTask(deps: ServiceDeps, input: DispatchTaskInput): Promise<TaskEntity> {
   const { repo } = deps;
   const request = await repo.getRequest(input.agencyId, input.requestId);
@@ -49,7 +60,72 @@ export async function dispatchTask(deps: ServiceDeps, input: DispatchTaskInput):
     createdAt: deps.now(),
   });
 
+  // Actually deliver the task to the department head (§4 email interface).
+  if (deps.notifier && input.departmentEmail) {
+    const link = taskUrl(task.token, deps.baseUrl);
+    const drafted =
+      input.draftedBody ??
+      defaultDispatchBody({
+        departmentLead: input.departmentLead,
+        agencyName: deps.agencyName ?? "Records office",
+        publicId: request.publicId,
+        scope: input.scopeText,
+        link,
+      });
+    const receipt = await deps.notifier.send({
+      to: input.departmentEmail,
+      subject: drafted.subject,
+      body: drafted.body,
+      kind: "task_dispatch",
+      requestId: request.id,
+      taskId: task.id,
+    });
+    await repo.appendEvent({
+      id: deps.genId(),
+      agencyId: input.agencyId,
+      requestId: request.id,
+      kind: "delivery",
+      actorUserId: input.actorUserId ?? null,
+      summary: `Task link delivered to ${input.departmentName ?? "department"} (${input.departmentEmail})`,
+      payload: { taskId: task.id, to: input.departmentEmail, channel: receipt.channel, deliveryId: receipt.id },
+      createdAt: deps.now(),
+    });
+  }
+
   return task;
+}
+
+/**
+ * Send a reminder nudge to the department head for an outstanding task
+ * (§16.1 deadline agent; Tier-2 `staff_reminder_email`). Recorded as a delivery.
+ */
+export async function remindResponder(
+  deps: ServiceDeps,
+  input: { agencyId: string; taskId: string; departmentEmail: string; departmentName?: string },
+): Promise<void> {
+  if (!deps.notifier) return;
+  const task = await deps.repo.getTask(input.agencyId, input.taskId);
+  if (!task) throw new NotFoundError("Task", input.taskId);
+
+  const link = taskUrl(task.token, deps.baseUrl);
+  const receipt = await deps.notifier.send({
+    to: input.departmentEmail,
+    subject: `Reminder: records still needed`,
+    body: `This task is still open. Please attach records or push back:\n${link}\n\nWhat we need: ${task.scopeText}`,
+    kind: "task_reminder",
+    requestId: task.requestId,
+    taskId: task.id,
+  });
+  await deps.repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: task.requestId,
+    kind: "delivery",
+    actorUserId: null,
+    summary: `Reminder sent to ${input.departmentName ?? "department"} (${input.departmentEmail})`,
+    payload: { taskId: task.id, to: input.departmentEmail, channel: receipt.channel, kind: "task_reminder" },
+    createdAt: deps.now(),
+  });
 }
 
 async function loadTask(deps: ServiceDeps, agencyId: string, taskId: string): Promise<TaskEntity> {
