@@ -25,13 +25,13 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const detail = await getRequestDetail(id);
   if (!detail) notFound();
-  const { workspace, request: r, timeline } = detail;
+  const { now, departments, request: r, timeline } = detail;
 
-  const daysFromNow = (d: Date) => Math.round((d.getTime() - workspace.now.getTime()) / MS_DAY);
+  const daysFromNow = (d: Date) => Math.round((d.getTime() - now.getTime()) / MS_DAY);
 
   const risk = deadlineRisk({
     dueAt: r.dueAt,
-    now: workspace.now,
+    now,
     outstandingTasks: outstandingTasks(r),
     complexityScore: r.complexityScore ?? 0,
   });
@@ -51,7 +51,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
 
   // Routing suggestions = departments not yet tasked (the AI's proposal to dispatch).
   const taskedDeptIds = new Set(r.tasks.map((t) => t.departmentId));
-  const suggestions: SuggestionVM[] = workspace.departments
+  const suggestions: SuggestionVM[] = departments
     .filter((d) => !taskedDeptIds.has(d.id))
     .slice(0, 1)
     .map((d) => ({

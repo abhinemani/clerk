@@ -19,10 +19,13 @@
 
   /* Civic navy primary + restrained warm-gold accent */
   --primary: #1e3a5f;
+  --primary-deep: #142a45;
   --primary-hover: #274b78;
   --primary-ink: #ffffff;
   --primary-tint: #eef2f8;
   --accent: #8a5a12;
+  /* Decorative gold — seals, rules, flourishes only (never body text) */
+  --gold: #c9a227;
 
   /* AI surfaces — a distinct calm teal, used sparingly */
   --ai: #0e6b84;
@@ -73,10 +76,12 @@
     --muted: #8a909a;
 
     --primary: #4d80c4;
+    --primary-deep: #101c2e;
     --primary-hover: #6295d6;
     --primary-ink: #0f1319;
     --primary-tint: #1f2a3a;
     --accent: #d0a049;
+    --gold: #d8b13c;
 
     --ai: #3fb6d3;
     --ai-tint: #14262c;
@@ -146,8 +151,14 @@ select {
   border-radius: 4px;
 }
 
+/* Stately serif display — the official-document register (spec §8). */
 h1,
-h2,
+h2 {
+  font-family: var(--font-serif);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
 h3 {
   line-height: 1.15;
   letter-spacing: -0.015em;
@@ -179,12 +190,34 @@ h3 {
   color: var(--muted);
 }
 
+/* ---- official-website banner (the "you are on a government site" strip) ---- */
+.gov-banner {
+  background: var(--primary-deep);
+  color: #dce4ef;
+  font-size: 0.78rem;
+  border-bottom: 2px solid var(--gold);
+}
+.gov-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding-block: 4px;
+}
+.gov-banner strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+.gov-banner .muted-inverse {
+  color: #9fadc2;
+}
+
 /* ---- top nav ---- */
 .nav {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
   backdrop-filter: saturate(1.4) blur(10px);
   border-bottom: 1px solid var(--border);
 }
@@ -192,31 +225,34 @@ h3 {
   display: flex;
   align-items: center;
   gap: 20px;
-  height: 62px;
+  height: 66px;
 }
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  gap: 12px;
   color: var(--ink);
-  font-size: 1.12rem;
 }
 .brand:hover {
   text-decoration: none;
 }
-.brand-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: linear-gradient(150deg, var(--primary), #142a45);
-  color: #fff;
-  display: grid;
-  place-items: center;
+.brand-name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.16;
+}
+.brand-name .brand-agency {
   font-family: var(--font-serif);
   font-weight: 700;
-  box-shadow: var(--shadow-sm);
+  letter-spacing: -0.01em;
+  font-size: 1.06rem;
+}
+.brand-name .brand-dept {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 .nav-links {
   display: flex;
@@ -489,6 +525,72 @@ label.lbl {
   background: var(--surface-3);
   color: var(--ink-2);
   flex: none;
+}
+
+/* ---- letterhead motifs (portal hero, official documents) ---- */
+.letterhead-rule {
+  width: 148px;
+  border: none;
+  border-top: 4px double var(--gold);
+  margin: 20px auto 0;
+}
+.smallcaps {
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+}
+
+/* ---- government footer ---- */
+.gov-footer {
+  margin-top: 72px;
+  background: var(--primary-deep);
+  color: #c3cddd;
+  border-top: 3px solid var(--gold);
+  font-size: 0.88rem;
+}
+.gov-footer a {
+  color: #dde5f0;
+}
+.gov-footer a:hover {
+  color: #ffffff;
+}
+.gov-footer-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 32px;
+  padding-block: 40px 32px;
+}
+.gov-footer-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8fa0ba;
+  margin-bottom: 12px;
+}
+.gov-footer ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.gov-footer-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  padding-block: 16px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: #8fa0ba;
+}
+@media (max-width: 820px) {
+  .gov-footer-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
 }
 
 /* ---- misc ---- */

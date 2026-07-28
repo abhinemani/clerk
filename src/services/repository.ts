@@ -125,6 +125,8 @@ export interface Repository {
 
   findRequesterByEmail(agencyId: string, email: string): Promise<Requester | null>;
   getRequester(agencyId: string, id: string): Promise<Requester | null>;
+  /** All requesters in the agency — batched name resolution for list views. */
+  listRequesters(agencyId: string): Promise<Requester[]>;
   createRequester(r: Requester): Promise<Requester>;
 
   listDepartments(agencyId: string): Promise<Department[]>;
@@ -209,6 +211,9 @@ export class InMemoryRepository implements Repository {
   async getRequester(agencyId: string, id: string) {
     const r = this.requesters.get(id);
     return r && r.agencyId === agencyId ? r : null;
+  }
+  async listRequesters(agencyId: string) {
+    return [...this.requesters.values()].filter((r) => r.agencyId === agencyId);
   }
   async createRequester(r: Requester) {
     this.requesters.set(r.id, r);

@@ -104,14 +104,17 @@ export async function getWorkspace(): Promise<Workspace> {
   const agency = await liveAgency(repo);
   if (!agency) return demoWorkspace();
 
-  const [requests, allTasks, departments] = await Promise.all([
+  // Four batched queries — no per-request round trips.
+  const [requests, allTasks, departments, allRequesters] = await Promise.all([
     repo.listRequests(agency.id),
     repo.listAgencyTasks(agency.id),
     repo.listDepartments(agency.id),
+    repo.listRequesters(agency.id),
   ]);
 
   const deptVMs = departments.map(toDeptVM);
   const deptById = new Map(deptVMs.map((d) => [d.id, d]));
+  const requesterById = new Map(allRequesters.map((r) => [r.id, r]));
   const tasksByRequest = new Map<string, TaskEntity[]>();
   for (const t of allTasks) {
     const list = tasksByRequest.get(t.requestId) ?? [];
@@ -120,12 +123,10 @@ export async function getWorkspace(): Promise<Workspace> {
   }
 
   const now = new Date();
-  const vms = await Promise.all(
-    requests.map(async (r) => {
-      const requester = r.requesterId ? await repo.getRequester(agency.id, r.requesterId) : null;
-      return toRequestVM(r, tasksByRequest.get(r.id) ?? [], deptById, requester?.name ?? null, requester?.type ?? "anonymous", now);
-    }),
-  );
+  const vms = requests.map((r) => {
+    const requester = r.requesterId ? requesterById.get(r.requesterId) : undefined;
+    return toRequestVM(r, tasksByRequest.get(r.id) ?? [], deptById, requester?.name ?? null, requester?.type ?? "anonymous", now);
+  });
 
   return {
     source: "live",
@@ -138,23 +139,59 @@ export async function getWorkspace(): Promise<Workspace> {
   };
 }
 
-/** One request with its audit timeline — the detail page's data. */
-export async function getRequestDetail(id: string): Promise<
-  | { source: "live"; workspace: Workspace; request: RequestVM; timeline: TimelineEvent[] }
-  | { source: "demo"; workspace: Workspace; request: RequestVM; timeline: TimelineEvent[] }
-  | null
-> {
-  const workspace = await getWorkspace();
-  const request = workspace.requests.find((r) => r.id === id);
-  if (!request) return null;
+export interface RequestDetail {
+  source: "live" | "demo";
+  now: Date;
+  departments: DeptVM[];
+  request: RequestVM;
+  timeline: TimelineEvent[];
+}
 
-  if (workspace.source === "live" && workspace.agencyId) {
-    const repo = await getRepository();
-    const events = await repo.listEvents(workspace.agencyId, id);
-    return { source: "live", workspace, request, timeline: events.map(toTimelineEvent) };
+/**
+ * One request with its audit timeline — the detail page's data. Reads only
+ * what the page needs (request + its tasks + departments + events, in
+ * parallel) rather than assembling the whole workspace.
+ */
+export async function getRequestDetail(id: string): Promise<RequestDetail | null> {
+  const repo = await getRepository();
+  const agency = await liveAgency(repo);
+
+  if (agency) {
+    const request = await repo.getRequest(agency.id, id);
+    if (!request) return null; // seeded agency → detail links are live ids
+    const [tasks, departments, events, requester] = await Promise.all([
+      repo.listTasks(agency.id, id),
+      repo.listDepartments(agency.id),
+      repo.listEvents(agency.id, id),
+      request.requesterId ? repo.getRequester(agency.id, request.requesterId) : Promise.resolve(null),
+    ]);
+    const deptVMs = departments.map(toDeptVM);
+    const now = new Date();
+    return {
+      source: "live",
+      now,
+      departments: deptVMs,
+      request: toRequestVM(
+        request,
+        tasks,
+        new Map(deptVMs.map((d) => [d.id, d])),
+        requester?.name ?? null,
+        requester?.type ?? "anonymous",
+        now,
+      ),
+      timeline: events.map(toTimelineEvent),
+    };
   }
+
   const demo = DEMO_REQUESTS.find((r) => r.id === id);
-  return { source: "demo", workspace, request, timeline: demo ? demoTimeline(demo) : [] };
+  if (!demo) return null;
+  return {
+    source: "demo",
+    now: DEMO_NOW,
+    departments: DEMO_DEPARTMENTS.map((d) => ({ id: d.id, name: d.name, lead: d.lead, email: d.email })),
+    request: demoToVM(demo),
+    timeline: demoTimeline(demo),
+  };
 }
 
 /** Public-id lookup for the requester tracker; live first, demo fallback. */

@@ -68,6 +68,10 @@ export class DrizzleRepository implements Repository {
       .limit(1);
     return r ? this.toRequester(r) : null;
   }
+  async listRequesters(agencyId: string): Promise<Requester[]> {
+    const rows = await this.db.select().from(requesters).where(eq(requesters.agencyId, agencyId));
+    return rows.map((r: typeof requesters.$inferSelect) => this.toRequester(r));
+  }
   async createRequester(r: Requester): Promise<Requester> {
     await this.db.insert(requesters).values({ id: r.id, agencyId: r.agencyId, email: r.email, name: r.name, type: r.type });
     return r;
