@@ -47,7 +47,7 @@ Three working surfaces, driven by a "City of Riverton" demo fixture:
 | **§6.2/§6.4** — duplicate detection + hybrid (keyword+vector) search | ✅ | `src/ai/dedup/`, `src/ai/search/hybrid.ts` |
 | **§9.3 auto-classification** · **§6.7 archive summaries + proactive-publish** | ✅ | `src/ai/pipelines/`, `src/reporting/proactivePublication.ts` |
 | **§6.8 coordinator copilot** — request-scoped chat, drafts only | ✅ | `src/ai/pipelines/copilot.ts` |
-| **§16.1 agents that run** — deadline (nightly digest) + fulfillment (search→review→route→memo) | ✅ | `src/agents/deadlineAgent.ts`, `fulfillmentAgent.ts` |
+| **§16.1 — all five agents run** — deadline · fulfillment · release-prep · ingest-steward · requester-side | ✅ | `src/agents/*Agent.ts` |
 | **Domain logic** — lifecycle, task workflow, IDs, templates, deadline risk | ✅ | `src/domain/` |
 | **Tenant-isolation guard** (§10) | ✅ | `src/db/tenant.ts` |
 | **Eval harness** (§13) — golden set + grader + scorecard | ✅ | `evals/` |
