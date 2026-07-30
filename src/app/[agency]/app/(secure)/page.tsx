@@ -96,6 +96,9 @@ export default async function Queue({
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Command center</h1>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href={`/${slug}/app/search`} className="btn btn-sm">
+            Records search
+          </Link>
           <Link href={`/${slug}/app/reports`} className="btn btn-sm">
             Compliance report →
           </Link>

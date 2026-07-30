@@ -339,6 +339,8 @@ export interface Repository {
   ): Promise<{ document: DocumentEntity; created: boolean }>;
   /** The public corpus — what the portal archive and answer box may show (§6.7). */
   listPublicDocuments(agencyId: string): Promise<DocumentEntity[]>;
+  /** Every document in the agency corpus — STAFF surfaces only (§6.4). */
+  listDocuments(agencyId: string): Promise<DocumentEntity[]>;
   createDocument(doc: DocumentEntity): Promise<DocumentEntity>;
   getDocument(agencyId: string, id: string): Promise<DocumentEntity | null>;
   /**
@@ -613,6 +615,12 @@ export class InMemoryRepository implements Repository {
   async listPublicDocuments(agencyId: string) {
     return [...this.documents.values()]
       .filter((d) => d.agencyId === agencyId && d.classification === "public")
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async listDocuments(agencyId: string) {
+    return [...this.documents.values()]
+      .filter((d) => d.agencyId === agencyId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 

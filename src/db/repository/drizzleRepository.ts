@@ -533,6 +533,15 @@ export class DrizzleRepository implements Repository {
     return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
   }
 
+  async listDocuments(agencyId: string): Promise<DocumentEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .where(eq(documents.agencyId, agencyId))
+      .orderBy(desc(documents.createdAt));
+    return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
+  }
+
   async appendAdminEvent(e: AdminEventEntity): Promise<AdminEventEntity> {
     await this.db.insert(adminEvents).values({
       id: e.id,

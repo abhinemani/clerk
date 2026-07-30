@@ -116,6 +116,10 @@ Also complete:
   pipelines all LIVE now except requesterAgent multi-turn; `src/agents/`
   holds the §16.1 five agents + tier/budget framework (built, tested,
   NOT wired — Phase 5).
+- **Staff records search** (§6.4, 2026-07-30): `/[agency]/app/search` —
+  see roadmap item 4 below for the full shape. repo.listDocuments is the
+  one new port method (remember gotcha 2: restart dev servers after adding
+  repo methods — we hit it AGAIN this window).
 - **Requester agent in the portal** (§6.7, wired 2026-07-30): with
   `ANTHROPIC_API_KEY`, the answer box gains an Ask button — multi-turn
   answer → narrow → file over the public archive (same retrieval as instant
@@ -243,11 +247,14 @@ records office runs Tuesday on this." Tiered by adoption impact.
    portals.
 
 **Tier 2 — daily-work leverage**
-4. **Staff responsive-records search (§6.4).** The daily job is FINDING
-   records. Per-chunk embeddings over extracted text at ingest (chunk 1+ —
-   chunk 0 is taken by archive entries), staff-scoped hybrid search, and
-   "attach to request" from results. Turns the corpus into fulfillment
-   leverage instead of storage.
+4. **Staff responsive-records search (§6.4).** SHIPPED (lexical): `/app/
+   search` (recordsSearchService) — full-corpus staff-only search over
+   filename + extracted text + metadata via LexicalRetriever scope "full";
+   burned artifacts hidden; `?req=` context prefills from a request (the
+   "Find records" button on the detail page) and enables one-click attach
+   (linkRequestDocument + named-actor event + exemption_pass re-enqueue).
+   Still open: per-chunk embeddings at ingest (chunk 1+) to make this
+   hybrid — the service signature is ready for it.
 5. **Queue ergonomics at volume.** Partially done: per-coordinator
    assignment (auto + manual, evented) and Mine/Unassigned filters shipped
    with the workflow-automation work. Still open: saved filters and bulk

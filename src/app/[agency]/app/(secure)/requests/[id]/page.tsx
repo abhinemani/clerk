@@ -232,6 +232,14 @@ export default async function RequestDetail({
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <DeadlineBand band={risk.band} label={`${BAND_LABEL[risk.band]} · ${dateShort(r.dueAt)}`} />
           <StatusPill label={requestStatusLabel(r.status)} />
+          {detail.source === "live" && (
+            <Link
+              href={`/${slug}/app/search?req=${r.id}&q=${encodeURIComponent(r.interpretedScope.split(/\s+/).slice(0, 8).join(" "))}`}
+              className="btn btn-sm"
+            >
+              Find records
+            </Link>
+          )}
           <Link href={`/${slug}/app/requests/${r.id}/redact`} className="btn btn-sm">
             Redact records →
           </Link>
