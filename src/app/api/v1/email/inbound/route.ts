@@ -88,9 +88,14 @@ export async function POST(req: Request) {
     const deps = { ...defaultDeps(await getRepository()), blobStore: getBlobStore() };
     const result = await ingestInboundEmail(deps, input);
     if (result.ok && result.route === "task_submission") {
-      // New review-set documents → exemption suggestions for the studio.
+      // New review-set documents → exemption suggestions for the studio,
+      // and OCR recovery for scans that arrived without a text layer.
       const { getJobQueue } = await import("@/jobs/queue");
       getJobQueue().enqueue("exemption_pass", {
+        agencyId: result.agencyId,
+        requestId: result.requestId,
+      });
+      getJobQueue().enqueue("ocr_extract", {
         agencyId: result.agencyId,
         requestId: result.requestId,
       });

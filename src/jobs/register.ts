@@ -4,6 +4,7 @@
  */
 import { runEmbedPublicDocumentsJob } from "./embedJob";
 import { runExemptionPassJob } from "./exemptionPassJob";
+import { runOcrExtractJob } from "./ocrJob";
 import { getJobQueue } from "./queue";
 import { runIntakeTriageJob } from "./triageJob";
 
@@ -23,6 +24,7 @@ export function registerJobs(): void {
   queue.register("intake_triage", runIntakeTriageJob);
   queue.register("exemption_pass", runExemptionPassJob);
   queue.register("embed_public_documents", runEmbedPublicDocumentsJob);
+  queue.register("ocr_extract", runOcrExtractJob);
 
   // Backfill archive embeddings shortly after boot (no-op when up to date;
   // fake embedder keeps this working without VOYAGE_API_KEY).

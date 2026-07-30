@@ -6,7 +6,7 @@ Written 2026-07-29 at the end of a long build window — everything below was
 verified working in that window unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**332 tests pass, typecheck + production build clean** (as of `22b0d23`).
+**358 tests pass, typecheck + production build clean** (as of the OCR/DOCX commit).
 
 ## What this is
 
@@ -101,12 +101,17 @@ Also complete:
   + inbound address helpers).
 - **Adapters** (`src/adapters/`): blobStore (local FS), **email**
   (Postmark/Resend), **virusScan** (builtin EICAR / clamd), **textExtract**
-  (plain text + PDF text layers incl. FlateDecode — pure node). Pure PDF
-  rendering for burns: `src/domain/textPdf.ts`.
+  (plain text + PDF text layers incl. FlateDecode + **DOCX** via a built-in
+  zip reader — pure node; also exports `extractPdfImages` for scan pages),
+  **ocr** (OFF by default; `TESSERACT_PATH` local binary over stdin/stdout or
+  `OCR_ENDPOINT` HTTP sidecar, `OCR_LANGS`; fail-soft — a doc just stays
+  text-less). Pure PDF rendering for burns: `src/domain/textPdf.ts`.
 - **Jobs** (`src/jobs/`): in-process queue (pg-boss-ready port) —
   intake_triage (+routing rides it), exemption_pass (+auto-classification
-  rides it), embed_public_documents; nightly deadline sweep; boot seeding.
-  Registered in `src/instrumentation.ts`.
+  rides it), embed_public_documents, **ocr_extract** (recovers text from
+  scans/images off the request path, logs an ai_action event, re-enqueues
+  exemption_pass; no-op with OCR unconfigured); nightly deadline sweep; boot
+  seeding. Registered in `src/instrumentation.ts`.
 - **AI** (`src/ai/`): runPipeline harness (Zod, retries, prompt versions);
   pipelines all LIVE now except requesterAgent multi-turn; `src/agents/`
   holds the §16.1 five agents + tier/budget framework (built, tested,
@@ -152,7 +157,8 @@ SEED_DEMO=true docker compose up --build   # …with the demo seeded at boot
 One volume (`clerk-data` → `/data`) holds DB + blobs. Optional env:
 `DATABASE_URL`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `EMAIL_FROM` +
 (`POSTMARK_SERVER_TOKEN` | `RESEND_API_KEY`), `INBOUND_EMAIL_TOKEN` +
-`INBOUND_EMAIL_DOMAIN`, `CLAMAV_HOST`. All documented in `.env.example`.
+`INBOUND_EMAIL_DOMAIN`, `CLAMAV_HOST`, `TESSERACT_PATH` | `OCR_ENDPOINT`
+(+ `OCR_LANGS`). All documented in `.env.example`.
 
 ## Gotchas that WILL bite you (hard-won; several new this window)
 
@@ -184,13 +190,16 @@ Best-thinking assessment of what stands between "complete demo" and "a
 records office runs Tuesday on this." Tiered by adoption impact.
 
 **Tier 1 — adoption blockers**
-1. **OCR + DOCX extraction.** Most municipal records are scans and Word
-   files; today those can only be withheld or released whole — the
-   redaction studio (the crown jewel) doesn't apply to the majority of real
-   documents. OCR behind an adapter port (self-contained default: a
-   tesseract sidecar container or WASM build; degrade honestly to "no
-   text"). DOCX is a zip of XML — extractable with node zlib, no new deps.
-   This single item roughly doubles real-world coverage.
+1. ~~**OCR + DOCX extraction.**~~ **DONE.** DOCX extracts natively (zip
+   reader + WordprocessingML flattening, zero deps, detected by content not
+   mime). OCR is an adapter (`src/adapters/ocr.ts`): `TESSERACT_PATH` (local
+   binary, stdin/stdout) or `OCR_ENDPOINT` (tesseract-server sidecar),
+   disabled+honest by default; the `ocr_extract` job feeds whole images and
+   the DCTDecode (JPEG) streams of scanned PDFs, 50-page cap, then re-runs
+   the exemption pass. Studio copy now distinguishes "OCR running" /
+   "no OCR configured" / plain no-text. Not covered: CCITT/JBIG2-encoded
+   PDFs (uncommon; degrade honestly) and OCR for requester-reply email
+   attachments (correspondence, not review-set).
 2. **Legacy import / migration path.** No office starts empty. A CSV/
    spreadsheet importer for open + historical requests (and release
    history), mapped to real statuses/dates, collapses the switching cost

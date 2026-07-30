@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getOcrEngine, isOcrImageMime } from "@/adapters/ocr";
 import { requireStaff } from "@/auth/guards";
 import { getRepository } from "@/db/createRepository";
 import { getRequestDetail } from "@/lib/live";
@@ -29,7 +30,8 @@ export default async function RedactPage({
 
   // Live requests redact their real review-set documents; the demo fixture
   // keeps the sample so the studio is explorable on a fresh clone.
-  let docs: { id: string; filename: string; hasText: boolean }[] = [];
+  let docs: { id: string; filename: string; hasText: boolean; scanLike: boolean }[] = [];
+  const ocrEnabled = getOcrEngine().kind !== "disabled";
   let selected: { id: string; filename: string; lines: string[] } | null = null;
   let finalizedArtifact: FinalizedArtifactVM | null = null;
   let exemptions: string[] = [...EXEMPTION_OPTIONS];
@@ -52,6 +54,9 @@ export default async function RedactPage({
       id: d.id,
       filename: d.filename ?? d.id,
       hasText: d.extractedText != null,
+      // Scan-shaped bytes: an image file, or a PDF whose extraction found no
+      // text layer — the documents OCR exists for.
+      scanLike: isOcrImageMime(d.mimeType) || d.mimeType === "application/pdf",
     }));
 
     const pick =
@@ -101,7 +106,7 @@ export default async function RedactPage({
               style={!d.hasText ? { opacity: 0.5, pointerEvents: "none" } : undefined}
             >
               {d.filename}
-              {!d.hasText && " (no text)"}
+              {!d.hasText && (d.scanLike && ocrEnabled ? " (scan — OCR running)" : " (no text)")}
             </Link>
           ))}
         </div>
@@ -117,7 +122,11 @@ export default async function RedactPage({
           <p className="muted" style={{ margin: "6px 0 0", fontSize: "0.92rem" }}>
             {docs.length === 0
               ? "Documents arrive here when a department submits records for this request."
-              : "A document we can't read can't be certified as redacted — withhold those documents or release them in full from the request page."}
+              : docs.some((d) => d.scanLike) && ocrEnabled
+                ? "These look like scans — OCR is running in the background and text usually appears within a minute. Until it does, a document we can't read can't be certified as redacted."
+                : docs.some((d) => d.scanLike)
+                  ? "These look like scans, and this deployment has no OCR engine configured (set TESSERACT_PATH or OCR_ENDPOINT). A document we can't read can't be certified as redacted — withhold those documents or release them in full from the request page."
+                  : "A document we can't read can't be certified as redacted — withhold those documents or release them in full from the request page."}
           </p>
         </div>
       ) : (

@@ -110,6 +110,82 @@ export default function MarketingHome() {
           </div>
         </section>
 
+        {/* What the AI actually does — concrete, lifecycle-ordered, honest */}
+        <section className="wrap" style={{ paddingBlock: "48px 8px", maxWidth: 980 }}>
+          <div style={{ textAlign: "center", maxWidth: 720, marginInline: "auto" }}>
+            <span className="smallcaps" style={{ color: "var(--ai)", fontSize: "0.85rem" }}>
+              Under the hood
+            </span>
+            <h2 style={{ fontSize: "1.6rem", marginTop: 8 }}>What the AI is doing, step by step</h2>
+            <p className="muted" style={{ marginTop: 10, fontSize: "1.02rem" }}>
+              {branding.productName} puts an AI worker at each stage of the request lifecycle. Each
+              one drafts; a named member of your staff decides. Here is the whole roster — there is
+              no fine print.
+            </p>
+          </div>
+          <div className="mk-agents" style={{ marginTop: 28 }}>
+            {[
+              {
+                stage: "Before a request exists",
+                name: "The answer box",
+                does: "Searches everything your agency has already released — keyword and semantic, together — and answers residents in plain language with links to the documents. Many requests end here, as downloads instead of paperwork.",
+                human: "Draws only on records already public. It cannot see anything else.",
+              },
+              {
+                stage: "At intake",
+                name: "Triage",
+                does: "Reads the new request, drafts a scope summary, estimates complexity, suggests which departments should respond, and flags likely duplicates of requests you've already handled.",
+                human: "A coordinator accepts, edits, or discards the scope before anything moves.",
+              },
+              {
+                stage: "As records arrive",
+                name: "Document review",
+                does: "Reads each uploaded document, suggests a classification, and marks passages that may fall under a statutory exemption — with the citation it thinks applies.",
+                human: "Suggestions land as cards on the document. Staff accept, edit, or dismiss each one.",
+              },
+              {
+                stage: "In the redaction studio",
+                name: "Redaction assist",
+                does: "Runs a PII pass and proposes redactions span by span. Finalizing regenerates the document from clean bytes — accepted redactions are burned in, never layered on top.",
+                human: "Every span is human-confirmed, and a leak check verifies the final artifact.",
+              },
+              {
+                stage: "In correspondence",
+                name: "Drafting",
+                does: "Drafts clarification replies, extension notices, response letters, and denial letters with the appeal language your statute requires — grounded in the request's actual record.",
+                human: "Letters go out under a staff name only after a staff member sends them.",
+              },
+              {
+                stage: "Alongside your team",
+                name: "The copilot & deadline watch",
+                does: "A coordinator can ask the copilot about any request; drafted messages are editable in place and marked as AI-assisted. A nightly sweep watches every statutory clock and writes a digest of what's at risk.",
+                human: "Every consultation is itself an audit event. The clock math is statute data, not model output.",
+              },
+            ].map((a) => (
+              <article key={a.name} className="card card-pad" style={{ borderTop: "3px solid var(--ai)" }}>
+                <span className="smallcaps" style={{ color: "var(--accent)", fontSize: "0.78rem" }}>
+                  {a.stage}
+                </span>
+                <h3 style={{ fontSize: "1.12rem", marginTop: 6, display: "flex", alignItems: "center", gap: 7 }}>
+                  <span style={{ color: "var(--ai)", display: "inline-flex" }}>
+                    <SparkIcon />
+                  </span>
+                  {a.name}
+                </h3>
+                <p className="muted" style={{ marginTop: 8, fontSize: "0.93rem" }}>{a.does}</p>
+                <p style={{ marginTop: 10, fontSize: "0.88rem", color: "var(--ai)", fontWeight: 500 }}>
+                  {a.human}
+                </p>
+              </article>
+            ))}
+          </div>
+          <p className="muted" style={{ textAlign: "center", marginTop: 22, fontSize: "0.92rem", maxWidth: 680, marginInline: "auto" }}>
+            Every AI action is logged to the same append-only record as human actions — model,
+            prompt version, and outcome. And without an AI key configured, {branding.productName}{" "}
+            still runs: the workers stand down, the workflow doesn't.
+          </p>
+        </section>
+
         {/* Multi-tenant pitch */}
         <section className="wrap" style={{ paddingBlock: "48px 8px", maxWidth: 820, textAlign: "center" }}>
           <Seal size={54} />
@@ -148,6 +224,8 @@ export default function MarketingHome() {
       <style>{`
         .mk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
         @media (max-width: 820px) { .mk-grid { grid-template-columns: 1fr; } }
+        .mk-agents { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+        @media (max-width: 820px) { .mk-agents { grid-template-columns: 1fr; } }
       `}</style>
     </>
   );

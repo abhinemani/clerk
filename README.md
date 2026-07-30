@@ -37,6 +37,7 @@ Three working surfaces, driven by a "City of Riverton" demo fixture:
 | **§16 agentic framework** — tiers, budgets, allowlists, run orchestrator | ✅ | `src/agents/` |
 | **§6 AI pipelines** — harness + intake (§6.1), routing (§6.3), correspondence (§6.6) | ✅ | `src/ai/` |
 | **§6.5 PII scan** — deterministic recall-first redaction pass | ✅ | `src/ai/redaction/` |
+| **§6.5 text extraction** — plain text, PDF text layers, DOCX; OCR for scans behind an adapter (tesseract CLI or HTTP sidecar, off by default) | ✅ | `src/adapters/textExtract.ts`, `src/adapters/ocr.ts`, `src/jobs/ocrJob.ts` |
 | **Application service layer** — use cases over a repository port | ✅ | `src/services/` |
 | **§9 ingestion API + normalization** — on-ramp, idempotent, sensitivity-gated | ✅ | `src/dataplane/`, `src/app/api/` |
 | **Agent capability wiring** — §6 pipelines behind the registry | ✅ | `src/agents/capabilities.ts` |

@@ -119,6 +119,14 @@ export async function submitRecordFilesAction(
       agencyId: ctx.task.agencyId,
       requestId: ctx.task.requestId,
     });
+    // Scans and photos arrive text-less; OCR recovery runs off the request
+    // path too (no-op unless an OCR engine is configured).
+    if (uploads.some((u) => u.extractedText === undefined)) {
+      getJobQueue().enqueue("ocr_extract", {
+        agencyId: ctx.task.agencyId,
+        requestId: ctx.task.requestId,
+      });
+    }
 
     revalidatePath(`/task/${token}`);
     return { ok: true };
