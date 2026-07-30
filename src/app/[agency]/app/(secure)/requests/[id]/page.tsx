@@ -47,10 +47,17 @@ export default async function RequestDetail({
 
   // Review set + release state + correspondence (live requests only — the
   // demo fixture has none of these).
+  interface AiRoutingSuggestion {
+    departmentId: string | null;
+    department: string;
+    scope: string;
+    rationale: string;
+  }
   let reviewDocs: ReviewDocVM[] = [];
   let releaseVM: ReleaseVM | null = null;
   let messageVMs: MessageVM[] = [];
   let exemptionOptions: ExemptionOptionVM[] = [];
+  let aiRouting: AiRoutingSuggestion[] | null = null;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -58,13 +65,20 @@ export default async function RequestDetail({
     const profile = agencyRow ? getStateProfile(agencyRow.stateCode) : null;
     exemptionOptions =
       profile?.exemptions.map((e) => ({ citation: e.statuteSection, label: e.shortLabel })) ?? [];
-    const [docs, reviews, releases, msgs, staffUsers] = await Promise.all([
+    const [docs, reviews, releases, msgs, staffUsers, events] = await Promise.all([
       repo.listRequestDocuments(staff.agencyId, r.id),
       repo.listReviews(staff.agencyId, r.id),
       repo.listReleases(staff.agencyId, r.id),
       repo.listMessages(staff.agencyId, r.id),
       repo.listUsers(staff.agencyId),
+      repo.listEvents(staff.agencyId, r.id),
     ]);
+    // The latest §6.3 routing run, if the pipeline has proposed one.
+    const routingEvent = [...events]
+      .reverse()
+      .find((e) => e.kind === "ai_action" && (e.payload as { pipeline?: string } | undefined)?.pipeline === "routing_suggestions");
+    aiRouting =
+      ((routingEvent?.payload as { suggestions?: AiRoutingSuggestion[] } | undefined)?.suggestions ?? null);
     const staffNameById = new Map(staffUsers.map((u) => [u.id, u.name ?? u.email]));
     messageVMs = msgs.map((m) => ({
       id: m.id,
@@ -121,17 +135,27 @@ export default async function RequestDetail({
     pushbackNote: t.pushbackNote,
   }));
 
-  // Routing suggestions = departments not yet tasked (the AI's proposal to dispatch).
+  // Routing suggestions: the §6.3 pipeline's proposal when it has run, else
+  // the placeholder heuristic. Either way, only departments not yet tasked.
   const taskedDeptIds = new Set(r.tasks.map((t) => t.departmentId));
-  const suggestions: SuggestionVM[] = departments
-    .filter((d) => !taskedDeptIds.has(d.id))
-    .slice(0, 1)
-    .map((d) => ({
-      id: d.id,
-      deptName: d.name,
-      scope: `${d.name}: check for any records responsive to “${r.interpretedScope}”.`,
-      rationale: `Similar past requests were partly fulfilled by ${d.name}.`,
-    }));
+  const suggestions: SuggestionVM[] = aiRouting
+    ? aiRouting
+        .filter((s) => s.departmentId && !taskedDeptIds.has(s.departmentId))
+        .map((s) => ({
+          id: s.departmentId!,
+          deptName: s.department,
+          scope: s.scope,
+          rationale: s.rationale,
+        }))
+    : departments
+        .filter((d) => !taskedDeptIds.has(d.id))
+        .slice(0, 1)
+        .map((d) => ({
+          id: d.id,
+          deptName: d.name,
+          scope: `${d.name}: check for any records responsive to “${r.interpretedScope}”.`,
+          rationale: `Similar past requests were partly fulfilled by ${d.name}.`,
+        }));
 
   return (
     <div className="wrap" style={{ paddingBlock: "28px 8px" }}>

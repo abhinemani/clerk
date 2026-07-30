@@ -2,6 +2,8 @@
  * Job registration + boot-time schedules. Called once per server process from
  * instrumentation.ts (idempotent via the globalThis-memoized queue).
  */
+import { runEmbedPublicDocumentsJob } from "./embedJob";
+import { runExemptionPassJob } from "./exemptionPassJob";
 import { getJobQueue } from "./queue";
 import { runIntakeTriageJob } from "./triageJob";
 
@@ -19,6 +21,22 @@ export function registerJobs(): void {
 
   const queue = getJobQueue();
   queue.register("intake_triage", runIntakeTriageJob);
+  queue.register("exemption_pass", runExemptionPassJob);
+  queue.register("embed_public_documents", runEmbedPublicDocumentsJob);
+
+  // Backfill archive embeddings shortly after boot (no-op when up to date;
+  // fake embedder keeps this working without VOYAGE_API_KEY).
+  setTimeout(async () => {
+    try {
+      const { getRepository } = await import("@/db/createRepository");
+      const repo = await getRepository();
+      for (const agency of await repo.listAgencies()) {
+        queue.enqueue("embed_public_documents", { agencyId: agency.id });
+      }
+    } catch (err) {
+      console.error("[jobs] embedding backfill enqueue failed", err);
+    }
+  }, 20_000);
 
   // Nightly deadline sweep (§16.1): the deadline agent's digest lands in each
   // agency's append-only admin log, whether or not anyone opens the app.

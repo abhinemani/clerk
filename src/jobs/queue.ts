@@ -8,10 +8,14 @@
  * behind the same interface (pg-boss needs managed Postgres — it cannot run
  * on PGlite, which is also why it isn't the default here).
  */
-export type JobKind = "intake_triage";
+export type JobKind = "intake_triage" | "exemption_pass" | "embed_public_documents";
 
 export interface JobPayloads {
   intake_triage: { agencyId: string; requestId: string };
+  /** §6.5 step 2: LLM exemption suggestions for a request's review-set docs. */
+  exemption_pass: { agencyId: string; requestId: string };
+  /** §6.4/§6.7: embed public-archive docs that don't have vectors yet. */
+  embed_public_documents: { agencyId: string };
 }
 
 export type JobHandler<K extends JobKind = JobKind> = (payload: JobPayloads[K]) => Promise<void>;

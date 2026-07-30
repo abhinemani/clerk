@@ -16,6 +16,7 @@
  */
 import { canTransition } from "@/domain/requestLifecycle";
 import type { ServiceDeps } from "./deps";
+import { inboundAddress } from "./notifications";
 import { NotFoundError, type MessageEntity } from "./repository";
 import { transitionRequest } from "./requestService";
 
@@ -110,6 +111,8 @@ export async function sendStaffMessage(
         body: [body, ...(trackLink ? [``, `View and reply: ${trackLink}`] : [])].join("\n"),
         kind: "requester_update",
         requestId: request.id,
+        // Replying to this email lands back on the request's thread (§6.5).
+        replyTo: inboundAddress("request", request.id),
       });
     }
   }

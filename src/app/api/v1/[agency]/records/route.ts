@@ -57,5 +57,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ agency:
     body,
   );
 
+  if (outcome.status < 300) {
+    // The corpus may have grown — keep the archive's search vectors current.
+    const { getJobQueue } = await import("@/jobs/queue");
+    getJobQueue().enqueue("embed_public_documents", { agencyId: agency.id });
+  }
+
   return Response.json(outcome.body, { status: outcome.status });
 }

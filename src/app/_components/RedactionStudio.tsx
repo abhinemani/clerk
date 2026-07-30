@@ -23,6 +23,18 @@ interface Redaction {
   reason: string;
   source: "staff" | "ai";
   status: "suggested" | "accepted";
+  /** One-sentence LLM rationale (exemption-pass suggestions only, §6.5). */
+  rationale?: string;
+}
+
+/** A §6.5 step-2 suggestion the exemption-pass job stored on the document. */
+export interface ServerSuggestionVM {
+  line: number;
+  startCol: number;
+  endCol: number;
+  reason: string;
+  confidence: number;
+  rationale: string;
 }
 
 interface Draft {
@@ -67,6 +79,7 @@ export function RedactionStudio({
   lines,
   exemptions,
   live,
+  serverSuggestions = [],
   finalizedArtifact = null,
 }: {
   documentName: string;
@@ -75,25 +88,42 @@ export function RedactionStudio({
   exemptions: string[];
   /** Persist finalize through the server action (real request documents). */
   live?: { agencySlug: string; requestId: string; documentId: string };
+  /** LLM exemption-pass suggestions computed off-path by the job (§6.5). */
+  serverSuggestions?: ServerSuggestionVM[];
   /** The already-burned artifact for this document, when one exists. */
   finalizedArtifact?: FinalizedArtifactVM | null;
 }) {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
-  const initial = useMemo<Redaction[]>(
-    () =>
-      suggestRedactionsFromPii(lines).map((s, i) => ({
-        id: `ai-${i}`,
+  const initial = useMemo<Redaction[]>(() => {
+    const pii: Redaction[] = suggestRedactionsFromPii(lines).map((s, i) => ({
+      id: `ai-${i}`,
+      line: s.line,
+      startCol: s.startCol,
+      endCol: s.endCol,
+      reason: matchExemption(s.reason, exemptions),
+      source: "ai",
+      status: "suggested",
+    }));
+    // Exemption-pass findings, deduped against overlapping PII hits (the
+    // deterministic pass wins ties — it's cheaper to audit).
+    const overlaps = (a: Redaction, b: { line: number; startCol: number; endCol: number }) =>
+      a.line === b.line && a.startCol < b.endCol && b.startCol < a.endCol;
+    const llm: Redaction[] = serverSuggestions
+      .filter((s) => !pii.some((p) => overlaps(p, s)))
+      .map((s, i) => ({
+        id: `llm-${i}`,
         line: s.line,
         startCol: s.startCol,
         endCol: s.endCol,
         reason: matchExemption(s.reason, exemptions),
         source: "ai",
         status: "suggested",
-      })),
-    [lines, exemptions],
-  );
+        rationale: s.rationale,
+      }));
+    return [...pii, ...llm];
+  }, [lines, exemptions, serverSuggestions]);
 
   const [redactions, setRedactions] = useState<Redaction[]>(initial);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -334,6 +364,11 @@ export function RedactionStudio({
                 <div className="muted mono" style={{ fontSize: "0.72rem", marginTop: 4 }}>
                   line {r.line + 1}
                 </div>
+                {r.rationale && (
+                  <div className="muted" style={{ fontSize: "0.78rem", marginTop: 4 }}>
+                    <SparkIcon /> {r.rationale}
+                  </div>
+                )}
                 <select
                   className="field"
                   style={{ marginTop: 8, padding: "7px 10px", fontSize: "0.85rem" }}

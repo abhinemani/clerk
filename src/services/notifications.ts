@@ -29,6 +29,8 @@ export interface OutboundMessage {
   /** Request-scoped messages carry these; account mail doesn't. */
   requestId?: string;
   taskId?: string;
+  /** Inbound ingest address replies should land on (§6.5 email-in). */
+  replyTo?: string;
 }
 
 export interface DeliveryReceipt {
@@ -83,6 +85,61 @@ export class DbNotifier implements Notifier {
     });
     return { id: row.id, channel: "outbox", to: msg.to, deliveredAt: row.createdAt };
   }
+}
+
+/**
+ * Production notifier: record to the outbox FIRST (the audit is never
+ * conditional on the provider being up), then deliver through the configured
+ * email adapter. A provider failure is logged and swallowed — the outbox row
+ * stands, and the message can be re-sent from there.
+ */
+export class RelayNotifier implements Notifier {
+  constructor(
+    private readonly outbox: Notifier,
+    private readonly email: import("@/adapters/email").EmailSender,
+  ) {}
+  async send(msg: OutboundMessage): Promise<DeliveryReceipt> {
+    const receipt = await this.outbox.send(msg);
+    try {
+      await this.email.send({
+        to: msg.to,
+        subject: msg.subject,
+        text: msg.body,
+        replyTo: msg.replyTo,
+      });
+      return { ...receipt, channel: "email" };
+    } catch (err) {
+      console.error(`[email] delivery to ${msg.to} failed (outbox row ${receipt.id} kept)`, err);
+      return receipt; // channel stays "outbox" — honest about what happened
+    }
+  }
+}
+
+/**
+ * The ingest address for a request or task (§6.5 email-in): unguessable —
+ * request ids are random UUIDs and task tokens are credentials, so possession
+ * of the address is possession of the right to write to that thread. Null
+ * when inbound email isn't configured.
+ */
+export function inboundAddress(
+  kind: "request" | "task",
+  idOrToken: string,
+  domain: string | undefined = process.env.INBOUND_EMAIL_DOMAIN,
+): string | undefined {
+  if (!domain) return undefined;
+  return `${kind === "request" ? "req" : "task"}-${idOrToken}@${domain}`;
+}
+
+/** Parse an inbound recipient back into its route. Null for foreign addresses. */
+export function parseInboundAddress(
+  to: string,
+): { kind: "request"; requestId: string } | { kind: "task"; token: string } | null {
+  const local = to.trim().toLowerCase().split("@")[0] ?? "";
+  const req = local.match(/^req-([0-9a-f-]{36})$/);
+  if (req) return { kind: "request", requestId: req[1]! };
+  const task = local.match(/^task-([a-z0-9]{8,64})$/);
+  if (task) return { kind: "task", token: task[1]! };
+  return null;
 }
 
 /** Test adapter — captures sent messages for assertions. */

@@ -16,6 +16,7 @@ import { assertTransition } from "@/domain/requestLifecycle";
 import { getStateProfile } from "@/statute/profiles";
 import type { ServiceDeps } from "./deps";
 import { sendStaffMessage } from "./messageService";
+import { inboundAddress } from "./notifications";
 import {
   NotFoundError,
   type ReleaseEntity,
@@ -206,6 +207,7 @@ export async function releaseRequest(
       body: responseLetter,
       kind: "requester_update",
       requestId: request.id,
+      replyTo: inboundAddress("request", request.id),
     });
     if (receipt) {
       await repo.appendEvent({
@@ -271,6 +273,8 @@ export interface DenyRequestInput {
   explanation?: string;
   /** Staff-edited letter body; when absent the composed letter is used. */
   letterBody?: string;
+  /** Provenance when letterBody came from the §6.6 pipeline (audited). */
+  letterAiMeta?: { promptVersion: string; model: string };
 }
 
 export interface DenyOutcome {
@@ -352,6 +356,8 @@ export async function denyRequest(deps: ServiceDeps, input: DenyRequestInput): P
     actorUserId: input.actorUserId,
     subject: `Determination on your records request ${request.publicId}`,
     body: letter,
+    aiDrafted: input.letterAiMeta != null,
+    aiMeta: input.letterAiMeta,
   });
 
   return { request: updated, letter };

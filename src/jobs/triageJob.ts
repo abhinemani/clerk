@@ -10,6 +10,7 @@ import { getRepository } from "@/db/createRepository";
 import { AnthropicModelClient } from "@/ai/modelClient";
 import { runPipeline } from "@/ai/runPipeline";
 import { clampComplexity, intakeTriagePipeline } from "@/ai/pipelines/intakeTriage";
+import { routingPipeline } from "@/ai/pipelines/routing";
 import { defaultDeps } from "@/services/deps";
 import { applyTriageDraft } from "@/services/requestService";
 import type { JobPayloads } from "./queue";
@@ -23,8 +24,9 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
   if (!request) return;
   if (request.interpretedScope) return; // already triaged (or staff got there first)
 
+  const modelClient = new AnthropicModelClient(apiKey);
   const result = await runPipeline(intakeTriagePipeline, { rawText: request.rawText }, {
-    modelClient: new AnthropicModelClient(apiKey),
+    modelClient,
   });
 
   await applyTriageDraft(defaultDeps(repo), {
@@ -37,4 +39,50 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
     model: result.model,
     redFlags: result.output.statutory_red_flags,
   });
+
+  // Routing suggestions (§6.3) ride the same job: propose which departments
+  // hold the records, with a drafted per-department scope. Stored as an
+  // ai_action event; the detail page renders the latest one as proposal
+  // cards, and the coordinator's dispatch is still the only thing that acts.
+  try {
+    const departments = await repo.listDepartments(payload.agencyId);
+    if (departments.length === 0) return;
+    const routing = await runPipeline(
+      routingPipeline,
+      {
+        interpretedScope: result.output.interpreted_scope,
+        recordTypes: result.output.record_types,
+        departments: departments.map((d) => ({ name: d.name })),
+      },
+      { modelClient },
+    );
+    const deptByName = new Map(departments.map((d) => [d.name.toLowerCase(), d.id]));
+    const suggestions = routing.output.assignments
+      .map((a) => ({
+        departmentId: deptByName.get(a.department.toLowerCase()) ?? null,
+        department: a.department,
+        scope: a.scope,
+        rationale: a.rationale,
+      }))
+      .filter((a) => a.departmentId != null);
+    await repo.appendEvent({
+      id: crypto.randomUUID(),
+      agencyId: payload.agencyId,
+      requestId: payload.requestId,
+      kind: "ai_action",
+      actorUserId: null,
+      summary: `Routing suggested ${suggestions.length} department(s)`,
+      payload: {
+        pipeline: "routing_suggestions",
+        promptVersion: routingPipeline.promptVersion,
+        model: routing.model,
+        suggestions,
+        uncovered: routing.output.uncovered,
+      },
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    // Routing is a bonus draft — a failure must not undo the triage above.
+    console.error("[jobs] routing suggestions failed", err);
+  }
 }

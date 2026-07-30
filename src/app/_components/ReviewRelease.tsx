@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   denyRequestAction,
+  draftDenialAction,
   releaseRequestAction,
   reviewDocumentAction,
 } from "../[agency]/app/(secure)/requests/[id]/actions";
@@ -68,8 +69,12 @@ export function ReviewRelease({
   const [letter, setLetter] = useState("");
   const [citations, setCitations] = useState<string[]>([]);
   const [explanation, setExplanation] = useState("");
+  const [letterBody, setLetterBody] = useState("");
+  const [letterAiMeta, setLetterAiMeta] = useState<{ promptVersion: string; model: string } | undefined>();
+  const [letterWarnings, setLetterWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [drafting, startDrafting] = useTransition();
 
   if (release) {
     return (
@@ -134,12 +139,34 @@ export function ReviewRelease({
         requestId,
         exemptions: chosen,
         explanation: explanation.trim() || undefined,
+        letterBody: letterBody.trim() || undefined,
+        letterAiMeta: letterBody.trim() ? letterAiMeta : undefined,
       });
       if (!r.ok) {
         setError(r.error);
         return;
       }
       router.refresh();
+    });
+  }
+
+  function draftLetter() {
+    setError(null);
+    const chosen = exemptionOptions.filter((o) => citations.includes(o.citation));
+    startDrafting(async () => {
+      const r = await draftDenialAction({
+        agencySlug,
+        requestId,
+        exemptions: chosen,
+        explanation: explanation.trim() || undefined,
+      });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setLetterBody(r.body);
+      setLetterAiMeta(r.aiMeta);
+      setLetterWarnings(r.warnings);
     });
   }
 
@@ -286,6 +313,42 @@ export function ReviewRelease({
             value={explanation}
             onChange={(e) => setExplanation(e.target.value)}
           />
+          {letterBody ? (
+            <div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span className="lbl">Denial letter</span>
+                <span className="muted" style={{ fontSize: "0.78rem" }}>
+                  {letterAiMeta ? "AI-drafted — edit before denying" : "composed from the statute profile"}
+                </span>
+              </div>
+              <textarea
+                className="field"
+                rows={10}
+                style={{ marginTop: 6, fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}
+                value={letterBody}
+                onChange={(e) => setLetterBody(e.target.value)}
+                aria-label="Denial letter body"
+              />
+              {letterWarnings.map((w) => (
+                <div key={w} className="pill band-due_soon" style={{ marginTop: 6, display: "inline-flex" }}>
+                  ⚠ {w}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div>
+              <button
+                className="btn btn-sm btn-ghost"
+                disabled={drafting || citations.length === 0}
+                onClick={draftLetter}
+              >
+                {drafting ? "Drafting…" : "✦ Draft the letter"}
+              </button>
+              <span className="muted" style={{ fontSize: "0.78rem", marginLeft: 8 }}>
+                Optional — without a draft, the standard composed letter is sent.
+              </span>
+            </div>
+          )}
           <div>
             <button
               className="btn btn-primary"

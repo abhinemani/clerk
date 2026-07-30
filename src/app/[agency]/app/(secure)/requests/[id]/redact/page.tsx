@@ -10,6 +10,7 @@ import { getStateProfile } from "@/statute/profiles";
 import {
   RedactionStudio,
   type FinalizedArtifactVM,
+  type ServerSuggestionVM,
 } from "../../../../../../_components/RedactionStudio";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export default async function RedactPage({
   let selected: { id: string; filename: string; lines: string[] } | null = null;
   let finalizedArtifact: FinalizedArtifactVM | null = null;
   let exemptions: string[] = [...EXEMPTION_OPTIONS];
+  let serverSuggestions: ServerSuggestionVM[] = [];
 
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
@@ -57,6 +59,9 @@ export default async function RedactPage({
       reviewSet.find((d) => d.extractedText != null);
     if (pick) {
       selected = { id: pick.id, filename: pick.filename ?? pick.id, lines: pick.extractedText!.split("\n") };
+      // §6.5 step-2 suggestions the exemption-pass job stored at upload time.
+      const stored = (pick.metadata as { aiSuggestions?: ServerSuggestionVM[] } | null)?.aiSuggestions;
+      if (Array.isArray(stored)) serverSuggestions = stored;
       const artifact = await repo.findLatestDocumentByExternalId(
         staff.agencyId,
         redactedArtifactExternalId(pick.id),
@@ -127,6 +132,7 @@ export default async function RedactPage({
               ? { agencySlug: slug, requestId: id, documentId: selected.id }
               : undefined
           }
+          serverSuggestions={serverSuggestions}
           finalizedArtifact={finalizedArtifact}
         />
       )}

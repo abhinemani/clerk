@@ -3,8 +3,9 @@
  * injected so use cases stay deterministic and unit-testable.
  */
 import type { BlobStore } from "@/adapters/blobStore";
+import { getEmailSender } from "@/adapters/email";
 import type { Repository } from "./repository";
-import { DbNotifier, type Notifier } from "./notifications";
+import { DbNotifier, RelayNotifier, type Notifier } from "./notifications";
 
 export interface ServiceDeps {
   repo: Repository;
@@ -22,14 +23,17 @@ export interface ServiceDeps {
 
 /** Production defaults: real clock, random UUIDs, url-safe tokens, DB outbox. */
 export function defaultDeps(repo: Repository): ServiceDeps {
+  // Deliveries always land in the outbox (the audit of who was told what).
+  // With an email provider configured (EMAIL_FROM + POSTMARK_SERVER_TOKEN or
+  // RESEND_API_KEY), RelayNotifier also delivers for real.
+  const outbox = new DbNotifier(repo);
+  const sender = getEmailSender();
   return {
     repo,
     now: () => new Date(),
     genId: () => crypto.randomUUID(),
     genToken: () => crypto.randomUUID().replace(/-/g, "").slice(0, 20),
-    // Deliveries always land in the outbox (the audit of who was told what);
-    // a real SMTP adapter wraps this in production.
-    notifier: new DbNotifier(repo),
+    notifier: sender ? new RelayNotifier(outbox, sender) : outbox,
     baseUrl: process.env.APP_BASE_URL,
   };
 }

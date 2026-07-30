@@ -106,6 +106,15 @@ export async function submitRecordFilesAction(
       taskId: ctx.task.id,
       uploads,
     });
+
+    // AI proposes off the request path: exemption suggestions for the studio
+    // (§6.5 step 2). No-ops without ANTHROPIC_API_KEY.
+    const { getJobQueue } = await import("@/jobs/queue");
+    getJobQueue().enqueue("exemption_pass", {
+      agencyId: ctx.task.agencyId,
+      requestId: ctx.task.requestId,
+    });
+
     revalidatePath(`/task/${token}`);
     return { ok: true };
   } catch (e) {

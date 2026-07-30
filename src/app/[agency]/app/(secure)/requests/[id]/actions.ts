@@ -217,6 +217,11 @@ export async function releaseRequestAction(input: {
       archiveTitle: input.archiveTitle,
       archiveSummary: input.archiveSummary,
     });
+    if (input.visibility === "public") {
+      // The archive grew — give the new entry a search vector (§6.7).
+      const { getJobQueue } = await import("@/jobs/queue");
+      getJobQueue().enqueue("embed_public_documents", { agencyId: staff.agencyId });
+    }
     revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
     revalidatePath(`/${input.agencySlug}/archive`);
     return { ok: true };
@@ -350,6 +355,8 @@ export async function denyRequestAction(input: {
   requestId: string;
   exemptions: { citation: string; label?: string }[];
   explanation?: string;
+  letterBody?: string;
+  letterAiMeta?: { promptVersion: string; model: string };
 }): Promise<WorkspaceResult> {
   try {
     const { staff, deps } = await ctx(input.agencySlug);
@@ -359,12 +366,105 @@ export async function denyRequestAction(input: {
       actorUserId: staff.userId, // the named approver on the denial
       exemptions: input.exemptions,
       explanation: input.explanation,
+      letterBody: input.letterBody,
+      letterAiMeta: input.letterAiMeta,
     });
     revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
     return { ok: true };
   } catch (e) {
     if (e instanceof ReleaseError) return { ok: false, error: e.message };
     return fail("denyRequest", e);
+  }
+}
+
+export type DraftDenialResult =
+  | {
+      ok: true;
+      body: string;
+      aiDrafted: boolean;
+      aiMeta?: { promptVersion: string; model: string };
+      warnings: string[];
+    }
+  | { ok: false; error: string };
+
+/**
+ * Draft the denial letter (§6.6 kind "denial"): exemption citations and the
+ * statute profile's appeal language ride in verbatim; the model writes the
+ * connective prose. Without a key, the deterministic composition stands in.
+ */
+export async function draftDenialAction(input: {
+  agencySlug: string;
+  requestId: string;
+  exemptions: { citation: string; label?: string }[];
+  explanation?: string;
+}): Promise<DraftDenialResult> {
+  try {
+    const { staff, repo } = await ctx(input.agencySlug);
+    const request = await repo.getRequest(staff.agencyId, input.requestId);
+    if (!request) return { ok: false, error: "Request not found." };
+    if (input.exemptions.length === 0) {
+      return { ok: false, error: "Pick at least one exemption citation to draft against." };
+    }
+    const [agency, requester] = await Promise.all([
+      repo.getAgency(staff.agencyId),
+      request.requesterId ? repo.getRequester(staff.agencyId, request.requesterId) : null,
+    ]);
+    const { getStateProfile } = await import("@/statute/profiles");
+    const profile = agency ? getStateProfile(agency.stateCode) : null;
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      const { composeDenialLetter } = await import("@/domain/denialLetter");
+      return {
+        ok: true,
+        body: composeDenialLetter({
+          publicId: request.publicId,
+          agencyName: agency?.name ?? "the agency",
+          requesterName: requester?.name,
+          requestSummary: request.interpretedScope ?? request.rawText,
+          exemptions: input.exemptions,
+          appealProcess: profile?.appeal.process ?? null,
+          appealDeadlineDays: profile?.appeal.deadlineDays ?? null,
+          explanation: input.explanation,
+        }),
+        aiDrafted: false,
+        warnings: [],
+      };
+    }
+
+    const { AnthropicModelClient } = await import("@/ai/modelClient");
+    const { runPipeline } = await import("@/ai/runPipeline");
+    const { correspondencePipeline } = await import("@/ai/pipelines/correspondence");
+    const result = await runPipeline(
+      correspondencePipeline,
+      {
+        kind: "denial",
+        context: {
+          public_id: request.publicId,
+          agency: agency?.name,
+          requester_name: requester?.name,
+          request_as_filed: request.rawText,
+          interpreted_scope: request.interpretedScope,
+          exemption_citations: input.exemptions.map((e) =>
+            e.label ? `${e.citation} — ${e.label}` : e.citation,
+          ),
+          appeal_language_verbatim: profile?.appeal.process ?? null,
+          appeal_deadline_days: profile?.appeal.deadlineDays ?? null,
+          staff_explanation: input.explanation ?? null,
+        },
+      },
+      { modelClient: new AnthropicModelClient(apiKey) },
+    );
+    return {
+      ok: true,
+      body: result.output.body,
+      aiDrafted: true,
+      aiMeta: { promptVersion: correspondencePipeline.promptVersion, model: result.model },
+      warnings: result.output.warnings,
+    };
+  } catch (e) {
+    console.error("draftDenial failed", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Drafting failed." };
   }
 }
 

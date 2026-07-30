@@ -15,6 +15,8 @@
         "PGLITE_PATH=/private/tmp/claude-501/-Users-abhinemani-Sites-clerk/cfe4551c-831a-488f-8e50-92781cd3b382/scratchpad/pgdata",
         "BLOB_PATH=/private/tmp/claude-501/-Users-abhinemani-Sites-clerk/cfe4551c-831a-488f-8e50-92781cd3b382/scratchpad/blobdata",
         "APP_BASE_URL=http://localhost:3100",
+        "INBOUND_EMAIL_TOKEN=dev-inbound-secret",
+        "INBOUND_EMAIL_DOMAIN=in.riverton.test",
         "PORT=3100",
         "/opt/homebrew/bin/npm",
         "run",

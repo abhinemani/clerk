@@ -16,6 +16,7 @@ import {
   deflections,
   deliveries,
   departments,
+  documentChunks,
   documents,
   messages,
   publicIdCounters,
@@ -310,6 +311,10 @@ export class DrizzleRepository implements Repository {
   async getTask(agencyId: string, id: string): Promise<TaskEntity | null> {
     const [t] = await this.db.select().from(tasks).where(tenantWhere(tasks.agencyId, agencyId, eq(tasks.id, id))).limit(1);
     return t ? this.toTask(t) : null;
+  }
+  async getRequestByIngestId(requestId: string): Promise<RequestEntity | null> {
+    const [r] = await this.db.select().from(requests).where(eq(requests.id, requestId)).limit(1);
+    return r ? this.toRequest(r) : null;
   }
   async getTaskByToken(token: string): Promise<TaskEntity | null> {
     const [t] = await this.db.select().from(tasks).where(eq(tasks.token, token)).limit(1);
@@ -633,7 +638,7 @@ export class DrizzleRepository implements Repository {
       id: doc.id,
       agencyId: doc.agencyId,
       sourceId: doc.sourceId,
-      provenance: "responder_upload",
+      provenance: doc.provenance ?? "responder_upload",
       blobRef: doc.blobRef ?? doc.filename ?? doc.id,
       byteSize: doc.byteSize,
       mimeType: doc.mimeType,
@@ -657,6 +662,59 @@ export class DrizzleRepository implements Repository {
       .where(tenantWhere(documents.agencyId, agencyId, eq(documents.id, id)))
       .limit(1);
     return d ? this.toDocument(d) : null;
+  }
+  async updateDocument(
+    agencyId: string,
+    id: string,
+    patch: Partial<Pick<DocumentEntity, "metadata" | "processingStatus" | "extractedText" | "pageCount">>,
+  ): Promise<DocumentEntity> {
+    const rows = await this.db
+      .update(documents)
+      .set({
+        ...(patch.metadata !== undefined ? { metadata: patch.metadata } : {}),
+        ...(patch.processingStatus !== undefined
+          ? { processingStatus: patch.processingStatus as never }
+          : {}),
+        ...(patch.extractedText !== undefined ? { extractedText: patch.extractedText } : {}),
+        ...(patch.pageCount !== undefined ? { pageCount: patch.pageCount } : {}),
+      })
+      .where(tenantWhere(documents.agencyId, agencyId, eq(documents.id, id)))
+      .returning();
+    if (!rows[0]) throw new NotFoundError("Document", id);
+    return this.toDocument(rows[0]);
+  }
+  async setDocumentEmbedding(
+    agencyId: string,
+    id: string,
+    embedding: number[],
+    content: string,
+  ): Promise<void> {
+    // The archive-entry vector is chunk 0 of the document (§5 document_chunks).
+    await this.db
+      .insert(documentChunks)
+      .values({ agencyId, documentId: id, chunkIndex: 0, content, embedding })
+      .onConflictDoUpdate({
+        target: [documentChunks.documentId, documentChunks.chunkIndex],
+        set: { content, embedding },
+      });
+  }
+  async listPublicDocumentEmbeddings(agencyId: string): Promise<{ id: string; embedding: number[] }[]> {
+    const rows = await this.db
+      .select({ id: documentChunks.documentId, embedding: documentChunks.embedding })
+      .from(documentChunks)
+      .innerJoin(documents, eq(documentChunks.documentId, documents.id))
+      .where(
+        tenantWhere(
+          documentChunks.agencyId,
+          agencyId,
+          eq(documents.classification, "public"), // invariant 3 at the query layer
+          eq(documentChunks.chunkIndex, 0),
+          sql`${documentChunks.embedding} is not null`,
+        ),
+      );
+    return rows
+      .filter((r: { id: string; embedding: number[] | null }) => r.embedding != null)
+      .map((r: { id: string; embedding: number[] | null }) => ({ id: r.id, embedding: r.embedding! }));
   }
   async findReleaseContainingDocument(agencyId: string, documentId: string): Promise<ReleaseEntity | null> {
     // jsonb containment: artifacts @> [{"documentId": "..."}]

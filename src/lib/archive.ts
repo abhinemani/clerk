@@ -45,9 +45,15 @@ export async function listArchive(slug: string): Promise<ArchiveItem[]> {
 }
 
 /**
- * Lexical search over the tenant's public corpus — the §6.7 deflection front
- * door. Same scoring as the original demo box, now per-tenant and live.
+ * Hybrid search over the tenant's public corpus — the §6.7 deflection front
+ * door. Keyword scoring fused (reciprocal-rank) with vector similarity from
+ * the archive embeddings the backfill job maintains; degrades to keyword-only
+ * when no vectors exist yet. Retrieval stays hard-scoped to
+ * classification='public' at the query layer (invariant 3) — both halves read
+ * only the public corpus.
  */
+const RRF_K = 60;
+
 export async function searchArchive(slug: string, query: string): Promise<ArchiveItem[]> {
   const q = query.toLowerCase().trim();
   if (q.length < 3) return [];
@@ -60,16 +66,48 @@ export async function searchArchive(slug: string, query: string): Promise<Archiv
 
   const terms = q.split(/\s+/);
   const docs = await repo.listPublicDocuments(agency.id);
-  return docs
+  const itemById = new Map(docs.map((d) => [d.id, toArchiveItem(d)]));
+
+  const lexical = docs
     .map((d) => {
-      const item = toArchiveItem(d);
+      const item = itemById.get(d.id)!;
       const hay = [item.title, item.summary, ...item.tags, ...item.keywords].join(" ").toLowerCase();
       const score = terms.reduce((s, t) => s + (hay.includes(t) ? 1 : 0), 0);
-      return { item, score };
+      return { id: d.id, score };
     })
     .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map((x) => x.item);
+    .sort((a, b) => b.score - a.score);
+
+  // Vector half — only over docs the backfill job has embedded.
+  let vector: { id: string; sim: number }[] = [];
+  try {
+    const embeddings = await repo.listPublicDocumentEmbeddings(agency.id);
+    if (embeddings.length > 0) {
+      const [{ getEmbeddingProvider }, { cosine }] = await Promise.all([
+        import("@/ai/search/voyage"),
+        import("@/ai/search/embeddings"),
+      ]);
+      const [qVec] = await getEmbeddingProvider().embed([q]);
+      vector = embeddings
+        .filter((e) => itemById.has(e.id)) // public corpus only, by construction
+        .map((e) => ({ id: e.id, sim: cosine(qVec!, e.embedding) }))
+        .filter((x) => x.sim > 0)
+        .sort((a, b) => b.sim - a.sim)
+        .slice(0, 10);
+    }
+  } catch (e) {
+    console.error("archive vector search failed — keyword results only", e);
+  }
+
+  const rrf = new Map<string, number>();
+  lexical.forEach((x, rank) => rrf.set(x.id, (rrf.get(x.id) ?? 0) + 1 / (RRF_K + rank)));
+  vector.forEach((x, rank) => rrf.set(x.id, (rrf.get(x.id) ?? 0) + 1 / (RRF_K + rank)));
+
+  return [...rrf.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => itemById.get(id)!)
+    .filter(Boolean)
+    .slice(0, 12);
 }
 
 function demoToItem(r: (typeof DEMO_RELEASES)[number]): ArchiveItem {

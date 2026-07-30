@@ -9,7 +9,7 @@
 import { assertTaskTransition } from "@/domain/taskWorkflow";
 import type { ServiceDeps } from "./deps";
 import { NotFoundError, type TaskEntity } from "./repository";
-import { defaultDispatchBody, taskUrl } from "./notifications";
+import { defaultDispatchBody, inboundAddress, taskUrl } from "./notifications";
 
 export interface DispatchTaskInput {
   agencyId: string;
@@ -80,6 +80,8 @@ export async function dispatchTask(deps: ServiceDeps, input: DispatchTaskInput):
       kind: "task_dispatch",
       requestId: request.id,
       taskId: task.id,
+      // A responder can just reply with attachments — email-in (§6.5).
+      replyTo: inboundAddress("task", task.token),
     });
     await repo.appendEvent({
       id: deps.genId(),
@@ -117,6 +119,7 @@ export async function remindResponder(
     kind: "task_reminder",
     requestId: task.requestId,
     taskId: task.id,
+    replyTo: inboundAddress("task", task.token),
   });
   await deps.repo.appendEvent({
     id: deps.genId(),

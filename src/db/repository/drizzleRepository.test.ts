@@ -267,6 +267,32 @@ describe("DrizzleRepository (embedded PGlite)", () => {
     expect(await repo.listMessages(AG2, r.id)).toHaveLength(0); // tenant-scoped
   });
 
+  it("stores archive embeddings and lists them public-only (§6.7, invariant 3)", async () => {
+    const dim = (await import("@/db/schema")).EMBEDDING_DIMENSIONS;
+    const vec = (seed: number) => Array.from({ length: dim }, (_, i) => (i === seed ? 1 : 0));
+    const pub = await repo.createDocument({
+      id: crypto.randomUUID(), agencyId: AG1, sourceId: null, externalSystemId: null,
+      filename: "pub-embed.pdf", classification: "public", recordType: null,
+      processingStatus: "ready", metadata: { title: "Public" }, createdAt: new Date(),
+    });
+    const internal = await repo.createDocument({
+      id: crypto.randomUUID(), agencyId: AG1, sourceId: null, externalSystemId: null,
+      filename: "int-embed.pdf", classification: "internal", recordType: null,
+      processingStatus: "ready", metadata: {}, createdAt: new Date(),
+    });
+    await repo.setDocumentEmbedding(AG1, pub.id, vec(1), "Public. archive entry");
+    await repo.setDocumentEmbedding(AG1, internal.id, vec(2), "internal text");
+    // Re-set (upsert path) — same chunk, new vector.
+    await repo.setDocumentEmbedding(AG1, pub.id, vec(3), "Public. archive entry v2");
+
+    const listed = await repo.listPublicDocumentEmbeddings(AG1);
+    expect(listed.some((e) => e.id === pub.id)).toBe(true);
+    expect(listed.some((e) => e.id === internal.id)).toBe(false); // never internal
+    const stored = listed.find((e) => e.id === pub.id)!;
+    expect(stored.embedding[3]).toBe(1); // the upsert replaced the vector
+    expect(await repo.listPublicDocumentEmbeddings(AG2)).toHaveLength(0); // tenant-scoped
+  });
+
   it("idempotently upserts an ingested document by external id", async () => {
     const first = await repo.upsertDocumentByExternalId({
       id: crypto.randomUUID(), agencyId: AG1, sourceId: null, externalSystemId: "po-100",

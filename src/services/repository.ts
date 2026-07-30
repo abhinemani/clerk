@@ -117,6 +117,8 @@ export interface DocumentEntity {
   agencyId: string;
   sourceId: string | null;
   externalSystemId: string | null;
+  /** How the document arrived (schema enum); adapters default responder_upload. */
+  provenance?: "responder_upload" | "staff_upload" | "email_ingest" | "connector" | "prior_release";
   filename: string | null;
   classification: "public" | "internal";
   recordType: string | null;
@@ -294,6 +296,12 @@ export interface Repository {
   createTask(t: TaskEntity): Promise<TaskEntity>;
   getTask(agencyId: string, id: string): Promise<TaskEntity | null>;
   getTaskByToken(token: string): Promise<TaskEntity | null>;
+  /**
+   * Credential-style lookup for email ingest (§6.5): the random request UUID
+   * in a `req-{id}@` ingest address plays the same role as a task token.
+   * Never expose through a user-facing surface.
+   */
+  getRequestByIngestId(requestId: string): Promise<RequestEntity | null>;
   listTasks(agencyId: string, requestId: string): Promise<TaskEntity[]>;
   /** Every task in the agency — queue rollups and department workload (§8, §11). */
   listAgencyTasks(agencyId: string): Promise<TaskEntity[]>;
@@ -310,6 +318,20 @@ export interface Repository {
   listPublicDocuments(agencyId: string): Promise<DocumentEntity[]>;
   createDocument(doc: DocumentEntity): Promise<DocumentEntity>;
   getDocument(agencyId: string, id: string): Promise<DocumentEntity | null>;
+  /**
+   * Narrow patch for pipeline outputs (metadata, processing status). NEVER
+   * use to flip classification internal→public — that direction requires a
+   * named human at the service layer (invariant 9).
+   */
+  updateDocument(
+    agencyId: string,
+    id: string,
+    patch: Partial<Pick<DocumentEntity, "metadata" | "processingStatus" | "extractedText" | "pageCount">>,
+  ): Promise<DocumentEntity>;
+  /** Store a document's search embedding (chunk 0 in document_chunks). */
+  setDocumentEmbedding(agencyId: string, id: string, embedding: number[], content: string): Promise<void>;
+  /** Public docs that already have embeddings — the vector half of hybrid search. */
+  listPublicDocumentEmbeddings(agencyId: string): Promise<{ id: string; embedding: number[] }[]>;
   /** Attach a document to a request's review set (§5 requestDocuments). */
   linkRequestDocument(agencyId: string, requestId: string, documentId: string): Promise<void>;
   listRequestDocuments(agencyId: string, requestId: string): Promise<DocumentEntity[]>;
@@ -507,6 +529,9 @@ export class InMemoryRepository implements Repository {
   async getTaskByToken(token: string) {
     return [...this.tasks.values()].find((t) => t.token === token) ?? null;
   }
+  async getRequestByIngestId(requestId: string) {
+    return this.requests.get(requestId) ?? null;
+  }
   async listTasks(agencyId: string, requestId: string) {
     return [...this.tasks.values()].filter(
       (t) => t.agencyId === agencyId && t.requestId === requestId,
@@ -567,6 +592,34 @@ export class InMemoryRepository implements Repository {
   async getDocument(agencyId: string, id: string) {
     const d = this.documents.get(id);
     return d && d.agencyId === agencyId ? d : null;
+  }
+  async updateDocument(
+    agencyId: string,
+    id: string,
+    patch: Partial<Pick<DocumentEntity, "metadata" | "processingStatus" | "extractedText" | "pageCount">>,
+  ) {
+    const d = await this.getDocument(agencyId, id);
+    if (!d) throw new NotFoundError("Document", id);
+    const updated = { ...d, ...patch, id: d.id, agencyId: d.agencyId };
+    this.documents.set(id, updated);
+    return updated;
+  }
+
+  private embeddings = new Map<string, number[]>();
+  async setDocumentEmbedding(agencyId: string, id: string, embedding: number[], content: string) {
+    void content;
+    const d = await this.getDocument(agencyId, id);
+    if (!d) throw new NotFoundError("Document", id);
+    this.embeddings.set(id, embedding);
+  }
+  async listPublicDocumentEmbeddings(agencyId: string) {
+    const out: { id: string; embedding: number[] }[] = [];
+    for (const d of this.documents.values()) {
+      if (d.agencyId !== agencyId || d.classification !== "public") continue;
+      const embedding = this.embeddings.get(d.id);
+      if (embedding) out.push({ id: d.id, embedding });
+    }
+    return out;
   }
   async findReleaseContainingDocument(agencyId: string, documentId: string) {
     return (
