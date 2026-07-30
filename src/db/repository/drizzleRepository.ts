@@ -17,6 +17,7 @@ import {
   deliveries,
   departments,
   documents,
+  messages,
   publicIdCounters,
   releases,
   requestDocuments,
@@ -39,6 +40,7 @@ import {
   type Department,
   type DocumentEntity,
   type EventEntity,
+  type MessageEntity,
   type ReleaseEntity,
   type RequestEntity,
   type Requester,
@@ -382,6 +384,44 @@ export class DrizzleRepository implements Repository {
         createdAt: r.createdAt,
       }))
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async createMessage(m: MessageEntity): Promise<MessageEntity> {
+    await this.db.insert(messages).values({
+      id: m.id,
+      agencyId: m.agencyId,
+      requestId: m.requestId,
+      direction: m.direction,
+      channel: m.channel,
+      subject: m.subject,
+      body: m.body,
+      aiDrafted: m.aiDrafted,
+      sentByUserId: m.sentByUserId,
+      sentAt: m.sentAt,
+      createdAt: m.createdAt,
+    });
+    return m;
+  }
+  async listMessages(agencyId: string, requestId: string): Promise<MessageEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(messages)
+      .where(tenantWhere(messages.agencyId, agencyId, eq(messages.requestId, requestId)));
+    return rows
+      .map((m: typeof messages.$inferSelect) => ({
+        id: m.id,
+        agencyId: m.agencyId,
+        requestId: m.requestId,
+        direction: m.direction,
+        channel: m.channel,
+        subject: m.subject,
+        body: m.body,
+        aiDrafted: m.aiDrafted,
+        sentByUserId: m.sentByUserId,
+        sentAt: m.sentAt ?? m.createdAt,
+        createdAt: m.createdAt,
+      }))
+      .sort((a: MessageEntity, b: MessageEntity) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
   async upsertDocumentByExternalId(doc: DocumentEntity): Promise<{ document: DocumentEntity; created: boolean }> {

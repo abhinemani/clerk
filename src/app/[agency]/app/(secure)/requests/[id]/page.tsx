@@ -3,9 +3,14 @@ import { notFound } from "next/navigation";
 import { getRepository } from "@/db/createRepository";
 import { getRequestDetail, outstandingTasks } from "@/lib/live";
 import { deadlineRisk, type RiskBand } from "@/domain/deadlineRisk";
+import { canTransition } from "@/domain/requestLifecycle";
 import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/format";
 import { requireStaff } from "@/auth/guards";
 import { DeadlineBand, StatusPill } from "../../../../../_components/ui";
+import {
+  CorrespondencePanel,
+  type MessageVM,
+} from "../../../../../_components/CorrespondencePanel";
 import {
   ReviewRelease,
   type ReleaseVM,
@@ -38,17 +43,31 @@ export default async function RequestDetail({
   if (!detail) notFound();
   const { now, departments, request: r, timeline } = detail;
 
-  // Review set + release state (live requests only — the demo has neither).
+  // Review set + release state + correspondence (live requests only — the
+  // demo fixture has none of these).
   let reviewDocs: ReviewDocVM[] = [];
   let releaseVM: ReleaseVM | null = null;
+  let messageVMs: MessageVM[] = [];
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
-    const [docs, reviews, releases] = await Promise.all([
+    const [docs, reviews, releases, msgs, staffUsers] = await Promise.all([
       repo.listRequestDocuments(staff.agencyId, r.id),
       repo.listReviews(staff.agencyId, r.id),
       repo.listReleases(staff.agencyId, r.id),
+      repo.listMessages(staff.agencyId, r.id),
+      repo.listUsers(staff.agencyId),
     ]);
+    const staffNameById = new Map(staffUsers.map((u) => [u.id, u.name ?? u.email]));
+    messageVMs = msgs.map((m) => ({
+      id: m.id,
+      direction: m.direction,
+      subject: m.subject,
+      body: m.body,
+      aiDrafted: m.aiDrafted,
+      senderName: m.sentByUserId ? (staffNameById.get(m.sentByUserId) ?? "Staff") : null,
+      atLabel: dateShort(m.sentAt),
+    }));
     const reviewByDoc = new Map(reviews.map((rv) => [rv.documentId, rv]));
     reviewDocs = docs
       .filter((d) => d.classification === "internal") // the review set, not archive entries
@@ -196,6 +215,23 @@ export default async function RequestDetail({
           agencySlug={slug}
         />
       </div>
+
+      {/* Correspondence — the clarification loop with the requester */}
+      {detail.source === "live" && (
+        <div style={{ marginTop: 24, maxWidth: 720 }}>
+          <CorrespondencePanel
+            key={`${messageVMs.length}|${r.status}`}
+            agencySlug={slug}
+            requestId={r.id}
+            messages={messageVMs}
+            canRequestClarification={canTransition(r.status, "clarification_needed")}
+            awaitingReply={r.status === "clarification_needed"}
+            requesterReachable={r.requesterEmail != null}
+            requesterName={r.requesterName}
+            closed={r.closedAt != null}
+          />
+        </div>
+      )}
 
       {/* Review & release — appears once departments have submitted records */}
       {(reviewDocs.length > 0 || releaseVM) && (

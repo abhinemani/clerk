@@ -15,6 +15,7 @@ import { agencies, departments, users } from "@/db/schema";
 import { DrizzleRepository } from "./drizzleRepository";
 import { NotFoundError } from "@/services/repository";
 import type { ServiceDeps } from "@/services/deps";
+import { postRequesterReply, sendStaffMessage } from "@/services/messageService";
 import { submitRequest, transitionRequest } from "@/services/requestService";
 import { acceptTaskRecords, dispatchTask, startTask, submitTaskRecords } from "@/services/taskService";
 import { getRequestActivity } from "@/services/activityService";
@@ -232,6 +233,38 @@ describe("DrizzleRepository (embedded PGlite)", () => {
     const pub = await repo.listPublicDocuments(AG1);
     expect(pub.some((d) => d.externalSystemId === "pub-1")).toBe(true);
     expect(pub.some((d) => d.externalSystemId === "int-1")).toBe(false); // internal never leaks
+  });
+
+  it("round-trips the correspondence loop through the real messages table", async () => {
+    const d = deps(repo);
+    const r = await submitRequest(d, {
+      agencyId: AG1,
+      rawText: "Inspection records.",
+      requester: { email: "resident@example.com", name: "Res Ident" },
+    });
+    await transitionRequest(d, { agencyId: AG1, requestId: r.id, to: "in_review", actorUserId: USER1 });
+    await sendStaffMessage(d, {
+      agencyId: AG1,
+      requestId: r.id,
+      actorUserId: USER1,
+      subject: "Which inspections?",
+      body: "Building, fire, or health?",
+      requestClarification: true,
+    });
+    expect((await repo.getRequest(AG1, r.id))?.status).toBe("clarification_needed");
+
+    await postRequesterReply(d, {
+      agencyId: AG1,
+      requestId: r.id,
+      requesterId: r.requesterId!,
+      body: "Building only.",
+    });
+    expect((await repo.getRequest(AG1, r.id))?.status).toBe("in_review");
+
+    const thread = await repo.listMessages(AG1, r.id);
+    expect(thread.map((m) => m.direction)).toEqual(["outbound", "inbound"]);
+    expect(thread[0]?.sentByUserId).toBe(USER1); // the named human, persisted
+    expect(await repo.listMessages(AG2, r.id)).toHaveLength(0); // tenant-scoped
   });
 
   it("idempotently upserts an ingested document by external id", async () => {

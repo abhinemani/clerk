@@ -29,6 +29,7 @@ import type {
   EventEntity,
   Repository,
   RequestEntity,
+  Requester,
   TaskEntity,
 } from "@/services/repository";
 const MS_DAY = 86_400_000;
@@ -54,6 +55,8 @@ export interface RequestVM {
   publicId: string;
   requesterName: string;
   requesterType: string;
+  /** Null for anonymous filings (and the demo fixture) — nothing to email. */
+  requesterEmail: string | null;
   status: RequestStatus;
   rawText: string;
   /** Interpreted scope when triage has run; otherwise the raw text. */
@@ -148,7 +151,7 @@ export async function getWorkspace(slug: string): Promise<Workspace | null> {
   const now = new Date();
   const vms = requests.map((r) => {
     const requester = r.requesterId ? requesterById.get(r.requesterId) : undefined;
-    return toRequestVM(r, tasksByRequest.get(r.id) ?? [], deptById, requester?.name ?? null, requester?.type ?? "anonymous", now);
+    return toRequestVM(r, tasksByRequest.get(r.id) ?? [], deptById, requester ?? null, now);
   });
 
   return {
@@ -194,14 +197,7 @@ export async function getRequestDetail(slug: string, id: string): Promise<Reques
       source: "live",
       now,
       departments: deptVMs,
-      request: toRequestVM(
-        request,
-        tasks,
-        new Map(deptVMs.map((d) => [d.id, d])),
-        requester?.name ?? null,
-        requester?.type ?? "anonymous",
-        now,
-      ),
+      request: toRequestVM(request, tasks, new Map(deptVMs.map((d) => [d.id, d])), requester, now),
       timeline: events.map(toTimelineEvent),
     };
   }
@@ -322,15 +318,15 @@ function toRequestVM(
   r: RequestEntity,
   tasks: TaskEntity[],
   deptById: Map<string, DeptVM>,
-  requesterName: string | null,
-  requesterType: string,
+  requester: Pick<Requester, "name" | "type" | "email"> | null,
   now: Date,
 ): RequestVM {
   return {
     id: r.id,
     publicId: r.publicId,
-    requesterName: requesterName ?? "Anonymous",
-    requesterType,
+    requesterName: requester?.name ?? "Anonymous",
+    requesterType: requester?.type ?? "anonymous",
+    requesterEmail: requester?.email ?? null,
     status: r.status,
     rawText: r.rawText,
     interpretedScope: r.interpretedScope ?? r.rawText,
@@ -397,6 +393,7 @@ function demoToVM(r: DemoRequest): RequestVM {
     publicId: r.publicId,
     requesterName: r.requesterName,
     requesterType: r.requesterType,
+    requesterEmail: null,
     status: r.status,
     rawText: r.rawText,
     interpretedScope: r.interpretedScope,

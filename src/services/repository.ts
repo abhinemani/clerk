@@ -166,6 +166,27 @@ export interface DeliveryEntity {
   createdAt: Date;
 }
 
+export type MessageDirection = "inbound" | "outbound" | "internal_note";
+
+/**
+ * One correspondence entry on a request (§5 messages). Outbound messages
+ * always carry `sentByUserId` — no message reaches a requester without a named
+ * human (§10); inbound messages are the requester's own words (no user id).
+ */
+export interface MessageEntity {
+  id: string;
+  agencyId: string;
+  requestId: string;
+  direction: MessageDirection;
+  channel: "portal" | "email";
+  subject: string | null;
+  body: string;
+  aiDrafted: boolean;
+  sentByUserId: string | null;
+  sentAt: Date;
+  createdAt: Date;
+}
+
 export type ReviewDecision = "release" | "release_redacted" | "withhold";
 
 /** Per-document release decision (spec §5 Review) — always by a named human. */
@@ -291,6 +312,10 @@ export interface Repository {
   listRequestDocuments(agencyId: string, requestId: string): Promise<DocumentEntity[]>;
   /** The release (if any) whose frozen artifact list contains this document. */
   findReleaseContainingDocument(agencyId: string, documentId: string): Promise<ReleaseEntity | null>;
+
+  createMessage(m: MessageEntity): Promise<MessageEntity>;
+  /** A request's correspondence thread, oldest first. */
+  listMessages(agencyId: string, requestId: string): Promise<MessageEntity[]>;
 
   /** One decision per (request, document); re-deciding replaces. */
   upsertReview(r: ReviewEntity): Promise<ReviewEntity>;
@@ -552,6 +577,18 @@ export class InMemoryRepository implements Repository {
       .filter((l) => l.agencyId === agencyId && l.requestId === requestId)
       .map((l) => this.documents.get(l.documentId))
       .filter((d): d is DocumentEntity => d != null);
+  }
+
+  private messages: MessageEntity[] = [];
+
+  async createMessage(m: MessageEntity) {
+    this.messages.push(m);
+    return m;
+  }
+  async listMessages(agencyId: string, requestId: string) {
+    return this.messages
+      .filter((m) => m.agencyId === agencyId && m.requestId === requestId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
   async upsertReview(r: ReviewEntity) {

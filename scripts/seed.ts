@@ -16,6 +16,7 @@ import { departments } from "../src/db/schema";
 import { ensureAgency } from "../src/lib/bootstrap";
 import { provisionAgency, registerRequester } from "../src/services/accountService";
 import { defaultDeps, type ServiceDeps } from "../src/services/deps";
+import { sendStaffMessage } from "../src/services/messageService";
 import { releaseRequest, reviewDocument } from "../src/services/releaseService";
 import { submitRequest, transitionRequest } from "../src/services/requestService";
 import { acceptTaskRecords, dispatchTask, startTask, submitTaskRecords } from "../src/services/taskService";
@@ -72,7 +73,7 @@ async function main() {
   const deps = defaultDeps(await getRepository());
 
   // Riverton: two requests + a registered resident who owns the first one.
-  await submitRequest(deps, {
+  const jordanRequest = await submitRequest(deps, {
     agencyId,
     rawText: "All inspection reports for 400 Main St from January 2024 to present.",
     requester: { email: "jordan@rivertonledger.com", name: "Jordan Alvarez", type: "media" },
@@ -144,6 +145,35 @@ async function main() {
       });
     }
   }
+  // Jordan's request pauses on a clarification — the demo's interactive
+  // moment: sign in as Jordan, open the tracker, and reply to resume it.
+  {
+    const admin = (await deps.repo.listUsers(agencyId)).find((u) => u.role === "admin");
+    if (!admin) throw new Error("seed: no admin user to send the clarification");
+    await transitionRequest(deps, {
+      agencyId,
+      requestId: jordanRequest.id,
+      to: "in_review",
+      actorUserId: admin.id,
+    });
+    await sendStaffMessage(deps, {
+      agencyId,
+      requestId: jordanRequest.id,
+      actorUserId: admin.id,
+      subject: `Your records request ${jordanRequest.publicId} — a quick question`,
+      body: [
+        "Hi Jordan,",
+        "",
+        "Thanks for your request. 400 Main St has inspection records from three programs — building, fire, and health. Do you want all three, or a specific one?",
+        "",
+        "A quick reply here keeps your request moving.",
+        "",
+        "Dana Okafor, City Clerk's Office",
+      ].join("\n"),
+      requestClarification: true,
+    });
+  }
+
   // Registering with the same email claims the filed request into the account.
   const jordan = await registerRequester(deps, {
     agencyId,

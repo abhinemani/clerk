@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/auth/guards";
 import { getRepository } from "@/db/createRepository";
 import { defaultDeps } from "@/services/deps";
+import { MessageError, sendStaffMessage } from "@/services/messageService";
 import { ReleaseError, releaseRequest, reviewDocument } from "@/services/releaseService";
 import { approveTriage, transitionRequest } from "@/services/requestService";
 import type { ReviewDecision } from "@/services/repository";
@@ -222,6 +223,125 @@ export async function releaseRequestAction(input: {
   } catch (e) {
     if (e instanceof ReleaseError) return { ok: false, error: e.message };
     return fail("releaseRequest", e);
+  }
+}
+
+export async function sendMessageAction(input: {
+  agencySlug: string;
+  requestId: string;
+  subject?: string;
+  body: string;
+  internal?: boolean;
+  requestClarification?: boolean;
+  aiDrafted?: boolean;
+  aiMeta?: { promptVersion: string; model: string };
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    await sendStaffMessage(deps, {
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      actorUserId: staff.userId, // the named human on every outbound (§10)
+      subject: input.subject,
+      body: input.body,
+      internal: input.internal,
+      requestClarification: input.requestClarification,
+      aiDrafted: input.aiDrafted,
+      aiMeta: input.aiMeta,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof MessageError) return { ok: false, error: e.message };
+    return fail("sendMessage", e);
+  }
+}
+
+export type DraftReplyResult =
+  | {
+      ok: true;
+      subject: string;
+      body: string;
+      /** True when the §6.6 pipeline drafted it (vs. the offline template). */
+      aiDrafted: boolean;
+      aiMeta?: { promptVersion: string; model: string };
+      warnings: string[];
+    }
+  | { ok: false; error: string };
+
+/**
+ * Draft a clarification letter (§6.6) for staff to edit and send — the
+ * "AI proposes" half; sendMessageAction with the staff session is the dispose.
+ * Without ANTHROPIC_API_KEY a plain template stands in so the flow still works.
+ */
+export async function draftReplyAction(input: {
+  agencySlug: string;
+  requestId: string;
+}): Promise<DraftReplyResult> {
+  try {
+    const { staff, repo } = await ctx(input.agencySlug);
+    const request = await repo.getRequest(staff.agencyId, input.requestId);
+    if (!request) return { ok: false, error: "Request not found." };
+    const [agency, requester, thread] = await Promise.all([
+      repo.getAgency(staff.agencyId),
+      request.requesterId ? repo.getRequester(staff.agencyId, request.requesterId) : null,
+      repo.listMessages(staff.agencyId, input.requestId),
+    ]);
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      // Offline fallback: a serviceable template, clearly not model-drafted.
+      const first = (requester?.name ?? "there").split(" ")[0];
+      return {
+        ok: true,
+        subject: `Your records request ${request.publicId} — a quick question`,
+        body: [
+          `Hi ${first},`,
+          ``,
+          `Thanks for your request (${request.publicId}): "${request.rawText}"`,
+          ``,
+          `To find the right records, could you tell us a bit more about what you're looking for — for example the date range or department involved? A quick reply here speeds things up.`,
+          ``,
+          `${agency?.name ?? "Records Office"}`,
+        ].join("\n"),
+        aiDrafted: false,
+        warnings: [],
+      };
+    }
+
+    const { AnthropicModelClient } = await import("@/ai/modelClient");
+    const { runPipeline } = await import("@/ai/runPipeline");
+    const { correspondencePipeline } = await import("@/ai/pipelines/correspondence");
+    const result = await runPipeline(
+      correspondencePipeline,
+      {
+        kind: "clarification",
+        context: {
+          public_id: request.publicId,
+          agency: agency?.name,
+          requester_name: requester?.name,
+          request_as_filed: request.rawText,
+          interpreted_scope: request.interpretedScope,
+          statutory_due_date: request.statutoryDueAt?.toDateString() ?? null,
+          recent_thread: thread
+            .filter((m) => m.direction !== "internal_note")
+            .slice(-6)
+            .map((m) => ({ from: m.direction === "outbound" ? "staff" : "requester", body: m.body })),
+        },
+      },
+      { modelClient: new AnthropicModelClient(apiKey) },
+    );
+    return {
+      ok: true,
+      subject: result.output.subject,
+      body: result.output.body,
+      aiDrafted: true,
+      aiMeta: { promptVersion: correspondencePipeline.promptVersion, model: result.model },
+      warnings: result.output.warnings,
+    };
+  } catch (e) {
+    console.error("draftReply failed", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Drafting failed." };
   }
 }
 

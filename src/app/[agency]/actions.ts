@@ -74,6 +74,14 @@ export async function fileRequest(input: {
   }
 }
 
+export interface ThreadMessage {
+  id: string;
+  direction: "inbound" | "outbound";
+  subject: string | null;
+  body: string;
+  atISO: string;
+}
+
 export type TrackResult =
   | {
       found: true;
@@ -84,6 +92,12 @@ export type TrackResult =
       daysLeft: number;
       /** Released files, when the request has a release the viewer may fetch. */
       artifacts: { filename: string; url: string }[];
+      /**
+       * Correspondence — present ONLY when the viewer is signed in as the
+       * verified requester who owns this request. Tracking numbers are
+       * guessable; messages never travel on the number alone.
+       */
+      thread?: { requestId: string; messages: ThreadMessage[] };
     }
   | { found: false };
 
@@ -92,28 +106,58 @@ export async function trackRequest(agencySlug: string, publicId: string): Promis
   if (!hit) return { found: false };
   const daysLeft = Math.round((hit.dueAt.getTime() - hit.now.getTime()) / 86_400_000);
 
-  // Released records: surface download links (the file endpoint enforces who
-  // may actually fetch — public releases for anyone, private for the owner).
   let artifacts: { filename: string; url: string }[] = [];
-  if (hit.status === "fulfilled" || hit.status === "partially_fulfilled") {
-    try {
-      const repo = await getRepository();
-      const agency = await repo.getAgencyBySlug(agencySlug);
-      if (agency) {
-        const requests = await repo.listRequests(agency.id);
-        const request = requests.find((r) => r.publicId.toLowerCase() === publicId.trim().toLowerCase());
-        if (request) {
-          const releases = await repo.listReleases(agency.id, request.id);
-          artifacts = releases.flatMap((rel) =>
-            rel.artifacts
-              .filter((a) => a.documentId)
-              .map((a) => ({ filename: a.filename, url: `/${agencySlug}/files/${a.documentId}` })),
-          );
+  let thread: { requestId: string; messages: ThreadMessage[] } | undefined;
+  try {
+    const repo = await getRepository();
+    const agency = await repo.getAgencyBySlug(agencySlug);
+    const request = agency
+      ? await repo.findRequestByPublicId(agency.id, publicId.trim().toUpperCase())
+      : null;
+    if (agency && request) {
+      // Released records: surface download links (the file endpoint enforces
+      // who may actually fetch — public releases for anyone, private for the
+      // owner).
+      if (hit.status === "fulfilled" || hit.status === "partially_fulfilled") {
+        const releases = await repo.listReleases(agency.id, request.id);
+        artifacts = releases.flatMap((rel) =>
+          rel.artifacts
+            .filter((a) => a.documentId)
+            .map((a) => ({ filename: a.filename, url: `/${agencySlug}/files/${a.documentId}` })),
+        );
+      }
+
+      // The message thread, for the authenticated owner only. Internal notes
+      // never leave the staff workspace.
+      const session = await auth();
+      const u = session?.user;
+      if (
+        u &&
+        u.kind === "requester" &&
+        u.agencySlug === agencySlug &&
+        request.requesterId &&
+        request.requesterId === u.id
+      ) {
+        const requester = await repo.getRequester(agency.id, u.id);
+        if (requester?.emailVerifiedAt != null) {
+          const msgs = await repo.listMessages(agency.id, request.id);
+          thread = {
+            requestId: request.id,
+            messages: msgs
+              .filter((m) => m.direction !== "internal_note")
+              .map((m) => ({
+                id: m.id,
+                direction: m.direction as "inbound" | "outbound",
+                subject: m.subject,
+                body: m.body,
+                atISO: m.sentAt.toISOString(),
+              })),
+          };
         }
       }
-    } catch (e) {
-      console.error("trackRequest artifacts failed", e);
     }
+  } catch (e) {
+    console.error("trackRequest extras failed", e);
   }
 
   return {
@@ -124,7 +168,41 @@ export async function trackRequest(agencySlug: string, publicId: string): Promis
     dueAtISO: hit.dueAt.toISOString(),
     daysLeft,
     artifacts,
+    thread,
   };
+}
+
+export type ReplyResult = { ok: true } | { ok: false; error: string };
+
+/** A signed-in requester replies to the records office from the tracker. */
+export async function replyToRequestAction(input: {
+  agencySlug: string;
+  requestId: string;
+  body: string;
+}): Promise<ReplyResult> {
+  const { postRequesterReply, MessageError } = await import("@/services/messageService");
+  try {
+    const session = await auth();
+    const u = session?.user;
+    if (!u || u.kind !== "requester" || u.agencySlug !== input.agencySlug) {
+      return { ok: false, error: "Sign in to reply." };
+    }
+    const repo = await getRepository();
+    const agency = await repo.getAgencyBySlug(input.agencySlug);
+    if (!agency) return { ok: false, error: "Unknown agency." };
+    // Ownership is re-checked inside the service — never trusted from the client.
+    await postRequesterReply(defaultDeps(repo), {
+      agencyId: agency.id,
+      requestId: input.requestId,
+      requesterId: u.id,
+      body: input.body,
+    });
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof MessageError) return { ok: false, error: e.message };
+    console.error("replyToRequest failed", e);
+    return { ok: false, error: "Couldn't send your reply. Please try again." };
+  }
 }
 
 // --- public archive + deflection (§6.7) ------------------------------------
