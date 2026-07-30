@@ -143,13 +143,15 @@ Also complete:
   casey@riverton.gov / riverton-demo2); everything defaults OFF elsewhere.
 - **Statutes**: `src/statute/` — pure `computeDueDate()` (incl. extension
   validation), profiles for CA/TX/IL/WA/NY (data, not code).
-- **Design**: Public Sans + Source Serif 4; navy/gold/maroon civic triad in
-  `globals.css`. Dark-mode accent red is `#f25a5f` and `--overdue` is
-  `#f65a4c` (2026-07-30: the owner flagged the previous `#c9686a`/`#ff9c8f`
-  as still pink — the lesson, now encoded in the css comments: at the
-  lightness AA forces, SATURATION is the anti-pink lever (s≥80); never fix
-  contrast by lightening further). Buttons use `--maroon-btn` (true maroon
-  fill, white ink, both modes).
+- **Design**: Public Sans + Source Serif 4; navy/gold/red civic triad in
+  `globals.css`. **The brand red is `#990000` — owner-specified explicitly
+  (2026-07-30); do not drift it.** Light-mode text + button fills use it
+  directly (8.9:1). Dark-mode TEXT uses `#ff4d4d` — same hue 0°, full
+  saturation, lightened only to the AA floor (#990000 itself is 2.0:1 on
+  dark paper); dark buttons keep true `#990000` under white ink. `--overdue`
+  dark is `#f65a4c`. Lesson from two rounds of pink complaints: at the
+  lightness AA forces, saturation is the anti-pink lever; never fix
+  contrast by desaturating or over-lightening.
 
 ## Run it (this machine)
 
