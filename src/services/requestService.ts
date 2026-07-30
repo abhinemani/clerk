@@ -6,12 +6,20 @@
  * request, and append the audit events that make the request defensible. All
  * status changes go through the lifecycle state machine — an illegal jump throws.
  */
-import { computeDueDate } from "@/statute/computeDueDate";
+import { computeDueDate, isoDate } from "@/statute/computeDueDate";
 import { getStateProfile } from "@/statute/profiles";
+import { composeExtensionNotice } from "@/domain/extensionNotice";
 import { formatPublicId } from "@/domain/publicId";
 import { assertTransition, type RequestStatus } from "@/domain/requestLifecycle";
 import type { ServiceDeps } from "./deps";
 import { NotFoundError, type RequestEntity, type RequesterType } from "./repository";
+
+export class ExtensionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ExtensionError";
+  }
+}
 
 export interface SubmitRequestInput {
   agencyId: string;
@@ -189,6 +197,148 @@ export async function approveTriage(
     });
   }
   return updated;
+}
+
+export interface ExtendRequestInput {
+  agencyId: string;
+  requestId: string;
+  /** The named human taking the extension (invariant 4). */
+  actorUserId: string;
+  days: number;
+  /** Must be one of the statute's permitted reasons (§7). */
+  reason: string;
+  /** Optional specifics for the notice letter. */
+  note?: string;
+}
+
+export interface ExtendOutcome {
+  request: RequestEntity;
+  newDueAt: Date;
+  basis: string;
+  noticeSent: boolean;
+}
+
+/**
+ * Take the statutory extension (§7): validated against the state profile's
+ * extension rules, the new deadline computed by the same pure function that
+ * set the original (and logged with its basis — invariant 7), and the §6.6
+ * notice delivered to the requester through the correspondence thread.
+ * One extension per request — the common statutory shape ("may extend once").
+ */
+export async function extendRequest(deps: ServiceDeps, input: ExtendRequestInput): Promise<ExtendOutcome> {
+  const { repo } = deps;
+  if (!input.actorUserId) throw new ExtensionError("An extension requires a named staff member.");
+
+  const request = await repo.getRequest(input.agencyId, input.requestId);
+  if (!request) throw new NotFoundError("Request", input.requestId);
+  if (request.closedAt != null) throw new ExtensionError("This request is closed — nothing to extend.");
+  if (!request.receivedAt || !request.statutoryDueAt) {
+    throw new ExtensionError("This request has no computed statutory deadline to extend.");
+  }
+  if ((request.extensionHistory ?? []).length > 0) {
+    throw new ExtensionError("The statutory extension has already been taken for this request.");
+  }
+
+  const agency = await repo.getAgency(input.agencyId);
+  const profile = agency ? getStateProfile(agency.stateCode) : null;
+  if (!profile) throw new ExtensionError("No statute profile configured for this agency's state.");
+  const extConfig = profile.responseClock.extension;
+  if (!extConfig.allowed) throw new ExtensionError("This statute does not permit extensions.");
+  if (!extConfig.permittedReasons.includes(input.reason)) {
+    throw new ExtensionError(
+      `"${input.reason}" is not a permitted extension reason for ${profile.stateName}.`,
+    );
+  }
+
+  // Recompute the whole deadline chain from receipt — same pure function,
+  // same holidays, now with the extension. Throws on days out of range.
+  let computed: ReturnType<typeof computeDueDate>;
+  try {
+    computed = computeDueDate({
+      receivedAt: request.receivedAt,
+      clock: profile.responseClock,
+      holidays: agency!.observedHolidays,
+      extension: { days: input.days, reason: input.reason },
+    });
+  } catch (e) {
+    throw new ExtensionError(e instanceof Error ? e.message : "Invalid extension.");
+  }
+
+  const at = deps.now();
+  const priorDueAt = request.statutoryDueAt;
+  const updated = await repo.updateRequest(input.agencyId, request.id, {
+    statutoryDueAt: computed.dueAt,
+    extensionHistory: [
+      ...(request.extensionHistory ?? []),
+      {
+        at: at.toISOString(),
+        byUserId: input.actorUserId,
+        days: input.days,
+        reason: input.reason,
+        statutoryBasis: computed.basis,
+      },
+    ],
+  });
+
+  await repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: request.id,
+    kind: "extension",
+    actorUserId: input.actorUserId,
+    summary: `Deadline extended ${input.days} ${extConfig.dayType} day(s) — now due ${isoDate(computed.dueAt)}`,
+    payload: {
+      days: input.days,
+      dayType: extConfig.dayType,
+      reason: input.reason,
+      from: isoDate(priorDueAt),
+      to: isoDate(computed.dueAt),
+      basis: computed.basis, // invariant 7: the deadline persists with its basis
+    },
+    createdAt: at,
+  });
+
+  // Statutory notice (§6.6) — through the thread + outbox, like every letter.
+  let noticeSent = false;
+  const requester = request.requesterId
+    ? await repo.getRequester(input.agencyId, request.requesterId)
+    : null;
+  if (requester?.email) {
+    const { sendStaffMessage } = await import("./messageService");
+    await sendStaffMessage(deps, {
+      agencyId: input.agencyId,
+      requestId: request.id,
+      actorUserId: input.actorUserId,
+      subject: `Response date update for your records request ${request.publicId}`,
+      body: composeExtensionNotice({
+        publicId: request.publicId,
+        agencyName: agency!.name,
+        requesterName: requester.name,
+        requestSummary: request.interpretedScope ?? request.rawText,
+        days: input.days,
+        dayType: extConfig.dayType,
+        reason: input.reason,
+        priorDueDate: isoDate(priorDueAt),
+        newDueDate: isoDate(computed.dueAt),
+        note: input.note,
+      }),
+    });
+    noticeSent = true;
+  } else if (extConfig.noticeRequired) {
+    // The statute requires notice and we can't deliver one — leave a loud trace.
+    await repo.appendEvent({
+      id: deps.genId(),
+      agencyId: input.agencyId,
+      requestId: request.id,
+      kind: "note",
+      actorUserId: input.actorUserId,
+      summary: "Extension notice required but the requester has no email on file",
+      payload: { reason: input.reason },
+      createdAt: deps.now(),
+    });
+  }
+
+  return { request: updated, newDueAt: computed.dueAt, basis: computed.basis, noticeSent };
 }
 
 /** Attach an AI triage draft to a request (§6.1) — staff still review/dispose. */

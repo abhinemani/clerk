@@ -1,0 +1,43 @@
+# Clerk — self-contained deploy on any machine you own. No hosting accounts,
+# no external services: one container, one volume.
+#
+#   cp .env.example .env   # set AUTH_SECRET + platform credentials
+#   docker compose up --build
+#   docker compose exec clerk npm run seed   # optional: demo tenants
+#
+services:
+  clerk:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      # Required in production — the server refuses to boot without them.
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env (any long random string)}
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:?set PLATFORM_ADMIN_EMAIL in .env}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?set PLATFORM_ADMIN_PASSWORD in .env}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      #
+      # Everything below is an OPTIONAL upgrade — the app is fully functional
+      # without any of it (outbox-as-mailbox, keyword+fake-vector search,
+      # AI panels quietly empty).
+      #
+      # Managed Postgres instead of the embedded database:
+      DATABASE_URL: ${DATABASE_URL:-}
+      # Live AI (intake triage, exemption pass, routing, letter drafting):
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Real embeddings for the answer box:
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      # Real email delivery (outbox is always kept as the audit either way):
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      POSTMARK_SERVER_TOKEN: ${POSTMARK_SERVER_TOKEN:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      # Inbound email-in (point your provider's inbound webhook at
+      # /api/v1/email/inbound with this bearer token):
+      INBOUND_EMAIL_TOKEN: ${INBOUND_EMAIL_TOKEN:-}
+      INBOUND_EMAIL_DOMAIN: ${INBOUND_EMAIL_DOMAIN:-}
+    volumes:
+      - clerk-data:/data
+    restart: unless-stopped
+
+volumes:
+  clerk-data:

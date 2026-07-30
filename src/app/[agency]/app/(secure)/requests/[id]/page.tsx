@@ -13,6 +13,10 @@ import {
 } from "../../../../../_components/CorrespondencePanel";
 import { getStateProfile } from "@/statute/profiles";
 import {
+  ExtensionPanel,
+  type ExtensionTakenVM,
+} from "../../../../../_components/ExtensionPanel";
+import {
   ReviewRelease,
   type ExemptionOptionVM,
   type ReleaseVM,
@@ -58,6 +62,13 @@ export default async function RequestDetail({
   let messageVMs: MessageVM[] = [];
   let exemptionOptions: ExemptionOptionVM[] = [];
   let aiRouting: AiRoutingSuggestion[] | null = null;
+  let extensionVM: {
+    maxDays: number;
+    dayType: "calendar" | "business";
+    reasons: string[];
+    taken: ExtensionTakenVM | null;
+    available: boolean;
+  } | null = null;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -65,14 +76,29 @@ export default async function RequestDetail({
     const profile = agencyRow ? getStateProfile(agencyRow.stateCode) : null;
     exemptionOptions =
       profile?.exemptions.map((e) => ({ citation: e.statuteSection, label: e.shortLabel })) ?? [];
-    const [docs, reviews, releases, msgs, staffUsers, events] = await Promise.all([
+    const [docs, reviews, releases, msgs, staffUsers, events, rawRequest] = await Promise.all([
       repo.listRequestDocuments(staff.agencyId, r.id),
       repo.listReviews(staff.agencyId, r.id),
       repo.listReleases(staff.agencyId, r.id),
       repo.listMessages(staff.agencyId, r.id),
       repo.listUsers(staff.agencyId),
       repo.listEvents(staff.agencyId, r.id),
+      repo.getRequest(staff.agencyId, r.id),
     ]);
+    const extConfig = profile?.responseClock.extension;
+    if (extConfig) {
+      const taken = rawRequest?.extensionHistory?.[0] ?? null;
+      extensionVM = {
+        maxDays: extConfig.maxDays,
+        dayType: extConfig.dayType,
+        reasons: extConfig.permittedReasons,
+        taken: taken
+          ? { days: taken.days, reason: taken.reason, atLabel: dateShort(new Date(taken.at)) }
+          : null,
+        available:
+          extConfig.allowed && !taken && r.closedAt == null && rawRequest?.statutoryDueAt != null,
+      };
+    }
     // The latest §6.3 routing run, if the pipeline has proposed one.
     const routingEvent = [...events]
       .reverse()
@@ -189,6 +215,20 @@ export default async function RequestDetail({
               {titleCase(r.requesterType)} · received {dateShort(r.receivedAt)}
             </div>
           </div>
+
+          {extensionVM && (
+            <ExtensionPanel
+              key={`ext|${extensionVM.taken ? "taken" : "open"}|${dateShort(r.dueAt)}`}
+              agencySlug={slug}
+              requestId={r.id}
+              dueLabel={`Due ${dateShort(r.dueAt)}`}
+              maxDays={extensionVM.maxDays}
+              dayType={extensionVM.dayType}
+              reasons={extensionVM.reasons}
+              taken={extensionVM.taken}
+              available={extensionVM.available}
+            />
+          )}
 
           <div className="card card-pad">
             <div className="panel-title">Request as filed</div>

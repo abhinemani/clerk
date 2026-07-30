@@ -168,17 +168,38 @@ ANDs in the `agency_id` predicate, and a missing/blank id throws.
 
 ```bash
 npm install
-npm test          # full suite (163 tests)
+npm test          # full suite
 npm run typecheck # strict TS across schema + statute engine
 ```
 
-To run the database migration you need a Postgres with the `pgvector` extension:
+The embedded database (PGlite) migrates itself on boot — no Postgres needed.
+To use a managed Postgres instead (needs the `pgvector` extension):
 
 ```bash
 createdb clerk
 export DATABASE_URL=postgres://localhost:5432/clerk
 npm run db:migrate
 ```
+
+## Deploy it yourself — self-contained, no accounts
+
+Clerk is built to run on a machine you already own: one container, one
+volume, zero external services. The embedded database, blob store, and
+outbox-mailbox mean nothing else is required; AI, email delivery, and real
+embeddings are opt-in env vars (see `.env.example`) that upgrade the same
+build in place.
+
+```bash
+cp .env.example .env    # set AUTH_SECRET, PLATFORM_ADMIN_EMAIL/_PASSWORD
+docker compose up --build
+docker compose exec clerk npm run seed   # optional: City of Riverton demo
+```
+
+Everything persists in the `clerk-data` volume (`/data`). Back up by copying
+the volume; upgrade by rebuilding the image — migrations are append-only and
+run automatically at boot. Without Docker, `npm run build && npm start` on
+any Node 20+ box does the same job (set `PGLITE_PATH`/`BLOB_PATH` to a path
+you back up).
 
 ## Layout
 

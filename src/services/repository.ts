@@ -60,6 +60,15 @@ export interface Department {
   defaultResponderEmails: string[];
 }
 
+/** One taken statutory extension (§7) — mirrors the schema's ExtensionRecord. */
+export interface ExtensionEntry {
+  at: string; // ISO timestamp
+  byUserId: string;
+  days: number;
+  reason: string;
+  statutoryBasis?: string;
+}
+
 export interface RequestEntity {
   id: string;
   agencyId: string;
@@ -72,6 +81,8 @@ export interface RequestEntity {
   complexityScore: number | null;
   receivedAt: Date | null;
   statutoryDueAt: Date | null;
+  /** Extensions taken, oldest first (invariant 7: every deadline has a basis). */
+  extensionHistory?: ExtensionEntry[];
   /** Terminal-outcome timestamp (release approved / denied / withdrawn). */
   closedAt: Date | null;
   createdAt: Date;

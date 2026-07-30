@@ -12,7 +12,7 @@ import { getRepository } from "@/db/createRepository";
 import { defaultDeps } from "@/services/deps";
 import { MessageError, sendStaffMessage } from "@/services/messageService";
 import { denyRequest, ReleaseError, releaseRequest, reviewDocument } from "@/services/releaseService";
-import { approveTriage, transitionRequest } from "@/services/requestService";
+import { approveTriage, ExtensionError, extendRequest, transitionRequest } from "@/services/requestService";
 import type { ReviewDecision } from "@/services/repository";
 import {
   acceptTaskRecords,
@@ -347,6 +347,31 @@ export async function draftReplyAction(input: {
   } catch (e) {
     console.error("draftReply failed", e);
     return { ok: false, error: e instanceof Error ? e.message : "Drafting failed." };
+  }
+}
+
+export async function extendRequestAction(input: {
+  agencySlug: string;
+  requestId: string;
+  days: number;
+  reason: string;
+  note?: string;
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    await extendRequest(deps, {
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      actorUserId: staff.userId, // the named human on the extension
+      days: input.days,
+      reason: input.reason,
+      note: input.note,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof ExtensionError) return { ok: false, error: e.message };
+    return fail("extendRequest", e);
   }
 }
 

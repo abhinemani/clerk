@@ -267,6 +267,26 @@ describe("DrizzleRepository (embedded PGlite)", () => {
     expect(await repo.listMessages(AG2, r.id)).toHaveLength(0); // tenant-scoped
   });
 
+  it("persists extension history through updateRequest (§7 invariant 7)", async () => {
+    const d = deps(repo);
+    const r = await submitRequest(d, { agencyId: AG1, rawText: "Big archive ask." });
+    const entry = {
+      at: new Date().toISOString(),
+      byUserId: USER1,
+      days: 10,
+      reason: "voluminous separate records",
+      statutoryBasis: "10 business day(s)… Extended by 10…",
+    };
+    await repo.updateRequest(AG1, r.id, {
+      statutoryDueAt: new Date("2026-09-01T00:00:00Z"),
+      extensionHistory: [entry],
+    });
+    const back = await repo.getRequest(AG1, r.id);
+    expect(back?.extensionHistory).toHaveLength(1);
+    expect(back?.extensionHistory?.[0]?.reason).toBe("voluminous separate records");
+    expect(back?.statutoryDueAt?.toISOString().slice(0, 10)).toBe("2026-09-01");
+  });
+
   it("stores archive embeddings and lists them public-only (§6.7, invariant 3)", async () => {
     const dim = (await import("@/db/schema")).EMBEDDING_DIMENSIONS;
     const vec = (seed: number) => Array.from({ length: dim }, (_, i) => (i === seed ? 1 : 0));
