@@ -12,6 +12,7 @@ import {
   type MessageVM,
 } from "../../../../../_components/CorrespondencePanel";
 import { getStateProfile } from "@/statute/profiles";
+import { CopilotChat } from "../../../../../_components/CopilotChat";
 import {
   ExtensionPanel,
   type ExtensionTakenVM,
@@ -133,14 +134,21 @@ export default async function RequestDetail({
     const reviewByDoc = new Map(reviews.map((rv) => [rv.documentId, rv]));
     reviewDocs = docs
       .filter((d) => d.classification === "internal") // the review set, not archive entries
-      .map((d) => ({
-        documentId: d.id,
-        filename: d.filename ?? d.id,
-        pages: typeof d.metadata?.pages === "number" ? d.metadata.pages : null,
-        hasBlob: d.byteSize != null, // real bytes in the blob store
-        decision: reviewByDoc.get(d.id)?.decision ?? null,
-        exemptionLabel: reviewByDoc.get(d.id)?.exemptionLabel ?? null,
-      }));
+      .map((d) => {
+        const aiClass = (d.metadata as {
+          aiClassification?: { recordType?: string; sensitivityNote?: string | null };
+        } | null)?.aiClassification;
+        return {
+          documentId: d.id,
+          filename: d.filename ?? d.id,
+          pages: typeof d.metadata?.pages === "number" ? d.metadata.pages : null,
+          hasBlob: d.byteSize != null, // real bytes in the blob store
+          decision: reviewByDoc.get(d.id)?.decision ?? null,
+          exemptionLabel: reviewByDoc.get(d.id)?.exemptionLabel ?? null,
+          aiRecordType: aiClass?.recordType ?? null,
+          aiSensitivityNote: aiClass?.sensitivityNote ?? null,
+        };
+      });
     const rel = releases[0];
     if (rel) {
       const approver = await repo.getUser(staff.agencyId, rel.approvedByUserId);
@@ -324,6 +332,15 @@ export default async function RequestDetail({
         />
       </div>
 
+      {/* Coordinator copilot (§6.8) — proposes; every accept is a named-human
+          action. Rendered only when live AI is configured; closed requests
+          have nothing left to propose. */}
+      {detail.source === "live" && r.closedAt == null && process.env.ANTHROPIC_API_KEY && (
+        <div style={{ marginTop: 24, maxWidth: 720 }}>
+          <CopilotChat agencySlug={slug} requestId={r.id} requesterName={r.requesterName} />
+        </div>
+      )}
+
       {/* Correspondence — the clarification loop with the requester */}
       {detail.source === "live" && (
         <div style={{ marginTop: 24, maxWidth: 720 }}>
@@ -341,8 +358,14 @@ export default async function RequestDetail({
         </div>
       )}
 
-      {/* Review & release — appears once departments have submitted records */}
-      {(reviewDocs.length > 0 || releaseVM || r.status === "denied") && (
+      {/* Review & release — the review set once records exist, the release
+          record afterward, or (for an empty set on a request where denial is
+          a legal move) the no-records determination. */}
+      {detail.source === "live" &&
+        (reviewDocs.length > 0 ||
+          releaseVM ||
+          r.status === "denied" ||
+          (r.closedAt == null && canTransition(r.status, "denied"))) && (
         <div style={{ marginTop: 24, maxWidth: 720 }}>
           <ReviewRelease
             key={`${reviewDocs.map((d) => `${d.documentId}:${d.decision}`).join(",")}|${releaseVM ? "released" : "open"}|${r.status}`}

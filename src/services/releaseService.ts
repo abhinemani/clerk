@@ -299,8 +299,10 @@ export interface DenyRequestInput {
   requestId: string;
   /** The named human approving the denial — required (invariant 4). */
   actorUserId: string;
-  /** Statute citations the denial rests on — at least one. */
+  /** Statute citations the denial rests on — at least one, unless noRecords. */
   exemptions: DenialExemption[];
+  /** "No responsive records" determination — cites nothing, closes the request. */
+  noRecords?: boolean;
   /** Optional staff explanation inserted into the letter. */
   explanation?: string;
   /** Staff-edited letter body; when absent the composed letter is used. */
@@ -324,7 +326,7 @@ export async function denyRequest(deps: ServiceDeps, input: DenyRequestInput): P
   const { repo } = deps;
   if (!input.actorUserId) throw new ReleaseError("A denial requires a named approver.");
   const exemptions = input.exemptions.filter((e) => e.citation?.trim());
-  if (exemptions.length === 0) {
+  if (exemptions.length === 0 && !input.noRecords) {
     throw new ReleaseError("A denial must cite at least one exemption.");
   }
 
@@ -346,6 +348,7 @@ export async function denyRequest(deps: ServiceDeps, input: DenyRequestInput): P
       requesterName: requester?.name,
       requestSummary: request.interpretedScope ?? request.rawText,
       exemptions,
+      noRecords: input.noRecords,
       appealProcess: profile?.appeal.process ?? null,
       appealDeadlineDays: profile?.appeal.deadlineDays ?? null,
       explanation: input.explanation,
@@ -373,9 +376,12 @@ export async function denyRequest(deps: ServiceDeps, input: DenyRequestInput): P
     requestId: request.id,
     kind: "approval",
     actorUserId: input.actorUserId,
-    summary: `Denial approved — ${exemptions.length} exemption(s) cited`,
+    summary: input.noRecords
+      ? "Denial approved — no responsive records"
+      : `Denial approved — ${exemptions.length} exemption(s) cited`,
     payload: {
       exemptions: exemptions.map((e) => ({ citation: e.citation, label: e.label })),
+      noRecords: input.noRecords ?? false,
       appealIncluded: Boolean(profile?.appeal.process),
     },
     createdAt: now,

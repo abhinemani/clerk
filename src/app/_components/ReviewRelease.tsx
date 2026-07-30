@@ -17,6 +17,9 @@ export interface ReviewDocVM {
   hasBlob: boolean;
   decision: "release" | "release_redacted" | "withhold" | null;
   exemptionLabel: string | null;
+  /** §6.5 auto-classification suggestions (advisory only). */
+  aiRecordType?: string | null;
+  aiSensitivityNote?: string | null;
 }
 
 export interface ReleaseVM {
@@ -121,10 +124,64 @@ export function ReviewRelease({
     );
   }
 
-  if (docs.length === 0) return null;
-
   const undecided = docs.filter((d) => !d.decision).length;
-  const allWithheld = undecided === 0 && docs.every((d) => d.decision === "withhold");
+  const allWithheld = undecided === 0 && docs.length > 0 && docs.every((d) => d.decision === "withhold");
+
+  // No review set at all: the panel's only lawful move is the no-records
+  // determination — a reasonable search found nothing.
+  if (docs.length === 0) {
+    return (
+      <div className="card card-pad stack" style={{ gap: 12 }}>
+        <div className="panel-title">Determination</div>
+        <p className="muted" style={{ fontSize: "0.9rem", margin: 0 }}>
+          No documents are in the review set. If the departments&apos; search located no responsive
+          records, close the request with a formal no-records determination — the letter includes
+          the statute&apos;s appeal language.
+        </p>
+        {error && (
+          <p className="pill band-overdue" role="alert" style={{ justifySelf: "start" }}>
+            {error}
+          </p>
+        )}
+        <textarea
+          className="field"
+          rows={2}
+          placeholder="Search description for the letter (optional), e.g. which systems were searched"
+          value={explanation}
+          onChange={(e) => setExplanation(e.target.value)}
+        />
+        <div>
+          <button
+            className="btn btn-primary"
+            disabled={pending}
+            onClick={() => {
+              setError(null);
+              startTransition(async () => {
+                const r = await denyRequestAction({
+                  agencySlug,
+                  requestId,
+                  exemptions: [],
+                  noRecords: true,
+                  explanation: explanation.trim() || undefined,
+                });
+                if (!r.ok) {
+                  setError(r.error);
+                  return;
+                }
+                router.refresh();
+              });
+            }}
+          >
+            {pending ? "One moment…" : "Close as no responsive records — as yourself"}
+          </button>
+          <p className="muted" style={{ fontSize: "0.78rem", marginTop: 8 }}>
+            Your name goes on the determination; the letter lands in the requester&apos;s thread and
+            the outbox, and the clock stops.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   function deny() {
     setError(null);
@@ -263,6 +320,12 @@ export function ReviewRelease({
                 ))}
               </select>
             </div>
+            {(d.aiRecordType || d.aiSensitivityNote) && (
+              <div className="muted" style={{ fontSize: "0.78rem", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {d.aiRecordType && <span className="tag">{d.aiRecordType}</span>}
+                {d.aiSensitivityNote && <span>⚠ {d.aiSensitivityNote}</span>}
+              </div>
+            )}
             <input
               className="field"
               style={{ paddingBlock: 7, fontSize: "0.85rem" }}

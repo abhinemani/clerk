@@ -282,6 +282,32 @@ describe("denyRequest — the formal denial", () => {
     ).rejects.toThrow(); // fulfilled → denied is not a legal transition
   });
 
+  it("closes as 'no responsive records' — no citations required, appeal language kept", async () => {
+    const deps = makeDeps();
+    const { request } = await fulfilledSetup(deps);
+    const outcome = await denyRequest(deps, {
+      agencyId: AG,
+      requestId: request.id,
+      actorUserId: APPROVER,
+      exemptions: [],
+      noRecords: true,
+      explanation: "Searched the permit system and the clerk's archive.",
+    });
+    expect(outcome.request.status).toBe("denied");
+    expect(outcome.request.closedAt).not.toBeNull();
+    expect(outcome.letter).toContain("located no records responsive");
+    expect(outcome.letter).toContain("writ of mandate"); // appeal rights still verbatim
+    expect(outcome.letter).not.toContain("exemption"); // nothing cited — nothing to cite
+    const events = await deps.repo.listEvents(AG, request.id);
+    expect(events.some((e) => e.summary === "Denial approved — no responsive records")).toBe(true);
+    // Without the flag, an empty citation list is still refused.
+    const again = await submitRequest(deps, { agencyId: AG, rawText: "another", requester: {} });
+    await deps.repo.updateRequest(AG, again.id, { status: "in_review" });
+    await expect(
+      denyRequest(deps, { agencyId: AG, requestId: again.id, actorUserId: APPROVER, exemptions: [] }),
+    ).rejects.toBeInstanceOf(ReleaseError);
+  });
+
   it("a staff-edited letter body is sent as written", async () => {
     const deps = makeDeps();
     const { request } = await fulfilledSetup(deps);

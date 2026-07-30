@@ -21,6 +21,11 @@ export interface DenialLetterInput {
   /** The request in the office's words (interpreted scope or raw text). */
   requestSummary: string;
   exemptions: DenialExemption[];
+  /**
+   * "No responsive records" determination: a reasonable search located
+   * nothing. No exemptions are cited — there is nothing to exempt.
+   */
+  noRecords?: boolean;
   /** Appeal process language from the statute profile — included verbatim. */
   appealProcess?: string | null;
   appealDeadlineDays?: number | null;
@@ -36,16 +41,20 @@ export function composeDenialLetter(input: DenialLetterInput): string {
     ``,
     `This letter responds to your public records request: "${input.requestSummary}".`,
     ``,
-    `After review, ${input.agencyName} has determined that the responsive records are exempt from disclosure and your request is denied.`,
+    input.noRecords
+      ? `${input.agencyName} conducted a reasonable search and located no records responsive to your request. This letter closes your request on that basis.`
+      : `After review, ${input.agencyName} has determined that the responsive records are exempt from disclosure and your request is denied.`,
   ];
 
   if (input.explanation?.trim()) {
     lines.push(``, input.explanation.trim());
   }
 
-  lines.push(``, `This determination rests on the following exemption${input.exemptions.length === 1 ? "" : "s"}:`);
-  for (const e of input.exemptions) {
-    lines.push(`  • ${e.citation}${e.label ? ` — ${e.label}` : ""}`);
+  if (!input.noRecords) {
+    lines.push(``, `This determination rests on the following exemption${input.exemptions.length === 1 ? "" : "s"}:`);
+    for (const e of input.exemptions) {
+      lines.push(`  • ${e.citation}${e.label ? ` — ${e.label}` : ""}`);
+    }
   }
 
   lines.push(``, `Your appeal rights:`);

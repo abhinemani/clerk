@@ -381,6 +381,7 @@ export async function denyRequestAction(input: {
   agencySlug: string;
   requestId: string;
   exemptions: { citation: string; label?: string }[];
+  noRecords?: boolean;
   explanation?: string;
   letterBody?: string;
   letterAiMeta?: { promptVersion: string; model: string };
@@ -392,6 +393,7 @@ export async function denyRequestAction(input: {
       requestId: input.requestId,
       actorUserId: staff.userId, // the named approver on the denial
       exemptions: input.exemptions,
+      noRecords: input.noRecords,
       explanation: input.explanation,
       letterBody: input.letterBody,
       letterAiMeta: input.letterAiMeta,
@@ -527,6 +529,89 @@ export async function finalizeRedactionAction(input: {
     return { ok: true };
   } catch (e) {
     return fail("finalizeRedaction", e);
+  }
+}
+
+export interface CopilotActionVM {
+  type: "draft_message" | "propose_task" | "propose_extension" | "none";
+  detail: string;
+}
+
+export type CopilotResult =
+  | { ok: true; reply: string; actions: CopilotActionVM[]; aiMeta: { promptVersion: string; model: string } }
+  | { ok: false; error: string };
+
+/**
+ * Coordinator copilot (§6.8): a chat turn scoped to this request. Proposals
+ * come back as drafts; the panel's buttons land them on the same named-human
+ * actions as everywhere else. Every run is logged to the audit trail.
+ */
+export async function copilotAction(input: {
+  agencySlug: string;
+  requestId: string;
+  message: string;
+  /** Condensed prior turns, oldest first ("coordinator: …" / "copilot: …"). */
+  history?: string[];
+}): Promise<CopilotResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { ok: false, error: "AI is not configured (ANTHROPIC_API_KEY)." };
+  if (!input.message.trim()) return { ok: false, error: "Say something first." };
+  try {
+    const { staff, repo, deps } = await ctx(input.agencySlug);
+    const request = await repo.getRequest(staff.agencyId, input.requestId);
+    if (!request) return { ok: false, error: "Request not found." };
+    const events = await repo.listEvents(staff.agencyId, input.requestId);
+
+    const { AnthropicModelClient } = await import("@/ai/modelClient");
+    const { runPipeline } = await import("@/ai/runPipeline");
+    const { copilotPipeline } = await import("@/ai/pipelines/copilot");
+
+    const history = (input.history ?? []).slice(-8);
+    const message = history.length
+      ? `Earlier in this chat:\n${history.join("\n")}\n\nNow: ${input.message.trim()}`
+      : input.message.trim();
+
+    const result = await runPipeline(
+      copilotPipeline,
+      {
+        request: {
+          publicId: request.publicId,
+          interpretedScope: request.interpretedScope ?? request.rawText,
+          status: request.status,
+          dueDate: request.statutoryDueAt?.toDateString(),
+          recentEvents: events.slice(-10).map((e) => e.summary),
+        },
+        message,
+      },
+      { modelClient: new AnthropicModelClient(apiKey) },
+    );
+
+    // Every pipeline run is auditable (§6/§10) — the copilot is no exception.
+    await repo.appendEvent({
+      id: deps.genId(),
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      kind: "ai_action",
+      actorUserId: staff.userId, // the human who asked
+      summary: "Copilot consulted",
+      payload: {
+        pipeline: "coordinator_copilot",
+        promptVersion: copilotPipeline.promptVersion,
+        model: result.model,
+        proposedActions: result.output.proposedActions.map((a) => a.type),
+      },
+      createdAt: deps.now(),
+    });
+
+    return {
+      ok: true,
+      reply: result.output.reply,
+      actions: result.output.proposedActions.filter((a) => a.type !== "none"),
+      aiMeta: { promptVersion: copilotPipeline.promptVersion, model: result.model },
+    };
+  } catch (e) {
+    console.error("copilot failed", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Copilot failed." };
   }
 }
 

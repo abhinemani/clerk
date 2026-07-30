@@ -8,6 +8,7 @@
  * No ANTHROPIC_API_KEY → quietly skips (the PII pass still works).
  */
 import { AnthropicModelClient } from "@/ai/modelClient";
+import { classifyDocumentPipeline, type ClassifyDocumentOutput } from "@/ai/pipelines/classifyDocument";
 import {
   exemptionFindingsToRedactions,
   exemptionPassPipeline,
@@ -31,59 +32,104 @@ export async function runExemptionPassJob(payload: JobPayloads["exemption_pass"]
   if (!apiKey) return;
 
   const repo = await getRepository();
-  const [agency, docs] = await Promise.all([
+  const [agency, docs, departments] = await Promise.all([
     repo.getAgency(payload.agencyId),
     repo.listRequestDocuments(payload.agencyId, payload.requestId),
+    repo.listDepartments(payload.agencyId),
   ]);
   if (!agency) return;
   const profile = getStateProfile(agency.stateCode);
   const exemptions = profile?.exemptions.map((e) => `${e.shortLabel} (${e.statuteSection})`) ?? [];
-  if (exemptions.length === 0) return; // nothing to cite against
+  const modelClient = new AnthropicModelClient(apiKey);
 
   const pending = docs.filter(
-    (d) =>
-      d.extractedText != null &&
-      !d.externalSystemId?.startsWith("redacted:") && // never scan burned artifacts
-      (d.metadata as { aiSuggestions?: unknown } | null)?.aiSuggestions == null,
+    (d) => d.extractedText != null && !d.externalSystemId?.startsWith("redacted:"), // never burned artifacts
   );
 
   for (const doc of pending) {
+    const meta = (doc.metadata ?? {}) as {
+      aiSuggestions?: unknown;
+      aiClassification?: unknown;
+    };
     const lines = doc.extractedText!.split("\n");
-    const result = await runPipeline(
-      exemptionPassPipeline,
-      { lines, exemptions },
-      { modelClient: new AnthropicModelClient(apiKey) },
-    );
-    const suggestions: StoredExemptionSuggestion[] = exemptionFindingsToRedactions(
-      lines,
-      result.output,
-    ).map((s) => ({
-      line: s.line,
-      startCol: s.startCol,
-      endCol: s.endCol,
-      reason: s.reason ?? exemptions[0]!,
-      confidence: s.confidence,
-      rationale: s.rationale,
-    }));
+    const metadata: Record<string, unknown> = { ...(doc.metadata ?? {}) };
+    let dirty = false;
 
-    await repo.updateDocument(payload.agencyId, doc.id, {
-      metadata: { ...(doc.metadata ?? {}), aiSuggestions: suggestions },
-    });
-    await repo.appendEvent({
-      id: crypto.randomUUID(),
-      agencyId: payload.agencyId,
-      requestId: payload.requestId,
-      kind: "ai_action",
-      actorUserId: null,
-      summary: `Exemption pass suggested ${suggestions.length} redaction(s) on ${doc.filename ?? doc.id}`,
-      payload: {
-        pipeline: "exemption_pass",
-        promptVersion: exemptionPassPipeline.promptVersion,
-        model: result.model,
-        documentId: doc.id,
-        suggestions: suggestions.length,
-      },
-      createdAt: new Date(),
-    });
+    // §6.5 step 2 — exemption suggestions for the studio.
+    if (meta.aiSuggestions == null && exemptions.length > 0) {
+      const result = await runPipeline(exemptionPassPipeline, { lines, exemptions }, { modelClient });
+      const suggestions: StoredExemptionSuggestion[] = exemptionFindingsToRedactions(
+        lines,
+        result.output,
+      ).map((s) => ({
+        line: s.line,
+        startCol: s.startCol,
+        endCol: s.endCol,
+        reason: s.reason ?? exemptions[0]!,
+        confidence: s.confidence,
+        rationale: s.rationale,
+      }));
+      metadata.aiSuggestions = suggestions;
+      dirty = true;
+      await repo.appendEvent({
+        id: crypto.randomUUID(),
+        agencyId: payload.agencyId,
+        requestId: payload.requestId,
+        kind: "ai_action",
+        actorUserId: null,
+        summary: `Exemption pass suggested ${suggestions.length} redaction(s) on ${doc.filename ?? doc.id}`,
+        payload: {
+          pipeline: "exemption_pass",
+          promptVersion: exemptionPassPipeline.promptVersion,
+          model: result.model,
+          documentId: doc.id,
+          suggestions: suggestions.length,
+        },
+        createdAt: new Date(),
+      });
+    }
+
+    // §6.5/§9.3 — auto-classification. Suggestions ONLY: the classification
+    // COLUMN is never touched here (invariant 9 — internal→public is a named
+    // human's move; the doc arrived internal and stays internal).
+    if (meta.aiClassification == null) {
+      const result = await runPipeline(
+        classifyDocumentPipeline,
+        {
+          filename: doc.filename ?? undefined,
+          text: doc.extractedText!,
+          departments: departments.map((d) => d.name),
+        },
+        { modelClient },
+      );
+      const c: ClassifyDocumentOutput = result.output;
+      metadata.aiClassification = {
+        recordType: c.recordType,
+        department: c.department,
+        suggestedClassification: c.classification,
+        suggestedMetadata: c.suggestedMetadata,
+        sensitivityNote: c.sensitivityNote,
+      };
+      dirty = true;
+      await repo.appendEvent({
+        id: crypto.randomUUID(),
+        agencyId: payload.agencyId,
+        requestId: payload.requestId,
+        kind: "ai_action",
+        actorUserId: null,
+        summary: `Classified ${doc.filename ?? doc.id} as "${c.recordType}"${c.sensitivityNote ? " (sensitivity flagged)" : ""}`,
+        payload: {
+          pipeline: "classify_document",
+          promptVersion: classifyDocumentPipeline.promptVersion,
+          model: result.model,
+          documentId: doc.id,
+          recordType: c.recordType,
+          suggestedClassification: c.classification,
+        },
+        createdAt: new Date(),
+      });
+    }
+
+    if (dirty) await repo.updateDocument(payload.agencyId, doc.id, { metadata });
   }
 }
