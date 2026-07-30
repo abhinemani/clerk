@@ -4,7 +4,7 @@ Context package for continuing in a fresh session. Read this top to bottom
 before doing anything substantial; it replaces re-reading the git history.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**298 tests pass, typecheck + production build clean** (as of commit `28c494e`).
+**312 tests pass, typecheck + production build clean** (as of commit `1e7daf8`).
 
 ## What this is
 Clerk — a multi-tenant, AI-native public records (FOIA) platform. One
@@ -50,7 +50,23 @@ Three flows added since (all service-layer tested + audited):
 - **Formal denial** (`denyRequest` + `domain/denialLetter`): citation-listed
   letter with the statute profile's appeal language verbatim, named
   approver, denied+closedAt, letter threads into correspondence + outbox.
-  UI: the review panel swaps to a denial panel when everything is withheld.
+  UI: the review panel swaps to a denial panel when everything is withheld,
+  with §6.6 letter drafting (composed-letter fallback without a key).
+- **Email, both directions** (`adapters/email` + `inboundEmailService`):
+  outbound delivers for real when EMAIL_FROM + POSTMARK_SERVER_TOKEN or
+  RESEND_API_KEY are set (RelayNotifier — outbox row first, always);
+  inbound via POST /api/v1/email/inbound (Bearer INBOUND_EMAIL_TOKEN,
+  404 when unset) with credential Reply-To addresses (task-{token}@ /
+  req-{uuid}@ INBOUND_EMAIL_DOMAIN): responder attachments become extracted
+  review-set docs + task submit; requester replies land on the thread
+  (sender must match; refusals logged; resumes clarification-paused
+  requests).
+- **AI library wired live**: routing suggestions (§6.3) ride the triage job
+  → latest run renders as proposal cards; exemption-pass job (§6.5 step 2)
+  stores LLM suggestions in doc metadata for the studio (merged with the
+  PII pass); answer box (§6.7) is hybrid keyword+vector (archive embeddings
+  in document_chunks chunk 0, backfill job at boot/release/ingest, Voyage
+  behind VOYAGE_API_KEY, fake embedder otherwise).
 
 ## Architecture map (where things live)
 - **Routing**: `/` marketing · `/admin` platform-operator console (env creds)
@@ -128,23 +144,29 @@ Optional: ANTHROPIC_API_KEY (live triage), VOYAGE_API_KEY (real embeddings).
 
 ## Next steps (priority order, each is one focused session)
 1. **Deploy live** — Railway/Fly single container + volume (PGLITE_PATH,
-   BLOB_PATH, AUTH_SECRET, platform creds, ANTHROPIC_API_KEY). Makes the
+   BLOB_PATH, AUTH_SECRET, platform creds, ANTHROPIC_API_KEY; now also
+   EMAIL_FROM + POSTMARK_SERVER_TOKEN, INBOUND_EMAIL_TOKEN/_DOMAIN with the
+   provider's inbound webhook pointed at /api/v1/email/inbound). Makes the
    demo shareable; the marketing site's links become real.
-2. **Wire more of the existing AI library into the live path** — routing
-   suggestions (§6.3) are currently a heuristic on the detail page; the real
-   pipeline exists. Same for the §6.5 LLM exemption pass feeding studio
-   suggestions (only the deterministic PII pass is wired), denial-letter
-   drafting via the §6.6 pipeline, and hybrid search in the answer box
-   (needs VOYAGE_API_KEY + embedding backfill job).
+2. **The extension flow** — statute profiles already model extension rules
+   (max days, permitted reasons, notice required); build the take-an-
+   extension action: reason picker, §6.6 notice letter, recomputed deadline
+   logged with its basis (invariant 7), extensions column on requests
+   already exists. Legally significant → named human (invariant 4).
 3. **Denial without documents** — the deny panel only appears when a review
    set exists and is all-withheld; a "no responsive records / categorically
    exempt" denial needs a surface on the request detail. `denyRequest`
    already supports it.
-4. **Extraction breadth** — textExtract handles text files + PDF text layers
-   (incl. Flate); scans need OCR (adapter port + stub, spec §6.5) and DOCX
-   needs a zip/XML pass. Un-extractable docs currently can only be withheld
-   or released whole (by design).
+4. **Extraction breadth + upload safety** — textExtract handles text files +
+   PDF text layers (incl. Flate); scans need OCR (adapter port + stub, spec
+   §6.5) and DOCX needs a zip/XML pass. Un-extractable docs currently can
+   only be withheld or released whole (by design). Also: a virus-scan
+   adapter port before public deploy — uploads land in the blob store
+   unscanned today.
 5. **S3/MinIO BlobStore adapter** + pg-boss queue adapter for multi-instance
    deployments (both ports are ready).
 6. **Platform polish** — per-agency branding (colors/seal upload — column
    exists on agencies), agency settings page, observed-holidays editor.
+7. **Chunk-level document search (§6.4)** — archive entries embed at entry
+   level (chunk 0); full responsive-records search over extracted text needs
+   per-chunk embedding at ingest + a staff search surface.
