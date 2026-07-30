@@ -49,7 +49,10 @@ async function fulfilledSetup(deps: ServiceDeps) {
   await submitTaskRecords(deps, {
     agencyId: AG,
     taskId: task.id,
-    uploads: [{ name: "contract.pdf", pages: 11 }, { name: "amendment.pdf", pages: 2 }],
+    uploads: [
+      { name: "contract.pdf", pages: 11, blobRef: "ag-1/contract", byteSize: 42, mimeType: "application/pdf", checksum: "aa".repeat(32) },
+      { name: "amendment.pdf", pages: 2 },
+    ],
   });
   const docs = await deps.repo.listRequestDocuments(AG, request.id);
   return { request, docs };
@@ -61,6 +64,31 @@ describe("review & release", () => {
     const { docs } = await fulfilledSetup(deps);
     expect(docs).toHaveLength(2);
     expect(docs.every((d) => d.classification === "internal")).toBe(true);
+
+    // Blob-backed upload carries its storage key + integrity metadata.
+    const stored = docs.find((d) => d.filename === "contract.pdf")!;
+    expect(stored.blobRef).toBe("ag-1/contract");
+    expect(stored.byteSize).toBe(42);
+    expect(stored.checksum).toBe("aa".repeat(32));
+  });
+
+  it("released artifacts reuse the stored checksum and resolve back to their release", async () => {
+    const deps = makeDeps();
+    const { request, docs } = await fulfilledSetup(deps);
+    for (const d of docs) {
+      await reviewDocument(deps, { agencyId: AG, requestId: request.id, documentId: d.id, decision: "release", actorUserId: APPROVER });
+    }
+    const outcome = await releaseRequest(deps, { agencyId: AG, requestId: request.id, actorUserId: APPROVER, visibility: "private" });
+
+    const stored = docs.find((d) => d.filename === "contract.pdf")!;
+    const artifact = outcome.release.artifacts.find((a) => a.documentId === stored.id)!;
+    expect(artifact.checksum).toBe("aa".repeat(32)); // real bytes → real checksum
+    expect(artifact.blobRef).toBe("ag-1/contract");
+
+    // The download endpoint's entitlement lookup: document → its release.
+    const found = await deps.repo.findReleaseContainingDocument(AG, stored.id);
+    expect(found?.id).toBe(outcome.release.id);
+    expect(await deps.repo.findReleaseContainingDocument(AG, "no-such-doc")).toBeNull();
   });
 
   it("refuses to release with undecided documents, then closes fulfilled when all released", async () => {

@@ -148,15 +148,25 @@ export async function startTask(deps: ServiceDeps, agencyId: string, taskId: str
  * corpus document (provenance: responder_upload, internal until reviewed)
  * attached to the request — the review set the release flow decides over.
  */
+export interface TaskUploadInput {
+  name: string;
+  pages?: number;
+  /** Real bytes were stored: object key + integrity metadata. */
+  blobRef?: string;
+  byteSize?: number;
+  mimeType?: string;
+  checksum?: string;
+}
+
 export async function submitTaskRecords(
   deps: ServiceDeps,
-  input: { agencyId: string; taskId: string; uploads: { name: string; pages?: number }[] },
+  input: { agencyId: string; taskId: string; uploads: TaskUploadInput[] },
 ): Promise<TaskEntity> {
   const task = await loadTask(deps, input.agencyId, input.taskId);
   assertTaskTransition(task.status, "submitted");
   const updated = await deps.repo.updateTask(input.agencyId, input.taskId, {
     status: "submitted",
-    uploads: [...task.uploads, ...input.uploads],
+    uploads: [...task.uploads, ...input.uploads.map((u) => ({ name: u.name, pages: u.pages }))],
   });
 
   for (const upload of input.uploads) {
@@ -168,8 +178,12 @@ export async function submitTaskRecords(
       filename: upload.name,
       classification: "internal", // never public before a human decides
       recordType: null,
-      processingStatus: "received",
+      processingStatus: upload.blobRef ? "ready" : "received",
       metadata: { pages: upload.pages ?? null, taskId: task.id },
+      blobRef: upload.blobRef ?? null,
+      byteSize: upload.byteSize ?? null,
+      mimeType: upload.mimeType ?? null,
+      checksum: upload.checksum ?? null,
       createdAt: deps.now(),
     });
     await deps.repo.linkRequestDocument(input.agencyId, task.requestId, doc.id);

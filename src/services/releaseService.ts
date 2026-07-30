@@ -117,12 +117,14 @@ export async function releaseRequest(
 
   const now = deps.now();
   const artifacts = releasable.map((d) => ({
-    blobRef: d.filename ?? d.id,
+    blobRef: d.blobRef ?? d.filename ?? d.id,
     filename:
       decisionByDoc.get(d.id)!.decision === "release_redacted"
         ? `${(d.filename ?? d.id).replace(/\.pdf$/i, "")}-redacted.pdf`
         : (d.filename ?? d.id),
-    checksum: createHash("sha256").update(`${d.id}:${d.filename}`).digest("hex").slice(0, 16),
+    // Real stored bytes carry their sha-256; metadata-only docs get a
+    // derived placeholder so the artifact list is always checksummed.
+    checksum: d.checksum ?? createHash("sha256").update(`${d.id}:${d.filename}`).digest("hex").slice(0, 16),
     documentId: d.id,
   }));
 

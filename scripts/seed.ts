@@ -10,6 +10,7 @@
  *
  * Idempotent: re-running is a no-op once seeded. Demo credentials print below.
  */
+import { blobKey, checksumOf, getBlobStore } from "../src/adapters/blobStore";
 import { getDb, getRepository } from "../src/db/createRepository";
 import { departments } from "../src/db/schema";
 import { ensureAgency } from "../src/lib/bootstrap";
@@ -18,6 +19,26 @@ import { defaultDeps, type ServiceDeps } from "../src/services/deps";
 import { releaseRequest, reviewDocument } from "../src/services/releaseService";
 import { submitRequest, transitionRequest } from "../src/services/requestService";
 import { acceptTaskRecords, dispatchTask, startTask, submitTaskRecords } from "../src/services/taskService";
+
+/** A tiny real, openable PDF — so seeded downloads download actual bytes. */
+function demoPdf(title: string): Buffer {
+  const text = `BT /F1 16 Tf 72 720 Td (${title.replace(/[()\\]/g, "")}) Tj ET`;
+  return Buffer.from(
+    [
+      "%PDF-1.4",
+      "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+      "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
+      "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj",
+      `4 0 obj << /Length ${text.length} >> stream`,
+      text,
+      "endstream endobj",
+      "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
+      "trailer << /Root 1 0 R >>",
+      "%%EOF",
+    ].join("\n"),
+    "utf8",
+  );
+}
 
 /** Publish a record to an agency's public archive (classification: public). */
 async function publish(
@@ -82,10 +103,26 @@ async function main() {
       actorUserId: admin.id,
     });
     await startTask(deps, agencyId, task.id);
+    // Real bytes in the blob store — the tracker's Download link serves this.
+    const pdf = demoPdf("City of Riverton - Janitorial Services Contract 2025");
+    const key = await getBlobStore().put(
+      blobKey(agencyId, "janitorial-contract-2025.pdf"),
+      pdf,
+      "application/pdf",
+    );
     await submitTaskRecords(deps, {
       agencyId,
       taskId: task.id,
-      uploads: [{ name: "janitorial-contract-2025.pdf", pages: 11 }],
+      uploads: [
+        {
+          name: "janitorial-contract-2025.pdf",
+          pages: 11,
+          blobRef: key,
+          byteSize: pdf.length,
+          mimeType: "application/pdf",
+          checksum: checksumOf(pdf),
+        },
+      ],
     });
     await acceptTaskRecords(deps, { agencyId, taskId: task.id, actorUserId: admin.id });
     const [doc] = await repo.listRequestDocuments(agencyId, weiRequest.id);

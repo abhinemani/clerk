@@ -89,6 +89,7 @@ export function RequestTracker({
               received={new Date(result.receivedAtISO)}
               due={new Date(result.dueAtISO)}
               daysLeft={result.daysLeft}
+              artifacts={result.artifacts}
             />
           ) : validButUnknown ? (
             <div style={{ padding: "18px 20px" }}>
@@ -124,15 +125,18 @@ function TrackerResult({
   received,
   due,
   daysLeft,
+  artifacts = [],
 }: {
   publicId: string;
   status: string;
   received: Date;
   due: Date;
   daysLeft: number;
+  artifacts?: { filename: string; url: string }[];
 }) {
   const s = RESIDENT_STATUS[status] ?? { headline: status, detail: "", tone: "wait" as const };
   const band = s.tone === "ok" ? "band-on_track" : s.tone === "action" ? "band-due_soon" : "pill";
+  const released = artifacts.length > 0;
 
   return (
     <div>
@@ -144,6 +148,21 @@ function TrackerResult({
       </div>
       <div style={{ padding: "18px 20px" }}>
         <p style={{ fontSize: "1.02rem" }}>{s.detail}</p>
+        {released && (
+          <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
+            {artifacts.map((a) => (
+              <a
+                key={a.url}
+                href={a.url}
+                className="btn btn-sm"
+                style={{ justifyContent: "flex-start", gap: 10 }}
+                download
+              >
+                ⬇ <span className="mono" style={{ fontSize: "0.85rem" }}>{a.filename}</span>
+              </a>
+            ))}
+          </div>
+        )}
         <div style={{ display: "flex", gap: 20, marginTop: 16, flexWrap: "wrap" }}>
           <div>
             <div className="muted" style={{ fontSize: "0.78rem" }}>
@@ -153,13 +172,15 @@ function TrackerResult({
           </div>
           <div>
             <div className="muted" style={{ fontSize: "0.78rem" }}>
-              Expected by
+              {released ? "Completed" : "Expected by"}
             </div>
             <div style={{ fontWeight: 600 }}>
               {dateShort(due)}{" "}
-              <span className="muted" style={{ fontWeight: 400 }}>
-                {daysLeft >= 0 ? `(${daysLeft} day${daysLeft === 1 ? "" : "s"} left)` : "(processing)"}
-              </span>
+              {!released && (
+                <span className="muted" style={{ fontWeight: 400 }}>
+                  {daysLeft >= 0 ? `(${daysLeft} day${daysLeft === 1 ? "" : "s"} left)` : "(processing)"}
+                </span>
+              )}
             </div>
           </div>
         </div>

@@ -22,8 +22,25 @@ Repo: <https://github.com/abhinemani/clerk> · branch `main`.
   with a closed on-time request, a 100% on-time rate, a response letter in
   the outbox, and "City Hall Janitorial Services Contract (2025)" in the
   archive. Tracker shows "Your records are ready".
-- Next candidates: real file storage (uploads are name-only), requester
-  correspondence UI (messages table), formal denial flow, deploy live.
+- Next candidates: requester correspondence UI (messages table), formal
+  denial flow, deploy live, S3/MinIO BlobStore adapter for multi-instance.
+
+## Real file storage (2026-07-30)
+- `src/adapters/blobStore.ts`: BlobStore port + LocalBlobStore — bytes under
+  BLOB_PATH (volume) or ./.blobdata, traversal-rejecting keys, sha-256
+  checksums, content-type sidecars. Same turnkey posture as PGlite; S3/MinIO
+  slots in behind the port later.
+- Responders upload REAL files (multipart via server action, 25 MB × 20 cap);
+  each becomes a checksummed corpus document. Release artifacts reuse stored
+  checksums; redacted copies renamed.
+- One download gate — `/[agency]/files/[docId]`: public docs → anyone;
+  public-release artifacts → anyone; private-release artifacts → owning
+  requester; anything else → agency staff only. Withheld docs never leave.
+- Tracker shows real download buttons on released requests; review panel
+  filenames link to the file for staff. Seed stores an actual PDF, so the
+  demo download is a genuine `%PDF` with a checksum header.
+- Browser-verified: anonymous PDF download via public release; real .txt
+  upload from the responder page; staff 200 / anonymous 403 on internal docs.
 
 ## Since 2026-07-28 (the "do them all" pass)
 - **Coordinator loop persists**: triage accept/dismiss, dispatch (real token +

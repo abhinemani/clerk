@@ -443,6 +443,10 @@ export class DrizzleRepository implements Repository {
       recordType: d.recordType,
       processingStatus: d.processingStatus,
       metadata: d.metadata,
+      blobRef: d.blobRef,
+      byteSize: d.byteSize,
+      mimeType: d.mimeType,
+      checksum: d.checksum,
       createdAt: d.createdAt,
     };
   }
@@ -588,7 +592,10 @@ export class DrizzleRepository implements Repository {
       agencyId: doc.agencyId,
       sourceId: doc.sourceId,
       provenance: "responder_upload",
-      blobRef: doc.filename ?? doc.id,
+      blobRef: doc.blobRef ?? doc.filename ?? doc.id,
+      byteSize: doc.byteSize,
+      mimeType: doc.mimeType,
+      checksum: doc.checksum,
       externalSystemId: doc.externalSystemId,
       filename: doc.filename,
       classification: doc.classification,
@@ -598,6 +605,39 @@ export class DrizzleRepository implements Repository {
       createdAt: doc.createdAt,
     });
     return doc;
+  }
+  async getDocument(agencyId: string, id: string): Promise<DocumentEntity | null> {
+    const [d] = await this.db
+      .select()
+      .from(documents)
+      .where(tenantWhere(documents.agencyId, agencyId, eq(documents.id, id)))
+      .limit(1);
+    return d ? this.toDocument(d) : null;
+  }
+  async findReleaseContainingDocument(agencyId: string, documentId: string): Promise<ReleaseEntity | null> {
+    // jsonb containment: artifacts @> [{"documentId": "..."}]
+    const [r] = await this.db
+      .select()
+      .from(releases)
+      .where(
+        tenantWhere(
+          releases.agencyId,
+          agencyId,
+          sql`${releases.artifacts} @> ${JSON.stringify([{ documentId }])}::jsonb`,
+        ),
+      )
+      .limit(1);
+    if (!r) return null;
+    return {
+      id: r.id,
+      agencyId: r.agencyId,
+      requestId: r.requestId,
+      artifacts: (r.artifacts ?? []) as ReleaseEntity["artifacts"],
+      responseLetter: r.responseLetter,
+      visibility: r.visibility,
+      approvedByUserId: r.approvedByUserId,
+      releasedAt: r.releasedAt,
+    };
   }
   async linkRequestDocument(agencyId: string, requestId: string, documentId: string): Promise<void> {
     void agencyId; // both FK targets are already tenant-scoped rows

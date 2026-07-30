@@ -122,6 +122,12 @@ export interface DocumentEntity {
   recordType: string | null;
   processingStatus: string;
   metadata: Record<string, unknown> | null;
+  /** Object-storage key when real bytes exist (null for metadata-only entries). */
+  blobRef?: string | null;
+  byteSize?: number | null;
+  mimeType?: string | null;
+  /** sha-256 hex of the stored bytes. */
+  checksum?: string | null;
   createdAt: Date;
 }
 
@@ -279,9 +285,12 @@ export interface Repository {
   /** The public corpus — what the portal archive and answer box may show (§6.7). */
   listPublicDocuments(agencyId: string): Promise<DocumentEntity[]>;
   createDocument(doc: DocumentEntity): Promise<DocumentEntity>;
+  getDocument(agencyId: string, id: string): Promise<DocumentEntity | null>;
   /** Attach a document to a request's review set (§5 requestDocuments). */
   linkRequestDocument(agencyId: string, requestId: string, documentId: string): Promise<void>;
   listRequestDocuments(agencyId: string, requestId: string): Promise<DocumentEntity[]>;
+  /** The release (if any) whose frozen artifact list contains this document. */
+  findReleaseContainingDocument(agencyId: string, documentId: string): Promise<ReleaseEntity | null>;
 
   /** One decision per (request, document); re-deciding replaces. */
   upsertReview(r: ReviewEntity): Promise<ReviewEntity>;
@@ -520,6 +529,17 @@ export class InMemoryRepository implements Repository {
   async createDocument(doc: DocumentEntity) {
     this.documents.set(doc.id, doc);
     return doc;
+  }
+  async getDocument(agencyId: string, id: string) {
+    const d = this.documents.get(id);
+    return d && d.agencyId === agencyId ? d : null;
+  }
+  async findReleaseContainingDocument(agencyId: string, documentId: string) {
+    return (
+      this.releases.find(
+        (r) => r.agencyId === agencyId && r.artifacts.some((a) => a.documentId === documentId),
+      ) ?? null
+    );
   }
   async linkRequestDocument(agencyId: string, requestId: string, documentId: string) {
     const exists = this.requestDocs.some(

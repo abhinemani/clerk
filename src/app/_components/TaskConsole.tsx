@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { TASK_STATUS_LABEL, type TaskStatus } from "@/domain/taskWorkflow";
-import { pushBackAction, startTaskAction, submitRecordsAction } from "../task/[token]/actions";
+import {
+  pushBackAction,
+  startTaskAction,
+  submitRecordFilesAction,
+  submitRecordsAction,
+} from "../task/[token]/actions";
 
 export interface TaskConsoleProps {
   token: string;
@@ -21,13 +26,31 @@ export interface TaskConsoleProps {
 export function TaskConsole(props: TaskConsoleProps) {
   const [status, setStatus] = useState<TaskStatus>(props.initialStatus);
   const [uploads, setUploads] = useState(props.initialUploads);
+  /** Real files chosen but not yet submitted (live tasks only). */
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [note, setNote] = useState("");
   const [showPushback, setShowPushback] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function addFile() {
+    if (props.live) {
+      fileInput.current?.click(); // real files for real tasks
+      return;
+    }
     setUploads((u) => [...u, { name: `document-${u.length + 1}.pdf`, pages: 2 + u.length + 1 }]);
+  }
+
+  function onFilesChosen(list: FileList | null) {
+    if (!list) return;
+    // Snapshot NOW: clearing input.value empties the live FileList, and the
+    // state updater runs after that clear.
+    const files = Array.from(list);
+    if (!files.length) return;
+    setError(null);
+    setPendingFiles((prev) => [...prev, ...files]);
+    if (fileInput.current) fileInput.current.value = "";
   }
 
   /** Optimistic move backed by the server action when live. */
@@ -45,8 +68,26 @@ export function TaskConsole(props: TaskConsoleProps) {
   }
 
   const start = () => run("in_progress", () => startTaskAction(props.token));
-  const submit = () => run("submitted", () => submitRecordsAction(props.token, uploads));
+  const submit = () => {
+    if (!props.live) {
+      run("submitted", () => submitRecordsAction(props.token, uploads));
+      return;
+    }
+    // Live: ship the actual bytes.
+    const formData = new FormData();
+    for (const f of pendingFiles) formData.append("files", f);
+    run("submitted", async () => {
+      const result = await submitRecordFilesAction(props.token, formData);
+      if (result.ok) {
+        setUploads((u) => [...u, ...pendingFiles.map((f) => ({ name: f.name, pages: 0 }))]);
+        setPendingFiles([]);
+      }
+      return result;
+    });
+  };
   const sendPushback = () => run("pushed_back", () => pushBackAction(props.token, note));
+
+  const attachedCount = props.live ? pendingFiles.length : uploads.length;
 
   const done = status === "done" || status === "submitted" || status === "pushed_back";
 
@@ -88,13 +129,13 @@ export function TaskConsole(props: TaskConsoleProps) {
         <div className="panel-title">What we need</div>
         <p style={{ fontSize: "1.02rem", marginTop: 8 }}>{props.scope}</p>
 
-        {/* Uploads */}
+        {/* Uploads: already-submitted records + (live) files staged to send */}
         <div style={{ marginTop: 22 }}>
-          <div className="panel-title">Records ({uploads.length})</div>
+          <div className="panel-title">Records ({uploads.length + pendingFiles.length})</div>
           <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
-            {uploads.map((u) => (
+            {uploads.map((u, i) => (
               <div
-                key={u.name}
+                key={`${u.name}-${i}`}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -109,20 +150,54 @@ export function TaskConsole(props: TaskConsoleProps) {
                   {u.name}
                 </span>
                 <span className="muted" style={{ marginLeft: "auto", fontSize: "0.82rem" }}>
-                  {u.pages} pages
+                  {u.pages ? `${u.pages} pages` : "uploaded"}
                 </span>
               </div>
             ))}
-            {uploads.length === 0 && (
+            {pendingFiles.map((f, i) => (
+              <div
+                key={`pending-${f.name}-${i}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  border: "1px dashed var(--border-strong)",
+                  borderRadius: "var(--r-sm)",
+                }}
+              >
+                <span className="mono" style={{ fontSize: "0.85rem" }}>
+                  {f.name}
+                </span>
+                <span className="muted" style={{ marginLeft: "auto", fontSize: "0.82rem" }}>
+                  {(f.size / 1024).toFixed(0)} KB · ready to submit
+                </span>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  aria-label={`Remove ${f.name}`}
+                  onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            {uploads.length + pendingFiles.length === 0 && (
               <div className="muted" style={{ fontSize: "0.9rem" }}>
                 No files attached yet.
               </div>
             )}
           </div>
 
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => onFilesChosen(e.target.files)}
+          />
           {!done && (
             <button className="btn btn-sm" style={{ marginTop: 12 }} onClick={addFile}>
-              + Add file (or forward to this task&apos;s email address)
+              + Add file{props.live ? "s" : " (or forward to this task's email address)"}
             </button>
           )}
         </div>
@@ -146,10 +221,12 @@ export function TaskConsole(props: TaskConsoleProps) {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               className="btn btn-primary"
-              disabled={uploads.length === 0 || pending}
+              disabled={attachedCount === 0 || pending}
               onClick={submit}
             >
-              Submit {uploads.length} record{uploads.length === 1 ? "" : "s"} to the records office
+              {pending
+                ? "Uploading…"
+                : `Submit ${attachedCount} record${attachedCount === 1 ? "" : "s"} to the records office`}
             </button>
             <button className="btn" onClick={() => setShowPushback(true)}>
               Can&apos;t fulfill / push back

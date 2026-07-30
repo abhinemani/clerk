@@ -75,13 +75,47 @@ export async function fileRequest(input: {
 }
 
 export type TrackResult =
-  | { found: true; publicId: string; status: string; receivedAtISO: string; dueAtISO: string; daysLeft: number }
+  | {
+      found: true;
+      publicId: string;
+      status: string;
+      receivedAtISO: string;
+      dueAtISO: string;
+      daysLeft: number;
+      /** Released files, when the request has a release the viewer may fetch. */
+      artifacts: { filename: string; url: string }[];
+    }
   | { found: false };
 
 export async function trackRequest(agencySlug: string, publicId: string): Promise<TrackResult> {
   const hit = await trackByPublicId(agencySlug, publicId.trim());
   if (!hit) return { found: false };
   const daysLeft = Math.round((hit.dueAt.getTime() - hit.now.getTime()) / 86_400_000);
+
+  // Released records: surface download links (the file endpoint enforces who
+  // may actually fetch — public releases for anyone, private for the owner).
+  let artifacts: { filename: string; url: string }[] = [];
+  if (hit.status === "fulfilled" || hit.status === "partially_fulfilled") {
+    try {
+      const repo = await getRepository();
+      const agency = await repo.getAgencyBySlug(agencySlug);
+      if (agency) {
+        const requests = await repo.listRequests(agency.id);
+        const request = requests.find((r) => r.publicId.toLowerCase() === publicId.trim().toLowerCase());
+        if (request) {
+          const releases = await repo.listReleases(agency.id, request.id);
+          artifacts = releases.flatMap((rel) =>
+            rel.artifacts
+              .filter((a) => a.documentId)
+              .map((a) => ({ filename: a.filename, url: `/${agencySlug}/files/${a.documentId}` })),
+          );
+        }
+      }
+    } catch (e) {
+      console.error("trackRequest artifacts failed", e);
+    }
+  }
+
   return {
     found: true,
     publicId: hit.publicId,
@@ -89,6 +123,7 @@ export async function trackRequest(agencySlug: string, publicId: string): Promis
     receivedAtISO: hit.receivedAt.toISOString(),
     dueAtISO: hit.dueAt.toISOString(),
     daysLeft,
+    artifacts,
   };
 }
 

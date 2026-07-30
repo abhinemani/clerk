@@ -8,6 +8,8 @@ export interface ReviewDocVM {
   documentId: string;
   filename: string;
   pages: number | null;
+  /** Real stored bytes exist → filename links to the download endpoint. */
+  hasBlob: boolean;
   decision: "release" | "release_redacted" | "withhold" | null;
   exemptionLabel: string | null;
 }
@@ -148,7 +150,13 @@ export function ReviewRelease({
           >
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               <span className="mono" style={{ fontSize: "0.85rem", flex: 1, minWidth: 160 }}>
-                {d.filename}
+                {d.hasBlob ? (
+                  <a href={`/${agencySlug}/files/${d.documentId}`} title="Download for review">
+                    {d.filename}
+                  </a>
+                ) : (
+                  d.filename
+                )}
                 {d.pages ? <span className="muted"> · {d.pages}p</span> : null}
               </span>
               <select

@@ -53,6 +53,62 @@ export async function submitRecordsAction(
   }
 }
 
+const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB per file
+const MAX_FILES = 20;
+
+/**
+ * Submit REAL files: bytes land in the blob store (checksummed), each becomes
+ * a corpus document in the request's review set. Token-authenticated like
+ * everything else on this page.
+ */
+export async function submitRecordFilesAction(
+  token: string,
+  formData: FormData,
+): Promise<ResponderResult> {
+  const ctx = await taskFromToken(token);
+  if (!ctx) return { ok: false, error: "This task link is no longer valid." };
+
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  if (!files.length) return { ok: false, error: "Attach at least one record before submitting." };
+  if (files.length > MAX_FILES) return { ok: false, error: `At most ${MAX_FILES} files per submission.` };
+  const oversize = files.find((f) => f.size > MAX_FILE_BYTES);
+  if (oversize) return { ok: false, error: `"${oversize.name}" is over the 25 MB limit.` };
+
+  try {
+    const { getBlobStore } = await import("@/adapters/blobStore");
+    const { blobKey, checksumOf } = await import("@/adapters/blobStore");
+    const store = getBlobStore();
+
+    const uploads = [];
+    for (const file of files) {
+      const bytes = Buffer.from(await file.arrayBuffer());
+      const key = await store.put(
+        blobKey(ctx.task.agencyId, file.name),
+        bytes,
+        file.type || "application/octet-stream",
+      );
+      uploads.push({
+        name: file.name.slice(0, 200),
+        blobRef: key,
+        byteSize: bytes.length,
+        mimeType: file.type || "application/octet-stream",
+        checksum: checksumOf(bytes),
+      });
+    }
+
+    await submitTaskRecords(ctx.deps, {
+      agencyId: ctx.task.agencyId,
+      taskId: ctx.task.id,
+      uploads,
+    });
+    revalidatePath(`/task/${token}`);
+    return { ok: true };
+  } catch (e) {
+    console.error("submitRecordFiles failed", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Could not upload the records." };
+  }
+}
+
 export async function pushBackAction(token: string, note: string): Promise<ResponderResult> {
   const ctx = await taskFromToken(token);
   if (!ctx) return { ok: false, error: "This task link is no longer valid." };

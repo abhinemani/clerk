@@ -56,6 +56,7 @@ export default async function RequestDetail({
         documentId: d.id,
         filename: d.filename ?? d.id,
         pages: typeof d.metadata?.pages === "number" ? d.metadata.pages : null,
+        hasBlob: d.byteSize != null, // real bytes in the blob store
         decision: reviewByDoc.get(d.id)?.decision ?? null,
         exemptionLabel: reviewByDoc.get(d.id)?.exemptionLabel ?? null,
       }));
