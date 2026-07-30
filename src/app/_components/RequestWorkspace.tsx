@@ -60,6 +60,8 @@ export function RequestWorkspace(props: {
   requestId: string;
   /** Live requests persist via server actions; the demo fixture stays local. */
   live: boolean;
+  /** Closed requests are read-only history — no AI proposals to dispose of. */
+  closed?: boolean;
   triage: TriageVM;
   initialTasks: TaskVM[];
   initialSuggestions: SuggestionVM[];
@@ -174,7 +176,16 @@ export function RequestWorkspace(props: {
         )}
       </div>
 
-      {/* Right — the AI panel: triage + routing suggestions */}
+      {/* Right — the AI panel: triage + routing suggestions. Closed requests
+          get no proposals: there is nothing left to dispose of. */}
+      {props.closed ? (
+        <aside className="stack" style={{ gap: 16 }}>
+          <div className="panel-title">AI panel</div>
+          <div className="card card-pad muted" style={{ fontSize: "0.88rem" }}>
+            Request closed — see the release below and the audit log for the full history.
+          </div>
+        </aside>
+      ) : (
       <aside className="stack" style={{ gap: 16 }}>
         <div className="panel-title">AI panel</div>
 
@@ -250,6 +261,7 @@ export function RequestWorkspace(props: {
           </div>
         )}
       </aside>
+      )}
 
       <style>{`
         .ws-grid { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }

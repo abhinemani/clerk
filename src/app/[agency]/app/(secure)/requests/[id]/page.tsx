@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getRepository } from "@/db/createRepository";
 import { getRequestDetail, outstandingTasks } from "@/lib/live";
 import { deadlineRisk, type RiskBand } from "@/domain/deadlineRisk";
 import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/format";
+import { requireStaff } from "@/auth/guards";
 import { DeadlineBand, StatusPill } from "../../../../../_components/ui";
+import {
+  ReviewRelease,
+  type ReleaseVM,
+  type ReviewDocVM,
+} from "../../../../../_components/ReviewRelease";
 import {
   RequestWorkspace,
   type SuggestionVM,
@@ -30,6 +37,40 @@ export default async function RequestDetail({
   const detail = await getRequestDetail(slug, id);
   if (!detail) notFound();
   const { now, departments, request: r, timeline } = detail;
+
+  // Review set + release state (live requests only — the demo has neither).
+  let reviewDocs: ReviewDocVM[] = [];
+  let releaseVM: ReleaseVM | null = null;
+  if (detail.source === "live") {
+    const staff = await requireStaff(slug);
+    const repo = await getRepository();
+    const [docs, reviews, releases] = await Promise.all([
+      repo.listRequestDocuments(staff.agencyId, r.id),
+      repo.listReviews(staff.agencyId, r.id),
+      repo.listReleases(staff.agencyId, r.id),
+    ]);
+    const reviewByDoc = new Map(reviews.map((rv) => [rv.documentId, rv]));
+    reviewDocs = docs
+      .filter((d) => d.classification === "internal") // the review set, not archive entries
+      .map((d) => ({
+        documentId: d.id,
+        filename: d.filename ?? d.id,
+        pages: typeof d.metadata?.pages === "number" ? d.metadata.pages : null,
+        decision: reviewByDoc.get(d.id)?.decision ?? null,
+        exemptionLabel: reviewByDoc.get(d.id)?.exemptionLabel ?? null,
+      }));
+    const rel = releases[0];
+    if (rel) {
+      const approver = await repo.getUser(staff.agencyId, rel.approvedByUserId);
+      releaseVM = {
+        released: rel.artifacts.length,
+        visibility: rel.visibility,
+        releasedAtLabel: dateShort(rel.releasedAt),
+        approverName: approver?.name ?? approver?.email ?? "staff",
+        responseLetter: rel.responseLetter,
+      };
+    }
+  }
 
   const daysFromNow = (d: Date) => Math.round((d.getTime() - now.getTime()) / MS_DAY);
 
@@ -149,6 +190,7 @@ export default async function RequestDetail({
           key={`${r.status}|${r.interpretedScope}|${r.tasks.map((t) => `${t.id}:${t.status}:${t.uploads.length}`).join(",")}`}
           requestId={r.id}
           live={detail.source === "live"}
+          closed={r.closedAt != null}
           triage={{
             interpretedScope: r.interpretedScope,
             recordTypes: r.recordTypes,
@@ -160,6 +202,19 @@ export default async function RequestDetail({
           agencySlug={slug}
         />
       </div>
+
+      {/* Review & release — appears once departments have submitted records */}
+      {(reviewDocs.length > 0 || releaseVM) && (
+        <div style={{ marginTop: 24, maxWidth: 720 }}>
+          <ReviewRelease
+            key={`${reviewDocs.map((d) => `${d.documentId}:${d.decision}`).join(",")}|${releaseVM ? "released" : "open"}`}
+            agencySlug={slug}
+            requestId={r.id}
+            docs={reviewDocs}
+            release={releaseVM}
+          />
+        </div>
+      )}
 
       <style>{`
         .detail-grid { display: grid; grid-template-columns: 280px 1fr; gap: 24px; align-items: start; }

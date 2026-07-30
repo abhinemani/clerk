@@ -143,7 +143,11 @@ export async function startTask(deps: ServiceDeps, agencyId: string, taskId: str
   return deps.repo.updateTask(agencyId, taskId, { status: "in_progress" });
 }
 
-/** Responder submits records back to the coordinator. */
+/**
+ * Responder submits records back to the coordinator. Each upload becomes a
+ * corpus document (provenance: responder_upload, internal until reviewed)
+ * attached to the request — the review set the release flow decides over.
+ */
 export async function submitTaskRecords(
   deps: ServiceDeps,
   input: { agencyId: string; taskId: string; uploads: { name: string; pages?: number }[] },
@@ -154,6 +158,22 @@ export async function submitTaskRecords(
     status: "submitted",
     uploads: [...task.uploads, ...input.uploads],
   });
+
+  for (const upload of input.uploads) {
+    const doc = await deps.repo.createDocument({
+      id: deps.genId(),
+      agencyId: input.agencyId,
+      sourceId: null,
+      externalSystemId: null,
+      filename: upload.name,
+      classification: "internal", // never public before a human decides
+      recordType: null,
+      processingStatus: "received",
+      metadata: { pages: upload.pages ?? null, taskId: task.id },
+      createdAt: deps.now(),
+    });
+    await deps.repo.linkRequestDocument(input.agencyId, task.requestId, doc.id);
+  }
   await deps.repo.appendEvent({
     id: deps.genId(),
     agencyId: input.agencyId,

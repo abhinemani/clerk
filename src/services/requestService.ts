@@ -91,6 +91,7 @@ export async function submitRequest(
     complexityScore: null,
     receivedAt,
     statutoryDueAt,
+    closedAt: null,
     createdAt: receivedAt,
   });
 

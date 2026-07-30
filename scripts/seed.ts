@@ -15,7 +15,9 @@ import { departments } from "../src/db/schema";
 import { ensureAgency } from "../src/lib/bootstrap";
 import { provisionAgency, registerRequester } from "../src/services/accountService";
 import { defaultDeps, type ServiceDeps } from "../src/services/deps";
-import { submitRequest } from "../src/services/requestService";
+import { releaseRequest, reviewDocument } from "../src/services/releaseService";
+import { submitRequest, transitionRequest } from "../src/services/requestService";
+import { acceptTaskRecords, dispatchTask, startTask, submitTaskRecords } from "../src/services/taskService";
 
 /** Publish a record to an agency's public archive (classification: public). */
 async function publish(
@@ -54,11 +56,57 @@ async function main() {
     rawText: "All inspection reports for 400 Main St from January 2024 to present.",
     requester: { email: "jordan@rivertonledger.com", name: "Jordan Alvarez", type: "media" },
   });
-  await submitRequest(deps, {
+  // Wei's request runs the ENTIRE lifecycle in the seed — dispatch, fulfill,
+  // review, and a named-approver public release — so the demo opens with a
+  // closed request, honest on-time metrics, and a real archive entry.
+  const weiRequest = await submitRequest(deps, {
     agencyId,
     rawText: "The current janitorial services contract for City Hall.",
-    requester: { name: "Wei Chen", type: "individual" },
+    requester: { email: "wei@example.com", name: "Wei Chen", type: "individual" },
   });
+  {
+    const repo = deps.repo;
+    const admin = (await repo.listUsers(agencyId)).find((u) => u.role === "admin");
+    if (!admin) throw new Error("seed: no admin user to approve the demo release");
+    const clerkDept = (await repo.listDepartments(agencyId)).find((d) => d.name === "City Clerk");
+    await transitionRequest(deps, { agencyId, requestId: weiRequest.id, to: "in_review", actorUserId: admin.id });
+    await transitionRequest(deps, { agencyId, requestId: weiRequest.id, to: "in_progress", actorUserId: admin.id });
+    const task = await dispatchTask(deps, {
+      agencyId,
+      requestId: weiRequest.id,
+      departmentId: clerkDept?.id,
+      departmentName: clerkDept?.name ?? "City Clerk",
+      departmentEmail: clerkDept?.defaultResponderEmails[0] ?? "pshah@riverton.gov",
+      scopeText: "Pull the active janitorial services contract for City Hall.",
+      dueAt: new Date(Date.now() + 3 * 86_400_000),
+      actorUserId: admin.id,
+    });
+    await startTask(deps, agencyId, task.id);
+    await submitTaskRecords(deps, {
+      agencyId,
+      taskId: task.id,
+      uploads: [{ name: "janitorial-contract-2025.pdf", pages: 11 }],
+    });
+    await acceptTaskRecords(deps, { agencyId, taskId: task.id, actorUserId: admin.id });
+    const [doc] = await repo.listRequestDocuments(agencyId, weiRequest.id);
+    if (doc) {
+      await reviewDocument(deps, {
+        agencyId,
+        requestId: weiRequest.id,
+        documentId: doc.id,
+        decision: "release",
+        actorUserId: admin.id,
+      });
+      await releaseRequest(deps, {
+        agencyId,
+        requestId: weiRequest.id,
+        actorUserId: admin.id,
+        visibility: "public",
+        archiveTitle: "City Hall Janitorial Services Contract (2025)",
+        archiveSummary: "The active janitorial services contract for City Hall, released in full.",
+      });
+    }
+  }
   // Registering with the same email claims the filed request into the account.
   const jordan = await registerRequester(deps, {
     agencyId,

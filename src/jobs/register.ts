@@ -35,7 +35,8 @@ export function registerJobs(): void {
           repo.listRequests(agency.id),
           repo.listAgencyTasks(agency.id),
         ]);
-        if (requests.length === 0) continue;
+        const openRequests = requests.filter((r) => r.closedAt == null);
+        if (openRequests.length === 0) continue;
         const openByRequest = new Map<string, number>();
         for (const t of tasks) {
           if (t.status !== "done" && t.status !== "cancelled") {
@@ -44,7 +45,7 @@ export function registerJobs(): void {
         }
         const result = await runDeadlineSweep({
           now: new Date(),
-          queue: requests.map((r) => ({
+          queue: openRequests.map((r) => ({
             publicId: r.publicId,
             dueAt: r.statutoryDueAt ?? new Date(r.createdAt.getTime() + 10 * 86_400_000),
             outstandingTasks: openByRequest.get(r.id) ?? 0,

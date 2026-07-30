@@ -24,11 +24,15 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
   const ws = await getWorkspace(slug);
   if (!ws) notFound();
 
+  // Closed requests are out of the race — the clock stopped at closedAt.
+  const openRequests = ws.requests.filter((r) => r.closedAt == null);
+  const closedRequests = ws.requests.filter((r) => r.closedAt != null);
+
   // The deadline agent runs its nightly sweep (pure logic, no model) and hands
   // the coordinator a morning digest (§16.1).
   const sweep = await runDeadlineSweep({
     now: ws.now,
-    queue: ws.requests.map((r) => ({
+    queue: openRequests.map((r) => ({
       publicId: r.publicId,
       dueAt: r.dueAt,
       outstandingTasks: outstandingTasks(r),
@@ -36,7 +40,7 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
     })),
   });
 
-  const rows = ws.requests
+  const rows = openRequests
     .map((r) => {
       const risk = deadlineRisk({
         dueAt: r.dueAt,
@@ -50,7 +54,7 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
 
   const open = rows.length;
   const overdue = rows.filter((x) => x.risk.band === "overdue").length;
-  const decisions = decisionsFor(ws.requests, ws.now);
+  const decisions = decisionsFor(openRequests, ws.now);
   const workload = workloadFor(ws.departments, ws.requests);
 
   // Honest numbers: computed from the live DB, or the fixture's story numbers
@@ -63,10 +67,9 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
     const monthStart = new Date(ws.now.getFullYear(), ws.now.getMonth(), 1);
     deflectionsLabel = String(deflections.filter((d) => d.createdAt >= monthStart).length);
 
-    const TERMINAL = new Set(["fulfilled", "denied", "withdrawn", "closed", "partially_fulfilled"]);
-    const closedRequests = ws.requests.filter((r) => TERMINAL.has(r.status));
+    const closedRequests = ws.requests.filter((r) => r.closedAt != null);
     onTimeLabel = closedRequests.length
-      ? `${Math.round((closedRequests.filter((r) => ws.now <= r.dueAt).length / closedRequests.length) * 100)}%`
+      ? `${Math.round((closedRequests.filter((r) => r.closedAt! <= r.dueAt).length / closedRequests.length) * 100)}%`
       : "—";
   }
 
@@ -215,7 +218,7 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
       </div>
 
       <h2 style={{ fontSize: "1.15rem", marginTop: 28, marginBottom: 12 }}>
-        All requests <span className="muted" style={{ fontWeight: 400, fontSize: "0.9rem" }}>· by deadline risk</span>
+        Open requests <span className="muted" style={{ fontWeight: 400, fontSize: "0.9rem" }}>· by deadline risk</span>
       </h2>
 
       <div className="card" style={{ overflow: "hidden" }}>
@@ -283,6 +286,43 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
           </table>
         </div>
       </div>
+
+      {closedRequests.length > 0 && (
+        <>
+          <h2 style={{ fontSize: "1.15rem", marginTop: 28, marginBottom: 12 }}>
+            Recently closed{" "}
+            <span className="muted" style={{ fontWeight: 400, fontSize: "0.9rem" }}>
+              · {closedRequests.length}
+            </span>
+          </h2>
+          <div className="card" style={{ overflow: "hidden" }}>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {closedRequests
+                .sort((a, b) => (b.closedAt?.getTime() ?? 0) - (a.closedAt?.getTime() ?? 0))
+                .map((r) => (
+                  <li
+                    key={r.id}
+                    style={{ display: "flex", gap: 12, alignItems: "center", padding: "13px 16px", borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}
+                  >
+                    <span className={`pill ${r.closedAt && r.closedAt <= r.dueAt ? "band-on_track" : "band-overdue"}`}>
+                      {r.closedAt && r.closedAt <= r.dueAt ? "On time" : "Late"}
+                    </span>
+                    <Link href={`/${slug}/app/requests/${r.id}`} style={{ fontWeight: 600, color: "var(--ink)", flex: 1, minWidth: 220 }}>
+                      {r.interpretedScope}
+                    </Link>
+                    <span className="mono muted" style={{ fontSize: "0.78rem" }}>
+                      {r.publicId}
+                    </span>
+                    <StatusPill label={requestStatusLabel(r.status)} />
+                    <span className="muted" style={{ fontSize: "0.8rem" }}>
+                      closed {r.closedAt ? dateShort(r.closedAt) : ""}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        </>
+      )}
 
       <style>{`
         .cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }

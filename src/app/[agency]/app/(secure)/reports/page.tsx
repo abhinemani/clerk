@@ -11,8 +11,6 @@ export const dynamic = "force-dynamic";
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
-const TERMINAL = new Set(["fulfilled", "denied", "withdrawn", "closed"]);
-
 /** Map live rows through the same pure §11 metrics the fixture uses. */
 async function liveDataset(agencyId: string): Promise<{ records: RequestForMetrics[]; deflections: number }> {
   const repo = await getRepository();
@@ -25,9 +23,7 @@ async function liveDataset(agencyId: string): Promise<{ records: RequestForMetri
   return {
     records: requests.map((r) => ({
       receivedAt: r.receivedAt ?? r.createdAt,
-      // Closure timestamps land with the release flow; until then terminal
-      // requests count as closed on their due date (conservative).
-      closedAt: TERMINAL.has(r.status) ? (r.statutoryDueAt ?? r.createdAt) : null,
+      closedAt: r.closedAt, // real closure timestamps from the release flow
       statutoryDueAt: r.statutoryDueAt,
       status: r.status,
       requesterType: (r.requesterId && typeById.get(r.requesterId)) || "individual",

@@ -18,9 +18,12 @@ import {
   departments,
   documents,
   publicIdCounters,
+  releases,
+  requestDocuments,
   requestEvents,
   requesters,
   requests,
+  reviews,
   sources,
   tasks,
   users,
@@ -36,9 +39,11 @@ import {
   type Department,
   type DocumentEntity,
   type EventEntity,
+  type ReleaseEntity,
   type RequestEntity,
   type Requester,
   type Repository,
+  type ReviewEntity,
   type SourceEntity,
   type TaskEntity,
   type UserEntity,
@@ -225,6 +230,7 @@ export class DrizzleRepository implements Repository {
       complexityScore: r.complexityScore,
       receivedAt: r.receivedAt,
       statutoryDueAt: r.statutoryDueAt,
+      closedAt: r.closedAt,
       createdAt: r.createdAt,
     });
     return r;
@@ -255,7 +261,7 @@ export class DrizzleRepository implements Repository {
   }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>): Promise<RequestEntity> {
     const set: Record<string, unknown> = {};
-    for (const k of ["status", "interpretedScope", "recordTypes", "complexityScore", "statutoryDueAt", "receivedAt"] as const) {
+    for (const k of ["status", "interpretedScope", "recordTypes", "complexityScore", "statutoryDueAt", "receivedAt", "closedAt"] as const) {
       if (k in patch) set[k] = patch[k];
     }
     const rows = await this.db
@@ -279,6 +285,7 @@ export class DrizzleRepository implements Repository {
       complexityScore: r.complexityScore,
       receivedAt: r.receivedAt,
       statutoryDueAt: r.statutoryDueAt,
+      closedAt: r.closedAt,
       createdAt: r.createdAt,
     };
   }
@@ -573,6 +580,105 @@ export class DrizzleRepository implements Repository {
       trust: s.trust,
       defaultClassification: s.defaultClassification,
     };
+  }
+
+  async createDocument(doc: DocumentEntity): Promise<DocumentEntity> {
+    await this.db.insert(documents).values({
+      id: doc.id,
+      agencyId: doc.agencyId,
+      sourceId: doc.sourceId,
+      provenance: "responder_upload",
+      blobRef: doc.filename ?? doc.id,
+      externalSystemId: doc.externalSystemId,
+      filename: doc.filename,
+      classification: doc.classification,
+      recordType: doc.recordType,
+      processingStatus: doc.processingStatus as never,
+      metadata: doc.metadata,
+      createdAt: doc.createdAt,
+    });
+    return doc;
+  }
+  async linkRequestDocument(agencyId: string, requestId: string, documentId: string): Promise<void> {
+    void agencyId; // both FK targets are already tenant-scoped rows
+    await this.db
+      .insert(requestDocuments)
+      .values({ requestId, documentId })
+      .onConflictDoNothing();
+  }
+  async listRequestDocuments(agencyId: string, requestId: string): Promise<DocumentEntity[]> {
+    const rows = await this.db
+      .select({ doc: documents })
+      .from(requestDocuments)
+      .innerJoin(documents, eq(requestDocuments.documentId, documents.id))
+      .where(tenantWhere(documents.agencyId, agencyId, eq(requestDocuments.requestId, requestId)));
+    return rows.map((r: { doc: typeof documents.$inferSelect }) => this.toDocument(r.doc));
+  }
+
+  async upsertReview(r: ReviewEntity): Promise<ReviewEntity> {
+    await this.db
+      .insert(reviews)
+      .values({
+        id: r.id,
+        agencyId: r.agencyId,
+        requestId: r.requestId,
+        documentId: r.documentId,
+        decision: r.decision,
+        exemptionLabel: r.exemptionLabel,
+        decidedByUserId: r.decidedByUserId,
+        createdAt: r.createdAt,
+      })
+      .onConflictDoUpdate({
+        target: [reviews.requestId, reviews.documentId],
+        set: { decision: r.decision, exemptionLabel: r.exemptionLabel, decidedByUserId: r.decidedByUserId },
+      });
+    return r;
+  }
+  async listReviews(agencyId: string, requestId: string): Promise<ReviewEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(reviews)
+      .where(tenantWhere(reviews.agencyId, agencyId, eq(reviews.requestId, requestId)));
+    return rows.map((r: typeof reviews.$inferSelect) => ({
+      id: r.id,
+      agencyId: r.agencyId,
+      requestId: r.requestId,
+      documentId: r.documentId,
+      decision: r.decision,
+      exemptionLabel: r.exemptionLabel,
+      decidedByUserId: r.decidedByUserId ?? "",
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async createRelease(r: ReleaseEntity): Promise<ReleaseEntity> {
+    await this.db.insert(releases).values({
+      id: r.id,
+      agencyId: r.agencyId,
+      requestId: r.requestId,
+      artifacts: r.artifacts,
+      responseLetter: r.responseLetter,
+      visibility: r.visibility,
+      approvedByUserId: r.approvedByUserId,
+      releasedAt: r.releasedAt,
+    });
+    return r;
+  }
+  async listReleases(agencyId: string, requestId: string): Promise<ReleaseEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(releases)
+      .where(tenantWhere(releases.agencyId, agencyId, eq(releases.requestId, requestId)));
+    return rows.map((r: typeof releases.$inferSelect) => ({
+      id: r.id,
+      agencyId: r.agencyId,
+      requestId: r.requestId,
+      artifacts: (r.artifacts ?? []) as ReleaseEntity["artifacts"],
+      responseLetter: r.responseLetter,
+      visibility: r.visibility,
+      approvedByUserId: r.approvedByUserId,
+      releasedAt: r.releasedAt,
+    }));
   }
 
   async appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity> {

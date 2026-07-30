@@ -2,7 +2,28 @@
 
 Snapshot for picking this up in a fresh session.
 Repo: <https://github.com/abhinemani/clerk> · branch `main`.
-**251 tests pass, typecheck + production build clean.**
+**255 tests pass, typecheck + production build clean.**
+
+## Release-and-close flow (2026-07-30) — the lifecycle is complete
+- Responder uploads become internal `documents` linked via `requestDocuments`
+  (taskService.submitTaskRecords). Coordinator decides each one
+  (release / release_redacted / withhold — exemption reason required unless
+  releasing in full) in the Review & release panel on the request detail page.
+- `releaseService.releaseRequest`: refuses undecided docs and all-withheld
+  "releases"; freezes artifacts into an immutable `releases` row with a NAMED
+  approver; transitions → fulfilled|partially_fulfilled; sets `closedAt`
+  (migration 0003; 0004 adds reviews.exemption_label); delivers the response
+  letter to the requester via the outbox; PUBLIC releases auto-publish an
+  archive document — the deflection corpus grows with every fulfillment.
+- Honest metrics everywhere: command center on-time% + Recently-closed strip
+  use real closedAt; reports map closedAt directly; closed requests leave the
+  open queue and the deadline sweep.
+- Seed runs Wei's request through the ENTIRE cycle, so a fresh clone opens
+  with a closed on-time request, a 100% on-time rate, a response letter in
+  the outbox, and "City Hall Janitorial Services Contract (2025)" in the
+  archive. Tracker shows "Your records are ready".
+- Next candidates: real file storage (uploads are name-only), requester
+  correspondence UI (messages table), formal denial flow, deploy live.
 
 ## Since 2026-07-28 (the "do them all" pass)
 - **Coordinator loop persists**: triage accept/dismiss, dispatch (real token +

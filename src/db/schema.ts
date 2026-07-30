@@ -322,6 +322,9 @@ export const requests = pgTable(
     receivedAt: timestamp("received_at", { withTimezone: true }),
     statutoryDueAt: timestamp("statutory_due_at", { withTimezone: true }),
     extendedDueAt: timestamp("extended_due_at", { withTimezone: true }),
+    // Set when the request reaches a terminal outcome (release approved,
+    // denied, withdrawn). Drives the §11 on-time and days-to-close metrics.
+    closedAt: timestamp("closed_at", { withTimezone: true }),
     // Extension history: [{ at, byUserId, days, reason, statutoryBasis }].
     extensionHistory: jsonb("extension_history")
       .$type<ExtensionRecord[]>()
@@ -632,6 +635,9 @@ export const reviews = pgTable(
       () => exemptionCitations.id,
       { onDelete: "set null" },
     ),
+    // Free-text exemption short-label until the per-agency citation catalog
+    // (§7) is populated; then this becomes a denormalized display copy.
+    exemptionLabel: text("exemption_label"),
     decidedByUserId: uuid("decided_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),

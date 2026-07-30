@@ -63,6 +63,8 @@ export interface RequestVM {
   complexityScore: number | null;
   receivedAt: Date;
   dueAt: Date;
+  /** Terminal-outcome timestamp — drives honest on-time metrics. */
+  closedAt: Date | null;
   tasks: TaskVMData[];
   triageReady: boolean;
 }
@@ -337,6 +339,7 @@ function toRequestVM(
     complexityScore: r.complexityScore,
     receivedAt: r.receivedAt ?? r.createdAt,
     dueAt: fallbackDueAt(r),
+    closedAt: r.closedAt,
     // "AI triage done, awaiting review" — a scope draft exists on a request
     // that hasn't moved past review yet.
     triageReady: r.interpretedScope != null && (r.status === "submitted" || r.status === "in_review"),
@@ -402,6 +405,7 @@ function demoToVM(r: DemoRequest): RequestVM {
     complexityScore: r.complexityScore,
     receivedAt: r.receivedAt,
     dueAt: r.dueAt,
+    closedAt: null,
     triageReady: r.triageReady,
     tasks: r.tasks.map((t) => {
       const dept = getDemoDepartment(t.departmentId);

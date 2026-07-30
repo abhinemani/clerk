@@ -10,7 +10,9 @@ import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/auth/guards";
 import { getRepository } from "@/db/createRepository";
 import { defaultDeps } from "@/services/deps";
+import { ReleaseError, releaseRequest, reviewDocument } from "@/services/releaseService";
 import { approveTriage, transitionRequest } from "@/services/requestService";
+import type { ReviewDecision } from "@/services/repository";
 import {
   acceptTaskRecords,
   dispatchTask,
@@ -167,6 +169,59 @@ export async function sendBackAction(input: {
     return { ok: true };
   } catch (e) {
     return fail("sendBack", e);
+  }
+}
+
+export async function reviewDocumentAction(input: {
+  agencySlug: string;
+  requestId: string;
+  documentId: string;
+  decision: ReviewDecision;
+  exemptionLabel?: string;
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    await reviewDocument(deps, {
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      documentId: input.documentId,
+      decision: input.decision,
+      exemptionLabel: input.exemptionLabel,
+      actorUserId: staff.userId,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof ReleaseError) return { ok: false, error: e.message };
+    return fail("reviewDocument", e);
+  }
+}
+
+export async function releaseRequestAction(input: {
+  agencySlug: string;
+  requestId: string;
+  visibility: "public" | "private";
+  responseLetter?: string;
+  archiveTitle?: string;
+  archiveSummary?: string;
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    await releaseRequest(deps, {
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      actorUserId: staff.userId, // the named approver
+      visibility: input.visibility,
+      responseLetter: input.responseLetter,
+      archiveTitle: input.archiveTitle,
+      archiveSummary: input.archiveSummary,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    revalidatePath(`/${input.agencySlug}/archive`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof ReleaseError) return { ok: false, error: e.message };
+    return fail("releaseRequest", e);
   }
 }
 

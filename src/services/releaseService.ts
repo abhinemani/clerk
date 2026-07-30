@@ -1,0 +1,260 @@
+/**
+ * Review & release (spec §5 Review/Release, §10) — the end of a request's
+ * life, and the invariant that defines this product: nothing reaches the
+ * requester without a NAMED human approver. AI never releases.
+ *
+ * The flow: every responder upload became a document in the request's review
+ * set; a coordinator decides each one (release / release_redacted / withhold);
+ * approving the release freezes the artifact list into an immutable Release
+ * row, notifies the requester, closes the statutory clock (closedAt — the
+ * §11 metrics run on it), and — for public releases — publishes an archive
+ * entry so the next resident finds these records without filing (§6.7).
+ */
+import { createHash } from "node:crypto";
+import { assertTransition } from "@/domain/requestLifecycle";
+import type { ServiceDeps } from "./deps";
+import {
+  NotFoundError,
+  type ReleaseEntity,
+  type RequestEntity,
+  type ReviewDecision,
+  type ReviewEntity,
+} from "./repository";
+
+export class ReleaseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReleaseError";
+  }
+}
+
+/** A named human decides one document's fate. Re-deciding replaces. */
+export async function reviewDocument(
+  deps: ServiceDeps,
+  input: {
+    agencyId: string;
+    requestId: string;
+    documentId: string;
+    decision: ReviewDecision;
+    exemptionLabel?: string;
+    actorUserId: string;
+  },
+): Promise<ReviewEntity> {
+  if (input.decision !== "release" && !input.exemptionLabel?.trim()) {
+    throw new ReleaseError("Withholding or redacting requires an exemption reason.");
+  }
+  const review = await deps.repo.upsertReview({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: input.requestId,
+    documentId: input.documentId,
+    decision: input.decision,
+    exemptionLabel: input.decision === "release" ? null : (input.exemptionLabel?.trim() ?? null),
+    decidedByUserId: input.actorUserId,
+    createdAt: deps.now(),
+  });
+  await deps.repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: input.requestId,
+    kind: "note",
+    actorUserId: input.actorUserId,
+    summary: `Document decision: ${input.decision.replace(/_/g, " ")}`,
+    payload: { documentId: input.documentId, decision: input.decision, exemptionLabel: input.exemptionLabel },
+    createdAt: deps.now(),
+  });
+  return review;
+}
+
+export interface ReleaseOutcome {
+  release: ReleaseEntity;
+  request: RequestEntity;
+  released: number;
+  withheld: number;
+}
+
+/**
+ * Approve the release. Requires a decision on EVERY document in the review
+ * set; produces `fulfilled` (nothing withheld) or `partially_fulfilled`.
+ */
+export async function releaseRequest(
+  deps: ServiceDeps,
+  input: {
+    agencyId: string;
+    requestId: string;
+    actorUserId: string; // the named approver — required by the invariant
+    visibility: "public" | "private";
+    responseLetter?: string;
+    /** Metadata for the public archive entry (public releases only). */
+    archiveTitle?: string;
+    archiveSummary?: string;
+  },
+): Promise<ReleaseOutcome> {
+  const { repo } = deps;
+  const request = await repo.getRequest(input.agencyId, input.requestId);
+  if (!request) throw new NotFoundError("Request", input.requestId);
+
+  const [docs, reviews] = await Promise.all([
+    repo.listRequestDocuments(input.agencyId, input.requestId),
+    repo.listReviews(input.agencyId, input.requestId),
+  ]);
+  if (docs.length === 0) throw new ReleaseError("Nothing to release — no documents in the review set.");
+  const decisionByDoc = new Map(reviews.map((r) => [r.documentId, r]));
+  const undecided = docs.filter((d) => !decisionByDoc.has(d.id));
+  if (undecided.length > 0) {
+    throw new ReleaseError(
+      `Every document needs a decision first — ${undecided.length} still undecided.`,
+    );
+  }
+
+  const releasable = docs.filter((d) => decisionByDoc.get(d.id)!.decision !== "withhold");
+  const withheld = docs.length - releasable.length;
+  if (releasable.length === 0) {
+    throw new ReleaseError(
+      "Everything is withheld — deny the request instead of issuing an empty release.",
+    );
+  }
+
+  const now = deps.now();
+  const artifacts = releasable.map((d) => ({
+    blobRef: d.filename ?? d.id,
+    filename:
+      decisionByDoc.get(d.id)!.decision === "release_redacted"
+        ? `${(d.filename ?? d.id).replace(/\.pdf$/i, "")}-redacted.pdf`
+        : (d.filename ?? d.id),
+    checksum: createHash("sha256").update(`${d.id}:${d.filename}`).digest("hex").slice(0, 16),
+    documentId: d.id,
+  }));
+
+  const responseLetter =
+    input.responseLetter?.trim() ||
+    defaultResponseLetter({
+      publicId: request.publicId,
+      released: artifacts.length,
+      withheld,
+      exemptions: reviews.filter((r) => r.decision !== "release" && r.exemptionLabel).map((r) => r.exemptionLabel!),
+    });
+
+  // The immutable delivery — named approver is NOT optional (§10).
+  const release = await repo.createRelease({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: request.id,
+    artifacts,
+    responseLetter,
+    visibility: input.visibility,
+    approvedByUserId: input.actorUserId,
+    releasedAt: now,
+  });
+
+  // Lifecycle: … → records_review → fulfilled | partially_fulfilled, and the
+  // statutory clock stops.
+  let current = request.status;
+  if (current === "in_progress") {
+    assertTransition(current, "records_review");
+    await repo.updateRequest(input.agencyId, request.id, { status: "records_review" });
+    current = "records_review";
+  }
+  const finalStatus = withheld > 0 ? "partially_fulfilled" : "fulfilled";
+  assertTransition(current, finalStatus);
+  const updated = await repo.updateRequest(input.agencyId, request.id, {
+    status: finalStatus,
+    closedAt: now,
+  });
+
+  await repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: request.id,
+    kind: "approval",
+    actorUserId: input.actorUserId,
+    summary: `Release approved — ${artifacts.length} record(s) released${withheld ? `, ${withheld} withheld` : ""}`,
+    payload: { releaseId: release.id, visibility: input.visibility, artifacts: artifacts.length, withheld },
+    createdAt: now,
+  });
+
+  // Deliver the response letter to the requester (recorded in the outbox).
+  const requester = request.requesterId ? await repo.getRequester(input.agencyId, request.requesterId) : null;
+  if (requester?.email) {
+    const receipt = await deps.notifier?.send({
+      agencyId: input.agencyId,
+      to: requester.email,
+      subject: `Your records are ready — ${request.publicId}`,
+      body: responseLetter,
+      kind: "requester_update",
+      requestId: request.id,
+    });
+    if (receipt) {
+      await repo.appendEvent({
+        id: deps.genId(),
+        agencyId: input.agencyId,
+        requestId: request.id,
+        kind: "delivery",
+        actorUserId: input.actorUserId,
+        summary: `Response letter delivered to ${requester.email}`,
+        payload: { channel: receipt.channel, releaseId: release.id },
+        createdAt: deps.now(),
+      });
+    }
+  }
+
+  // Public release → the archive grows and the answer box gets smarter (§6.7).
+  if (input.visibility === "public") {
+    const title = input.archiveTitle?.trim() || request.interpretedScope || request.rawText.slice(0, 80);
+    const doc = await repo.createDocument({
+      id: deps.genId(),
+      agencyId: input.agencyId,
+      sourceId: null,
+      externalSystemId: `release-${release.id}`,
+      filename: `${request.publicId.toLowerCase()}-release.pdf`,
+      classification: "public",
+      recordType: request.recordTypes[0] ?? null,
+      processingStatus: "ready",
+      metadata: {
+        title,
+        summary:
+          input.archiveSummary?.trim() ||
+          `${artifacts.length} record(s) released in response to request ${request.publicId}.`,
+        tags: request.recordTypes,
+        keywords: title.toLowerCase().split(/\W+/).filter((w) => w.length > 3),
+        releasedOn: now.toISOString().slice(0, 10),
+        releaseId: release.id,
+      },
+      createdAt: now,
+    });
+    await repo.appendEvent({
+      id: deps.genId(),
+      agencyId: input.agencyId,
+      requestId: request.id,
+      kind: "note",
+      actorUserId: input.actorUserId,
+      summary: "Published to the public archive",
+      payload: { documentId: doc.id, releaseId: release.id },
+      createdAt: deps.now(),
+    });
+  }
+
+  return { release, request: updated, released: artifacts.length, withheld };
+}
+
+function defaultResponseLetter(input: {
+  publicId: string;
+  released: number;
+  withheld: number;
+  exemptions: string[];
+}): string {
+  const lines = [
+    `Re: Public records request ${input.publicId}`,
+    ``,
+    `Your request has been completed. ${input.released} responsive record(s) are enclosed.`,
+  ];
+  if (input.withheld > 0) {
+    lines.push(
+      ``,
+      `${input.withheld} record(s) were withheld or redacted under the following exemption(s): ${[...new Set(input.exemptions)].join("; ")}.`,
+      `You may appeal this determination as described in the enclosed notice.`,
+    );
+  }
+  lines.push(``, `Thank you for using the public records portal.`);
+  return lines.join("\n");
+}

@@ -72,6 +72,8 @@ export interface RequestEntity {
   complexityScore: number | null;
   receivedAt: Date | null;
   statutoryDueAt: Date | null;
+  /** Terminal-outcome timestamp (release approved / denied / withdrawn). */
+  closedAt: Date | null;
   createdAt: Date;
 }
 
@@ -158,6 +160,40 @@ export interface DeliveryEntity {
   createdAt: Date;
 }
 
+export type ReviewDecision = "release" | "release_redacted" | "withhold";
+
+/** Per-document release decision (spec §5 Review) — always by a named human. */
+export interface ReviewEntity {
+  id: string;
+  agencyId: string;
+  requestId: string;
+  documentId: string;
+  decision: ReviewDecision;
+  /** Exemption short-label for withheld/redacted docs (free text at this stage). */
+  exemptionLabel: string | null;
+  decidedByUserId: string;
+  createdAt: Date;
+}
+
+export interface ReleaseArtifactRef {
+  blobRef: string;
+  filename: string;
+  checksum: string;
+  documentId?: string;
+}
+
+/** An immutable delivery (spec §5 Release) — named approver required. */
+export interface ReleaseEntity {
+  id: string;
+  agencyId: string;
+  requestId: string;
+  artifacts: ReleaseArtifactRef[];
+  responseLetter: string | null;
+  visibility: "public" | "private";
+  approvedByUserId: string;
+  releasedAt: Date;
+}
+
 /** An ingestion source (spec §9.1) — carries its own hashed API key. */
 export interface SourceEntity {
   id: string;
@@ -242,6 +278,17 @@ export interface Repository {
   ): Promise<{ document: DocumentEntity; created: boolean }>;
   /** The public corpus — what the portal archive and answer box may show (§6.7). */
   listPublicDocuments(agencyId: string): Promise<DocumentEntity[]>;
+  createDocument(doc: DocumentEntity): Promise<DocumentEntity>;
+  /** Attach a document to a request's review set (§5 requestDocuments). */
+  linkRequestDocument(agencyId: string, requestId: string, documentId: string): Promise<void>;
+  listRequestDocuments(agencyId: string, requestId: string): Promise<DocumentEntity[]>;
+
+  /** One decision per (request, document); re-deciding replaces. */
+  upsertReview(r: ReviewEntity): Promise<ReviewEntity>;
+  listReviews(agencyId: string, requestId: string): Promise<ReviewEntity[]>;
+
+  createRelease(r: ReleaseEntity): Promise<ReleaseEntity>;
+  listReleases(agencyId: string, requestId: string): Promise<ReleaseEntity[]>;
 
   appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity>;
   listDeflections(agencyId: string): Promise<DeflectionEntity[]>;
@@ -464,6 +511,48 @@ export class InMemoryRepository implements Repository {
     return [...this.documents.values()]
       .filter((d) => d.agencyId === agencyId && d.classification === "public")
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  private requestDocs: { agencyId: string; requestId: string; documentId: string }[] = [];
+  private reviews = new Map<string, ReviewEntity>();
+  private releases: ReleaseEntity[] = [];
+
+  async createDocument(doc: DocumentEntity) {
+    this.documents.set(doc.id, doc);
+    return doc;
+  }
+  async linkRequestDocument(agencyId: string, requestId: string, documentId: string) {
+    const exists = this.requestDocs.some(
+      (l) => l.requestId === requestId && l.documentId === documentId,
+    );
+    if (!exists) this.requestDocs.push({ agencyId, requestId, documentId });
+  }
+  async listRequestDocuments(agencyId: string, requestId: string) {
+    return this.requestDocs
+      .filter((l) => l.agencyId === agencyId && l.requestId === requestId)
+      .map((l) => this.documents.get(l.documentId))
+      .filter((d): d is DocumentEntity => d != null);
+  }
+
+  async upsertReview(r: ReviewEntity) {
+    const key = `${r.requestId}:${r.documentId}`;
+    const existing = this.reviews.get(key);
+    const merged = existing ? { ...r, id: existing.id } : r;
+    this.reviews.set(key, merged);
+    return merged;
+  }
+  async listReviews(agencyId: string, requestId: string) {
+    return [...this.reviews.values()].filter(
+      (r) => r.agencyId === agencyId && r.requestId === requestId,
+    );
+  }
+
+  async createRelease(r: ReleaseEntity) {
+    this.releases.push(r);
+    return r;
+  }
+  async listReleases(agencyId: string, requestId: string) {
+    return this.releases.filter((r) => r.agencyId === agencyId && r.requestId === requestId);
   }
 
   async appendDeflection(d: DeflectionEntity) {
