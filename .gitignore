@@ -31,3 +31,6 @@ yarn-error.log*
 
 # embedded PGlite data
 /.pgdata
+
+# Local blob-store data (runtime, like .pgdata)
+.blobdata/
