@@ -55,7 +55,7 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
 
       <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>Workflow automation</h2>
       <WorkflowSettingsPanel
-        key={`${workflow.autoAssign}|${workflow.autoDispatch}|${workflow.autoDispatchConfidence}`}
+        key={`${workflow.autoAssign}|${workflow.autoDispatch}|${workflow.autoDispatchConfidence}|${workflow.milestoneEmails}`}
         agencySlug={slug}
         initial={workflow}
       />

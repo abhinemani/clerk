@@ -157,6 +157,68 @@ export function taskUrl(token: string, baseUrl = process.env.APP_BASE_URL ?? "ht
   return `${baseUrl}/task/${token}`;
 }
 
+/**
+ * Milestone emails (spec §12-adjacent "no black hole"): template-only,
+ * requester-facing, per-agency toggle (workflowSettings.milestoneEmails,
+ * default on). Deliberately NOT AI-drafted — a status ping should be
+ * boring, identical for everyone, and safe to send unattended.
+ */
+export function trackUrl(
+  agencySlug: string,
+  publicId: string,
+  baseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000",
+) {
+  return `${baseUrl}/${agencySlug}/track?id=${encodeURIComponent(publicId)}`;
+}
+
+export function milestoneReceivedBody(input: {
+  agencyName: string;
+  requesterName?: string | null;
+  publicId: string;
+  dueLabel: string | null;
+  link: string;
+}): { subject: string; body: string } {
+  return {
+    subject: `${input.agencyName}: request received — ${input.publicId}`,
+    body: [
+      `Hi ${input.requesterName ?? "there"},`,
+      ``,
+      `We received your public records request. Your tracking number is ${input.publicId}.`,
+      input.dueLabel ? `Under our state's public records law, we expect to respond by ${input.dueLabel}.` : ``,
+      ``,
+      `Check status any time: ${input.link}`,
+      ``,
+      `You'll hear from us at each milestone — no need to write in for updates.`,
+      `— ${input.agencyName} records office`,
+    ]
+      .filter((l) => l !== undefined)
+      .join("\n"),
+  };
+}
+
+export function milestoneInProgressBody(input: {
+  agencyName: string;
+  requesterName?: string | null;
+  publicId: string;
+  dueLabel: string | null;
+  link: string;
+}): { subject: string; body: string } {
+  return {
+    subject: `${input.agencyName}: work started on ${input.publicId}`,
+    body: [
+      `Hi ${input.requesterName ?? "there"},`,
+      ``,
+      `Update on ${input.publicId}: the departments that hold your records are now locating them.`,
+      input.dueLabel ? `We still expect to respond by ${input.dueLabel}.` : ``,
+      ``,
+      `Check status any time: ${input.link}`,
+      `— ${input.agencyName} records office`,
+    ]
+      .filter((l) => l !== undefined)
+      .join("\n"),
+  };
+}
+
 /** Default templated body for a task dispatch, if no AI-drafted body is supplied. */
 export function defaultDispatchBody(input: {
   departmentLead?: string;

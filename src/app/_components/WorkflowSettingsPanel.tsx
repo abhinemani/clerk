@@ -13,18 +13,20 @@ export function WorkflowSettingsPanel({
   initial,
 }: {
   agencySlug: string;
-  initial: { autoAssign: boolean; autoDispatch: boolean; autoDispatchConfidence: number };
+  initial: { autoAssign: boolean; autoDispatch: boolean; autoDispatchConfidence: number; milestoneEmails: boolean };
 }) {
   const [autoAssign, setAutoAssign] = useState(initial.autoAssign);
   const [autoDispatch, setAutoDispatch] = useState(initial.autoDispatch);
   const [threshold, setThreshold] = useState(initial.autoDispatchConfidence);
+  const [milestoneEmails, setMilestoneEmails] = useState(initial.milestoneEmails);
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState<string | null>(null);
 
   const dirty =
     autoAssign !== initial.autoAssign ||
     autoDispatch !== initial.autoDispatch ||
-    threshold !== initial.autoDispatchConfidence;
+    threshold !== initial.autoDispatchConfidence ||
+    milestoneEmails !== initial.milestoneEmails;
 
   return (
     <div className="card card-pad">
@@ -83,6 +85,23 @@ export function WorkflowSettingsPanel({
         </div>
       )}
 
+      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 12, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={milestoneEmails}
+          onChange={(e) => setMilestoneEmails(e.target.checked)}
+          style={{ marginTop: 3 }}
+        />
+        <span>
+          <span style={{ fontWeight: 550 }}>Email requesters at milestones</span>
+          <span className="muted" style={{ display: "block", fontSize: "0.85rem" }}>
+            Template-only confirmations when a request is received and when work starts — no AI, no
+            surprises, and every send lands in the outbox. On by default; outcome letters and
+            extension notices are separate and always sent by staff.
+          </span>
+        </span>
+      </label>
+
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 16 }}>
         <button
           className="btn btn-sm btn-primary"
@@ -95,6 +114,7 @@ export function WorkflowSettingsPanel({
                 autoAssign,
                 autoDispatch,
                 autoDispatchConfidence: threshold,
+                milestoneEmails,
               });
               setNote(res.ok ? "Saved." : res.error);
             });

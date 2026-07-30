@@ -121,7 +121,7 @@ describe("review & release", () => {
     expect(outcome.release.approvedByUserId).toBe(APPROVER); // named human, always
 
     // The requester was told, and the letter went through the notifier.
-    const letter = deps.notifier.sent.find((m) => m.kind === "requester_update");
+    const letter = deps.notifier.sent.filter((m) => m.kind === "requester_update").pop();
     expect(letter?.to).toBe("wei@example.com");
 
     // Private release → nothing entered the public archive.
@@ -245,7 +245,7 @@ describe("denyRequest — the formal denial", () => {
     // The letter reached the requester: correspondence thread + notifier.
     const thread = await deps.repo.listMessages(AG, request.id);
     expect(thread.some((m) => m.direction === "outbound" && m.body.includes("denied"))).toBe(true);
-    const delivered = deps.notifier.sent.find((m) => m.kind === "requester_update");
+    const delivered = deps.notifier.sent.filter((m) => m.kind === "requester_update").pop();
     expect(delivered?.to).toBe("wei@example.com");
     expect(delivered?.body).toContain("Cal. Gov. Code § 7923.600");
   });
@@ -319,7 +319,7 @@ describe("denyRequest — the formal denial", () => {
       letterBody: "Custom letter text with the citation Cal. Gov. Code § 7923.600.",
     });
     expect(outcome.letter).toBe("Custom letter text with the citation Cal. Gov. Code § 7923.600.");
-    const delivered = deps.notifier.sent.find((m) => m.kind === "requester_update");
+    const delivered = deps.notifier.sent.filter((m) => m.kind === "requester_update").pop();
     expect(delivered?.body).toContain("Custom letter text");
   });
 });

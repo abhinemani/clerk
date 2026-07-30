@@ -75,6 +75,7 @@ export async function updateWorkflowSettingsAction(input: {
   autoAssign: boolean;
   autoDispatch: boolean;
   autoDispatchConfidence: number;
+  milestoneEmails: boolean;
 }): Promise<AdminResult> {
   try {
     const { actor, repo, agencyId } = await actorFor(input.agencySlug);
@@ -84,6 +85,7 @@ export async function updateWorkflowSettingsAction(input: {
         autoAssign: input.autoAssign,
         autoDispatch: input.autoDispatch,
         autoDispatchConfidence: threshold,
+        milestoneEmails: input.milestoneEmails,
       },
     });
     await repo.appendAdminEvent({
@@ -93,8 +95,13 @@ export async function updateWorkflowSettingsAction(input: {
       actorLabel: actor.name ?? actor.email,
       summary: `Workflow automation set: auto-assign ${input.autoAssign ? "on" : "off"}, auto-dispatch ${
         input.autoDispatch ? `on (confidence ≥ ${threshold})` : "off"
-      }`,
-      payload: { autoAssign: input.autoAssign, autoDispatch: input.autoDispatch, autoDispatchConfidence: threshold },
+      }, milestone emails ${input.milestoneEmails ? "on" : "off"}`,
+      payload: {
+        autoAssign: input.autoAssign,
+        autoDispatch: input.autoDispatch,
+        autoDispatchConfidence: threshold,
+        milestoneEmails: input.milestoneEmails,
+      },
       createdAt: new Date(),
     });
     revalidatePath(`/${input.agencySlug}/app/admin`);

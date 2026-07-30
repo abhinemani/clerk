@@ -34,6 +34,9 @@ async function setup() {
     rawText: "All inspection reports for 400 Main St.",
     requester: { email: "jordan@example.com", name: "Jordan Alvarez" },
   });
+  // The filing-confirmation milestone email lands during setup; these tests
+  // assert on message-thread deliveries, so start the capture clean.
+  notifier.sent.length = 0;
   return { repo, deps, notifier, request };
 }
 

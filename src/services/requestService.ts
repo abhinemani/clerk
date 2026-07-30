@@ -13,7 +13,63 @@ import { formatPublicId } from "@/domain/publicId";
 import { assertTransition, type RequestStatus } from "@/domain/requestLifecycle";
 import { effectiveWorkflowSettings, isAssignableRole, pickCoordinator } from "@/domain/workflow";
 import type { ServiceDeps } from "./deps";
-import { NotFoundError, type RequestEntity, type RequesterType } from "./repository";
+import {
+  milestoneInProgressBody,
+  milestoneReceivedBody,
+  trackUrl,
+} from "./notifications";
+import { NotFoundError, type Agency, type RequestEntity, type RequesterType } from "./repository";
+
+/**
+ * Template-only requester milestone email (no black hole between filing and
+ * outcome). Outbox-first via the notifier; recorded as a delivery event.
+ * No-ops without a notifier, a requester email, or with the agency opted out.
+ */
+async function sendMilestoneEmail(
+  deps: ServiceDeps,
+  input: {
+    agency: Agency;
+    request: RequestEntity;
+    milestone: "received" | "in_progress";
+  },
+): Promise<void> {
+  if (!deps.notifier) return;
+  if (!effectiveWorkflowSettings(input.agency.workflowSettings).milestoneEmails) return;
+  const requester = input.request.requesterId
+    ? await deps.repo.getRequester(input.agency.id, input.request.requesterId)
+    : null;
+  if (!requester?.email) return; // anonymous filings track via the number
+
+  const dueLabel = input.request.statutoryDueAt
+    ? isoDate(input.request.statutoryDueAt)
+    : null;
+  const template = input.milestone === "received" ? milestoneReceivedBody : milestoneInProgressBody;
+  const { subject, body } = template({
+    agencyName: input.agency.name,
+    requesterName: requester.name,
+    publicId: input.request.publicId,
+    dueLabel,
+    link: trackUrl(input.agency.slug, input.request.publicId, deps.baseUrl),
+  });
+  const receipt = await deps.notifier.send({
+    agencyId: input.agency.id,
+    to: requester.email,
+    subject,
+    body,
+    kind: "requester_update",
+    requestId: input.request.id,
+  });
+  await deps.repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agency.id,
+    requestId: input.request.id,
+    kind: "delivery",
+    actorUserId: null,
+    summary: `Milestone email (${input.milestone === "received" ? "request received" : "work started"}) sent to the requester`,
+    payload: { milestone: input.milestone, to: requester.email, channel: receipt.channel, deliveryId: receipt.id },
+    createdAt: deps.now(),
+  });
+}
 
 export class ExtensionError extends Error {
   constructor(message: string) {
@@ -114,6 +170,14 @@ export async function submitRequest(
     payload: { to: "submitted", dueBasis, statutoryDueAt: statutoryDueAt?.toISOString() ?? null },
     createdAt: receivedAt,
   });
+
+  // Milestone 1 of "no black hole": confirm receipt with the tracking number
+  // and statutory deadline. Advisory — a notify failure never blocks filing.
+  try {
+    await sendMilestoneEmail(deps, { agency, request, milestone: "received" });
+  } catch (e) {
+    console.error("received-milestone email failed", e);
+  }
 
   // Opt-in auto-assignment (src/domain/workflow.ts): load-balance the new
   // request across coordinators so no single person routes the whole queue.
@@ -227,6 +291,18 @@ export async function transitionRequest(
     payload: { from: request.status, to: input.to, note: input.note },
     createdAt: at,
   });
+
+  // Milestone 2 of "no black hole": tell the requester when work actually
+  // starts. Only this transition — outcome mail (release/denial letters) and
+  // extension notices already have their own flows.
+  if (input.to === "in_progress") {
+    try {
+      const agency = await repo.getAgency(input.agencyId);
+      if (agency) await sendMilestoneEmail(deps, { agency, request: updated, milestone: "in_progress" });
+    } catch (e) {
+      console.error("in_progress-milestone email failed", e);
+    }
+  }
 
   return updated;
 }

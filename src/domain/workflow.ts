@@ -21,6 +21,12 @@ export interface WorkflowSettings {
   autoDispatch?: boolean;
   /** Minimum routing-suggestion confidence (0–1) to dispatch unattended. */
   autoDispatchConfidence?: number;
+  /**
+   * Template-only requester emails at milestones (received / work started).
+   * Default ON — transparency is the product; the outbox records every send
+   * even with no email provider configured. Set false to opt out.
+   */
+  milestoneEmails?: boolean;
 }
 
 export const DEFAULT_AUTO_DISPATCH_CONFIDENCE = 0.8;
@@ -30,6 +36,7 @@ export interface EffectiveWorkflowSettings {
   autoAssign: boolean;
   autoDispatch: boolean;
   autoDispatchConfidence: number;
+  milestoneEmails: boolean;
 }
 
 export function effectiveWorkflowSettings(
@@ -43,6 +50,7 @@ export function effectiveWorkflowSettings(
       typeof threshold === "number" && threshold >= 0 && threshold <= 1
         ? threshold
         : DEFAULT_AUTO_DISPATCH_CONFIDENCE,
+    milestoneEmails: raw?.milestoneEmails !== false, // opt-OUT, unlike the rest
   };
 }
 

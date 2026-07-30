@@ -239,12 +239,16 @@ records office runs Tuesday on this." Tiered by adoption impact.
    from NextRequest/GovQA/spreadsheets — and instantly seeds duplicate
    detection and the archive/answer box with years of signal. Run imports
    through the service layer so history is audited as imported.
-3. **Milestone notifications + tracker transparency.** Requesters hear
-   nothing between filing and outcome unless staff write. Auto-email on
-   status milestones (template-only, per-agency policy toggle, through the
-   outbox like everything else) + tracker showing "deadline extended on X
-   because Y". Kills the "black hole" complaint that defines bad FOIA
-   portals.
+3. ~~**Milestone notifications + tracker transparency.**~~ **DONE.**
+   Template-only requester emails on "received" (tracking number + statutory
+   deadline + track link) and "work started" (→ in_progress transition),
+   sent via the notifier (outbox-first) with delivery events; per-agency
+   toggle `workflowSettings.milestoneEmails` — the ONE opt-OUT default in
+   workflow settings (transparency ships on). Outcome letters / extension
+   notices keep their own staff-sent flows. Tracker now shows a
+   requester-safe "Progress so far" timeline (status changes + extensions
+   only — no internal notes, no task traffic) and an extension callout with
+   days/date/reason (invariant 7 surfaced to the requester).
 
 **Tier 2 — daily-work leverage**
 4. **Staff responsive-records search (§6.4).** SHIPPED (lexical): `/app/
@@ -284,7 +288,6 @@ and appeal-defense packet builder first). Bucket A is fully wired.
 
 ## Known small gaps (fair game any session)
 
-- Tracker doesn't yet show extension history to the requester (item 3).
 - Copilot task/extension proposals point at panels but don't prefill them.
 - Demo-fixture archive (unseeded `/riverton`) has no downloadable bytes —
   by design; seed for the real thing.

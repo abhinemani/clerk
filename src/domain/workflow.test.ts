@@ -20,7 +20,7 @@ describe("effectiveWorkflowSettings", () => {
 
   it("applies configured values and rejects out-of-range thresholds", () => {
     const s = effectiveWorkflowSettings({ autoAssign: true, autoDispatch: true, autoDispatchConfidence: 0.6 });
-    expect(s).toEqual({ autoAssign: true, autoDispatch: true, autoDispatchConfidence: 0.6 });
+    expect(s).toEqual({ autoAssign: true, autoDispatch: true, autoDispatchConfidence: 0.6, milestoneEmails: true });
     expect(effectiveWorkflowSettings({ autoDispatchConfidence: 7 }).autoDispatchConfidence).toBe(
       DEFAULT_AUTO_DISPATCH_CONFIDENCE,
     );

@@ -139,6 +139,12 @@ export type TrackResult =
       daysLeft: number;
       /** Released files, when the request has a release the viewer may fetch. */
       artifacts: { filename: string; url: string }[];
+      /** Statutory extension taken, if any — invariant 7 says every deadline
+       *  move has a basis; the requester gets to see it. */
+      extension: { days: number; reason: string; atISO: string } | null;
+      /** Requester-safe milestones (status changes + extension), oldest first.
+       *  Internal notes, task traffic, and staff names never appear here. */
+      timeline: { label: string; atISO: string }[];
       /**
        * Correspondence — present ONLY when the viewer is signed in as the
        * verified requester who owns this request. Tracking numbers are
@@ -155,6 +161,8 @@ export async function trackRequest(agencySlug: string, publicId: string): Promis
 
   let artifacts: { filename: string; url: string }[] = [];
   let thread: { requestId: string; messages: ThreadMessage[] } | undefined;
+  let extension: { days: number; reason: string; atISO: string } | null = null;
+  let timeline: { label: string; atISO: string }[] = [];
   try {
     const repo = await getRepository();
     const agency = await repo.getAgencyBySlug(agencySlug);
@@ -162,6 +170,26 @@ export async function trackRequest(agencySlug: string, publicId: string): Promis
       ? await repo.findRequestByPublicId(agency.id, publicId.trim().toUpperCase())
       : null;
     if (agency && request) {
+      // Transparency (spec "no black hole"): the deadline's history is the
+      // requester's to see. Extensions carry their statutory basis.
+      const taken = request.extensionHistory?.[0];
+      if (taken) {
+        extension = { days: taken.days, reason: taken.reason, atISO: new Date(taken.at).toISOString() };
+      }
+      const { requestStatusLabel } = await import("@/lib/format");
+      const events = await repo.listEvents(agency.id, request.id);
+      timeline = events
+        .filter((e) => e.kind === "status_change" || e.kind === "extension")
+        .map((e) => ({
+          label:
+            e.kind === "extension"
+              ? `Response deadline extended${extension ? ` by ${extension.days} days` : ""}`
+              : typeof e.payload?.to === "string"
+                ? requestStatusLabel(e.payload.to as string)
+                : e.summary,
+          atISO: e.createdAt.toISOString(),
+        }));
+
       // Released records: surface download links (the file endpoint enforces
       // who may actually fetch — public releases for anyone, private for the
       // owner).
@@ -215,6 +243,8 @@ export async function trackRequest(agencySlug: string, publicId: string): Promis
     dueAtISO: hit.dueAt.toISOString(),
     daysLeft,
     artifacts,
+    extension,
+    timeline,
     thread,
   };
 }

@@ -97,6 +97,8 @@ export function RequestTracker({
               due={new Date(result.dueAtISO)}
               daysLeft={result.daysLeft}
               artifacts={result.artifacts}
+              extension={result.extension}
+              timeline={result.timeline}
               thread={result.thread}
               onReplied={() => lookup(result.publicId)}
             />
@@ -136,6 +138,8 @@ function TrackerResult({
   due,
   daysLeft,
   artifacts = [],
+  extension,
+  timeline = [],
   thread,
   onReplied,
 }: {
@@ -146,6 +150,8 @@ function TrackerResult({
   due: Date;
   daysLeft: number;
   artifacts?: { filename: string; url: string }[];
+  extension?: { days: number; reason: string; atISO: string } | null;
+  timeline?: { label: string; atISO: string }[];
   thread?: { requestId: string; messages: ThreadMessage[] };
   onReplied: () => void;
 }) {
@@ -178,6 +184,15 @@ function TrackerResult({
             ))}
           </div>
         )}
+        {extension && (
+          <div
+            className="card"
+            style={{ marginTop: 14, padding: "10px 14px", borderLeft: "3px solid var(--due)", fontSize: "0.92rem" }}
+          >
+            <strong>Deadline extended {extension.days} days</strong> on {dateShort(new Date(extension.atISO))}{" "}
+            — reason given: {extension.reason.replace(/_/g, " ")}. The date below already includes it.
+          </div>
+        )}
         <div style={{ display: "flex", gap: 20, marginTop: 16, flexWrap: "wrap" }}>
           <div>
             <div className="muted" style={{ fontSize: "0.78rem" }}>
@@ -199,6 +214,22 @@ function TrackerResult({
             </div>
           </div>
         </div>
+        {timeline.length > 0 && (
+          <div style={{ marginTop: 18 }}>
+            <div className="muted" style={{ fontSize: "0.78rem", marginBottom: 6 }}>
+              Progress so far
+            </div>
+            <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 4 }}>
+              {timeline.map((t, i) => (
+                <li key={i} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: "0.9rem" }}>
+                  <span aria-hidden style={{ color: "var(--accent)" }}>•</span>
+                  <span style={{ flex: 1 }}>{t.label}</span>
+                  <span className="muted" style={{ fontSize: "0.78rem" }}>{dateShort(new Date(t.atISO))}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
         {thread ? (
           <MessageThread
             agencySlug={agencySlug}
