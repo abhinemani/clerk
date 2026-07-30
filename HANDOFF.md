@@ -4,7 +4,11 @@ Context package for continuing in a fresh session. Read this top to bottom
 before doing anything substantial; it replaces re-reading the git history.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**312 tests pass, typecheck + production build clean** (as of commit `1e7daf8`).
+**320 tests pass, typecheck + production build clean** (as of commit `3b61fb8`).
+**Deploy self-contained, no hosting accounts** — Dockerfile + docker-compose,
+one volume, embedded DB. External services (AI, real email, real embeddings)
+are strictly opt-in env vars, never a requirement. See README "Deploy it
+yourself."
 
 ## What this is
 Clerk — a multi-tenant, AI-native public records (FOIA) platform. One
@@ -67,6 +71,11 @@ Three flows added since (all service-layer tested + audited):
   PII pass); answer box (§6.7) is hybrid keyword+vector (archive embeddings
   in document_chunks chunk 0, backfill job at boot/release/ingest, Voyage
   behind VOYAGE_API_KEY, fake embedder otherwise).
+- **Statutory extensions** (`extendRequest` in requestService, §7): one
+  extension per request, validated against the state profile's permitted
+  reasons/max days, deadline recomputed by computeDueDate() from receipt and
+  logged with its basis, §6.6 notice letter through correspondence + outbox.
+  ExtensionPanel on the request detail.
 
 ## Architecture map (where things live)
 - **Routing**: `/` marketing · `/admin` platform-operator console (env creds)
@@ -143,30 +152,28 @@ Optional: ANTHROPIC_API_KEY (live triage), VOYAGE_API_KEY (real embeddings).
    before dispatching the form, or the click submits a native GET.
 
 ## Next steps (priority order, each is one focused session)
-1. **Deploy live** — Railway/Fly single container + volume (PGLITE_PATH,
-   BLOB_PATH, AUTH_SECRET, platform creds, ANTHROPIC_API_KEY; now also
-   EMAIL_FROM + POSTMARK_SERVER_TOKEN, INBOUND_EMAIL_TOKEN/_DOMAIN with the
-   provider's inbound webhook pointed at /api/v1/email/inbound). Makes the
-   demo shareable; the marketing site's links become real.
-2. **The extension flow** — statute profiles already model extension rules
-   (max days, permitted reasons, notice required); build the take-an-
-   extension action: reason picker, §6.6 notice letter, recomputed deadline
-   logged with its basis (invariant 7), extensions column on requests
-   already exists. Legally significant → named human (invariant 4).
+1. **Smoke-test the container** — the Dockerfile/compose were written but
+   NOT built (no Docker on the authoring machine). Run
+   `docker compose up --build` once, fix whatever the first build surfaces,
+   then `docker compose exec clerk npm run seed` and click through. After
+   that it's a real deploy target on any owned box.
+2. **Upload safety + extraction breadth** — a virus-scan adapter port
+   (spec §4 lists it; uploads currently land in the blob store unscanned)
+   should land before anything public-facing. Then OCR for scans (adapter
+   port + stub) and a DOCX zip/XML pass; un-extractable docs can currently
+   only be withheld or released whole (by design).
 3. **Denial without documents** — the deny panel only appears when a review
    set exists and is all-withheld; a "no responsive records / categorically
    exempt" denial needs a surface on the request detail. `denyRequest`
    already supports it.
-4. **Extraction breadth + upload safety** — textExtract handles text files +
-   PDF text layers (incl. Flate); scans need OCR (adapter port + stub, spec
-   §6.5) and DOCX needs a zip/XML pass. Un-extractable docs currently can
-   only be withheld or released whole (by design). Also: a virus-scan
-   adapter port before public deploy — uploads land in the blob store
-   unscanned today.
+4. **Requester-visible deadline changes** — the extension notice reaches the
+   requester, but the tracker still shows only the current date; consider
+   surfacing "extended on {date}, because {reason}" for transparency.
 5. **S3/MinIO BlobStore adapter** + pg-boss queue adapter for multi-instance
-   deployments (both ports are ready).
+   deployments (both ports are ready). Only needed past one machine.
 6. **Platform polish** — per-agency branding (colors/seal upload — column
-   exists on agencies), agency settings page, observed-holidays editor.
+   exists on agencies), agency settings page, observed-holidays editor
+   (holidays currently only settable via seed/DB).
 7. **Chunk-level document search (§6.4)** — archive entries embed at entry
    level (chunk 0); full responsive-records search over extracted text needs
    per-chunk embedding at ingest + a staff search surface.
