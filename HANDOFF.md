@@ -4,11 +4,13 @@ Context package for continuing in a fresh session. Read this top to bottom
 before doing anything substantial; it replaces re-reading the git history.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**320 tests pass, typecheck + production build clean** (as of commit `3b61fb8`).
+**327 tests pass, typecheck + production build clean** (as of commit `1959f4f`).
 **Deploy self-contained, no hosting accounts** — Dockerfile + docker-compose,
-one volume, embedded DB. External services (AI, real email, real embeddings)
-are strictly opt-in env vars, never a requirement. See README "Deploy it
-yourself."
+one volume, embedded DB — SMOKE-TESTED: image builds, boots, seeds itself
+with SEED_DEMO=true (in-process — never seed a running container any other
+way; PGlite is single-writer), serves pages with real blobs on /data.
+External services (AI, real email, real embeddings, clamd) are strictly
+opt-in env vars, never a requirement. See README "Deploy it yourself."
 
 ## What this is
 Clerk — a multi-tenant, AI-native public records (FOIA) platform. One
@@ -152,29 +154,23 @@ Optional: ANTHROPIC_API_KEY (live triage), VOYAGE_API_KEY (real embeddings).
    before dispatching the form, or the click submits a native GET.
 
 ## Next steps (priority order, each is one focused session)
-1. **Smoke-test the container** — the Dockerfile/compose were written but
-   NOT built (no Docker on the authoring machine). Run
-   `docker compose up --build` once, fix whatever the first build surfaces,
-   then `docker compose exec clerk npm run seed` and click through. After
-   that it's a real deploy target on any owned box.
-2. **Upload safety + extraction breadth** — a virus-scan adapter port
-   (spec §4 lists it; uploads currently land in the blob store unscanned)
-   should land before anything public-facing. Then OCR for scans (adapter
-   port + stub) and a DOCX zip/XML pass; un-extractable docs can currently
-   only be withheld or released whole (by design).
-3. **Wire the remaining dormant pipelines** — docs/agentic-horizon.md now has
-   a curated roadmap ("Bucket A", one session each): the §6.8 coordinator
-   copilot whose proposals land on the now-existing action surfaces, the
-   §6.5 residual-PII release gate, §6.2 duplicate detection at intake (the
-   strongest deflection moment), and §6.5 auto-classification on ingest.
-   Bucket B of the same doc holds eight NEW agent concepts (proactive-
-   disclosure librarian, consistency auditor, appeal-defense packet builder,
-   third-party notice steward, and more) — those are Phase 5: document only,
-   do not build yet.
-4. **Denial without documents** — the deny panel only appears when a review
-   set exists and is all-withheld; a "no responsive records / categorically
-   exempt" denial needs a surface on the request detail. `denyRequest`
-   already supports it.
+1. **Archive downloads should serve real files** — the archive/answer-box
+   Download button only logs a deflection; wire it to the release artifacts
+   through the existing /files gate (a spawned-task chip exists for this).
+2. **OCR + DOCX extraction** — textExtract covers text files + PDF text
+   layers (incl. Flate); scans need an OCR adapter port + stub and DOCX a
+   zip/XML pass. Un-extractable docs can only be withheld/released whole.
+   (Virus scanning is DONE: builtin EICAR scanner always on, clamd via
+   CLAMAV_HOST, fail-closed, both upload paths.)
+3. **Bucket B agents when Phase 5 opens** — docs/agentic-horizon.md holds
+   eight specified agent concepts (proactive-disclosure librarian,
+   consistency auditor, appeal-defense packet builder, third-party notice
+   steward, …). Bucket A is now FULLY WIRED: copilot (§6.8),
+   residual-PII gate, dedup at intake (§6.2 — staff card + archive-only
+   pre-filing interstitial), auto-classification (§9.3).
+4. **Copilot depth** — proposals for tasks/extensions currently point at
+   their panels; prefilling them (structured proposal → panel state) would
+   close the loop. Also consider a queue-wide copilot on the dashboard.
 5. **Requester-visible deadline changes** — the extension notice reaches the
    requester, but the tracker still shows only the current date; consider
    surfacing "extended on {date}, because {reason}" for transparency.
