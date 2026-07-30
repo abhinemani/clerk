@@ -205,6 +205,7 @@ export async function releaseRequestAction(input: {
   responseLetter?: string;
   archiveTitle?: string;
   archiveSummary?: string;
+  acceptResidualRisk?: boolean;
 }): Promise<WorkspaceResult> {
   try {
     const { staff, deps } = await ctx(input.agencySlug);
@@ -216,6 +217,7 @@ export async function releaseRequestAction(input: {
       responseLetter: input.responseLetter,
       archiveTitle: input.archiveTitle,
       archiveSummary: input.archiveSummary,
+      acceptResidualRisk: input.acceptResidualRisk,
     });
     if (input.visibility === "public") {
       // The archive grew — give the new entry a search vector (§6.7).
@@ -498,6 +500,7 @@ export async function finalizeRedactionAction(input: {
   requestId: string;
   documentId: string;
   spans: { line: number; startCol: number; endCol: number; reason: string }[];
+  acceptResidualRisk?: boolean;
 }): Promise<WorkspaceResult> {
   try {
     const { staff, deps } = await ctx(input.agencySlug);
@@ -512,6 +515,7 @@ export async function finalizeRedactionAction(input: {
           documentId: input.documentId,
           actorUserId: staff.userId, // the named human who finalizes
           spans: input.spans,
+          acceptResidualRisk: input.acceptResidualRisk,
         },
       );
     } catch (e) {

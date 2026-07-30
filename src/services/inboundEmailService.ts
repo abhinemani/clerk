@@ -18,6 +18,7 @@
  */
 import { blobKey, checksumOf } from "@/adapters/blobStore";
 import { extractText } from "@/adapters/textExtract";
+import { assertUploadable, getVirusScanner, type VirusScanner } from "@/adapters/virusScan";
 import type { ServiceDeps } from "./deps";
 import { postRequesterReply, MessageError } from "./messageService";
 import { parseInboundAddress } from "./notifications";
@@ -56,6 +57,7 @@ const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 export async function ingestInboundEmail(
   deps: ServiceDeps,
   input: InboundEmailInput,
+  scanner: VirusScanner = getVirusScanner(),
 ): Promise<InboundEmailResult> {
   const route = parseInboundAddress(input.to);
   if (!route) return { ok: false, reason: "Unrecognized ingest address." };
@@ -86,9 +88,16 @@ export async function ingestInboundEmail(
     if (!deps.blobStore) return { ok: false, reason: "No blob store configured." };
 
     const uploads: TaskUploadInput[] = [];
+    const refused: string[] = [];
     for (const a of attachments) {
       const bytes = Buffer.from(a.contentBase64, "base64");
       if (bytes.length === 0 || bytes.length > MAX_ATTACHMENT_BYTES) continue;
+      // Nothing enters the blob store unscanned (fail-closed).
+      const scan = await assertUploadable(scanner, bytes, a.name);
+      if (!scan.ok) {
+        refused.push(scan.reason);
+        continue;
+      }
       const key = await deps.blobStore.put(
         blobKey(task.agencyId, a.name),
         bytes,
@@ -105,7 +114,25 @@ export async function ingestInboundEmail(
         pageCount: extracted?.pageCount,
       });
     }
-    if (uploads.length === 0) return { ok: false, reason: "No usable attachments." };
+    if (refused.length > 0) {
+      // The refusal is a security event — always on the record.
+      await deps.repo.appendEvent({
+        id: deps.genId(),
+        agencyId: task.agencyId,
+        requestId: task.requestId,
+        kind: "note",
+        actorUserId: null,
+        summary: `${refused.length} emailed attachment(s) refused by the virus scan`,
+        payload: { taskId: task.id, from: input.from, reasons: refused },
+        createdAt: deps.now(),
+      });
+    }
+    if (uploads.length === 0) {
+      return {
+        ok: false,
+        reason: refused.length > 0 ? refused.join(" ") : "No usable attachments.",
+      };
+    }
 
     if (task.status === "assigned") await startTask(deps, task.agencyId, task.id);
     await submitTaskRecords(deps, { agencyId: task.agencyId, taskId: task.id, uploads });
@@ -170,6 +197,20 @@ export async function ingestInboundEmail(
     for (const a of attachments) {
       const bytes = Buffer.from(a.contentBase64, "base64");
       if (bytes.length === 0 || bytes.length > MAX_ATTACHMENT_BYTES) continue;
+      const scan = await assertUploadable(scanner, bytes, a.name);
+      if (!scan.ok) {
+        await deps.repo.appendEvent({
+          id: deps.genId(),
+          agencyId: request.agencyId,
+          requestId: request.id,
+          kind: "note",
+          actorUserId: null,
+          summary: "A requester email attachment was refused by the virus scan",
+          payload: { from: input.from, reason: scan.reason },
+          createdAt: deps.now(),
+        });
+        continue;
+      }
       const key = await deps.blobStore.put(
         blobKey(request.agencyId, a.name),
         bytes,

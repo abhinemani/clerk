@@ -57,11 +57,18 @@ export default async function RequestDetail({
     scope: string;
     rationale: string;
   }
+  interface DuplicateMatchVM {
+    requestId: string;
+    publicId: string;
+    similarity: number;
+    status: string;
+  }
   let reviewDocs: ReviewDocVM[] = [];
   let releaseVM: ReleaseVM | null = null;
   let messageVMs: MessageVM[] = [];
   let exemptionOptions: ExemptionOptionVM[] = [];
   let aiRouting: AiRoutingSuggestion[] | null = null;
+  let duplicates: DuplicateMatchVM[] = [];
   let extensionVM: {
     maxDays: number;
     dayType: "calendar" | "business";
@@ -105,6 +112,14 @@ export default async function RequestDetail({
       .find((e) => e.kind === "ai_action" && (e.payload as { pipeline?: string } | undefined)?.pipeline === "routing_suggestions");
     aiRouting =
       ((routingEvent?.payload as { suggestions?: AiRoutingSuggestion[] } | undefined)?.suggestions ?? null);
+    // §6.2: possible duplicates recorded at filing time.
+    const dupEvent = [...events]
+      .reverse()
+      .find((e) => e.kind === "ai_action" && (e.payload as { pipeline?: string } | undefined)?.pipeline === "duplicate_check");
+    duplicates =
+      ((dupEvent?.payload as { matches?: DuplicateMatchVM[] } | undefined)?.matches ?? []).filter(
+        (m) => m.requestId,
+      );
     const staffNameById = new Map(staffUsers.map((u) => [u.id, u.name ?? u.email]));
     messageVMs = msgs.map((m) => ({
       id: m.id,
@@ -215,6 +230,28 @@ export default async function RequestDetail({
               {titleCase(r.requesterType)} · received {dateShort(r.receivedAt)}
             </div>
           </div>
+
+          {duplicates.length > 0 && (
+            <div className="card card-pad" style={{ borderColor: "var(--due-border)" }}>
+              <div className="panel-title">Possibly related</div>
+              <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "grid", gap: 6 }}>
+                {duplicates.map((d) => (
+                  <li key={d.requestId} style={{ fontSize: "0.88rem" }}>
+                    <Link href={`/${slug}/app/requests/${d.requestId}`} className="mono">
+                      {d.publicId}
+                    </Link>{" "}
+                    <span className="muted">
+                      · {Math.round(d.similarity * 100)}% similar · {requestStatusLabel(d.status as never)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="muted" style={{ fontSize: "0.78rem", marginTop: 8, marginBottom: 0 }}>
+                Flagged at intake (§6.2). If it's the same ask, consider pointing the requester at
+                the earlier release instead of re-fulfilling.
+              </p>
+            </div>
+          )}
 
           {extensionVM && (
             <ExtensionPanel

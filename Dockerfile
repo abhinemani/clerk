@@ -5,7 +5,7 @@
 # Postgres, email delivery, AI keys) are env vars — see docker-compose.yml.
 #
 #   docker compose up --build          # → http://localhost:3000
-#   docker compose exec clerk npm run seed   # optional demo tenants
+#   SEED_DEMO=true docker compose up --build  # …with demo tenants seeded at boot
 #
 # The image keeps full source + node_modules so `npm run seed` (tsx) works
 # in-container — favoring a working self-contained demo over image size.

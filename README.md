@@ -192,7 +192,7 @@ build in place.
 ```bash
 cp .env.example .env    # set AUTH_SECRET, PLATFORM_ADMIN_EMAIL/_PASSWORD
 docker compose up --build
-docker compose exec clerk npm run seed   # optional: City of Riverton demo
+SEED_DEMO=true docker compose up --build   # …or with the Riverton demo seeded
 ```
 
 Everything persists in the `clerk-data` volume (`/data`). Back up by copying

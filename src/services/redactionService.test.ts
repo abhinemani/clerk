@@ -202,6 +202,37 @@ describe("finalizeRedaction", () => {
     ).rejects.toThrow(/review set/);
   });
 
+  it("refuses to burn when likely PII survives, and records an explicit override", async () => {
+    // Redact only the name — the SSN survives the burn, so the §6.5 residual
+    // pass must refuse.
+    const nameOnly = [{ line: 1, startCol: 17, endCol: 28, reason: "Personal privacy" }];
+    await expect(
+      finalizeRedaction(s.deps, {
+        agencyId: "ag-1",
+        requestId: s.request.id,
+        documentId: s.doc.id,
+        actorUserId: "staff-1",
+        spans: nameOnly,
+      }),
+    ).rejects.toThrow(/Possible missed PII/);
+    expect(await findRedactedArtifact(s.deps, "ag-1", s.doc.id)).toBeNull(); // nothing minted
+
+    // The explicit override proceeds — and the audit event names the human.
+    await finalizeRedaction(s.deps, {
+      agencyId: "ag-1",
+      requestId: s.request.id,
+      documentId: s.doc.id,
+      actorUserId: "staff-1",
+      spans: nameOnly,
+      acceptResidualRisk: true,
+    });
+    const events = await s.repo.listEvents("ag-1", s.request.id);
+    const evt = events.find((e) => e.summary.startsWith("Redactions finalized"));
+    const residual = evt?.payload?.residualPii as { summary?: Record<string, number>; overriddenBy?: string };
+    expect(residual?.overriddenBy).toBe("staff-1");
+    expect(residual?.summary?.ssn).toBe(1);
+  });
+
   it("re-finalizing mints a NEW artifact; the latest wins, priors persist", async () => {
     const first = await finalizeRedaction(s.deps, {
       agencyId: "ag-1",
@@ -229,6 +260,37 @@ describe("releaseRequest × redaction", () => {
   let s: Awaited<ReturnType<typeof setup>>;
   beforeEach(async () => {
     s = await setup();
+  });
+
+  it("refuses a FULL release of a document containing likely PII, override proceeds", async () => {
+    await reviewDocument(s.deps, {
+      agencyId: "ag-1",
+      requestId: s.request.id,
+      documentId: s.doc.id,
+      decision: "release", // in full — with the SSN still in the text
+      actorUserId: "staff-1",
+    });
+    await expect(
+      releaseRequest(s.deps, {
+        agencyId: "ag-1",
+        requestId: s.request.id,
+        actorUserId: "staff-1",
+        visibility: "private",
+      }),
+    ).rejects.toThrow(/Possible PII in document/);
+
+    const outcome = await releaseRequest(s.deps, {
+      agencyId: "ag-1",
+      requestId: s.request.id,
+      actorUserId: "staff-1",
+      visibility: "private",
+      acceptResidualRisk: true,
+    });
+    expect(outcome.released).toBe(1);
+    const events = await s.repo.listEvents("ag-1", s.request.id);
+    const approval = events.find((e) => e.summary.startsWith("Release approved"));
+    const override = approval?.payload?.residualPiiOverride as { overriddenBy?: string };
+    expect(override?.overriddenBy).toBe("staff-1");
   });
 
   it("refuses release_redacted with no burned artifact (the invariant-1 hole, closed)", async () => {

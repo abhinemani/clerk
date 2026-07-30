@@ -20,6 +20,7 @@
  * "-redacted".
  */
 import { blobKey, checksumOf } from "@/adapters/blobStore";
+import { checkResidualPii } from "@/ai/redaction/residualCheck";
 import { applyRedactions, findLeaks, redactedValues, type RedactionSpan } from "@/domain/redaction";
 import { renderTextPdf } from "@/domain/textPdf";
 import type { ServiceDeps } from "./deps";
@@ -46,6 +47,19 @@ export interface FinalizeRedactionInput {
   actorUserId: string;
   /** Accepted spans; each carries its exemption reason. */
   spans: (RedactionSpan & { reason: string })[];
+  /**
+   * The §6.5 residual-PII pass refuses the burn when likely PII survives the
+   * redactions. Setting this proceeds anyway — the override is recorded in
+   * the audit event under the actor's name.
+   */
+  acceptResidualRisk?: boolean;
+}
+
+/** "phone ×2, email ×1" — the human-readable residual summary. */
+export function formatResidualSummary(summary: Record<string, number>): string {
+  return Object.entries(summary)
+    .map(([type, count]) => `${type.replace(/_/g, " ")} ×${count}`)
+    .join(", ");
 }
 
 export interface FinalizeRedactionOutcome {
@@ -89,6 +103,17 @@ export async function finalizeRedaction(
   if (leaks.length > 0) {
     throw new RedactionError(
       `Burn verification failed — ${leaks.length} redacted value(s) still present. Nothing was released.`,
+    );
+  }
+
+  // §6.5 last-line safety net: scan what SURVIVES the burn for likely PII the
+  // redactions missed. Refuse by default; an explicit, audited override
+  // proceeds (some matches are legitimately public — the human decides).
+  const residual = checkResidualPii(released);
+  if (!residual.clean && !input.acceptResidualRisk) {
+    throw new RedactionError(
+      `Possible missed PII in the release copy: ${formatResidualSummary(residual.summary)}. ` +
+        `Add redactions for these, or accept the flagged risk to burn anyway.`,
     );
   }
 
@@ -158,6 +183,11 @@ export async function finalizeRedaction(
       artifactChecksum: artifact.checksum,
       redactions: input.spans.length,
       exemptions: reasons,
+      // The residual-PII pass result rides into the audit trail — including
+      // whether the named human overrode a warning (types + counts only).
+      residualPii: residual.clean
+        ? "clean"
+        : { summary: residual.summary, overriddenBy: input.actorUserId },
     },
     createdAt: now,
   });

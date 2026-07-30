@@ -67,6 +67,42 @@ export async function fileRequest(input: {
     const { getJobQueue } = await import("@/jobs/queue");
     getJobQueue().enqueue("intake_triage", { agencyId, requestId: request.id });
 
+    // Duplicate & related detection (§6.2): lexical similarity against the
+    // agency's other requests, recorded as an ai_action event the staff
+    // detail page renders. Advisory only — a failure never blocks filing.
+    try {
+      const { findDuplicates } = await import("@/ai/dedup/duplicates");
+      const others = (await deps.repo.listRequests(agencyId)).filter((r) => r.id !== request.id);
+      const matches = await findDuplicates(
+        rawText,
+        others.map((r) => ({ id: r.id, publicId: r.publicId, text: r.interpretedScope ?? r.rawText })),
+        { threshold: 0.35, limit: 3 },
+      );
+      if (matches.length > 0) {
+        const byId = new Map(others.map((r) => [r.id, r]));
+        await deps.repo.appendEvent({
+          id: deps.genId(),
+          agencyId,
+          requestId: request.id,
+          kind: "ai_action",
+          actorUserId: null,
+          summary: `Possible duplicate of ${matches.map((m) => m.publicId).join(", ")}`,
+          payload: {
+            pipeline: "duplicate_check",
+            matches: matches.map((m) => ({
+              requestId: m.id,
+              publicId: m.publicId,
+              similarity: Math.round(m.similarity * 100) / 100,
+              status: byId.get(m.id)?.status ?? "unknown",
+            })),
+          },
+          createdAt: deps.now(),
+        });
+      }
+    } catch (e) {
+      console.error("duplicate check failed", e);
+    }
+
     return { ok: true, publicId: request.publicId, dueAtISO: request.statutoryDueAt?.toISOString() ?? null };
   } catch (e) {
     console.error("fileRequest failed", e);
@@ -210,6 +246,17 @@ export async function replyToRequestAction(input: {
 export async function searchArchiveAction(agencySlug: string, query: string) {
   const { searchArchive } = await import("@/lib/archive");
   return searchArchive(agencySlug, query);
+}
+
+/**
+ * Pre-filing check (§6.2 deflection): records already public that may answer
+ * the draft request. PUBLIC CORPUS ONLY by construction (invariant 3) — this
+ * surface never reveals other requests, only the archive.
+ */
+export async function checkAlreadyReleasedAction(agencySlug: string, text: string) {
+  const { searchArchive } = await import("@/lib/archive");
+  const items = await searchArchive(agencySlug, text);
+  return items.slice(0, 3);
 }
 
 /**

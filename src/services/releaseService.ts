@@ -92,6 +92,12 @@ export async function releaseRequest(
     /** Metadata for the public archive entry (public releases only). */
     archiveTitle?: string;
     archiveSummary?: string;
+    /**
+     * The §6.5 pre-release PII pass refuses full-release documents whose text
+     * contains likely PII. Setting this proceeds anyway — recorded in the
+     * approval event under the approver's name.
+     */
+    acceptResidualRisk?: boolean;
   },
 ): Promise<ReleaseOutcome> {
   const { repo } = deps;
@@ -116,6 +122,24 @@ export async function releaseRequest(
   if (releasable.length === 0) {
     throw new ReleaseError(
       "Everything is withheld — deny the request instead of issuing an empty release.",
+    );
+  }
+
+  // §6.5 last-line safety net on documents going out IN FULL (redacted copies
+  // were already checked — and possibly overridden — at finalize time).
+  const { checkResidualPii } = await import("@/ai/redaction/residualCheck");
+  const { formatResidualSummary } = await import("./redactionService");
+  const residualFlags: { filename: string; summary: Record<string, number> }[] = [];
+  for (const d of releasable) {
+    if (decisionByDoc.get(d.id)!.decision !== "release" || !d.extractedText) continue;
+    const check = checkResidualPii(d.extractedText.split("\n"));
+    if (!check.clean) residualFlags.push({ filename: d.filename ?? d.id, summary: check.summary });
+  }
+  if (residualFlags.length > 0 && !input.acceptResidualRisk) {
+    throw new ReleaseError(
+      `Possible PII in document(s) marked for full release: ` +
+        residualFlags.map((f) => `"${f.filename}" (${formatResidualSummary(f.summary)})`).join("; ") +
+        `. Redact them in the studio, or accept the flagged risk to release anyway.`,
     );
   }
 
@@ -193,7 +217,15 @@ export async function releaseRequest(
     kind: "approval",
     actorUserId: input.actorUserId,
     summary: `Release approved — ${artifacts.length} record(s) released${withheld ? `, ${withheld} withheld` : ""}`,
-    payload: { releaseId: release.id, visibility: input.visibility, artifacts: artifacts.length, withheld },
+    payload: {
+      releaseId: release.id,
+      visibility: input.visibility,
+      artifacts: artifacts.length,
+      withheld,
+      ...(residualFlags.length > 0
+        ? { residualPiiOverride: { flags: residualFlags, overriddenBy: input.actorUserId } }
+        : {}),
+    },
     createdAt: now,
   });
 

@@ -129,7 +129,7 @@ export function RedactionStudio({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [finalized, setFinalized] = useState(finalizedArtifact != null);
 
-  function finalize() {
+  function finalize(acceptResidualRisk = false) {
     if (!live) {
       setFinalized(true); // demo fixture — local preview only
       return;
@@ -146,6 +146,7 @@ export function RedactionStudio({
           endCol: r.endCol,
           reason: r.reason,
         })),
+        acceptResidualRisk,
       });
       if (!result.ok) {
         setServerError(result.error);
@@ -155,6 +156,9 @@ export function RedactionStudio({
       router.refresh(); // pull the artifact + review decision + audit event
     });
   }
+
+  // The §6.5 residual-PII refusal is overridable — but only explicitly.
+  const residualRefusal = serverError?.includes("Possible missed PII") ?? false;
 
   const docRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
@@ -410,6 +414,11 @@ export function RedactionStudio({
             {serverError}
           </p>
         )}
+        {residualRefusal && !finalized && (
+          <button className="btn btn-sm" disabled={saving} onClick={() => finalize(true)}>
+            Accept flagged risk &amp; burn anyway (recorded under your name)
+          </button>
+        )}
 
         {!finalized ? (
           <>
@@ -421,7 +430,7 @@ export function RedactionStudio({
             <button
               className="btn btn-primary"
               disabled={accepted.length === 0 || saving}
-              onClick={finalize}
+              onClick={() => finalize()}
             >
               {saving
                 ? "Burning…"

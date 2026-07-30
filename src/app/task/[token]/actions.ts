@@ -77,11 +77,16 @@ export async function submitRecordFilesAction(
   try {
     const { getBlobStore, blobKey, checksumOf } = await import("@/adapters/blobStore");
     const { extractText } = await import("@/adapters/textExtract");
+    const { getVirusScanner, assertUploadable } = await import("@/adapters/virusScan");
     const store = getBlobStore();
+    const scanner = getVirusScanner();
 
     const uploads = [];
     for (const file of files) {
       const bytes = Buffer.from(await file.arrayBuffer());
+      // Nothing enters the blob store unscanned (fail-closed on scan errors).
+      const scan = await assertUploadable(scanner, bytes, file.name);
+      if (!scan.ok) return { ok: false, error: scan.reason };
       const key = await store.put(
         blobKey(ctx.task.agencyId, file.name),
         bytes,

@@ -3,7 +3,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { dateShort } from "@/lib/format";
-import { fileRequest } from "../[agency]/actions";
+import { checkAlreadyReleasedAction, fileRequest, logDeflectionAction } from "../[agency]/actions";
+
+interface RelatedRecord {
+  id: string;
+  title: string;
+  summary: string;
+  date: string;
+}
 
 type RequesterType = "individual" | "media" | "legal" | "commercial" | "government";
 
@@ -28,12 +35,11 @@ export function RequestForm({
   const [type, setType] = useState<RequesterType>("individual");
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<null | { publicId: string; dueLabel: string }>(null);
+  const [related, setRelated] = useState<RelatedRecord[] | null>(null);
+  const [checkedText, setCheckedText] = useState("");
   const [pending, startTransition] = useTransition();
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (text.trim().length < 3 || pending) return;
-    setError(null);
+  function file() {
     startTransition(async () => {
       const result = await fileRequest({ agencySlug, text, name, email, type });
       if (!result.ok) {
@@ -43,6 +49,32 @@ export function RequestForm({
       const dueLabel = result.dueAtISO ? dateShort(new Date(result.dueAtISO)) : "the statutory deadline";
       setSubmitted({ publicId: result.publicId, dueLabel });
     });
+  }
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (text.trim().length < 3 || pending) return;
+    setError(null);
+    // Deflection moment (§6.2/§6.7): before filing, check the PUBLIC archive
+    // once for records that may already answer this. One extra step, only
+    // when there are hits, only for text we haven't already shown hits for.
+    if (checkedText !== text.trim()) {
+      startTransition(async () => {
+        try {
+          const items = await checkAlreadyReleasedAction(agencySlug, text.trim());
+          setCheckedText(text.trim());
+          if (items.length > 0) {
+            setRelated(items);
+            return; // show the interstitial; "File anyway" continues
+          }
+        } catch {
+          // Deflection is best-effort — never block filing on it.
+        }
+        file();
+      });
+      return;
+    }
+    file();
   }
 
   if (submitted) {
@@ -160,9 +192,40 @@ export function RequestForm({
         </p>
       )}
 
+      {related && related.length > 0 && (
+        <div className="card" style={{ background: "var(--surface-2)", padding: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>
+            These records are already public — do they answer your request?
+          </div>
+          <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0, display: "grid", gap: 8 }}>
+            {related.map((r) => (
+              <li key={r.id} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                <a
+                  href={`/${agencySlug}/files/${r.id}`}
+                  style={{ fontWeight: 600 }}
+                  onClick={() =>
+                    // The ROI moment: a download here is a request not filed.
+                    void logDeflectionAction({ agencySlug, kind: "download", query: text, documentId: r.id })
+                  }
+                >
+                  {r.title}
+                </a>
+                <span className="muted" style={{ fontSize: "0.82rem" }}>
+                  {r.summary.slice(0, 90)}
+                  {r.summary.length > 90 ? "…" : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="muted" style={{ fontSize: "0.82rem", margin: "10px 0 0" }}>
+            If not, filing continues exactly as before — this never affects your request.
+          </p>
+        </div>
+      )}
+
       <div>
         <button className="btn btn-primary" type="submit" disabled={text.trim().length < 3 || pending}>
-          {pending ? "Filing…" : "File request"}
+          {pending ? "One moment…" : related ? "File my request anyway" : "File request"}
         </button>
       </div>
 

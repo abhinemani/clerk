@@ -109,6 +109,24 @@ describe("task email-in", () => {
     expect(events.some((e) => e.summary.includes("was not ingested"))).toBe(true);
   });
 
+  it("refuses infected attachments, logs the security event, and admits nothing", async () => {
+    const EICAR =
+      "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
+    const result = await ingestInboundEmail(s.deps, {
+      to: `task-${s.task.token}@in.riverton.gov`,
+      from: "lead@dept.gov",
+      textBody: "records attached",
+      attachments: [{ name: "eicar.com", contentBase64: b64(EICAR), contentType: "application/octet-stream" }],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain("virus scan");
+    expect(await s.repo.listRequestDocuments("ag-1", s.request.id)).toHaveLength(0);
+    const events = await s.repo.listEvents("ag-1", s.request.id);
+    expect(events.some((e) => e.summary.includes("refused by the virus scan"))).toBe(true);
+    // The task did NOT advance — nothing was actually submitted.
+    expect((await s.repo.getTask("ag-1", s.task.id))?.status).toBe("assigned");
+  });
+
   it("refuses an unknown task token", async () => {
     const result = await ingestInboundEmail(s.deps, {
       to: "task-nosuchtoken1@in.riverton.gov",

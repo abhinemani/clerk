@@ -3,7 +3,7 @@
 #
 #   cp .env.example .env   # set AUTH_SECRET + platform credentials
 #   docker compose up --build
-#   docker compose exec clerk npm run seed   # optional: demo tenants
+#   SEED_DEMO=true docker compose up --build   # optional: demo tenants at boot
 #
 services:
   clerk:
@@ -16,6 +16,9 @@ services:
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:?set PLATFORM_ADMIN_EMAIL in .env}
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?set PLATFORM_ADMIN_PASSWORD in .env}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      # Seed the City of Riverton / Bellmar demo at boot (in-process — the
+      # only safe way with a single-writer embedded DB). Idempotent.
+      SEED_DEMO: ${SEED_DEMO:-}
       #
       # Everything below is an OPTIONAL upgrade — the app is fully functional
       # without any of it (outbox-as-mailbox, keyword+fake-vector search,

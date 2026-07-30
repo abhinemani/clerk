@@ -188,7 +188,7 @@ export function ReviewRelease({
     });
   }
 
-  function approve() {
+  function approve(acceptResidualRisk = false) {
     setError(null);
     startTransition(async () => {
       const r = await releaseRequestAction({
@@ -196,6 +196,7 @@ export function ReviewRelease({
         requestId,
         visibility,
         responseLetter: letter.trim() || undefined,
+        acceptResidualRisk,
       });
       if (!r.ok) {
         setError(r.error);
@@ -204,6 +205,9 @@ export function ReviewRelease({
       router.refresh();
     });
   }
+
+  // The §6.5 pre-release PII refusal — overridable only explicitly.
+  const residualRefusal = error?.includes("Possible PII in document") ?? false;
 
   return (
     <div className="card card-pad stack" style={{ gap: 14 }}>
@@ -388,9 +392,19 @@ export function ReviewRelease({
         onChange={(e) => setLetter(e.target.value)}
       />
       <div>
-        <button className="btn btn-primary" disabled={pending || undecided > 0} onClick={approve}>
+        <button className="btn btn-primary" disabled={pending || undecided > 0} onClick={() => approve()}>
           {pending ? "One moment…" : "Approve release as yourself"}
         </button>
+        {residualRefusal && (
+          <button
+            className="btn btn-sm"
+            style={{ marginLeft: 8 }}
+            disabled={pending}
+            onClick={() => approve(true)}
+          >
+            Accept flagged risk &amp; release anyway
+          </button>
+        )}
         <p className="muted" style={{ fontSize: "0.78rem", marginTop: 8 }}>
           Your name goes on this release — nothing reaches the requester without a named approver.
         </p>
