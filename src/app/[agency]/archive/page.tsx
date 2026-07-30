@@ -41,7 +41,11 @@ export default async function ArchivePage({ params }: { params: Promise<{ agency
               <SparkIcon />
               <span style={{ fontSize: "0.76rem", fontWeight: 600 }}>AI-summarized</span>
             </div>
-            <h2 style={{ fontSize: "1.08rem", marginTop: 8 }}>{r.title}</h2>
+            <h2 style={{ fontSize: "1.08rem", marginTop: 8 }}>
+              <Link href={`/${agency.slug}/archive/${r.id}`} style={{ color: "var(--ink)" }}>
+                {r.title}
+              </Link>
+            </h2>
             <p className="muted" style={{ fontSize: "0.9rem", marginTop: 6 }}>
               {r.summary}
             </p>
@@ -52,6 +56,9 @@ export default async function ArchivePage({ params }: { params: Promise<{ agency
                   {t}
                 </span>
               ))}
+              <Link href={`/${agency.slug}/archive/${r.id}`} className="btn btn-sm">
+                View record →
+              </Link>
               <DownloadRecordButton agencySlug={agency.slug} documentId={r.id} href={r.downloadUrl} />
             </div>
           </article>

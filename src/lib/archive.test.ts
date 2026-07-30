@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { InMemoryRepository, type DocumentEntity } from "@/services/repository";
-import { resolveArchiveDownloadUrl } from "./archive";
+import { buildArchiveRecord, resolveArchiveDownloadUrl } from "./archive";
 
 const AG = "ag-1";
 
@@ -87,5 +87,53 @@ describe("resolveArchiveDownloadUrl", () => {
     });
     const cross = doc({ id: "x", metadata: { releaseId: "rel-other" } });
     expect(await resolveArchiveDownloadUrl(repo, AG, "riverton", cross)).toBeNull();
+  });
+});
+
+describe("buildArchiveRecord — the permalink resolver", () => {
+  it("INVARIANT 3: internal documents resolve to null, exactly like nonexistent ones", async () => {
+    const repo = new InMemoryRepository();
+    await repo.createDocument(doc({ id: "d-internal", classification: "internal", extractedText: "MARKER-SECRET" }));
+    expect(await buildArchiveRecord(repo, AG, "riverton", "d-internal")).toBeNull();
+    expect(await buildArchiveRecord(repo, AG, "riverton", "d-nonexistent")).toBeNull();
+  });
+
+  it("returns the full record for a public document, with text and download", async () => {
+    const repo = new InMemoryRepository();
+    await repo.createDocument(
+      doc({
+        id: "d-pub",
+        blobRef: "ag-1/minutes.pdf",
+        byteSize: 99,
+        recordType: "meeting minutes",
+        extractedText: "Council approved the budget.",
+        pageCount: 3,
+        metadata: { title: "March Council Minutes", summary: "Adopted budget.", tags: ["minutes"], releasedOn: "2026-03-04" },
+      }),
+    );
+    const record = await buildArchiveRecord(repo, AG, "riverton", "d-pub");
+    expect(record?.title).toBe("March Council Minutes");
+    expect(record?.downloadUrl).toBe("/riverton/files/d-pub");
+    expect(record?.extractedText).toContain("Council approved");
+    expect(record?.pageCount).toBe(3);
+    expect(record?.sourceRequestPublicId).toBeNull();
+  });
+
+  it("links a release-born record back to its source request", async () => {
+    const repo = new InMemoryRepository();
+    await repo.createRequest({
+      id: "req-1", agencyId: AG, publicId: "PR-2026-00042", requesterId: null, status: "fulfilled",
+      rawText: "x", interpretedScope: null, recordTypes: [], complexityScore: null,
+      receivedAt: new Date(), statutoryDueAt: null, closedAt: new Date(), createdAt: new Date(),
+    });
+    await repo.createRelease({
+      id: "rel-1", agencyId: AG, requestId: "req-1", visibility: "public",
+      artifacts: [{ documentId: "d-artifact", filename: "released.pdf", blobRef: "ag-1/released.pdf", checksum: "abc" }],
+      responseLetter: null, approvedByUserId: "u-1", releasedAt: new Date(),
+    });
+    await repo.createDocument(doc({ id: "d-entry", metadata: { releaseId: "rel-1" } }));
+    const record = await buildArchiveRecord(repo, AG, "riverton", "d-entry");
+    expect(record?.sourceRequestPublicId).toBe("PR-2026-00042");
+    expect(record?.downloadUrl).toBe("/riverton/files/d-artifact");
   });
 });

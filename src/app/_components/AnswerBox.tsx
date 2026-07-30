@@ -153,7 +153,11 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
                             style={{ display: "flex", gap: 12, alignItems: "flex-start", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "10px 12px" }}
                           >
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, fontSize: "0.92rem" }}>{r.title}</div>
+                              <div style={{ fontWeight: 600, fontSize: "0.92rem" }}>
+                                <Link href={`/${agencySlug}/archive/${r.id}`} style={{ color: "var(--ink)" }}>
+                                  {r.title}
+                                </Link>
+                              </div>
                               <div className="muted" style={{ fontSize: "0.82rem", marginTop: 2 }}>
                                 Released {r.date}
                               </div>
@@ -240,7 +244,11 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
                     }}
                   >
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600 }}>{r.title}</div>
+                      <div style={{ fontWeight: 600 }}>
+                        <Link href={`/${agencySlug}/archive/${r.id}`} style={{ color: "var(--ink)" }}>
+                          {r.title}
+                        </Link>
+                      </div>
                       <div className="muted" style={{ fontSize: "0.9rem", marginTop: 3 }}>
                         {r.summary}
                       </div>

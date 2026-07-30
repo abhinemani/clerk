@@ -152,3 +152,62 @@ function demoToItem(r: (typeof DEMO_RELEASES)[number]): ArchiveItem {
   // The unseeded demo fixture has no real bytes to serve.
   return { id: r.id, title: r.title, summary: r.summary, date: r.date, tags: r.tags, keywords: r.keywords, downloadUrl: null };
 }
+
+// --- record permalinks ------------------------------------------------------
+
+export interface ArchiveRecord extends ArchiveItem {
+  recordType: string | null;
+  /** Full text rendition of the PUBLIC record — safe to show by definition. */
+  extractedText: string | null;
+  pageCount: number | null;
+  /** When the record was born from a release: the request it answered. */
+  sourceRequestPublicId: string | null;
+}
+
+/**
+ * One public record by id — the permalink page's data (§6.7: every released
+ * record is a citable URL). Invariant 3 enforced here like everywhere
+ * requester-facing: a non-public document resolves to null, indistinguishable
+ * from not existing.
+ */
+export async function getArchiveRecord(slug: string, id: string): Promise<ArchiveRecord | null> {
+  const repo = await getRepository();
+  const agency = await repo.getAgencyBySlug(slug);
+  if (!agency) {
+    // Unseeded demo fixture: metadata-only entries, no bytes, no text.
+    const demo = slug === DEMO_AGENCY.slug ? DEMO_RELEASES.find((r) => r.id === id) : undefined;
+    return demo
+      ? { ...demoToItem(demo), recordType: demo.tags[0] ?? null, extractedText: null, pageCount: null, sourceRequestPublicId: null }
+      : null;
+  }
+  return buildArchiveRecord(repo, agency.id, slug, id);
+}
+
+/** The live half of getArchiveRecord — repo-injected, exported for tests. */
+export async function buildArchiveRecord(
+  repo: Repository,
+  agencyId: string,
+  slug: string,
+  id: string,
+): Promise<ArchiveRecord | null> {
+  const doc = await repo.getDocument(agencyId, id);
+  if (!doc || doc.classification !== "public") return null; // public-only, hard
+
+  let sourceRequestPublicId: string | null = null;
+  const releaseId = (doc.metadata as { releaseId?: string } | null)?.releaseId;
+  if (releaseId) {
+    const release = await repo.getReleaseById(agencyId, releaseId);
+    if (release?.visibility === "public") {
+      const request = await repo.getRequest(agencyId, release.requestId);
+      sourceRequestPublicId = request?.publicId ?? null;
+    }
+  }
+
+  return {
+    ...toArchiveItem(doc, await resolveArchiveDownloadUrl(repo, agencyId, slug, doc)),
+    recordType: doc.recordType ?? null,
+    extractedText: doc.extractedText ?? null,
+    pageCount: doc.pageCount ?? null,
+    sourceRequestPublicId,
+  };
+}
