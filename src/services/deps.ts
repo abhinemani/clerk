@@ -2,6 +2,7 @@
  * Service dependencies — the impure edges (clock, id/token generation) are
  * injected so use cases stay deterministic and unit-testable.
  */
+import type { BlobStore } from "@/adapters/blobStore";
 import type { Repository } from "./repository";
 import { DbNotifier, type Notifier } from "./notifications";
 
@@ -12,6 +13,8 @@ export interface ServiceDeps {
   genToken: () => string;
   /** Optional outbound delivery (email). When absent, dispatches mint the link but send nothing. */
   notifier?: Notifier;
+  /** Object storage — required by use cases that mint artifacts (redaction burn). */
+  blobStore?: BlobStore;
   /** Agency display name + base URL for notification bodies/links. */
   agencyName?: string;
   baseUrl?: string;

@@ -11,8 +11,11 @@
  * entry so the next resident finds these records without filing (§6.7).
  */
 import { createHash } from "node:crypto";
+import { composeDenialLetter, type DenialExemption } from "@/domain/denialLetter";
 import { assertTransition } from "@/domain/requestLifecycle";
+import { getStateProfile } from "@/statute/profiles";
 import type { ServiceDeps } from "./deps";
+import { sendStaffMessage } from "./messageService";
 import {
   NotFoundError,
   type ReleaseEntity,
@@ -116,17 +119,35 @@ export async function releaseRequest(
   }
 
   const now = deps.now();
-  const artifacts = releasable.map((d) => ({
-    blobRef: d.blobRef ?? d.filename ?? d.id,
-    filename:
-      decisionByDoc.get(d.id)!.decision === "release_redacted"
-        ? `${(d.filename ?? d.id).replace(/\.pdf$/i, "")}-redacted.pdf`
-        : (d.filename ?? d.id),
-    // Real stored bytes carry their sha-256; metadata-only docs get a
-    // derived placeholder so the artifact list is always checksummed.
-    checksum: d.checksum ?? createHash("sha256").update(`${d.id}:${d.filename}`).digest("hex").slice(0, 16),
-    documentId: d.id,
-  }));
+  const artifacts: ReleaseEntity["artifacts"] = [];
+  for (const d of releasable) {
+    if (decisionByDoc.get(d.id)!.decision === "release_redacted") {
+      // Invariant 1: a redacted release ships the BURNED artifact — never the
+      // original bytes under a "-redacted" name. No artifact, no release.
+      const { findRedactedArtifact } = await import("./redactionService");
+      const artifact = await findRedactedArtifact(deps, input.agencyId, d.id);
+      if (!artifact?.blobRef || !artifact.checksum) {
+        throw new ReleaseError(
+          `"${d.filename ?? d.id}" is marked release-with-redactions but has no finalized redacted copy. Finalize it in the redaction studio first.`,
+        );
+      }
+      artifacts.push({
+        blobRef: artifact.blobRef,
+        filename: artifact.filename ?? `${d.id}-redacted.pdf`,
+        checksum: artifact.checksum,
+        documentId: artifact.id, // downloads resolve to the burned bytes
+      });
+      continue;
+    }
+    artifacts.push({
+      blobRef: d.blobRef ?? d.filename ?? d.id,
+      filename: d.filename ?? d.id,
+      // Real stored bytes carry their sha-256; metadata-only docs get a
+      // derived placeholder so the artifact list is always checksummed.
+      checksum: d.checksum ?? createHash("sha256").update(`${d.id}:${d.filename}`).digest("hex").slice(0, 16),
+      documentId: d.id,
+    });
+  }
 
   const responseLetter =
     input.responseLetter?.trim() ||
@@ -239,6 +260,103 @@ export async function releaseRequest(
   return { release, request: updated, released: artifacts.length, withheld };
 }
 
+export interface DenyRequestInput {
+  agencyId: string;
+  requestId: string;
+  /** The named human approving the denial — required (invariant 4). */
+  actorUserId: string;
+  /** Statute citations the denial rests on — at least one. */
+  exemptions: DenialExemption[];
+  /** Optional staff explanation inserted into the letter. */
+  explanation?: string;
+  /** Staff-edited letter body; when absent the composed letter is used. */
+  letterBody?: string;
+}
+
+export interface DenyOutcome {
+  request: RequestEntity;
+  letter: string;
+}
+
+/**
+ * The formal denial (§6.6 denial, §7 appeal language): exemption-cited letter
+ * with the statute profile's appeal rights verbatim, status → denied with the
+ * clock stopped, the letter threaded into the request's correspondence and
+ * delivered via the outbox — all under a named approver.
+ */
+export async function denyRequest(deps: ServiceDeps, input: DenyRequestInput): Promise<DenyOutcome> {
+  const { repo } = deps;
+  if (!input.actorUserId) throw new ReleaseError("A denial requires a named approver.");
+  const exemptions = input.exemptions.filter((e) => e.citation?.trim());
+  if (exemptions.length === 0) {
+    throw new ReleaseError("A denial must cite at least one exemption.");
+  }
+
+  const request = await repo.getRequest(input.agencyId, input.requestId);
+  if (!request) throw new NotFoundError("Request", input.requestId);
+  assertTransition(request.status, "denied"); // throws before anything is written
+
+  const [agency, requester] = await Promise.all([
+    repo.getAgency(input.agencyId),
+    request.requesterId ? repo.getRequester(input.agencyId, request.requesterId) : null,
+  ]);
+  const profile = agency ? getStateProfile(agency.stateCode) : null;
+
+  const letter =
+    input.letterBody?.trim() ||
+    composeDenialLetter({
+      publicId: request.publicId,
+      agencyName: agency?.name ?? "the agency",
+      requesterName: requester?.name,
+      requestSummary: request.interpretedScope ?? request.rawText,
+      exemptions,
+      appealProcess: profile?.appeal.process ?? null,
+      appealDeadlineDays: profile?.appeal.deadlineDays ?? null,
+      explanation: input.explanation,
+    });
+
+  const now = deps.now();
+  const updated = await repo.updateRequest(input.agencyId, request.id, {
+    status: "denied",
+    closedAt: now, // the statutory clock stops on the determination
+  });
+
+  await repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: request.id,
+    kind: "status_change",
+    actorUserId: input.actorUserId,
+    summary: `Status ${request.status} → denied`,
+    payload: { from: request.status, to: "denied", exemptions: exemptions.map((e) => e.citation) },
+    createdAt: now,
+  });
+  await repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: request.id,
+    kind: "approval",
+    actorUserId: input.actorUserId,
+    summary: `Denial approved — ${exemptions.length} exemption(s) cited`,
+    payload: {
+      exemptions: exemptions.map((e) => ({ citation: e.citation, label: e.label })),
+      appealIncluded: Boolean(profile?.appeal.process),
+    },
+    createdAt: now,
+  });
+
+  // The letter reaches the requester as correspondence: message thread + outbox.
+  await sendStaffMessage(deps, {
+    agencyId: input.agencyId,
+    requestId: request.id,
+    actorUserId: input.actorUserId,
+    subject: `Determination on your records request ${request.publicId}`,
+    body: letter,
+  });
+
+  return { request: updated, letter };
+}
+
 function defaultResponseLetter(input: {
   publicId: string;
   released: number;
@@ -255,6 +373,13 @@ function defaultResponseLetter(input: {
       ``,
       `${input.withheld} record(s) were withheld or redacted under the following exemption(s): ${[...new Set(input.exemptions)].join("; ")}.`,
       `You may appeal this determination as described in the enclosed notice.`,
+    );
+  } else if (input.exemptions.length > 0) {
+    // Everything shipped, but some records carry burned redactions — the
+    // exemption log still belongs in the letter (defensibility).
+    lines.push(
+      ``,
+      `Some enclosed records include redactions under the following exemption(s): ${[...new Set(input.exemptions)].join("; ")}.`,
     );
   }
   lines.push(``, `Thank you for using the public records portal.`);

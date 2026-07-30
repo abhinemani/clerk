@@ -2,7 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { releaseRequestAction, reviewDocumentAction } from "../[agency]/app/(secure)/requests/[id]/actions";
+import {
+  denyRequestAction,
+  releaseRequestAction,
+  reviewDocumentAction,
+} from "../[agency]/app/(secure)/requests/[id]/actions";
 
 export interface ReviewDocVM {
   documentId: string;
@@ -33,16 +37,27 @@ const DECISIONS = [
  * every document, then approves the release. AI never touches this surface —
  * it is deliberately the most human part of the product.
  */
+export interface ExemptionOptionVM {
+  citation: string;
+  label: string;
+}
+
 export function ReviewRelease({
   agencySlug,
   requestId,
   docs: initialDocs,
   release,
+  denied = false,
+  exemptionOptions = [],
 }: {
   agencySlug: string;
   requestId: string;
   docs: ReviewDocVM[];
   release: ReleaseVM | null;
+  /** The request already ended in a formal denial. */
+  denied?: boolean;
+  /** The agency's statute exemption catalog (§7) — feeds the denial citations. */
+  exemptionOptions?: ExemptionOptionVM[];
 }) {
   const router = useRouter();
   const [docs, setDocs] = useState(initialDocs);
@@ -51,6 +66,8 @@ export function ReviewRelease({
   );
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [letter, setLetter] = useState("");
+  const [citations, setCitations] = useState<string[]>([]);
+  const [explanation, setExplanation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -84,9 +101,47 @@ export function ReviewRelease({
     );
   }
 
+  if (denied) {
+    return (
+      <div className="card card-pad">
+        <div className="panel-title">Determination</div>
+        <div className="pill band-overdue" style={{ marginTop: 10 }}>
+          Request formally denied
+        </div>
+        <p className="muted" style={{ fontSize: "0.85rem", marginTop: 10 }}>
+          The denial letter — with its exemption citations and appeal rights — is in the
+          correspondence thread above and the outbox.
+        </p>
+      </div>
+    );
+  }
+
   if (docs.length === 0) return null;
 
   const undecided = docs.filter((d) => !d.decision).length;
+  const allWithheld = undecided === 0 && docs.every((d) => d.decision === "withhold");
+
+  function deny() {
+    setError(null);
+    const chosen = exemptionOptions.filter((o) => citations.includes(o.citation));
+    if (chosen.length === 0) {
+      setError("Select at least one exemption citation for the denial.");
+      return;
+    }
+    startTransition(async () => {
+      const r = await denyRequestAction({
+        agencySlug,
+        requestId,
+        exemptions: chosen,
+        explanation: explanation.trim() || undefined,
+      });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
 
   function decide(documentId: string, decision: ReviewDocVM["decision"]) {
     if (!decision) return;
@@ -190,6 +245,63 @@ export function ReviewRelease({
 
       <hr className="divider" />
 
+      {allWithheld ? (
+        <div className="stack" style={{ gap: 12 }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Formal denial</div>
+            <p className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>
+              Every record is withheld — issue an exemption-cited denial with the statute&apos;s
+              appeal language instead of an empty release.
+            </p>
+          </div>
+          {exemptionOptions.length > 0 ? (
+            <div style={{ display: "grid", gap: 6 }}>
+              {exemptionOptions.map((o) => (
+                <label key={o.citation} style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: "0.88rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={citations.includes(o.citation)}
+                    onChange={(e) =>
+                      setCitations((prev) =>
+                        e.target.checked ? [...prev, o.citation] : prev.filter((c) => c !== o.citation),
+                      )
+                    }
+                  />
+                  <span>
+                    <span className="mono" style={{ fontSize: "0.82rem" }}>{o.citation}</span>
+                    <span className="muted"> — {o.label}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p className="pill band-due_soon" style={{ fontSize: "0.82rem" }}>
+              No statute profile configured — the denial needs citations from counsel.
+            </p>
+          )}
+          <textarea
+            className="field"
+            rows={2}
+            placeholder="Explanation for the letter (optional), e.g. why the exemption applies"
+            value={explanation}
+            onChange={(e) => setExplanation(e.target.value)}
+          />
+          <div>
+            <button
+              className="btn btn-primary"
+              disabled={pending || citations.length === 0}
+              onClick={deny}
+            >
+              {pending ? "One moment…" : "Deny request as yourself"}
+            </button>
+            <p className="muted" style={{ fontSize: "0.78rem", marginTop: 8 }}>
+              Your name goes on the denial. The letter cites the selected exemptions, includes the
+              appeal language verbatim, stops the clock, and lands in the requester&apos;s thread.
+            </p>
+          </div>
+        </div>
+      ) : (
+      <>
       <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
         <label className="lbl" htmlFor="rel-vis">
           Archive visibility
@@ -220,6 +332,8 @@ export function ReviewRelease({
           Your name goes on this release — nothing reaches the requester without a named approver.
         </p>
       </div>
+      </>
+      )}
     </div>
   );
 }

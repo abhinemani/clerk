@@ -75,8 +75,8 @@ export async function submitRecordFilesAction(
   if (oversize) return { ok: false, error: `"${oversize.name}" is over the 25 MB limit.` };
 
   try {
-    const { getBlobStore } = await import("@/adapters/blobStore");
-    const { blobKey, checksumOf } = await import("@/adapters/blobStore");
+    const { getBlobStore, blobKey, checksumOf } = await import("@/adapters/blobStore");
+    const { extractText } = await import("@/adapters/textExtract");
     const store = getBlobStore();
 
     const uploads = [];
@@ -87,12 +87,17 @@ export async function submitRecordFilesAction(
         bytes,
         file.type || "application/octet-stream",
       );
+      // Extraction at ingest (§6.5) — the redaction studio needs the text
+      // rendition; a document with none can only be withheld or released whole.
+      const extracted = extractText(bytes, file.type || null);
       uploads.push({
         name: file.name.slice(0, 200),
         blobRef: key,
         byteSize: bytes.length,
         mimeType: file.type || "application/octet-stream",
         checksum: checksumOf(bytes),
+        extractedText: extracted ? extracted.lines.join("\n") : undefined,
+        pageCount: extracted?.pageCount,
       });
     }
 

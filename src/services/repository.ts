@@ -128,6 +128,9 @@ export interface DocumentEntity {
   mimeType?: string | null;
   /** sha-256 hex of the stored bytes. */
   checksum?: string | null;
+  /** Text rendition (extraction at ingest, §6.5) — what redaction operates on. */
+  extractedText?: string | null;
+  pageCount?: number | null;
   createdAt: Date;
 }
 
@@ -312,6 +315,12 @@ export interface Repository {
   listRequestDocuments(agencyId: string, requestId: string): Promise<DocumentEntity[]>;
   /** The release (if any) whose frozen artifact list contains this document. */
   findReleaseContainingDocument(agencyId: string, documentId: string): Promise<ReleaseEntity | null>;
+  /**
+   * Newest document carrying this external id (sourceId-less). Re-finalizing a
+   * redaction creates a NEW artifact under the same id — latest wins, prior
+   * versions stay immutable (invariant 8 spirit).
+   */
+  findLatestDocumentByExternalId(agencyId: string, externalSystemId: string): Promise<DocumentEntity | null>;
 
   createMessage(m: MessageEntity): Promise<MessageEntity>;
   /** A request's correspondence thread, oldest first. */
@@ -565,6 +574,15 @@ export class InMemoryRepository implements Repository {
         (r) => r.agencyId === agencyId && r.artifacts.some((a) => a.documentId === documentId),
       ) ?? null
     );
+  }
+  async findLatestDocumentByExternalId(agencyId: string, externalSystemId: string) {
+    // Later insertion wins createdAt ties (Map preserves insertion order).
+    let latest: DocumentEntity | null = null;
+    for (const d of this.documents.values()) {
+      if (d.agencyId !== agencyId || d.externalSystemId !== externalSystemId) continue;
+      if (!latest || d.createdAt.getTime() >= latest.createdAt.getTime()) latest = d;
+    }
+    return latest;
   }
   async linkRequestDocument(agencyId: string, requestId: string, documentId: string) {
     const exists = this.requestDocs.some(

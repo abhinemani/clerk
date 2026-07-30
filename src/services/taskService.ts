@@ -156,6 +156,9 @@ export interface TaskUploadInput {
   byteSize?: number;
   mimeType?: string;
   checksum?: string;
+  /** Text rendition extracted at upload (§6.5) — enables the redaction studio. */
+  extractedText?: string;
+  pageCount?: number;
 }
 
 export async function submitTaskRecords(
@@ -184,6 +187,8 @@ export async function submitTaskRecords(
       byteSize: upload.byteSize ?? null,
       mimeType: upload.mimeType ?? null,
       checksum: upload.checksum ?? null,
+      extractedText: upload.extractedText ?? null,
+      pageCount: upload.pageCount ?? null,
       createdAt: deps.now(),
     });
     await deps.repo.linkRequestDocument(input.agencyId, task.requestId, doc.id);

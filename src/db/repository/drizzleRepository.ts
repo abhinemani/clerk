@@ -487,6 +487,8 @@ export class DrizzleRepository implements Repository {
       byteSize: d.byteSize,
       mimeType: d.mimeType,
       checksum: d.checksum,
+      extractedText: d.extractedText,
+      pageCount: d.pageCount,
       createdAt: d.createdAt,
     };
   }
@@ -636,6 +638,8 @@ export class DrizzleRepository implements Repository {
       byteSize: doc.byteSize,
       mimeType: doc.mimeType,
       checksum: doc.checksum,
+      extractedText: doc.extractedText,
+      pageCount: doc.pageCount,
       externalSystemId: doc.externalSystemId,
       filename: doc.filename,
       classification: doc.classification,
@@ -678,6 +682,15 @@ export class DrizzleRepository implements Repository {
       approvedByUserId: r.approvedByUserId,
       releasedAt: r.releasedAt,
     };
+  }
+  async findLatestDocumentByExternalId(agencyId: string, externalSystemId: string): Promise<DocumentEntity | null> {
+    const [d] = await this.db
+      .select()
+      .from(documents)
+      .where(tenantWhere(documents.agencyId, agencyId, eq(documents.externalSystemId, externalSystemId)))
+      .orderBy(desc(documents.createdAt))
+      .limit(1);
+    return d ? this.toDocument(d) : null;
   }
   async linkRequestDocument(agencyId: string, requestId: string, documentId: string): Promise<void> {
     void agencyId; // both FK targets are already tenant-scoped rows

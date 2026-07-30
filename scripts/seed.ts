@@ -11,9 +11,11 @@
  * Idempotent: re-running is a no-op once seeded. Demo credentials print below.
  */
 import { blobKey, checksumOf, getBlobStore } from "../src/adapters/blobStore";
+import { extractText } from "../src/adapters/textExtract";
 import { getDb, getRepository } from "../src/db/createRepository";
 import { departments } from "../src/db/schema";
 import { ensureAgency } from "../src/lib/bootstrap";
+import { REDACTION_DEMO } from "../src/lib/redactionDemo";
 import { provisionAgency, registerRequester } from "../src/services/accountService";
 import { defaultDeps, type ServiceDeps } from "../src/services/deps";
 import { sendStaffMessage } from "../src/services/messageService";
@@ -172,6 +174,58 @@ async function main() {
       ].join("\n"),
       requestClarification: true,
     });
+  }
+
+  // A third request sits at the redaction step: the incident report is in the
+  // review set with real extractable bytes full of PII — open the studio,
+  // accept the pre-scan suggestions, and burn a true-redacted release copy.
+  {
+    const repo = deps.repo;
+    const admin = (await repo.listUsers(agencyId)).find((u) => u.role === "admin");
+    if (!admin) throw new Error("seed: no admin user for the redaction demo");
+    const police = (await repo.listDepartments(agencyId)).find((d) => d.name === "Police Records");
+    const incidentRequest = await submitRequest(deps, {
+      agencyId,
+      rawText: "The police incident report for the June 2025 vehicle damage at 400 Main St.",
+      requester: { email: "morgan@example.com", name: "Morgan Reyes", type: "individual" },
+    });
+    await transitionRequest(deps, { agencyId, requestId: incidentRequest.id, to: "in_review", actorUserId: admin.id });
+    await transitionRequest(deps, { agencyId, requestId: incidentRequest.id, to: "in_progress", actorUserId: admin.id });
+    const task = await dispatchTask(deps, {
+      agencyId,
+      requestId: incidentRequest.id,
+      departmentId: police?.id,
+      departmentName: police?.name ?? "Police Records",
+      departmentEmail: police?.defaultResponderEmails[0] ?? "records@riverton.gov",
+      scopeText: "Pull the June 2025 incident report for 400 Main St.",
+      dueAt: new Date(Date.now() + 3 * 86_400_000),
+      actorUserId: admin.id,
+    });
+    await startTask(deps, agencyId, task.id);
+    const report = Buffer.from(REDACTION_DEMO.lines.join("\n"), "utf8");
+    const key = await getBlobStore().put(
+      blobKey(agencyId, REDACTION_DEMO.documentName),
+      report,
+      "text/plain",
+    );
+    const extracted = extractText(report, "text/plain");
+    await submitTaskRecords(deps, {
+      agencyId,
+      taskId: task.id,
+      uploads: [
+        {
+          name: REDACTION_DEMO.documentName,
+          pages: 1,
+          blobRef: key,
+          byteSize: report.length,
+          mimeType: "text/plain",
+          checksum: checksumOf(report),
+          extractedText: extracted?.lines.join("\n"),
+          pageCount: extracted?.pageCount,
+        },
+      ],
+    });
+    await acceptTaskRecords(deps, { agencyId, taskId: task.id, actorUserId: admin.id });
   }
 
   // Registering with the same email claims the filed request into the account.

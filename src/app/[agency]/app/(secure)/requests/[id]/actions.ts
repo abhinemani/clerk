@@ -11,7 +11,7 @@ import { requireStaff } from "@/auth/guards";
 import { getRepository } from "@/db/createRepository";
 import { defaultDeps } from "@/services/deps";
 import { MessageError, sendStaffMessage } from "@/services/messageService";
-import { ReleaseError, releaseRequest, reviewDocument } from "@/services/releaseService";
+import { denyRequest, ReleaseError, releaseRequest, reviewDocument } from "@/services/releaseService";
 import { approveTriage, transitionRequest } from "@/services/requestService";
 import type { ReviewDecision } from "@/services/repository";
 import {
@@ -342,6 +342,62 @@ export async function draftReplyAction(input: {
   } catch (e) {
     console.error("draftReply failed", e);
     return { ok: false, error: e instanceof Error ? e.message : "Drafting failed." };
+  }
+}
+
+export async function denyRequestAction(input: {
+  agencySlug: string;
+  requestId: string;
+  exemptions: { citation: string; label?: string }[];
+  explanation?: string;
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    await denyRequest(deps, {
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      actorUserId: staff.userId, // the named approver on the denial
+      exemptions: input.exemptions,
+      explanation: input.explanation,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof ReleaseError) return { ok: false, error: e.message };
+    return fail("denyRequest", e);
+  }
+}
+
+export async function finalizeRedactionAction(input: {
+  agencySlug: string;
+  requestId: string;
+  documentId: string;
+  spans: { line: number; startCol: number; endCol: number; reason: string }[];
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    const { getBlobStore } = await import("@/adapters/blobStore");
+    const { finalizeRedaction, RedactionError } = await import("@/services/redactionService");
+    try {
+      await finalizeRedaction(
+        { ...deps, blobStore: getBlobStore() },
+        {
+          agencyId: staff.agencyId,
+          requestId: input.requestId,
+          documentId: input.documentId,
+          actorUserId: staff.userId, // the named human who finalizes
+          spans: input.spans,
+        },
+      );
+    } catch (e) {
+      if (e instanceof RedactionError) return { ok: false, error: e.message };
+      throw e;
+    }
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}/redact`);
+    return { ok: true };
+  } catch (e) {
+    return fail("finalizeRedaction", e);
   }
 }
 

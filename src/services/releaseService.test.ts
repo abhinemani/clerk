@@ -4,7 +4,7 @@ import type { ServiceDeps } from "./deps";
 import { CollectingNotifier } from "./notifications";
 import { submitRequest, transitionRequest } from "./requestService";
 import { dispatchTask, startTask, submitTaskRecords } from "./taskService";
-import { ReleaseError, releaseRequest, reviewDocument } from "./releaseService";
+import { denyRequest, ReleaseError, releaseRequest, reviewDocument } from "./releaseService";
 
 const AG = "ag-1";
 const APPROVER = "user-approver";
@@ -151,13 +151,24 @@ describe("review & release", () => {
       exemptionLabel: "Personnel privacy",
       actorUserId: APPROVER,
     });
-    await reviewDocument(deps, {
+    // release_redacted now requires a BURNED artifact (invariant 1) — go
+    // through the real finalize, against a real in-memory blob store.
+    const { finalizeRedaction } = await import("./redactionService");
+    const blobs = new Map<string, { bytes: Buffer; contentType: string }>();
+    deps.blobStore = {
+      put: async (key, bytes, contentType) => (blobs.set(key, { bytes, contentType }), key),
+      get: async (key) => blobs.get(key) ?? null,
+    };
+    const amendment = docs[1]!;
+    // Give the doc a text rendition to redact (uploads in this fixture had none).
+    const withText = { ...amendment, extractedText: "Amendment signed by Pat Q. Example." };
+    await deps.repo.createDocument(withText); // same id — InMemory overwrites in place
+    await finalizeRedaction(deps, {
       agencyId: AG,
       requestId: request.id,
-      documentId: docs[1]!.id,
-      decision: "release_redacted",
-      exemptionLabel: "PII",
+      documentId: amendment.id,
       actorUserId: APPROVER,
+      spans: [{ line: 0, startCol: 20, endCol: 34, reason: "PII" }],
     });
 
     const outcome = await releaseRequest(deps, {
@@ -198,5 +209,91 @@ describe("review & release", () => {
     await expect(
       releaseRequest(deps, { agencyId: AG, requestId: request.id, actorUserId: APPROVER, visibility: "private" }),
     ).rejects.toBeInstanceOf(ReleaseError);
+  });
+});
+
+describe("denyRequest — the formal denial", () => {
+  const EXEMPTIONS = [
+    { citation: "Cal. Gov. Code § 7923.600", label: "Law enforcement investigation" },
+  ];
+
+  it("denies with a cited letter, verbatim appeal language, stopped clock, and full audit", async () => {
+    const deps = makeDeps();
+    const { request } = await fulfilledSetup(deps); // CA agency → CA profile
+    const outcome = await denyRequest(deps, {
+      agencyId: AG,
+      requestId: request.id,
+      actorUserId: APPROVER,
+      exemptions: EXEMPTIONS,
+      explanation: "The report concerns an active investigation.",
+    });
+
+    expect(outcome.request.status).toBe("denied");
+    expect(outcome.request.closedAt).not.toBeNull();
+
+    // The letter cites the exemption and carries the CA appeal language verbatim.
+    expect(outcome.letter).toContain("Cal. Gov. Code § 7923.600");
+    expect(outcome.letter).toContain("writ of mandate");
+    expect(outcome.letter).toContain("active investigation");
+
+    // Audit: status_change + approval, both under the approver's name.
+    const events = await deps.repo.listEvents(AG, request.id);
+    const approval = events.find((e) => e.summary.startsWith("Denial approved"));
+    expect(approval?.actorUserId).toBe(APPROVER);
+    expect(events.some((e) => e.summary.includes("→ denied"))).toBe(true);
+
+    // The letter reached the requester: correspondence thread + notifier.
+    const thread = await deps.repo.listMessages(AG, request.id);
+    expect(thread.some((m) => m.direction === "outbound" && m.body.includes("denied"))).toBe(true);
+    const delivered = deps.notifier.sent.find((m) => m.kind === "requester_update");
+    expect(delivered?.to).toBe("wei@example.com");
+    expect(delivered?.body).toContain("Cal. Gov. Code § 7923.600");
+  });
+
+  it("requires a named approver (invariant 4)", async () => {
+    const deps = makeDeps();
+    const { request } = await fulfilledSetup(deps);
+    await expect(
+      denyRequest(deps, { agencyId: AG, requestId: request.id, actorUserId: "", exemptions: EXEMPTIONS }),
+    ).rejects.toBeInstanceOf(ReleaseError);
+  });
+
+  it("requires at least one exemption citation", async () => {
+    const deps = makeDeps();
+    const { request } = await fulfilledSetup(deps);
+    await expect(
+      denyRequest(deps, { agencyId: AG, requestId: request.id, actorUserId: APPROVER, exemptions: [] }),
+    ).rejects.toBeInstanceOf(ReleaseError);
+    // Nothing was written: status unchanged, no events beyond the setup's.
+    const r = await deps.repo.getRequest(AG, request.id);
+    expect(r?.status).toBe("in_progress");
+    expect(r?.closedAt).toBeNull();
+  });
+
+  it("refuses to deny from a terminal status", async () => {
+    const deps = makeDeps();
+    const { request, docs } = await fulfilledSetup(deps);
+    for (const d of docs) {
+      await reviewDocument(deps, { agencyId: AG, requestId: request.id, documentId: d.id, decision: "release", actorUserId: APPROVER });
+    }
+    await releaseRequest(deps, { agencyId: AG, requestId: request.id, actorUserId: APPROVER, visibility: "private" });
+    await expect(
+      denyRequest(deps, { agencyId: AG, requestId: request.id, actorUserId: APPROVER, exemptions: EXEMPTIONS }),
+    ).rejects.toThrow(); // fulfilled → denied is not a legal transition
+  });
+
+  it("a staff-edited letter body is sent as written", async () => {
+    const deps = makeDeps();
+    const { request } = await fulfilledSetup(deps);
+    const outcome = await denyRequest(deps, {
+      agencyId: AG,
+      requestId: request.id,
+      actorUserId: APPROVER,
+      exemptions: EXEMPTIONS,
+      letterBody: "Custom letter text with the citation Cal. Gov. Code § 7923.600.",
+    });
+    expect(outcome.letter).toBe("Custom letter text with the citation Cal. Gov. Code § 7923.600.");
+    const delivered = deps.notifier.sent.find((m) => m.kind === "requester_update");
+    expect(delivered?.body).toContain("Custom letter text");
   });
 });

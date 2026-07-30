@@ -1,6 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   applyRedactions,
   findLeaks,
@@ -8,6 +9,7 @@ import {
   suggestRedactionsFromPii,
   type RedactionSpan,
 } from "@/domain/redaction";
+import { finalizeRedactionAction } from "../[agency]/app/(secure)/requests/[id]/actions";
 import { AiPill, SparkIcon } from "./ui";
 
 const FONT_SIZE = 15;
@@ -35,17 +37,50 @@ interface Draft {
  * from the deterministic PII pass. Finalize burns ONLY accepted regions into a
  * true-redacted release (underlying text removed), verified leak-free.
  */
+export interface FinalizedArtifactVM {
+  filename: string;
+  redactionCount: number;
+  atLabel: string;
+  /** The burned rendition's lines — the authoritative "released copy" view. */
+  lines: string[];
+}
+
+/**
+ * A PII-pass reason ("Personal privacy — SSN") mapped onto the agency's
+ * configured exemption catalog, so a suggestion's picker never shows a reason
+ * that isn't a real citation.
+ */
+function matchExemption(reason: string | undefined, options: string[]): string {
+  if (reason && options.includes(reason)) return reason;
+  const lower = (reason ?? "").toLowerCase();
+  for (const kw of ["privacy", "law enforcement", "medical", "financial", "investigation"]) {
+    if (!lower.includes(kw)) continue;
+    const hit = options.find((o) => o.toLowerCase().includes(kw));
+    if (hit) return hit;
+  }
+  return options.find((o) => o.toLowerCase().includes("privacy")) ?? options[0]!;
+}
+
 export function RedactionStudio({
   documentName,
   requestPublicId,
   lines,
   exemptions,
+  live,
+  finalizedArtifact = null,
 }: {
   documentName: string;
   requestPublicId: string;
   lines: string[];
   exemptions: string[];
+  /** Persist finalize through the server action (real request documents). */
+  live?: { agencySlug: string; requestId: string; documentId: string };
+  /** The already-burned artifact for this document, when one exists. */
+  finalizedArtifact?: FinalizedArtifactVM | null;
 }) {
+  const router = useRouter();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [saving, startSaving] = useTransition();
   const initial = useMemo<Redaction[]>(
     () =>
       suggestRedactionsFromPii(lines).map((s, i) => ({
@@ -53,7 +88,7 @@ export function RedactionStudio({
         line: s.line,
         startCol: s.startCol,
         endCol: s.endCol,
-        reason: s.reason ?? exemptions[0]!,
+        reason: matchExemption(s.reason, exemptions),
         source: "ai",
         status: "suggested",
       })),
@@ -62,7 +97,34 @@ export function RedactionStudio({
 
   const [redactions, setRedactions] = useState<Redaction[]>(initial);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [finalized, setFinalized] = useState(false);
+  const [finalized, setFinalized] = useState(finalizedArtifact != null);
+
+  function finalize() {
+    if (!live) {
+      setFinalized(true); // demo fixture — local preview only
+      return;
+    }
+    setServerError(null);
+    startSaving(async () => {
+      const result = await finalizeRedactionAction({
+        agencySlug: live.agencySlug,
+        requestId: live.requestId,
+        documentId: live.documentId,
+        spans: accepted.map((r) => ({
+          line: r.line,
+          startCol: r.startCol,
+          endCol: r.endCol,
+          reason: r.reason,
+        })),
+      });
+      if (!result.ok) {
+        setServerError(result.error);
+        return;
+      }
+      setFinalized(true);
+      router.refresh(); // pull the artifact + review decision + audit event
+    });
+  }
 
   const docRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
@@ -132,7 +194,9 @@ export function RedactionStudio({
   const releasedLines = applyRedactions(lines, acceptedSpans);
   const leaks = findLeaks(releasedLines, redactedValues(lines, acceptedSpans));
 
-  const displayLines = finalized ? releasedLines : lines;
+  // Finalized view shows the burned rendition itself when we have it — the
+  // authoritative released copy, not a client-side reconstruction.
+  const displayLines = finalized ? (finalizedArtifact?.lines ?? releasedLines) : lines;
 
   function update(id: string, patch: Partial<Redaction>) {
     setRedactions((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -306,6 +370,12 @@ export function RedactionStudio({
 
         <hr className="divider" />
 
+        {serverError && (
+          <p className="pill band-overdue" role="alert">
+            {serverError}
+          </p>
+        )}
+
         {!finalized ? (
           <>
             {pendingSuggestions > 0 && (
@@ -315,11 +385,19 @@ export function RedactionStudio({
             )}
             <button
               className="btn btn-primary"
-              disabled={accepted.length === 0}
-              onClick={() => setFinalized(true)}
+              disabled={accepted.length === 0 || saving}
+              onClick={finalize}
             >
-              Finalize &amp; burn {accepted.length} redaction{accepted.length === 1 ? "" : "s"}
+              {saving
+                ? "Burning…"
+                : `Finalize & burn ${accepted.length} redaction${accepted.length === 1 ? "" : "s"}`}
             </button>
+            {live && (
+              <p className="muted" style={{ fontSize: "0.78rem", margin: 0 }}>
+                Finalizing regenerates the release copy from the surviving text only, verifies the
+                burn, and records your name on the release-with-redactions decision.
+              </p>
+            )}
           </>
         ) : (
           <>
@@ -327,19 +405,27 @@ export function RedactionStudio({
               <div style={{ display: "flex", alignItems: "center", gap: 8, color: leaks.length ? "var(--overdue)" : "var(--ok)" }}>
                 {leaks.length === 0 ? "✓" : "⚠"}
                 <strong style={{ fontSize: "0.9rem" }}>
-                  {leaks.length === 0
-                    ? `${accepted.length} value${accepted.length === 1 ? "" : "s"} burned — verified absent from the release`
-                    : `${leaks.length} value(s) still present`}
+                  {finalizedArtifact
+                    ? `${finalizedArtifact.redactionCount} redaction${finalizedArtifact.redactionCount === 1 ? "" : "s"} burned into ${finalizedArtifact.filename}`
+                    : leaks.length === 0
+                      ? `${accepted.length} value${accepted.length === 1 ? "" : "s"} burned — verified absent from the release`
+                      : `${leaks.length} value(s) still present`}
                 </strong>
               </div>
               <p className="muted" style={{ fontSize: "0.82rem", marginTop: 6 }}>
-                True redaction: the underlying text is removed, not covered. The exemption log ships
-                with the response letter.
+                {finalizedArtifact
+                  ? `Finalized ${finalizedArtifact.atLabel}. The burned copy is what a release ships — the original never leaves.`
+                  : "True redaction: the underlying text is removed, not covered. The exemption log ships with the response letter."}
               </p>
             </div>
             <button className="btn" onClick={() => setFinalized(false)}>
-              ← Back to editing
+              ← Re-open for edits
             </button>
+            {finalizedArtifact && (
+              <p className="muted" style={{ fontSize: "0.78rem", margin: 0 }}>
+                Re-finalizing creates a new burned copy; earlier versions stay on record.
+              </p>
+            )}
           </>
         )}
       </aside>

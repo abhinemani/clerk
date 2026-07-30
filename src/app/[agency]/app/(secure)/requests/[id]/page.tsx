@@ -11,8 +11,10 @@ import {
   CorrespondencePanel,
   type MessageVM,
 } from "../../../../../_components/CorrespondencePanel";
+import { getStateProfile } from "@/statute/profiles";
 import {
   ReviewRelease,
+  type ExemptionOptionVM,
   type ReleaseVM,
   type ReviewDocVM,
 } from "../../../../../_components/ReviewRelease";
@@ -48,9 +50,14 @@ export default async function RequestDetail({
   let reviewDocs: ReviewDocVM[] = [];
   let releaseVM: ReleaseVM | null = null;
   let messageVMs: MessageVM[] = [];
+  let exemptionOptions: ExemptionOptionVM[] = [];
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
+    const agencyRow = await repo.getAgency(staff.agencyId);
+    const profile = agencyRow ? getStateProfile(agencyRow.stateCode) : null;
+    exemptionOptions =
+      profile?.exemptions.map((e) => ({ citation: e.statuteSection, label: e.shortLabel })) ?? [];
     const [docs, reviews, releases, msgs, staffUsers] = await Promise.all([
       repo.listRequestDocuments(staff.agencyId, r.id),
       repo.listReviews(staff.agencyId, r.id),
@@ -234,14 +241,16 @@ export default async function RequestDetail({
       )}
 
       {/* Review & release — appears once departments have submitted records */}
-      {(reviewDocs.length > 0 || releaseVM) && (
+      {(reviewDocs.length > 0 || releaseVM || r.status === "denied") && (
         <div style={{ marginTop: 24, maxWidth: 720 }}>
           <ReviewRelease
-            key={`${reviewDocs.map((d) => `${d.documentId}:${d.decision}`).join(",")}|${releaseVM ? "released" : "open"}`}
+            key={`${reviewDocs.map((d) => `${d.documentId}:${d.decision}`).join(",")}|${releaseVM ? "released" : "open"}|${r.status}`}
             agencySlug={slug}
             requestId={r.id}
             docs={reviewDocs}
             release={releaseVM}
+            denied={r.status === "denied" || (r.status === "closed" && !releaseVM && reviewDocs.some((d) => d.decision === "withhold"))}
+            exemptionOptions={exemptionOptions}
           />
         </div>
       )}
