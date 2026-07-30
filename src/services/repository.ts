@@ -9,7 +9,7 @@
  */
 import type { RequestStatus } from "@/domain/requestLifecycle";
 import type { TaskStatus } from "@/domain/taskWorkflow";
-import type { WorkflowSettings } from "@/domain/workflow";
+import type { RoutingRule, WorkflowSettings } from "@/domain/workflow";
 
 // --- entities (DB-agnostic domain model) -----------------------------------
 
@@ -21,6 +21,8 @@ export interface Agency {
   observedHolidays: string[];
   /** Opt-in automation policy (src/domain/workflow.ts); absent = fully manual. */
   workflowSettings?: WorkflowSettings | null;
+  /** Deterministic keyword→department routing (src/domain/workflow.ts). */
+  defaultRoutingRules?: RoutingRule[] | null;
 }
 
 export type RequesterType =
@@ -277,7 +279,10 @@ export interface Repository {
   listAgencies(): Promise<Agency[]>;
   createAgency(a: Agency): Promise<Agency>;
   /** Settings-only patch (workflow policy etc.) — identity fields are fixed. */
-  updateAgency(agencyId: string, patch: Pick<Agency, "workflowSettings">): Promise<Agency>;
+  updateAgency(
+    agencyId: string,
+    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules">>,
+  ): Promise<Agency>;
 
   findRequesterByEmail(agencyId: string, email: string): Promise<Requester | null>;
   getRequester(agencyId: string, id: string): Promise<Requester | null>;
@@ -441,7 +446,10 @@ export class InMemoryRepository implements Repository {
     this.agencies.set(a.id, a);
     return a;
   }
-  async updateAgency(agencyId: string, patch: Pick<Agency, "workflowSettings">) {
+  async updateAgency(
+    agencyId: string,
+    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules">>,
+  ) {
     const a = this.agencies.get(agencyId);
     if (!a) throw new NotFoundError("Agency", agencyId);
     const updated = { ...a, ...patch };

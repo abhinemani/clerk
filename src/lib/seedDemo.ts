@@ -81,6 +81,17 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
   await deps.repo.updateAgency(agencyId, {
     workflowSettings: { autoAssign: true, autoDispatch: true, autoDispatchConfidence: 0.85 },
   });
+  // Deterministic routing rules — file "pothole repairs on Elm St" in the
+  // portal and watch the Public Works task go out with no AI key at all.
+  const seedDepts = await deps.repo.listDepartments(agencyId);
+  const deptIdByName = new Map(seedDepts.map((d) => [d.name, d.id]));
+  await deps.repo.updateAgency(agencyId, {
+    defaultRoutingRules: [
+      { departmentId: deptIdByName.get("Public Works")!, keywords: ["pothole", "paving", "sidewalk", "street light", "inspection"] },
+      { departmentId: deptIdByName.get("Police Records")!, keywords: ["police", "incident", "arrest", "accident", "bodycam"] },
+      { departmentId: deptIdByName.get("City Clerk")!, keywords: ["contract", "minutes", "ordinance", "budget", "resolution"] },
+    ],
+  });
 
   // Riverton: two requests + a registered resident who owns the first one.
   const jordanRequest = await submitRequest(deps, {

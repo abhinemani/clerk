@@ -62,6 +62,17 @@ export async function fileRequest(input: {
           },
     });
 
+    // Deterministic routing rules first (explicit agency policy, no model):
+    // matches become proposal cards, and — with auto-dispatch on — the
+    // department tasks go out before the resident leaves the page. Advisory
+    // failure only; filing never blocks on it.
+    try {
+      const { applyAgencyRoutingRules } = await import("@/services/taskService");
+      await applyAgencyRoutingRules(deps, { agencyId, requestId: request.id, rawText });
+    } catch (e) {
+      console.error("routing rules failed", e);
+    }
+
     // AI proposes off the request path: queue intake triage (§6.1). The job
     // no-ops without ANTHROPIC_API_KEY.
     const { getJobQueue } = await import("@/jobs/queue");
@@ -246,6 +257,78 @@ export async function replyToRequestAction(input: {
 export async function searchArchiveAction(agencySlug: string, query: string) {
   const { searchArchive } = await import("@/lib/archive");
   return searchArchive(agencySlug, query);
+}
+
+export type AgentTurnResult =
+  | { enabled: false }
+  | {
+      enabled: true;
+      intent: "answer" | "clarify" | "draft_request";
+      message: string;
+      /** Cited archive records, downloadable — the deflection payload. */
+      items: import("@/lib/archive").ArchiveItem[];
+      suggestedRequest: string | null;
+    };
+
+/**
+ * One turn of the §6.7 requester agent: answer from the public archive,
+ * ask a narrowing question, or draft a formal request. Retrieval is the same
+ * public-only archive search as the instant results (invariant 3); the agent
+ * validates its citations against what retrieval actually returned. Without
+ * an AI key the portal quietly keeps its search-only behavior.
+ */
+export async function askRecordsAgentAction(input: {
+  agencySlug: string;
+  history: Array<{ role: "user" | "assistant"; text: string }>;
+  message: string;
+}): Promise<AgentTurnResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { enabled: false };
+  const message = input.message.trim().slice(0, 2000);
+  if (!message) return { enabled: false };
+
+  const [{ searchArchive }, { converse }, { AnthropicModelClient }] = await Promise.all([
+    import("@/lib/archive"),
+    import("@/ai/pipelines/requesterAgent"),
+    import("@/ai/modelClient"),
+  ]);
+
+  // Retriever port over the tenant's public archive search. Everything
+  // searchArchive returns is classification='public' by construction.
+  const found = new Map<string, import("@/lib/archive").ArchiveItem>();
+  const retriever = {
+    async search(query: string, opts?: { limit?: number }) {
+      const items = await searchArchive(input.agencySlug, query);
+      for (const it of items) found.set(it.id, it);
+      return items.slice(0, opts?.limit ?? 5).map((it, rank) => ({
+        id: it.id,
+        title: it.title,
+        score: 1 / (rank + 1),
+        whyMatched: it.summary.slice(0, 120),
+        classification: "public" as const,
+        snippet: `${it.summary} ${it.keywords.join(" ")}`.slice(0, 300),
+      }));
+    },
+  };
+
+  try {
+    const result = await converse(
+      { retriever, pipelineOpts: { modelClient: new AnthropicModelClient(apiKey) } },
+      { history: input.history.slice(-12), message },
+    );
+    return {
+      enabled: true,
+      intent: result.output.intent,
+      message: result.output.message,
+      items: result.output.citations
+        .map((id) => found.get(id))
+        .filter((it): it is import("@/lib/archive").ArchiveItem => it != null),
+      suggestedRequest: result.output.suggestedRequest,
+    };
+  } catch (e) {
+    console.error("requester agent turn failed", e);
+    return { enabled: false }; // degrade to search-only, never block the resident
+  }
 }
 
 /**

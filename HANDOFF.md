@@ -116,6 +116,21 @@ Also complete:
   pipelines all LIVE now except requesterAgent multi-turn; `src/agents/`
   holds the §16.1 five agents + tier/budget framework (built, tested,
   NOT wired — Phase 5).
+- **Requester agent in the portal** (§6.7, wired 2026-07-30): with
+  `ANTHROPIC_API_KEY`, the answer box gains an Ask button — multi-turn
+  answer → narrow → file over the public archive (same retrieval as instant
+  search, invariant 3), citations validated server-side, draft_request
+  prefills the filing form. Degrades to search-only without a key; agent
+  errors mid-session fall back silently. Deflections still log ONLY on real
+  downloads/scope-downs — never for merely answering.
+- **Routing rules** (`src/domain/workflow.ts`, 2026-07-30): deterministic
+  keyword→department policy on `agencies.default_routing_rules`, applied at
+  filing via `applyAgencyRoutingRules` (taskService) — writes the same
+  routing_suggestions event as the AI pass (pipeline `routing_rules`,
+  confidence 1.0) and feeds auto-dispatch, so a matching request forwards
+  to departments instantly with ZERO AI configured. Admin edits rules in
+  the workspace admin page; Riverton seeds with rules for all three
+  departments.
 - **Workflow automation** (`src/domain/workflow.ts`): opt-in per-agency
   `agencies.workflow_settings` (migration 0005) — auto-assign (least-loaded
   coordinator at intake, deterministic tiebreak) and confidence-gated
@@ -129,11 +144,12 @@ Also complete:
 - **Statutes**: `src/statute/` — pure `computeDueDate()` (incl. extension
   validation), profiles for CA/TX/IL/WA/NY (data, not code).
 - **Design**: Public Sans + Source Serif 4; navy/gold/maroon civic triad in
-  `globals.css`. Dark-mode maroon is `#c9686a` (deepest AA-passing
-  crimson-burgundy) and buttons use `--maroon-btn` (true maroon fill, white
-  ink, both modes). The owner explicitly rejected pink-drifting accents —
-  if you ever lighten maroon for contrast, keep saturation and stay near
-  red; never pastel.
+  `globals.css`. Dark-mode accent red is `#f25a5f` and `--overdue` is
+  `#f65a4c` (2026-07-30: the owner flagged the previous `#c9686a`/`#ff9c8f`
+  as still pink — the lesson, now encoded in the css comments: at the
+  lightness AA forces, SATURATION is the anti-pink lever (s≥80); never fix
+  contrast by lightening further). Buttons use `--maroon-btn` (true maroon
+  fill, white ink, both modes).
 
 ## Run it (this machine)
 

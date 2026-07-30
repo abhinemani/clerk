@@ -81,11 +81,16 @@ export class DrizzleRepository implements Repository {
     });
     return a;
   }
-  async updateAgency(agencyId: string, patch: Pick<Agency, "workflowSettings">): Promise<Agency> {
-    await this.db
-      .update(agencies)
-      .set({ workflowSettings: patch.workflowSettings ?? null })
-      .where(eq(agencies.id, agencyId));
+  async updateAgency(
+    agencyId: string,
+    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules">>,
+  ): Promise<Agency> {
+    const set: Record<string, unknown> = {};
+    if ("workflowSettings" in patch) set.workflowSettings = patch.workflowSettings ?? null;
+    if ("defaultRoutingRules" in patch) set.defaultRoutingRules = patch.defaultRoutingRules ?? null;
+    if (Object.keys(set).length > 0) {
+      await this.db.update(agencies).set(set).where(eq(agencies.id, agencyId));
+    }
     const updated = await this.getAgency(agencyId);
     if (!updated) throw new NotFoundError("Agency", agencyId);
     return updated;
@@ -98,6 +103,7 @@ export class DrizzleRepository implements Repository {
       stateCode: a.stateCode,
       observedHolidays: a.observedHolidays ?? [],
       workflowSettings: a.workflowSettings ?? null,
+      defaultRoutingRules: (a.defaultRoutingRules as Agency["defaultRoutingRules"]) ?? null,
     };
   }
 

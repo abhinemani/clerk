@@ -213,7 +213,11 @@ export const agencies = pgTable("agencies", {
   // calendar used by computeDueDate() (§7).
   observedHolidays: jsonb("observed_holidays").$type<string[]>().default([]),
   portalSettings: jsonb("portal_settings").$type<Record<string, unknown>>(),
-  defaultRoutingRules: jsonb("default_routing_rules").$type<Record<string, unknown>>(),
+  // Deterministic keyword→department routing (src/domain/workflow.ts):
+  // explicit agency policy, applied at filing with no model in the loop.
+  defaultRoutingRules: jsonb("default_routing_rules").$type<
+    { departmentId: string; keywords: string[] }[]
+  >(),
   // Per-agency workflow automation policy (auto-assignment / auto-dispatch).
   // Opt-in: absent or false means today's fully manual coordinator flow.
   workflowSettings: jsonb("workflow_settings").$type<{

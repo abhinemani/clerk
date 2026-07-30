@@ -5,6 +5,7 @@ import { getAgencyForSlug } from "@/lib/live";
 import { requireStaff } from "@/auth/guards";
 import { StaffRoster, type RosterRow } from "../../../../_components/StaffRoster";
 import { WorkflowSettingsPanel } from "../../../../_components/WorkflowSettingsPanel";
+import { RoutingRulesPanel } from "../../../../_components/RoutingRulesPanel";
 import { effectiveWorkflowSettings } from "@/domain/workflow";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +17,16 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
   const staff = await requireStaff(slug, ["admin"]);
 
   const repo = await getRepository();
-  const [users, activity, agencyRow] = await Promise.all([
+  const [users, activity, agencyRow, departments] = await Promise.all([
     repo.listUsers(agency.id),
     repo.listAdminEvents(agency.id, 20),
     repo.getAgency(agency.id),
+    repo.listDepartments(agency.id),
   ]);
   const workflow = effectiveWorkflowSettings(agencyRow?.workflowSettings);
+  const ruleKeywords = Object.fromEntries(
+    (agencyRow?.defaultRoutingRules ?? []).map((r) => [r.departmentId, r.keywords.join(", ")]),
+  );
   const rows: RosterRow[] = users
     .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email))
     .map((u) => ({
@@ -53,6 +58,14 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
         key={`${workflow.autoAssign}|${workflow.autoDispatch}|${workflow.autoDispatchConfidence}`}
         agencySlug={slug}
         initial={workflow}
+      />
+
+      <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>Department routing rules</h2>
+      <RoutingRulesPanel
+        key={JSON.stringify(ruleKeywords)}
+        agencySlug={slug}
+        departments={departments.map((d) => ({ id: d.id, name: d.name }))}
+        initial={ruleKeywords}
       />
 
       <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>

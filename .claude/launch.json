@@ -12,8 +12,8 @@
       "name": "clerk-dev-isolated",
       "runtimeExecutable": "env",
       "runtimeArgs": [
-        "PGLITE_PATH=/private/tmp/claude-501/-Users-abhinemani-Sites-clerk/06e2ed8b-b94e-419d-8a2d-044b3794e313/scratchpad/pgdata2",
-        "BLOB_PATH=/private/tmp/claude-501/-Users-abhinemani-Sites-clerk/06e2ed8b-b94e-419d-8a2d-044b3794e313/scratchpad/blobdata2",
+        "PGLITE_PATH=/private/tmp/claude-501/-Users-abhinemani-Sites-clerk/06e2ed8b-b94e-419d-8a2d-044b3794e313/scratchpad/pgdata3",
+        "BLOB_PATH=/private/tmp/claude-501/-Users-abhinemani-Sites-clerk/06e2ed8b-b94e-419d-8a2d-044b3794e313/scratchpad/blobdata3",
         "SEED_DEMO=true",
         "APP_BASE_URL=http://localhost:3100",
         "INBOUND_EMAIL_TOKEN=dev-inbound-secret",

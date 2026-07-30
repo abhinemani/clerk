@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryRepository, type Agency, type UserEntity } from "./repository";
 import type { ServiceDeps } from "./deps";
 import { assignCoordinator, submitRequest } from "./requestService";
-import { autoDispatchSuggestions } from "./taskService";
+import { applyAgencyRoutingRules, autoDispatchSuggestions } from "./taskService";
 
 const AGENCY: Agency = {
   id: "ag-1",
@@ -185,5 +185,72 @@ describe("autoDispatchSuggestions", () => {
     await repo.updateRequest("ag-1", r.id, { status: "in_progress" });
     const out = await autoDispatchSuggestions(deps, { agencyId: "ag-1", requestId: r.id, suggestions: SUGGESTIONS });
     expect(out).toMatchObject({ dispatched: 0, reason: "request is in_progress" });
+  });
+});
+
+describe("applyAgencyRoutingRules (deterministic, no AI)", () => {
+  async function seedWithRules(opts: {
+    workflowSettings?: Agency["workflowSettings"];
+    rules?: Agency["defaultRoutingRules"];
+  }) {
+    const repo = new InMemoryRepository().seedAgency({
+      ...AGENCY,
+      workflowSettings: opts.workflowSettings ?? null,
+      defaultRoutingRules: opts.rules ?? null,
+    });
+    repo.seedDepartment({ id: "d-pw", agencyId: "ag-1", name: "Public Works", defaultResponderEmails: ["pw@riverton.gov"] });
+    let n = 0;
+    const deps: ServiceDeps = {
+      repo,
+      now: () => new Date("2026-07-30T12:00:00Z"),
+      genId: () => `id-${++n}`,
+      genToken: () => `tok-${n}`,
+    };
+    const r = await submitRequest(deps, { agencyId: "ag-1", rawText: "Photos of the pothole on Elm St." });
+    return { repo, deps, r };
+  }
+
+  const RULES = [{ departmentId: "d-pw", keywords: ["pothole"] }];
+
+  it("auto-forwards a matching request instantly when auto-dispatch is on — zero AI needed", async () => {
+    const { repo, deps, r } = await seedWithRules({ workflowSettings: { autoDispatch: true }, rules: RULES });
+    const out = await applyAgencyRoutingRules(deps, { agencyId: "ag-1", requestId: r.id, rawText: r.rawText });
+    expect(out).toMatchObject({ suggested: 1, dispatched: 1 });
+
+    const tasks = await repo.listTasks("ag-1", r.id);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]!.departmentId).toBe("d-pw");
+    expect((await repo.getRequest("ag-1", r.id))?.status).toBe("in_progress");
+
+    const events = await repo.listEvents("ag-1", r.id);
+    const rulesEvent = events.find((e) => e.payload?.pipeline === "routing_rules");
+    expect(rulesEvent?.summary).toContain("Routing rules matched 1 department(s)");
+  });
+
+  it("with auto-dispatch off, matches become proposal cards only", async () => {
+    const { repo, deps, r } = await seedWithRules({ workflowSettings: null, rules: RULES });
+    const out = await applyAgencyRoutingRules(deps, { agencyId: "ag-1", requestId: r.id, rawText: r.rawText });
+    expect(out).toMatchObject({ suggested: 1, dispatched: 0, reason: "disabled" });
+    expect(await repo.listTasks("ag-1", r.id)).toHaveLength(0);
+    const events = await repo.listEvents("ag-1", r.id);
+    expect(events.some((e) => e.payload?.pipeline === "routing_rules")).toBe(true);
+  });
+
+  it("no rules or no match → clean no-op, no event", async () => {
+    const { repo, deps, r } = await seedWithRules({ rules: [{ departmentId: "d-pw", keywords: ["zoning"] }] });
+    const out = await applyAgencyRoutingRules(deps, { agencyId: "ag-1", requestId: r.id, rawText: r.rawText });
+    expect(out).toMatchObject({ suggested: 0, reason: "no rule matched" });
+    const events = await repo.listEvents("ag-1", r.id);
+    expect(events.some((e) => e.payload?.pipeline === "routing_rules")).toBe(false);
+  });
+
+  it("rules pointing at deleted departments are ignored", async () => {
+    const { repo, deps, r } = await seedWithRules({
+      workflowSettings: { autoDispatch: true },
+      rules: [{ departmentId: "d-gone", keywords: ["pothole"] }],
+    });
+    const out = await applyAgencyRoutingRules(deps, { agencyId: "ag-1", requestId: r.id, rawText: r.rawText });
+    expect(out).toMatchObject({ suggested: 0 });
+    expect(await repo.listTasks("ag-1", r.id)).toHaveLength(0);
   });
 });

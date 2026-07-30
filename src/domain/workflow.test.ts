@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_AUTO_DISPATCH_CONFIDENCE,
+  applyRoutingRules,
   effectiveWorkflowSettings,
   isAssignableRole,
   pickCoordinator,
@@ -47,6 +48,35 @@ describe("pickCoordinator", () => {
 
   it("returns null with no candidates", () => {
     expect(pickCoordinator([])).toBeNull();
+  });
+});
+
+describe("applyRoutingRules", () => {
+  const RULES = [
+    { departmentId: "d-pw", keywords: ["pothole", "street light"] },
+    { departmentId: "d-pd", keywords: ["police", "incident"] },
+  ];
+
+  it("matches whole words and phrases, case-insensitively, reporting what fired", () => {
+    const out = applyRoutingRules(RULES, "Records about the POTHOLE near the street light on Elm.");
+    expect(out).toEqual([{ departmentId: "d-pw", matched: ["pothole", "street light"] }]);
+  });
+
+  it("does not match plain words inside longer words", () => {
+    // "reports" must not fire a "report"-style rule; "policed" must not fire "police".
+    expect(applyRoutingRules([{ departmentId: "d", keywords: ["police"] }], "the policed area")).toEqual([]);
+  });
+
+  it("can route one request to several departments", () => {
+    const out = applyRoutingRules(RULES, "police incident report about a pothole");
+    expect(out.map((m) => m.departmentId)).toEqual(["d-pw", "d-pd"]);
+  });
+
+  it("handles empty rules, keywords, and text", () => {
+    expect(applyRoutingRules(null, "anything")).toEqual([]);
+    expect(applyRoutingRules([], "anything")).toEqual([]);
+    expect(applyRoutingRules([{ departmentId: "d", keywords: ["", "  "] }], "anything")).toEqual([]);
+    expect(applyRoutingRules(RULES, "")).toEqual([]);
   });
 });
 

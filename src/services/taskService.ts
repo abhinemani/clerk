@@ -7,7 +7,7 @@
  * audit event.
  */
 import { assertTaskTransition } from "@/domain/taskWorkflow";
-import { effectiveWorkflowSettings } from "@/domain/workflow";
+import { applyRoutingRules, effectiveWorkflowSettings } from "@/domain/workflow";
 import type { ServiceDeps } from "./deps";
 import { NotFoundError, type TaskEntity } from "./repository";
 import { defaultDispatchBody, inboundAddress, taskUrl } from "./notifications";
@@ -206,6 +206,59 @@ export async function autoDispatchSuggestions(
   });
 
   return { dispatched: dispatchedTo.length, heldForReview: held };
+}
+
+/**
+ * Deterministic routing at filing time: apply the agency's keyword→department
+ * rules (explicit policy, no model, works with zero AI configuration) to a
+ * fresh request. Matches are recorded as a routing_suggestions event — the
+ * same proposal cards staff already review — and handed to auto-dispatch with
+ * confidence 1.0, so an agency with autoDispatch on forwards these instantly.
+ */
+export async function applyAgencyRoutingRules(
+  deps: ServiceDeps,
+  input: { agencyId: string; requestId: string; rawText: string },
+): Promise<AutoDispatchResult & { suggested: number }> {
+  const { repo } = deps;
+  const agency = await repo.getAgency(input.agencyId);
+  if (!agency) throw new NotFoundError("Agency", input.agencyId);
+
+  const matches = applyRoutingRules(agency.defaultRoutingRules, input.rawText);
+  if (matches.length === 0) return { suggested: 0, dispatched: 0, heldForReview: 0, reason: "no rule matched" };
+
+  const departments = await repo.listDepartments(input.agencyId);
+  const deptById = new Map(departments.map((d) => [d.id, d]));
+  const scopeText = input.rawText.trim().slice(0, 400);
+  const suggestions = matches
+    .filter((m) => deptById.has(m.departmentId))
+    .map((m) => ({
+      departmentId: m.departmentId,
+      department: deptById.get(m.departmentId)!.name,
+      scope: `Locate records responsive to: "${scopeText}"`,
+      rationale: `Matched routing rule: ${m.matched.join(", ")}`,
+      confidence: 1,
+    }));
+  if (suggestions.length === 0) return { suggested: 0, dispatched: 0, heldForReview: 0, reason: "no rule matched" };
+
+  // The same proposal-card event shape the AI routing pass writes — staff see
+  // rule matches identically, whether or not auto-dispatch acts on them.
+  await repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: input.requestId,
+    kind: "ai_action",
+    actorUserId: null,
+    summary: `Routing rules matched ${suggestions.length} department(s)`,
+    payload: { pipeline: "routing_rules", suggestions, uncovered: [] },
+    createdAt: deps.now(),
+  });
+
+  const result = await autoDispatchSuggestions(deps, {
+    agencyId: input.agencyId,
+    requestId: input.requestId,
+    suggestions,
+  });
+  return { ...result, suggested: suggestions.length };
 }
 
 /**

@@ -88,21 +88,26 @@
     --primary-hover: #6295d6;
     --primary-ink: #0f1319;
     --primary-tint: #1f2a3a;
-    /* Dark-mode maroon: the deepest crimson-burgundy that still passes AA
-       for small text on --paper (~4.6:1). The previous #d4909a read PINK —
-       a lightened maroon must keep saturation and stay near the red end,
-       not drift pastel. Buttons don't need a lightened value at all: a true
-       maroon fill with white ink works on any background. */
-    --maroon: #c9686a;
+    /* Dark-mode maroon: pink is what happens when a lightened red loses
+       saturation — #c9686a (s≈47%) read pink AND only hit 4.05:1 on
+       surface-2. At the lightness AA forces (~l64), saturation is the only
+       anti-pink lever: #f25a5f is h358/s85, unmistakably red, and passes AA
+       on every background it sits on (5.5:1 paper, 4.6:1 surface-2).
+       Buttons don't need a lightened value at all: a true maroon fill with
+       white ink works on any background. */
+    --maroon: #f25a5f;
     --maroon-btn: #8a2637;
     --maroon-tint: #2c1a1e;
-    --accent: #c9686a;
+    --accent: #f25a5f;
     --gold: #d8b13c;
 
     --ai: #3fb6d3;
     --ai-tint: #14262c;
 
-    --overdue: #ff9c8f;
+    /* Error red, not salmon: #ff9c8f had MORE contrast than needed (8.2:1)
+       — over-lightening is what made it pastel. h5/s90 stays a true alarm
+       red at 5.1:1 on its pill background, 4.6:1 on surface-2. */
+    --overdue: #f65a4c;
     --overdue-bg: #2c1a18;
     --overdue-border: #6b322b;
     --due: #f5b855;

@@ -20,6 +20,52 @@ import type { StaffRole } from "@/services/repository";
 export type AdminResult = { ok: true } | { ok: false; error: string };
 
 /**
+ * Deterministic routing rules (src/domain/workflow.ts): keyword→department
+ * policy applied at filing, no model in the loop. Admin-only; logged.
+ */
+export async function updateRoutingRulesAction(input: {
+  agencySlug: string;
+  rules: { departmentId: string; keywords: string }[];
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+    const departments = await repo.listDepartments(agencyId);
+    const valid = new Set(departments.map((d) => d.id));
+    const rules = input.rules
+      .filter((r) => valid.has(r.departmentId))
+      .map((r) => ({
+        departmentId: r.departmentId,
+        keywords: r.keywords
+          .split(",")
+          .map((k) => k.trim().toLowerCase())
+          .filter((k) => k.length >= 2)
+          .slice(0, 30),
+      }))
+      .filter((r) => r.keywords.length > 0);
+
+    await repo.updateAgency(agencyId, { defaultRoutingRules: rules.length > 0 ? rules : null });
+    const deptName = new Map(departments.map((d) => [d.id, d.name]));
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "routing_rules_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary:
+        rules.length > 0
+          ? `Routing rules set for ${rules.map((r) => deptName.get(r.departmentId)).join(", ")}`
+          : "Routing rules cleared",
+      payload: { rules },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    return { ok: true };
+  } catch (e) {
+    console.error("updateRoutingRules failed", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Could not save routing rules." };
+  }
+}
+
+/**
  * Workflow automation policy (src/domain/workflow.ts) — opt-in auto-assignment
  * and confidence-gated auto-dispatch. Admin-only; the change itself is logged
  * to the append-only admin audit.

@@ -68,6 +68,49 @@ export function pickCoordinator(candidates: AssignableCoordinator[]): string | n
   return best.userId;
 }
 
+// --- deterministic department routing (data, not code — like statutes) -----
+
+/**
+ * A routing rule is explicit agency policy: "requests mentioning these terms
+ * go to this department." No model involved, so rules work with zero AI
+ * configuration and carry full confidence (1.0) into auto-dispatch — the
+ * agency itself said so.
+ */
+export interface RoutingRule {
+  departmentId: string;
+  /** Case-insensitive terms/phrases; single words match on word boundaries. */
+  keywords: string[];
+}
+
+export interface RuleMatch {
+  departmentId: string;
+  /** The keywords that fired — the rationale shown to staff. */
+  matched: string[];
+}
+
+export function applyRoutingRules(
+  rules: RoutingRule[] | null | undefined,
+  text: string,
+): RuleMatch[] {
+  if (!rules?.length || !text) return [];
+  const haystack = text.toLowerCase();
+  const out: RuleMatch[] = [];
+  for (const rule of rules) {
+    const matched = (rule.keywords ?? []).filter((kw) => {
+      const needle = kw.trim().toLowerCase();
+      if (!needle) return false;
+      // Word-boundary match for plain words ("po" must not hit "report");
+      // substring match for phrases and terms with punctuation.
+      if (/^[a-z0-9]+$/.test(needle)) {
+        return new RegExp(`\\b${needle}\\b`).test(haystack);
+      }
+      return haystack.includes(needle);
+    });
+    if (matched.length > 0) out.push({ departmentId: rule.departmentId, matched });
+  }
+  return out;
+}
+
 /** Roles that can own a request end-to-end (queue triage + release authority). */
 export const ASSIGNABLE_ROLES = ["admin", "coordinator"] as const;
 

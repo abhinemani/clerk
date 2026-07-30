@@ -5,7 +5,7 @@ import { AnswerBox } from "./AnswerBox";
 import { RequestTracker } from "./RequestTracker";
 
 /** Resident front door: find a record now, or track a request already filed. */
-export function PortalTabs({ agencySlug }: { agencySlug: string }) {
+export function PortalTabs({ agencySlug, aiEnabled = false }: { agencySlug: string; aiEnabled?: boolean }) {
   const [tab, setTab] = useState<"find" | "track">("find");
 
   return (
@@ -49,7 +49,7 @@ export function PortalTabs({ agencySlug }: { agencySlug: string }) {
         ))}
       </div>
 
-      {tab === "find" ? <AnswerBox agencySlug={agencySlug} /> : <RequestTracker agencySlug={agencySlug} />}
+      {tab === "find" ? <AnswerBox agencySlug={agencySlug} aiEnabled={aiEnabled} /> : <RequestTracker agencySlug={agencySlug} />}
     </div>
   );
 }

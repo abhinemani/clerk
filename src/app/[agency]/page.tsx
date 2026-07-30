@@ -33,7 +33,7 @@ export default async function Portal({ params }: { params: Promise<{ agency: str
           Ask in plain language. Many records are already public — you can often get what you need in
           seconds, without filing a request.
         </p>
-        <PortalTabs agencySlug={agency.slug} />
+        <PortalTabs agencySlug={agency.slug} aiEnabled={Boolean(process.env.ANTHROPIC_API_KEY)} />
         <div
           style={{
             display: "flex",

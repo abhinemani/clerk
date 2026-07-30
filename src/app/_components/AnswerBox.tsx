@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import type { ArchiveItem } from "@/lib/archive";
-import { logDeflectionAction, searchArchiveAction } from "../[agency]/actions";
+import { askRecordsAgentAction, logDeflectionAction, searchArchiveAction } from "../[agency]/actions";
 import { SparkIcon } from "./ui";
+
+interface AgentTurn {
+  role: "user" | "assistant";
+  text: string;
+  items?: ArchiveItem[];
+  suggestedRequest?: string | null;
+}
 
 /**
  * The portal front door (§6.7): a question box, not a form. Answers from the
@@ -13,14 +20,42 @@ import { SparkIcon } from "./ui";
  * documents server-side; every download or scope-down is logged as a
  * Deflection — the ROI number agencies show their councils.
  */
-export function AnswerBox({ agencySlug }: { agencySlug: string }) {
+export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: string; aiEnabled?: boolean }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ArchiveItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [downloaded, setDownloaded] = useState<string | null>(null);
   const seq = useRef(0);
 
+  // Multi-turn agent thread (§6.7 answer → narrow → file). Empty = search-only.
+  const [thread, setThread] = useState<AgentTurn[]>([]);
+  const [asking, startAsking] = useTransition();
+  const [agentDown, setAgentDown] = useState(!aiEnabled);
+
   const asked = query.trim().length >= 3;
+
+  function ask() {
+    const message = query.trim();
+    if (!aiEnabled || agentDown || message.length < 3 || asking) return;
+    const history = thread.map((t) => ({ role: t.role, text: t.text }));
+    setThread((prev) => [...prev, { role: "user", text: message }]);
+    setQuery("");
+    startAsking(async () => {
+      const res = await askRecordsAgentAction({ agencySlug, history, message });
+      if (!res.enabled) {
+        setAgentDown(true); // degrade to instant search; keep what they typed
+        setThread((prev) => prev.slice(0, -1));
+        setQuery(message);
+        return;
+      }
+      // Deflections stay honest: logged on actual downloads (the buttons on
+      // cited records) and scope-downs — never merely for answering.
+      setThread((prev) => [
+        ...prev,
+        { role: "assistant", text: res.message, items: res.items, suggestedRequest: res.suggestedRequest },
+      ]);
+    });
+  }
 
   // Debounced live search against the tenant's public corpus.
   useEffect(() => {
@@ -65,14 +100,108 @@ export function AnswerBox({ agencySlug }: { agencySlug: string }) {
         </span>
         <input
           className="field"
-          style={{ paddingLeft: 44, fontSize: "1.05rem", paddingBlock: 15 }}
-          placeholder="e.g. the Acme paving contract, 2024 council minutes…"
+          style={{ paddingLeft: 44, fontSize: "1.05rem", paddingBlock: 15, paddingRight: aiEnabled && !agentDown ? 84 : undefined }}
+          placeholder={
+            aiEnabled && !agentDown
+              ? "Ask anything — e.g. how much did the Acme paving contract cost?"
+              : "e.g. the Acme paving contract, 2024 council minutes…"
+          }
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") ask();
+          }}
           aria-label="Search public records"
           autoComplete="off"
         />
+        {aiEnabled && !agentDown && (
+          <button
+            className="btn btn-sm btn-primary"
+            style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}
+            disabled={query.trim().length < 3 || asking}
+            onClick={ask}
+          >
+            Ask
+          </button>
+        )}
       </div>
+
+      {/* The agent conversation (§6.7): answer → narrow → file. */}
+      {thread.length > 0 && (
+        <div className="card" style={{ marginTop: 12, padding: "6px 0" }}>
+          {thread.map((turn, i) =>
+            turn.role === "user" ? (
+              <div key={i} style={{ padding: "10px 16px", display: "flex", gap: 8 }}>
+                <span className="muted" style={{ fontSize: "0.82rem", flex: "none", marginTop: 2 }}>
+                  You
+                </span>
+                <span style={{ fontWeight: 550 }}>{turn.text}</span>
+              </div>
+            ) : (
+              <div key={i} style={{ padding: "10px 16px", borderTop: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ color: "var(--ai)", flex: "none", marginTop: 2 }}>
+                    <SparkIcon />
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: "0.95rem", whiteSpace: "pre-wrap" }}>{turn.text}</p>
+                    {turn.items && turn.items.length > 0 && (
+                      <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0, display: "grid", gap: 8 }}>
+                        {turn.items.map((r) => (
+                          <li
+                            key={r.id}
+                            style={{ display: "flex", gap: 12, alignItems: "flex-start", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "10px 12px" }}
+                          >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: "0.92rem" }}>{r.title}</div>
+                              <div className="muted" style={{ fontSize: "0.82rem", marginTop: 2 }}>
+                                Released {r.date}
+                              </div>
+                            </div>
+                            {r.downloadUrl ? (
+                              <a
+                                className={`btn btn-sm ${downloaded === r.id ? "" : "btn-primary"}`}
+                                href={r.downloadUrl}
+                                download
+                                onClick={() => download(r)}
+                              >
+                                {downloaded === r.id ? "✓ Downloaded" : "Download"}
+                              </a>
+                            ) : (
+                              <span className="tag">Summary</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {turn.suggestedRequest && (
+                      <div style={{ marginTop: 10, border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "10px 12px", background: "var(--surface-2)" }}>
+                        <div className="muted" style={{ fontSize: "0.78rem" }}>Drafted request — file it as-is or edit:</div>
+                        <p style={{ margin: "4px 0 0", fontSize: "0.9rem", fontStyle: "italic" }}>
+                          “{turn.suggestedRequest}”
+                        </p>
+                        <Link
+                          href={`/${agencySlug}/request?q=${encodeURIComponent(turn.suggestedRequest)}`}
+                          className="btn btn-sm btn-primary"
+                          style={{ marginTop: 8 }}
+                          onClick={loggedFileLink}
+                        >
+                          File this request →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ),
+          )}
+          {asking && (
+            <div className="muted" style={{ padding: "10px 16px", borderTop: "1px solid var(--border)", fontSize: "0.9rem" }}>
+              <SparkIcon /> Checking the public archive…
+            </div>
+          )}
+        </div>
+      )}
 
       {asked && (
         <div className="card" style={{ marginTop: 12, overflow: "hidden" }}>
