@@ -2,7 +2,33 @@
 
 Snapshot for picking this up in a fresh session.
 Repo: <https://github.com/abhinemani/clerk> · branch `main`.
-**246 tests pass, typecheck + production build clean.**
+**251 tests pass, typecheck + production build clean.**
+
+## Since 2026-07-28 (the "do them all" pass)
+- **Coordinator loop persists**: triage accept/dismiss, dispatch (real token +
+  outbox email + lifecycle transitions), accept records / send back / reassign
+  — server actions over the service layer. `/task/[token]` runs on live data;
+  responder start/submit/pushback are token-authenticated actions.
+- **Outbox** (`deliveries` table + DbNotifier): every outbound message recorded;
+  `/[agency]/app/outbox` is the dev mailbox (task links, verification links,
+  invites all land there).
+- **Per-tenant public archive**: classification='public' documents; answer-box
+  search + downloads log real Deflections. Live stats + §11 reports from DB.
+- **Security**: AUTH_SECRET required in prod (boot failure without); staff
+  authority re-read from DB on every request; login lockout (5/15min);
+  email-verification gate before claimed request history is visible;
+  per-source hashed ingestion keys (shown once at provisioning); append-only
+  admin_events audit shown on the agency admin page.
+- **Jobs + AI**: in-process job queue (globalThis; pg-boss-ready interface),
+  instrumentation.ts boots handlers + nightly deadline sweep into admin_events.
+  Filing enqueues intake triage — real drafts with ANTHROPIC_API_KEY, silent
+  no-op without. Voyage embeddings behind VOYAGE_API_KEY (fake fallback).
+- **Self-service**: password reset (both principals, enumeration-safe, 2h
+  single-use links) at /[agency]/forgot + /reset; staff invites (blank
+  password → 7-day invite link) from the admin roster.
+- **Hazard**: never run `next build`/`npm start` while the dev server holds
+  `./.pgdata` — PGlite is single-writer per process; two processes on one
+  dataDir lose writes. Stop one first (build wipes `.next` anyway).
 
 ## Structure (multi-tenant + auth, since 2026-07-28)
 - `/` — marketing site (Clerk the product). `/admin` — platform operator console

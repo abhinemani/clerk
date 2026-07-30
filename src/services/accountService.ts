@@ -221,6 +221,151 @@ function assertAgencyAdmin(actor: UserEntity, agencyId: string): void {
     throw new AccountError("Only an agency admin can manage staff accounts.");
 }
 
+// --- self-service password reset + staff invites ---------------------------
+
+/**
+ * Start a reset. Deliberately silent about whether the account exists —
+ * the response is identical either way; only a real account gets a link.
+ */
+export async function requestPasswordReset(
+  deps: ServiceDeps,
+  input: {
+    agencyId: string;
+    principal: "requester" | "staff";
+    email: string;
+    /** e.g. `${base}/${slug}/reset` — the token + kind are appended. */
+    resetLinkBase: string;
+  },
+): Promise<void> {
+  const email = normalizeEmail(input.email);
+  const kind = input.principal === "staff" ? ("reset_staff" as const) : ("reset_requester" as const);
+  const subjectId =
+    input.principal === "staff"
+      ? (await deps.repo.findUserByEmail(input.agencyId, email))?.id
+      : (await deps.repo.findRequesterByEmail(input.agencyId, email))?.id;
+  if (!subjectId) return; // same outward behavior as success
+
+  const { mintToken } = await import("@/auth/tokens");
+  const { raw } = await mintToken(deps, {
+    agencyId: input.agencyId,
+    kind,
+    subjectId,
+    ttlMs: 2 * 60 * 60 * 1000, // resets are short-lived: 2h
+  });
+  await deps.notifier?.send({
+    agencyId: input.agencyId,
+    to: email,
+    subject: "Reset your password",
+    body: [
+      `Someone (hopefully you) asked to reset this account's password.`,
+      ``,
+      `${input.resetLinkBase}?token=${raw}&kind=${kind}`,
+      ``,
+      `The link works once and expires in 2 hours. If this wasn't you, ignore it.`,
+    ].join("\n"),
+    kind: "password_reset",
+  });
+}
+
+/** Burn a reset/invite token and set the new password. */
+export async function completePasswordReset(
+  deps: ServiceDeps,
+  input: { rawToken: string; kind: "reset_requester" | "reset_staff" | "staff_invite"; password: string },
+): Promise<boolean> {
+  const policyError = passwordPolicyError(input.password);
+  if (policyError) throw new AccountError(policyError);
+
+  const { consumeToken } = await import("@/auth/tokens");
+  const token = await consumeToken(deps, input.rawToken, input.kind);
+  if (!token) return false;
+
+  const passwordHash = hashPassword(input.password);
+  let label: string;
+  if (input.kind === "reset_requester") {
+    const r = await deps.repo.updateRequester(token.agencyId, token.subjectId, { passwordHash });
+    label = r.email ?? r.id;
+  } else {
+    const u = await deps.repo.updateUser(token.agencyId, token.subjectId, { passwordHash });
+    label = u.email;
+  }
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: token.agencyId,
+    kind: input.kind === "staff_invite" ? "invite_accepted" : "password_reset",
+    actorLabel: "self-service",
+    summary:
+      input.kind === "staff_invite"
+        ? `Staff invite accepted by ${label}`
+        : `Password reset completed for ${label}`,
+    createdAt: deps.now(),
+  });
+  return true;
+}
+
+/**
+ * Agency admin invites a staff member: account created with NO password; a
+ * single-use invite link (7 days) lets them set their own. Nobody has to
+ * hand credentials around.
+ */
+export async function inviteStaffUser(
+  deps: ServiceDeps,
+  input: {
+    agencyId: string;
+    actor: UserEntity;
+    email: string;
+    name: string;
+    role: StaffRole;
+    inviteLinkBase: string;
+  },
+): Promise<UserEntity> {
+  assertAgencyAdmin(input.actor, input.agencyId);
+  const email = normalizeEmail(input.email);
+  if (!email.includes("@")) throw new AccountError("Enter a valid email address.");
+  if (await deps.repo.findUserByEmail(input.agencyId, email))
+    throw new AccountError("A staff account with this email already exists.");
+
+  const user = await deps.repo.createUser({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    email,
+    name: input.name.trim() || null,
+    role: input.role,
+    passwordHash: null, // cannot sign in until the invite is accepted
+  });
+
+  const { mintToken } = await import("@/auth/tokens");
+  const { raw } = await mintToken(deps, {
+    agencyId: input.agencyId,
+    kind: "staff_invite",
+    subjectId: user.id,
+    ttlMs: 7 * 24 * 60 * 60 * 1000,
+  });
+  await deps.notifier?.send({
+    agencyId: input.agencyId,
+    to: email,
+    subject: `You've been added to the records team`,
+    body: [
+      `${input.actor.name ?? input.actor.email} added you as ${input.role}.`,
+      `Set your password to activate your account:`,
+      ``,
+      `${input.inviteLinkBase}?token=${raw}&kind=staff_invite`,
+      ``,
+      `The link works once and expires in 7 days.`,
+    ].join("\n"),
+    kind: "staff_invite",
+  });
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "staff_invited",
+    actorLabel: input.actor.name ?? input.actor.email,
+    summary: `Invited ${user.name ?? email} as ${input.role}`,
+    payload: { userId: user.id, role: input.role },
+    createdAt: deps.now(),
+  });
+  return user;
+}
+
 // --- platform operator (cross-tenant; gated by requirePlatformAdmin above) --
 
 /** Root URL segments a tenant slug may not shadow. */

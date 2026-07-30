@@ -141,8 +141,12 @@ export default async function RequestDetail({
           </div>
         </aside>
 
-        {/* Center + right — the interactive workspace (client) */}
+        {/* Center + right — the interactive workspace (client). The key is a
+            fingerprint of server state: after router.refresh() delivers new
+            data, the component remounts with authoritative props instead of
+            keeping stale optimistic useState. */}
         <RequestWorkspace
+          key={`${r.status}|${r.interpretedScope}|${r.tasks.map((t) => `${t.id}:${t.status}:${t.uploads.length}`).join(",")}`}
           requestId={r.id}
           live={detail.source === "live"}
           triage={{

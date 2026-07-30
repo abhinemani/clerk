@@ -65,7 +65,11 @@ function constantTimeEquals(a: string, b: string): boolean {
  */
 function resolveAuthSecret(): string {
   if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
-  if (process.env.NODE_ENV === "production") {
+  // `next build` evaluates this module with NODE_ENV=production but no env —
+  // enforce at runtime only, so a server actually SERVING without a secret
+  // refuses to come up.
+  const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+  if (process.env.NODE_ENV === "production" && !isBuildPhase) {
     throw new Error(
       "AUTH_SECRET is required in production (any long random string). Refusing to start with the known dev secret.",
     );

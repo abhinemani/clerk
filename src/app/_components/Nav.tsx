@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { portalSignOut } from "../[agency]/actions";
 import { CivicIcon, Seal } from "./ui";
 
 export interface NavSession {
@@ -46,9 +47,31 @@ export function Nav({
               An official website of the {agencyName}, {stateName}
             </strong>
           </span>
-          <span className="muted-inverse hide-sm" style={{ marginLeft: "auto" }}>
-            {session ? `Signed in as ${session.name}` : "Office of the City Clerk · Public Records Division"}
-          </span>
+          {session ? (
+            <span className="hide-sm" style={{ marginLeft: "auto", display: "inline-flex", gap: 10, alignItems: "center" }}>
+              <span className="muted-inverse">Signed in as {session.name}</span>
+              <form action={portalSignOut.bind(null, agencySlug)} style={{ display: "inline" }}>
+                <button
+                  type="submit"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    color: "#dde5f0",
+                    textDecoration: "underline",
+                    font: "inherit",
+                  }}
+                >
+                  Sign out
+                </button>
+              </form>
+            </span>
+          ) : (
+            <span className="muted-inverse hide-sm" style={{ marginLeft: "auto" }}>
+              Office of the City Clerk · Public Records Division
+            </span>
+          )}
         </div>
       </div>
 

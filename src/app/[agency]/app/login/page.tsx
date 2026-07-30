@@ -25,6 +25,8 @@ export default async function StaffLoginPage({ params }: { params: Promise<{ age
       <AuthForm agencySlug={agency.slug} mode="staff-signin" />
       <p className="muted" style={{ fontSize: "0.9rem", marginTop: 16 }}>
         Resident? <Link href={`/${agency.slug}/login`}>Sign in here</Link>.
+        {" · "}
+        <Link href={`/${agency.slug}/forgot?staff=1`}>Forgot password?</Link>
       </p>
     </div>
   );

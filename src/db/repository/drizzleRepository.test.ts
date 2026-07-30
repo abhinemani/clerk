@@ -136,6 +136,104 @@ describe("DrizzleRepository (embedded PGlite)", () => {
     expect((await repo.listAgencyTasks(AG2)).some((t) => t.id === task.id)).toBe(false);
   });
 
+  it("persists accounts, tokens, deliveries, admin events, and sources (auth foundation)", async () => {
+    // Staff accounts.
+    const user = await repo.createUser({
+      id: crypto.randomUUID(),
+      agencyId: AG1,
+      email: "auth-test@riverton.gov",
+      name: "Auth Test",
+      role: "reviewer",
+      passwordHash: "salt:deadbeef",
+    });
+    expect((await repo.findUserByEmail(AG1, "auth-test@riverton.gov"))?.id).toBe(user.id);
+    expect(await repo.findUserByEmail(AG2, "auth-test@riverton.gov")).toBeNull(); // tenant isolation
+    const promoted = await repo.updateUser(AG1, user.id, { role: "admin" });
+    expect(promoted.role).toBe("admin");
+
+    // Requester verification state round-trips.
+    const requester = await repo.createRequester({
+      id: crypto.randomUUID(),
+      agencyId: AG1,
+      email: "verify@ex.com",
+      name: "V",
+      type: "individual",
+      passwordHash: "salt:beef",
+      emailVerifiedAt: null,
+    });
+    const verified = await repo.updateRequester(AG1, requester.id, { emailVerifiedAt: new Date() });
+    expect(verified.emailVerifiedAt).not.toBeNull();
+
+    // Auth tokens: hash lookup + single-use marking.
+    const token = await repo.createAuthToken({
+      id: crypto.randomUUID(),
+      agencyId: AG1,
+      kind: "verify_email",
+      subjectId: requester.id,
+      tokenHash: "abc123hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: null,
+      createdAt: new Date(),
+    });
+    expect((await repo.findAuthTokenByHash("abc123hash"))?.id).toBe(token.id);
+    await repo.markAuthTokenUsed(token.id, new Date());
+    expect((await repo.findAuthTokenByHash("abc123hash"))?.usedAt).not.toBeNull();
+
+    // Outbox + admin audit, tenant-scoped.
+    await repo.createDelivery({
+      id: crypto.randomUUID(),
+      agencyId: AG1,
+      toEmail: "x@y.com",
+      subject: "s",
+      body: "b",
+      kind: "task_dispatch",
+      requestId: null,
+      taskId: null,
+      createdAt: new Date(),
+    });
+    expect((await repo.listDeliveries(AG1)).length).toBeGreaterThanOrEqual(1);
+    expect(await repo.listDeliveries(AG2)).toHaveLength(0);
+
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId: AG1,
+      kind: "staff_created",
+      actorLabel: "test",
+      summary: "added someone",
+      createdAt: new Date(),
+    });
+    expect((await repo.listAdminEvents(AG1)).some((e) => e.kind === "staff_created")).toBe(true);
+
+    // Ingestion sources: key-hash lookup is agency-scoped.
+    await repo.createSource({
+      id: crypto.randomUUID(),
+      agencyId: AG1,
+      name: "Ingestion API",
+      type: "api_push",
+      apiKeyHash: "feedface",
+      trust: "auto_publish",
+      defaultClassification: "public",
+    });
+    expect((await repo.findSourceByApiKeyHash(AG1, "feedface"))?.name).toBe("Ingestion API");
+    expect(await repo.findSourceByApiKeyHash(AG2, "feedface")).toBeNull();
+  });
+
+  it("lists only public documents for the portal archive", async () => {
+    await repo.upsertDocumentByExternalId({
+      id: crypto.randomUUID(), agencyId: AG1, sourceId: null, externalSystemId: "pub-1",
+      filename: "pub.pdf", classification: "public", recordType: "minutes", processingStatus: "ready",
+      metadata: { title: "Public Minutes" }, createdAt: new Date(),
+    });
+    await repo.upsertDocumentByExternalId({
+      id: crypto.randomUUID(), agencyId: AG1, sourceId: null, externalSystemId: "int-1",
+      filename: "internal.pdf", classification: "internal", recordType: "memo", processingStatus: "ready",
+      metadata: {}, createdAt: new Date(),
+    });
+    const pub = await repo.listPublicDocuments(AG1);
+    expect(pub.some((d) => d.externalSystemId === "pub-1")).toBe(true);
+    expect(pub.some((d) => d.externalSystemId === "int-1")).toBe(false); // internal never leaks
+  });
+
   it("idempotently upserts an ingested document by external id", async () => {
     const first = await repo.upsertDocumentByExternalId({
       id: crypto.randomUUID(), agencyId: AG1, sourceId: null, externalSystemId: "po-100",

@@ -50,12 +50,16 @@ export function StaffRoster({ agencySlug, rows }: { agencySlug: string; rows: Ro
     setError(null);
     setAdded(null);
     startTransition(async () => {
-      const result = await addStaffMember({ agencySlug, email, name, role, password });
+      const result = await addStaffMember({ agencySlug, email, name, role, password: password || undefined });
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      setAdded(`${name || email} added as ${ROLE_LABEL[role].toLowerCase()}.`);
+      setAdded(
+        password
+          ? `${name || email} added as ${ROLE_LABEL[role].toLowerCase()}.`
+          : `${name || email} invited as ${ROLE_LABEL[role].toLowerCase()} — the invite link is in the outbox.`,
+      );
       setName("");
       setEmail("");
       setPassword("");
@@ -141,17 +145,19 @@ export function StaffRoster({ agencySlug, rows }: { agencySlug: string; rows: Ro
           </div>
           <div className="stack" style={{ gap: 6 }}>
             <label className="lbl" htmlFor="r-pass">
-              Initial password
+              Initial password{" "}
+              <span className="muted" style={{ fontWeight: 400 }}>
+                (optional)
+              </span>
             </label>
             <input
               id="r-pass"
               type="text"
               className="field"
-              required
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="They can change it later"
+              placeholder="Leave blank to send an invite link"
             />
           </div>
         </div>

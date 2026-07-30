@@ -25,6 +25,8 @@ export default async function ResidentLoginPage({ params }: { params: Promise<{ 
       <p className="muted" style={{ fontSize: "0.9rem", marginTop: 16 }}>
         New here? <Link href={`/${agency.slug}/register`}>Create an account</Link>.
         {" · "}
+        <Link href={`/${agency.slug}/forgot`}>Forgot password?</Link>
+        {" · "}
         Work for the {agency.name}? <Link href={`/${agency.slug}/app/login`}>Staff sign-in</Link>.
       </p>
     </div>

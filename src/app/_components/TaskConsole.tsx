@@ -27,8 +27,7 @@ export function TaskConsole(props: TaskConsoleProps) {
   const [pending, startTransition] = useTransition();
 
   function addFile() {
-    const n = uploads.length + 1;
-    setUploads((u) => [...u, { name: `document-${n}.pdf`, pages: 2 + n }]);
+    setUploads((u) => [...u, { name: `document-${u.length + 1}.pdf`, pages: 2 + u.length + 1 }]);
   }
 
   /** Optimistic move backed by the server action when live. */

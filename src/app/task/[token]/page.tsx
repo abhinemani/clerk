@@ -38,7 +38,8 @@ async function loadTask(token: string): Promise<TaskView | null> {
       agencyName: agency?.name ?? "Records office",
       requestPublicId: request?.publicId ?? "",
       deptName: dept?.name ?? "your department",
-      deptLead: dept?.name ?? "there",
+      // Live tasks address the department, not a named person.
+      deptLead: "there",
       scope: task.scopeText,
       dueLabel: dueDays != null ? `Coordinator needs this — internal ${daysLabel(dueDays)}` : "Coordinator needs this",
       status: task.status,

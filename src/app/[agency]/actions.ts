@@ -183,6 +183,51 @@ export async function portalSignOut(agencySlug: string): Promise<void> {
   await signOut({ redirectTo: `/${agencySlug}` });
 }
 
+/** Start a self-service reset. Always "succeeds" — no account enumeration. */
+export async function forgotPasswordAction(input: {
+  agencySlug: string;
+  principal: "requester" | "staff";
+  email: string;
+}): Promise<void> {
+  try {
+    const repo = await getRepository();
+    const agency = await repo.getAgencyBySlug(input.agencySlug);
+    if (!agency) return;
+    const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+    const { requestPasswordReset } = await import("@/services/accountService");
+    await requestPasswordReset(defaultDeps(repo), {
+      agencyId: agency.id,
+      principal: input.principal,
+      email: input.email,
+      resetLinkBase: `${baseUrl}/${input.agencySlug}/reset`,
+    });
+  } catch (e) {
+    console.error("forgotPassword failed", e); // still silent to the caller
+  }
+}
+
+export async function resetPasswordAction(input: {
+  agencySlug: string;
+  token: string;
+  kind: "reset_requester" | "reset_staff" | "staff_invite";
+  password: string;
+}): Promise<AuthResult> {
+  try {
+    const { completePasswordReset } = await import("@/services/accountService");
+    const ok = await completePasswordReset(defaultDeps(await getRepository()), {
+      rawToken: input.token,
+      kind: input.kind,
+      password: input.password,
+    });
+    if (!ok) return { ok: false, error: "That link is invalid or expired — request a new one." };
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof AccountError) return { ok: false, error: e.message };
+    console.error("resetPassword failed", e);
+    return { ok: false, error: "Could not reset the password. Please try again." };
+  }
+}
+
 async function credentialsSignIn(input: {
   agencySlug: string;
   kind: "staff" | "requester" | "platform";
