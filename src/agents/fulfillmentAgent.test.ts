@@ -9,7 +9,7 @@ import { runFulfillment } from "./fulfillmentAgent";
 const retriever = new LexicalRetriever(DEMO_CORPUS);
 
 const routing: RoutingOutput = {
-  assignments: [{ department: "Public Works", scope: "Inspection reports for 400 Main St.", rationale: "holds them" }],
+  assignments: [{ department: "Public Works", scope: "Inspection reports for 400 Main St.", rationale: "holds them", confidence: 0.9 }],
   uncovered: ["Any related police incident reports"],
 };
 

@@ -18,21 +18,36 @@ const BAND_LABEL: Record<RiskBand, string> = {
   on_track: "On track",
 };
 
-export default async function Queue({ params }: { params: Promise<{ agency: string }> }) {
-  const { agency: slug } = await params;
+export default async function Queue({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ agency: string }>;
+  searchParams: Promise<{ assignee?: string }>;
+}) {
+  const [{ agency: slug }, { assignee }] = await Promise.all([params, searchParams]);
   const staff = await requireStaff(slug);
   const ws = await getWorkspace(slug);
   if (!ws) notFound();
 
   // Closed requests are out of the race — the clock stopped at closedAt.
-  const openRequests = ws.requests.filter((r) => r.closedAt == null);
+  const allOpen = ws.requests.filter((r) => r.closedAt == null);
+  // Assignment filter (§6.3 queue ergonomics): mine / unassigned / everyone.
+  const assigneeFilter = assignee === "me" || assignee === "unassigned" ? assignee : null;
+  const openRequests = allOpen.filter((r) =>
+    assigneeFilter === "me"
+      ? r.assignedCoordinatorId === staff.userId
+      : assigneeFilter === "unassigned"
+        ? r.assignedCoordinatorId == null
+        : true,
+  );
   const closedRequests = ws.requests.filter((r) => r.closedAt != null);
 
   // The deadline agent runs its nightly sweep (pure logic, no model) and hands
   // the coordinator a morning digest (§16.1).
   const sweep = await runDeadlineSweep({
     now: ws.now,
-    queue: openRequests.map((r) => ({
+    queue: allOpen.map((r) => ({
       publicId: r.publicId,
       dueAt: r.dueAt,
       outstandingTasks: outstandingTasks(r),
@@ -52,9 +67,9 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
     })
     .sort((a, b) => byRiskDesc(a.risk, b.risk));
 
-  const open = rows.length;
+  const open = allOpen.length;
   const overdue = rows.filter((x) => x.risk.band === "overdue").length;
-  const decisions = decisionsFor(openRequests, ws.now);
+  const decisions = decisionsFor(allOpen, ws.now);
   const workload = workloadFor(ws.departments, ws.requests);
 
   // Honest numbers: computed from the live DB, or the fixture's story numbers
@@ -217,9 +232,23 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
         </pre>
       </div>
 
-      <h2 style={{ fontSize: "1.15rem", marginTop: 28, marginBottom: 12 }}>
-        Open requests <span className="muted" style={{ fontWeight: 400, fontSize: "0.9rem" }}>· by deadline risk</span>
-      </h2>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginTop: 28, marginBottom: 12, flexWrap: "wrap" }}>
+        <h2 style={{ fontSize: "1.15rem", margin: 0 }}>
+          Open requests <span className="muted" style={{ fontWeight: 400, fontSize: "0.9rem" }}>· by deadline risk</span>
+        </h2>
+        {/* Assignment filter (§6.3): the queue at a glance vs. just my desk. */}
+        <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+          {[
+            { label: "All", href: `/${slug}/app`, active: assigneeFilter === null },
+            { label: "Mine", href: `/${slug}/app?assignee=me`, active: assigneeFilter === "me" },
+            { label: "Unassigned", href: `/${slug}/app?assignee=unassigned`, active: assigneeFilter === "unassigned" },
+          ].map((f) => (
+            <Link key={f.label} href={f.href} className={`btn btn-sm${f.active ? " btn-primary" : ""}`}>
+              {f.label}
+            </Link>
+          ))}
+        </div>
+      </div>
 
       <div className="card" style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
@@ -248,6 +277,15 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
                     </Link>
                     <div style={{ display: "flex", gap: 8, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
                       <span className="mono muted">{r.publicId}</span>
+                      {r.assignedCoordinatorName && (
+                        <span
+                          className="pill"
+                          title="Assigned coordinator"
+                          style={r.assignedCoordinatorId === staff.userId ? { fontWeight: 600 } : undefined}
+                        >
+                          {r.assignedCoordinatorId === staff.userId ? "Mine" : r.assignedCoordinatorName}
+                        </span>
+                      )}
                       {r.triageReady && <AiPill>Triage ready</AiPill>}
                       {r.redFlags.map((f) => (
                         <span key={f} className="pill band-overdue" title="Statutory red flag">
@@ -278,7 +316,9 @@ export default async function Queue({ params }: { params: Promise<{ agency: stri
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="muted" style={{ padding: 20 }}>
-                    No requests yet — file one from the portal and it lands here.
+                    {assigneeFilter
+                      ? "Nothing matches this filter."
+                      : "No requests yet — file one from the portal and it lands here."}
                   </td>
                 </tr>
               )}

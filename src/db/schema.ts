@@ -214,6 +214,14 @@ export const agencies = pgTable("agencies", {
   observedHolidays: jsonb("observed_holidays").$type<string[]>().default([]),
   portalSettings: jsonb("portal_settings").$type<Record<string, unknown>>(),
   defaultRoutingRules: jsonb("default_routing_rules").$type<Record<string, unknown>>(),
+  // Per-agency workflow automation policy (auto-assignment / auto-dispatch).
+  // Opt-in: absent or false means today's fully manual coordinator flow.
+  workflowSettings: jsonb("workflow_settings").$type<{
+    autoAssign?: boolean;
+    autoDispatch?: boolean;
+    /** Minimum routing-suggestion confidence (0–1) to dispatch unattended. */
+    autoDispatchConfidence?: number;
+  }>(),
   ...timestamps,
 });
 

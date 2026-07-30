@@ -116,6 +116,16 @@ Also complete:
   pipelines all LIVE now except requesterAgent multi-turn; `src/agents/`
   holds the §16.1 five agents + tier/budget framework (built, tested,
   NOT wired — Phase 5).
+- **Workflow automation** (`src/domain/workflow.ts`): opt-in per-agency
+  `agencies.workflow_settings` (migration 0005) — auto-assign (least-loaded
+  coordinator at intake, deterministic tiebreak) and confidence-gated
+  auto-dispatch (routing suggestions ≥ threshold dispatch unattended from the
+  triage job via `autoDispatchSuggestions`; guard rails: only fresh requests,
+  never when tasks exist). Routing pipeline now emits per-assignment
+  `confidence` (prompt v2026-07-30.1). UI: queue assignee chips +
+  All/Mine/Unassigned filter, detail-page reassign select, admin "Workflow
+  automation" card. Riverton seeds with both ON (+ second coordinator
+  casey@riverton.gov / riverton-demo2); everything defaults OFF elsewhere.
 - **Statutes**: `src/statute/` — pure `computeDueDate()` (incl. extension
   validation), profiles for CA/TX/IL/WA/NY (data, not code).
 - **Design**: Public Sans + Source Serif 4; navy/gold/maroon civic triad in
@@ -132,9 +142,10 @@ export PATH="/opt/homebrew/bin:$PATH"   # Node is Homebrew-installed
 npm install && npm test && npm run seed && npm run dev   # :3000
 ```
 Demo credentials (seed prints them): Riverton staff `dana@riverton.gov` /
-`riverton-demo` · resident `jordan@rivertonledger.com` / `riverton-resident`
-· Bellmar staff `amara@bellmar.gov` / `bellmar-demo` · platform
-`admin@clerk.example` / `clerk-admin-dev`.
+`riverton-demo` · coordinator `casey@riverton.gov` / `riverton-demo2` ·
+resident `jordan@rivertonledger.com` / `riverton-resident` · Bellmar staff
+`amara@bellmar.gov` / `bellmar-demo` · platform `admin@clerk.example` /
+`clerk-admin-dev`.
 
 Seeded demo moments: Wei's request = full closed cycle with real PDF
 download; Jordan's = clarification round-trip (reply as Jordan, or via the
@@ -219,10 +230,10 @@ records office runs Tuesday on this." Tiered by adoption impact.
    chunk 0 is taken by archive entries), staff-scoped hybrid search, and
    "attach to request" from results. Turns the corpus into fulfillment
    leverage instead of storage.
-5. **Queue ergonomics at volume.** Real offices run hundreds of open
-   requests: saved filters, bulk actions, and per-coordinator assignment
-   (`assigned_coordinator_id` exists in schema, unused). Cheap, big daily
-   payoff.
+5. **Queue ergonomics at volume.** Partially done: per-coordinator
+   assignment (auto + manual, evented) and Mine/Unassigned filters shipped
+   with the workflow-automation work. Still open: saved filters and bulk
+   actions.
 6. **Compliance exports.** The §11 reporting module computes the numbers;
    ship the artifacts counsel actually asks for: annual-report packet
    (CSV/PDF) and a per-request defensibility bundle (timeline + letters +

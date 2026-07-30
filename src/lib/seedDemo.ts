@@ -7,6 +7,7 @@
  * Idempotent: a seeded database returns { seeded: false } untouched.
  */
 import { blobKey, checksumOf, getBlobStore } from "@/adapters/blobStore";
+import { hashPassword } from "@/auth/passwords";
 import { extractText } from "@/adapters/textExtract";
 import { getDb, getRepository } from "@/db/createRepository";
 import { departments } from "@/db/schema";
@@ -65,6 +66,21 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
   if (!created) return { seeded: false };
 
   const deps = defaultDeps(await getRepository());
+
+  // A second coordinator + workflow automation ON for Riverton, so the demo
+  // shows requests load-balancing across a real roster (and, with an AI key,
+  // high-confidence routing dispatching itself).
+  await deps.repo.createUser({
+    id: deps.genId(),
+    agencyId,
+    email: "casey@riverton.gov",
+    name: "Casey Trinh",
+    role: "coordinator",
+    passwordHash: hashPassword("riverton-demo2"),
+  });
+  await deps.repo.updateAgency(agencyId, {
+    workflowSettings: { autoAssign: true, autoDispatch: true, autoDispatchConfidence: 0.85 },
+  });
 
   // Riverton: two requests + a registered resident who owns the first one.
   const jordanRequest = await submitRequest(deps, {
@@ -298,6 +314,7 @@ export function printCredentials() {
   console.log(`
 Demo credentials
   Riverton staff admin   /riverton/app/login   dana@riverton.gov / riverton-demo
+  Riverton coordinator   /riverton/app/login   casey@riverton.gov / riverton-demo2
   Riverton resident      /riverton/login       jordan@rivertonledger.com / riverton-resident
   Bellmar staff admin    /bellmar/app/login    amara@bellmar.gov / bellmar-demo
   Platform operator      /admin/login          admin@clerk.example / clerk-admin-dev

@@ -70,6 +70,9 @@ export interface RequestVM {
   closedAt: Date | null;
   tasks: TaskVMData[];
   triageReady: boolean;
+  /** Owning coordinator (§6.3 queue ergonomics); null = unassigned. */
+  assignedCoordinatorId: string | null;
+  assignedCoordinatorName: string | null;
 }
 
 export interface DeptVM {
@@ -130,17 +133,19 @@ export async function getWorkspace(slug: string): Promise<Workspace | null> {
   const agency = await repo.getAgencyBySlug(slug);
   if (!agency) return slug === DEMO_AGENCY.slug ? demoWorkspace() : null;
 
-  // Four batched queries — no per-request round trips.
-  const [requests, allTasks, departments, allRequesters] = await Promise.all([
+  // Five batched queries — no per-request round trips.
+  const [requests, allTasks, departments, allRequesters, staffUsers] = await Promise.all([
     repo.listRequests(agency.id),
     repo.listAgencyTasks(agency.id),
     repo.listDepartments(agency.id),
     repo.listRequesters(agency.id),
+    repo.listUsers(agency.id),
   ]);
 
   const deptVMs = departments.map(toDeptVM);
   const deptById = new Map(deptVMs.map((d) => [d.id, d]));
   const requesterById = new Map(allRequesters.map((r) => [r.id, r]));
+  const staffNameById = new Map(staffUsers.map((u) => [u.id, u.name ?? u.email]));
   const tasksByRequest = new Map<string, TaskEntity[]>();
   for (const t of allTasks) {
     const list = tasksByRequest.get(t.requestId) ?? [];
@@ -151,7 +156,7 @@ export async function getWorkspace(slug: string): Promise<Workspace | null> {
   const now = new Date();
   const vms = requests.map((r) => {
     const requester = r.requesterId ? requesterById.get(r.requesterId) : undefined;
-    return toRequestVM(r, tasksByRequest.get(r.id) ?? [], deptById, requester ?? null, now);
+    return toRequestVM(r, tasksByRequest.get(r.id) ?? [], deptById, requester ?? null, now, staffNameById);
   });
 
   return {
@@ -320,10 +325,14 @@ function toRequestVM(
   deptById: Map<string, DeptVM>,
   requester: Pick<Requester, "name" | "type" | "email"> | null,
   now: Date,
+  staffNameById?: Map<string, string>,
 ): RequestVM {
   return {
     id: r.id,
     publicId: r.publicId,
+    assignedCoordinatorId: r.assignedCoordinatorId ?? null,
+    assignedCoordinatorName:
+      (r.assignedCoordinatorId && staffNameById?.get(r.assignedCoordinatorId)) || null,
     requesterName: requester?.name ?? "Anonymous",
     requesterType: requester?.type ?? "anonymous",
     requesterEmail: requester?.email ?? null,
@@ -391,6 +400,8 @@ function demoToVM(r: DemoRequest): RequestVM {
   return {
     id: r.id,
     publicId: r.publicId,
+    assignedCoordinatorId: null,
+    assignedCoordinatorName: null,
     requesterName: r.requesterName,
     requesterType: r.requesterType,
     requesterEmail: null,

@@ -10,7 +10,7 @@ import { DEFAULT_BUDGET, ZERO_SPEND } from "./budget";
 import type { AgentPlanStep } from "@/db/schema";
 
 const routing: RoutingOutput = {
-  assignments: [{ department: "Public Works", scope: "Inspection reports.", rationale: "holds them" }],
+  assignments: [{ department: "Public Works", scope: "Inspection reports.", rationale: "holds them", confidence: 0.9 }],
   uncovered: [],
 };
 

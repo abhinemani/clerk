@@ -7,9 +7,11 @@
  * audit event.
  */
 import { assertTaskTransition } from "@/domain/taskWorkflow";
+import { effectiveWorkflowSettings } from "@/domain/workflow";
 import type { ServiceDeps } from "./deps";
 import { NotFoundError, type TaskEntity } from "./repository";
 import { defaultDispatchBody, inboundAddress, taskUrl } from "./notifications";
+import { transitionRequest } from "./requestService";
 
 export interface DispatchTaskInput {
   agencyId: string;
@@ -96,6 +98,114 @@ export async function dispatchTask(deps: ServiceDeps, input: DispatchTaskInput):
   }
 
   return task;
+}
+
+export interface AutoDispatchSuggestion {
+  departmentId: string;
+  department: string;
+  scope: string;
+  confidence: number;
+}
+
+export interface AutoDispatchResult {
+  dispatched: number;
+  heldForReview: number;
+  reason?: string;
+}
+
+/** Internal SLA for department tasks — ahead of the statutory clock. */
+const AUTO_DISPATCH_TASK_SLA_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * Confidence-gated auto-dispatch (opt-in via agency workflowSettings): routing
+ * suggestions at or above the agency's threshold become dispatched tasks with
+ * no coordinator click. Everything below the threshold stays a proposal card.
+ *
+ * Guard rails: fires only on a fresh request (submitted/in_review) with no
+ * existing tasks — a queue a human has already started working is never
+ * second-guessed. Dispatch itself goes through dispatchTask, so the audit
+ * events, no-login token, and delivery are identical to the manual path; the
+ * coordinator can recall any auto-dispatched task the same way they cancel a
+ * manual one. Department notice is internal workflow, not a requester-facing
+ * action, so invariant 4 is not in play — but every move is evented.
+ */
+export async function autoDispatchSuggestions(
+  deps: ServiceDeps,
+  input: { agencyId: string; requestId: string; suggestions: AutoDispatchSuggestion[] },
+): Promise<AutoDispatchResult> {
+  const { repo } = deps;
+  const agency = await repo.getAgency(input.agencyId);
+  if (!agency) throw new NotFoundError("Agency", input.agencyId);
+  const workflow = effectiveWorkflowSettings(agency.workflowSettings);
+  if (!workflow.autoDispatch) return { dispatched: 0, heldForReview: 0, reason: "disabled" };
+
+  const request = await repo.getRequest(input.agencyId, input.requestId);
+  if (!request) throw new NotFoundError("Request", input.requestId);
+  if (request.status !== "submitted" && request.status !== "in_review") {
+    return { dispatched: 0, heldForReview: 0, reason: `request is ${request.status}` };
+  }
+  const existing = await repo.listTasks(input.agencyId, input.requestId);
+  if (existing.length > 0) {
+    return { dispatched: 0, heldForReview: 0, reason: "tasks already exist" };
+  }
+
+  const eligible = input.suggestions.filter((s) => s.confidence >= workflow.autoDispatchConfidence);
+  const held = input.suggestions.length - eligible.length;
+  if (eligible.length === 0) return { dispatched: 0, heldForReview: held, reason: "below threshold" };
+
+  const departments = await repo.listDepartments(input.agencyId);
+  const deptById = new Map(departments.map((d) => [d.id, d]));
+
+  // Same forward motion the manual dispatch action applies, system-attributed.
+  if (request.status === "submitted") {
+    await transitionRequest(deps, {
+      agencyId: input.agencyId,
+      requestId: input.requestId,
+      to: "in_review",
+      note: "First dispatch (auto)",
+    });
+  }
+  await transitionRequest(deps, {
+    agencyId: input.agencyId,
+    requestId: input.requestId,
+    to: "in_progress",
+    note: "Departments working (auto-dispatch)",
+  });
+
+  const dispatchedTo: string[] = [];
+  for (const s of eligible) {
+    const dept = deptById.get(s.departmentId);
+    if (!dept) continue;
+    await dispatchTask({ ...deps, agencyName: deps.agencyName ?? agency.name }, {
+      agencyId: input.agencyId,
+      requestId: input.requestId,
+      departmentId: dept.id,
+      departmentName: dept.name,
+      departmentEmail: dept.defaultResponderEmails[0],
+      departmentLead: dept.name,
+      scopeText: s.scope,
+      dueAt: new Date(deps.now().getTime() + AUTO_DISPATCH_TASK_SLA_MS),
+    });
+    dispatchedTo.push(dept.name);
+  }
+
+  await repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: input.requestId,
+    kind: "ai_action",
+    actorUserId: null,
+    summary: `Auto-dispatched ${dispatchedTo.length} task(s) to ${dispatchedTo.join(", ")} (confidence ≥ ${workflow.autoDispatchConfidence})${held > 0 ? `; ${held} suggestion(s) held for review` : ""}`,
+    payload: {
+      pipeline: "auto_dispatch",
+      dispatched: dispatchedTo,
+      heldForReview: held,
+      threshold: workflow.autoDispatchConfidence,
+    },
+    createdAt: deps.now(),
+  });
+
+  return { dispatched: dispatchedTo.length, heldForReview: held };
 }
 
 /**

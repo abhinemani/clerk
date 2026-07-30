@@ -12,7 +12,7 @@ import { getRepository } from "@/db/createRepository";
 import { defaultDeps } from "@/services/deps";
 import { MessageError, sendStaffMessage } from "@/services/messageService";
 import { denyRequest, ReleaseError, releaseRequest, reviewDocument } from "@/services/releaseService";
-import { approveTriage, ExtensionError, extendRequest, transitionRequest } from "@/services/requestService";
+import { approveTriage, assignCoordinator, ExtensionError, extendRequest, transitionRequest } from "@/services/requestService";
 import type { ReviewDecision } from "@/services/repository";
 import {
   acceptTaskRecords,
@@ -81,6 +81,27 @@ export async function dismissTriageAction(input: {
     return { ok: true };
   } catch (e) {
     return fail("dismissTriage", e);
+  }
+}
+
+export async function assignCoordinatorAction(input: {
+  agencySlug: string;
+  requestId: string;
+  coordinatorUserId: string | null;
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    await assignCoordinator(deps, {
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      coordinatorUserId: input.coordinatorUserId || null,
+      actorUserId: staff.userId,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    revalidatePath(`/${input.agencySlug}/app`);
+    return { ok: true };
+  } catch (e) {
+    return fail("assignCoordinator", e);
   }
 }
 

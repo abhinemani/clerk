@@ -10,6 +10,7 @@ const valid: RoutingOutput = {
       department: "Public Works",
       scope: "Locate all inspection reports for 400 Main St, Jan 2024–present.",
       rationale: "Inspection reports are held by Public Works.",
+      confidence: 0.9,
     },
   ],
   uncovered: ["Any related police incident reports"],

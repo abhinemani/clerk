@@ -77,11 +77,28 @@ export class DrizzleRepository implements Repository {
       name: a.name,
       stateCode: a.stateCode,
       observedHolidays: a.observedHolidays,
+      workflowSettings: a.workflowSettings ?? null,
     });
     return a;
   }
+  async updateAgency(agencyId: string, patch: Pick<Agency, "workflowSettings">): Promise<Agency> {
+    await this.db
+      .update(agencies)
+      .set({ workflowSettings: patch.workflowSettings ?? null })
+      .where(eq(agencies.id, agencyId));
+    const updated = await this.getAgency(agencyId);
+    if (!updated) throw new NotFoundError("Agency", agencyId);
+    return updated;
+  }
   private toAgency(a: typeof agencies.$inferSelect): Agency {
-    return { id: a.id, slug: a.slug, name: a.name, stateCode: a.stateCode, observedHolidays: a.observedHolidays ?? [] };
+    return {
+      id: a.id,
+      slug: a.slug,
+      name: a.name,
+      stateCode: a.stateCode,
+      observedHolidays: a.observedHolidays ?? [],
+      workflowSettings: a.workflowSettings ?? null,
+    };
   }
 
   async findRequesterByEmail(agencyId: string, email: string): Promise<Requester | null> {
@@ -233,6 +250,7 @@ export class DrizzleRepository implements Repository {
       complexityScore: r.complexityScore,
       receivedAt: r.receivedAt,
       statutoryDueAt: r.statutoryDueAt,
+      assignedCoordinatorId: r.assignedCoordinatorId ?? null,
       closedAt: r.closedAt,
       createdAt: r.createdAt,
     });
@@ -264,7 +282,7 @@ export class DrizzleRepository implements Repository {
   }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>): Promise<RequestEntity> {
     const set: Record<string, unknown> = {};
-    for (const k of ["status", "interpretedScope", "recordTypes", "complexityScore", "statutoryDueAt", "receivedAt", "closedAt", "extensionHistory"] as const) {
+    for (const k of ["status", "interpretedScope", "recordTypes", "complexityScore", "statutoryDueAt", "receivedAt", "closedAt", "extensionHistory", "assignedCoordinatorId"] as const) {
       if (k in patch) set[k] = patch[k];
     }
     const rows = await this.db
@@ -289,6 +307,7 @@ export class DrizzleRepository implements Repository {
       receivedAt: r.receivedAt,
       statutoryDueAt: r.statutoryDueAt,
       extensionHistory: r.extensionHistory ?? [],
+      assignedCoordinatorId: r.assignedCoordinatorId ?? null,
       closedAt: r.closedAt,
       createdAt: r.createdAt,
     };

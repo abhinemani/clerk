@@ -11,6 +11,7 @@ import { getStateProfile } from "@/statute/profiles";
 import { composeExtensionNotice } from "@/domain/extensionNotice";
 import { formatPublicId } from "@/domain/publicId";
 import { assertTransition, type RequestStatus } from "@/domain/requestLifecycle";
+import { effectiveWorkflowSettings, isAssignableRole, pickCoordinator } from "@/domain/workflow";
 import type { ServiceDeps } from "./deps";
 import { NotFoundError, type RequestEntity, type RequesterType } from "./repository";
 
@@ -114,7 +115,85 @@ export async function submitRequest(
     createdAt: receivedAt,
   });
 
+  // Opt-in auto-assignment (src/domain/workflow.ts): load-balance the new
+  // request across coordinators so no single person routes the whole queue.
+  // Internal workflow only — deterministic, evented, reassignable in the UI.
+  const workflow = effectiveWorkflowSettings(agency.workflowSettings);
+  if (workflow.autoAssign) {
+    const [staff, open] = await Promise.all([repo.listUsers(agency.id), repo.listRequests(agency.id)]);
+    const openByUser = new Map<string, number>();
+    for (const r of open) {
+      if (r.closedAt == null && r.assignedCoordinatorId) {
+        openByUser.set(r.assignedCoordinatorId, (openByUser.get(r.assignedCoordinatorId) ?? 0) + 1);
+      }
+    }
+    const chosen = pickCoordinator(
+      staff
+        .filter((u) => isAssignableRole(u.role))
+        .map((u) => ({ userId: u.id, openAssigned: openByUser.get(u.id) ?? 0 })),
+    );
+    if (chosen) {
+      const assignee = staff.find((u) => u.id === chosen)!;
+      await repo.updateRequest(agency.id, request.id, { assignedCoordinatorId: chosen });
+      request.assignedCoordinatorId = chosen;
+      await repo.appendEvent({
+        id: deps.genId(),
+        agencyId: agency.id,
+        requestId: request.id,
+        kind: "assignment",
+        actorUserId: null,
+        summary: `Auto-assigned to ${assignee.name ?? assignee.email} (least-loaded coordinator)`,
+        payload: { assignedCoordinatorId: chosen, auto: true },
+        createdAt: deps.now(),
+      });
+    }
+  }
+
   return request;
+}
+
+export interface AssignCoordinatorInput {
+  agencyId: string;
+  requestId: string;
+  /** New owner, or null to unassign. */
+  coordinatorUserId: string | null;
+  /** The staff member making the change (named in the event). */
+  actorUserId: string;
+}
+
+/** Manual (re)assignment from the workspace — the human override for auto-assign. */
+export async function assignCoordinator(
+  deps: ServiceDeps,
+  input: AssignCoordinatorInput,
+): Promise<RequestEntity> {
+  const { repo } = deps;
+  const request = await repo.getRequest(input.agencyId, input.requestId);
+  if (!request) throw new NotFoundError("Request", input.requestId);
+
+  let assigneeLabel = "unassigned";
+  if (input.coordinatorUserId) {
+    const assignee = await repo.getUser(input.agencyId, input.coordinatorUserId);
+    if (!assignee) throw new NotFoundError("User", input.coordinatorUserId);
+    if (!isAssignableRole(assignee.role)) {
+      throw new Error(`${assignee.name ?? assignee.email} cannot own requests (role: ${assignee.role}).`);
+    }
+    assigneeLabel = assignee.name ?? assignee.email;
+  }
+
+  const updated = await repo.updateRequest(input.agencyId, request.id, {
+    assignedCoordinatorId: input.coordinatorUserId,
+  });
+  await repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: request.id,
+    kind: "assignment",
+    actorUserId: input.actorUserId,
+    summary: `Request assigned to ${assigneeLabel}`,
+    payload: { assignedCoordinatorId: input.coordinatorUserId, auto: false },
+    createdAt: deps.now(),
+  });
+  return updated;
 }
 
 export interface TransitionRequestInput {

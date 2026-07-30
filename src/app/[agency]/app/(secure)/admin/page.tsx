@@ -4,6 +4,8 @@ import { getRepository } from "@/db/createRepository";
 import { getAgencyForSlug } from "@/lib/live";
 import { requireStaff } from "@/auth/guards";
 import { StaffRoster, type RosterRow } from "../../../../_components/StaffRoster";
+import { WorkflowSettingsPanel } from "../../../../_components/WorkflowSettingsPanel";
+import { effectiveWorkflowSettings } from "@/domain/workflow";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +16,12 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
   const staff = await requireStaff(slug, ["admin"]);
 
   const repo = await getRepository();
-  const [users, activity] = await Promise.all([
+  const [users, activity, agencyRow] = await Promise.all([
     repo.listUsers(agency.id),
     repo.listAdminEvents(agency.id, 20),
+    repo.getAgency(agency.id),
   ]);
+  const workflow = effectiveWorkflowSettings(agencyRow?.workflowSettings);
   const rows: RosterRow[] = users
     .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email))
     .map((u) => ({
@@ -43,6 +47,13 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
         coordinators run requests; responders only see tasks shared with them.
       </p>
       <StaffRoster agencySlug={slug} rows={rows} />
+
+      <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>Workflow automation</h2>
+      <WorkflowSettingsPanel
+        key={`${workflow.autoAssign}|${workflow.autoDispatch}|${workflow.autoDispatchConfidence}`}
+        agencySlug={slug}
+        initial={workflow}
+      />
 
       <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>
         Account activity{" "}

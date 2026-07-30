@@ -9,6 +9,7 @@
  */
 import type { RequestStatus } from "@/domain/requestLifecycle";
 import type { TaskStatus } from "@/domain/taskWorkflow";
+import type { WorkflowSettings } from "@/domain/workflow";
 
 // --- entities (DB-agnostic domain model) -----------------------------------
 
@@ -18,6 +19,8 @@ export interface Agency {
   name: string;
   stateCode: string;
   observedHolidays: string[];
+  /** Opt-in automation policy (src/domain/workflow.ts); absent = fully manual. */
+  workflowSettings?: WorkflowSettings | null;
 }
 
 export type RequesterType =
@@ -83,6 +86,8 @@ export interface RequestEntity {
   statutoryDueAt: Date | null;
   /** Extensions taken, oldest first (invariant 7: every deadline has a basis). */
   extensionHistory?: ExtensionEntry[];
+  /** Owning coordinator (§6.3 queue ergonomics); null = unassigned. */
+  assignedCoordinatorId?: string | null;
   /** Terminal-outcome timestamp (release approved / denied / withdrawn). */
   closedAt: Date | null;
   createdAt: Date;
@@ -271,6 +276,8 @@ export interface Repository {
   /** Every tenant — platform-operator console only; never expose per-agency. */
   listAgencies(): Promise<Agency[]>;
   createAgency(a: Agency): Promise<Agency>;
+  /** Settings-only patch (workflow policy etc.) — identity fields are fixed. */
+  updateAgency(agencyId: string, patch: Pick<Agency, "workflowSettings">): Promise<Agency>;
 
   findRequesterByEmail(agencyId: string, email: string): Promise<Requester | null>;
   getRequester(agencyId: string, id: string): Promise<Requester | null>;
@@ -433,6 +440,13 @@ export class InMemoryRepository implements Repository {
   async createAgency(a: Agency) {
     this.agencies.set(a.id, a);
     return a;
+  }
+  async updateAgency(agencyId: string, patch: Pick<Agency, "workflowSettings">) {
+    const a = this.agencies.get(agencyId);
+    if (!a) throw new NotFoundError("Agency", agencyId);
+    const updated = { ...a, ...patch };
+    this.agencies.set(agencyId, updated);
+    return updated;
   }
 
   async findRequesterByEmail(agencyId: string, email: string) {

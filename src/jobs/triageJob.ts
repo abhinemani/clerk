@@ -63,6 +63,7 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
         department: a.department,
         scope: a.scope,
         rationale: a.rationale,
+        confidence: a.confidence,
       }))
       .filter((a) => a.departmentId != null);
     await repo.appendEvent({
@@ -80,6 +81,20 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
         uncovered: routing.output.uncovered,
       },
       createdAt: new Date(),
+    });
+
+    // Opt-in auto-dispatch (agency workflowSettings): high-confidence
+    // suggestions go out unattended; the rest stay proposal cards.
+    const { autoDispatchSuggestions } = await import("@/services/taskService");
+    await autoDispatchSuggestions(defaultDeps(repo), {
+      agencyId: payload.agencyId,
+      requestId: payload.requestId,
+      suggestions: suggestions.map((s) => ({
+        departmentId: s.departmentId!,
+        department: s.department,
+        scope: s.scope,
+        confidence: s.confidence,
+      })),
     });
   } catch (err) {
     // Routing is a bonus draft — a failure must not undo the triage above.

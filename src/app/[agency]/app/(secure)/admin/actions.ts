@@ -19,6 +19,46 @@ import type { StaffRole } from "@/services/repository";
 
 export type AdminResult = { ok: true } | { ok: false; error: string };
 
+/**
+ * Workflow automation policy (src/domain/workflow.ts) — opt-in auto-assignment
+ * and confidence-gated auto-dispatch. Admin-only; the change itself is logged
+ * to the append-only admin audit.
+ */
+export async function updateWorkflowSettingsAction(input: {
+  agencySlug: string;
+  autoAssign: boolean;
+  autoDispatch: boolean;
+  autoDispatchConfidence: number;
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+    const threshold = Math.min(Math.max(input.autoDispatchConfidence, 0), 1);
+    await repo.updateAgency(agencyId, {
+      workflowSettings: {
+        autoAssign: input.autoAssign,
+        autoDispatch: input.autoDispatch,
+        autoDispatchConfidence: threshold,
+      },
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "workflow_settings_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: `Workflow automation set: auto-assign ${input.autoAssign ? "on" : "off"}, auto-dispatch ${
+        input.autoDispatch ? `on (confidence ≥ ${threshold})` : "off"
+      }`,
+      payload: { autoAssign: input.autoAssign, autoDispatch: input.autoDispatch, autoDispatchConfidence: threshold },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    return { ok: true };
+  } catch (e) {
+    console.error("updateWorkflowSettings failed", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Could not save settings." };
+  }
+}
+
 async function actorFor(slug: string) {
   const staff = await requireStaff(slug, ["admin"]);
   const repo = await getRepository();

@@ -2,11 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getRepository } from "@/db/createRepository";
 import { getRequestDetail, outstandingTasks } from "@/lib/live";
+import { isAssignableRole } from "@/domain/workflow";
 import { deadlineRisk, type RiskBand } from "@/domain/deadlineRisk";
 import { canTransition } from "@/domain/requestLifecycle";
 import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/format";
 import { requireStaff } from "@/auth/guards";
 import { DeadlineBand, StatusPill } from "../../../../../_components/ui";
+import { AssigneeSelect } from "../../../../../_components/AssigneeSelect";
 import {
   CorrespondencePanel,
   type MessageVM,
@@ -77,6 +79,9 @@ export default async function RequestDetail({
     taken: ExtensionTakenVM | null;
     available: boolean;
   } | null = null;
+  // Assignment (§6.3 queue ergonomics): current owner + who could own it.
+  let assignableStaff: { id: string; name: string }[] = [];
+  let assigneeId: string | null = null;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -122,6 +127,11 @@ export default async function RequestDetail({
         (m) => m.requestId,
       );
     const staffNameById = new Map(staffUsers.map((u) => [u.id, u.name ?? u.email]));
+    assignableStaff = staffUsers
+      .filter((u) => isAssignableRole(u.role))
+      .map((u) => ({ id: u.id, name: u.name ?? u.email }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    assigneeId = rawRequest?.assignedCoordinatorId ?? null;
     messageVMs = msgs.map((m) => ({
       id: m.id,
       direction: m.direction,
@@ -238,6 +248,19 @@ export default async function RequestDetail({
               {titleCase(r.requesterType)} · received {dateShort(r.receivedAt)}
             </div>
           </div>
+
+          {detail.source === "live" && assignableStaff.length > 0 && (
+            <div className="card card-pad">
+              <div className="panel-title">Assigned coordinator</div>
+              <AssigneeSelect
+                key={assigneeId ?? "unassigned"}
+                agencySlug={slug}
+                requestId={r.id}
+                staff={assignableStaff}
+                assigneeId={assigneeId}
+              />
+            </div>
+          )}
 
           {duplicates.length > 0 && (
             <div className="card card-pad" style={{ borderColor: "var(--due-border)" }}>

@@ -18,6 +18,8 @@ export const routingSchema = z
           department: z.string(),
           scope: z.string(),
           rationale: z.string(),
+          /** Model's confidence this department holds responsive records (0–1). */
+          confidence: z.number().min(0).max(1),
         })
         .strict(),
     ),
