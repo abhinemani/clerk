@@ -4,7 +4,7 @@ Context package for continuing in a fresh session. Read this top to bottom
 before doing anything substantial; it replaces re-reading the git history.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**260 tests pass, typecheck + production build clean** (as of commit `e429e5f`).
+**298 tests pass, typecheck + production build clean** (as of commit `28c494e`).
 
 ## What this is
 Clerk — a multi-tenant, AI-native public records (FOIA) platform. One
@@ -33,6 +33,24 @@ auto-publish to the archive → the answer box deflects the next resident.
 The seed (`npm run seed`) runs Wei Chen's request through this entire cycle,
 so a fresh clone demos: a closed on-time request, 100% on-time rate, a real
 PDF download in the tracker, a letter in the outbox, and a growing archive.
+
+Three flows added since (all service-layer tested + audited):
+- **Correspondence** (`messageService`): staff↔requester threads on the
+  request detail + tracker (owner-only — tracking numbers are guessable),
+  clarification round-trip (`clarification_needed` → reply → `in_review`),
+  §6.6 AI-drafted replies (template fallback), outbox delivery. Seed:
+  Jordan's request waits on a clarification — sign in as Jordan and reply.
+- **True redaction** (`redactionService` + `textExtract` + `textPdf`):
+  extraction at upload; studio runs on real review-set documents with the
+  statute catalog as the reason picker; finalize burns spans into a
+  REGENERATED artifact (leak-checked, invariant 1), stored under
+  `redacted:{docId}`; `releaseRequest` refuses release_redacted without it
+  and ships the burned bytes. Seed: Morgan Reyes' incident report sits at
+  the redaction step with PII-laden extractable bytes.
+- **Formal denial** (`denyRequest` + `domain/denialLetter`): citation-listed
+  letter with the statute profile's appeal language verbatim, named
+  approver, denied+closedAt, letter threads into correspondence + outbox.
+  UI: the review panel swaps to a denial panel when everything is withheld.
 
 ## Architecture map (where things live)
 - **Routing**: `/` marketing · `/admin` platform-operator console (env creds)
@@ -109,27 +127,24 @@ Optional: ANTHROPIC_API_KEY (live triage), VOYAGE_API_KEY (real embeddings).
    before dispatching the form, or the click submits a native GET.
 
 ## Next steps (priority order, each is one focused session)
-1. **Requester correspondence** — the `messages` table has no UI. Build:
-   clarification threads on the request detail (staff) + portal tracker
-   (resident), outbound through the outbox, inbound via portal form;
-   `clarification_needed` status round-trip; §6.6 correspondence pipeline
-   can draft staff replies (Accept/Edit/Dismiss card, like triage).
-2. **Formal denial flow** — releaseRequest refuses all-withheld sets; build
-   the explicit denial path: exemption-cited denial letter (templates table
-   exists), status → denied + closedAt, appeal-language from the statute
-   profile, audit events.
-3. **Deploy live** — Railway/Fly single container + volume (PGLITE_PATH,
+1. **Deploy live** — Railway/Fly single container + volume (PGLITE_PATH,
    BLOB_PATH, AUTH_SECRET, platform creds, ANTHROPIC_API_KEY). Makes the
    demo shareable; the marketing site's links become real.
-4. **Wire more of the existing AI library into the live path** — routing
+2. **Wire more of the existing AI library into the live path** — routing
    suggestions (§6.3) are currently a heuristic on the detail page; the real
-   pipeline exists. Same for correspondence drafts, exemption pass in the
-   review panel, and hybrid search in the answer box (needs VOYAGE_API_KEY
-   + embedding backfill job).
-5. **Redaction studio on real documents** — it still renders a fixture;
-   point it at the request's uploaded docs (extracted text is the missing
-   piece — needs a text-extraction step in the upload job).
-6. **S3/MinIO BlobStore adapter** + pg-boss queue adapter for multi-instance
+   pipeline exists. Same for the §6.5 LLM exemption pass feeding studio
+   suggestions (only the deterministic PII pass is wired), denial-letter
+   drafting via the §6.6 pipeline, and hybrid search in the answer box
+   (needs VOYAGE_API_KEY + embedding backfill job).
+3. **Denial without documents** — the deny panel only appears when a review
+   set exists and is all-withheld; a "no responsive records / categorically
+   exempt" denial needs a surface on the request detail. `denyRequest`
+   already supports it.
+4. **Extraction breadth** — textExtract handles text files + PDF text layers
+   (incl. Flate); scans need OCR (adapter port + stub, spec §6.5) and DOCX
+   needs a zip/XML pass. Un-extractable docs currently can only be withheld
+   or released whole (by design).
+5. **S3/MinIO BlobStore adapter** + pg-boss queue adapter for multi-instance
    deployments (both ports are ready).
-7. **Platform polish** — per-agency branding (colors/seal upload — column
+6. **Platform polish** — per-agency branding (colors/seal upload — column
    exists on agencies), agency settings page, observed-holidays editor.
