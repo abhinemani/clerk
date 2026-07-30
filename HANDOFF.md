@@ -162,18 +162,27 @@ Optional: ANTHROPIC_API_KEY (live triage), VOYAGE_API_KEY (real embeddings).
    should land before anything public-facing. Then OCR for scans (adapter
    port + stub) and a DOCX zip/XML pass; un-extractable docs can currently
    only be withheld or released whole (by design).
-3. **Denial without documents** — the deny panel only appears when a review
+3. **Wire the remaining dormant pipelines** — docs/agentic-horizon.md now has
+   a curated roadmap ("Bucket A", one session each): the §6.8 coordinator
+   copilot whose proposals land on the now-existing action surfaces, the
+   §6.5 residual-PII release gate, §6.2 duplicate detection at intake (the
+   strongest deflection moment), and §6.5 auto-classification on ingest.
+   Bucket B of the same doc holds eight NEW agent concepts (proactive-
+   disclosure librarian, consistency auditor, appeal-defense packet builder,
+   third-party notice steward, and more) — those are Phase 5: document only,
+   do not build yet.
+4. **Denial without documents** — the deny panel only appears when a review
    set exists and is all-withheld; a "no responsive records / categorically
    exempt" denial needs a surface on the request detail. `denyRequest`
    already supports it.
-4. **Requester-visible deadline changes** — the extension notice reaches the
+5. **Requester-visible deadline changes** — the extension notice reaches the
    requester, but the tracker still shows only the current date; consider
    surfacing "extended on {date}, because {reason}" for transparency.
-5. **S3/MinIO BlobStore adapter** + pg-boss queue adapter for multi-instance
+6. **S3/MinIO BlobStore adapter** + pg-boss queue adapter for multi-instance
    deployments (both ports are ready). Only needed past one machine.
-6. **Platform polish** — per-agency branding (colors/seal upload — column
+7. **Platform polish** — per-agency branding (colors/seal upload — column
    exists on agencies), agency settings page, observed-holidays editor
    (holidays currently only settable via seed/DB).
-7. **Chunk-level document search (§6.4)** — archive entries embed at entry
+8. **Chunk-level document search (§6.4)** — archive entries embed at entry
    level (chunk 0); full responsive-records search over extracted text needs
    per-chunk embedding at ingest + a staff search surface.
