@@ -1,158 +1,135 @@
 # Handoff — resume here
 
-Snapshot for picking this up in a fresh session.
-Repo: <https://github.com/abhinemani/clerk> · branch `main`.
-**255 tests pass, typecheck + production build clean.**
+Context package for continuing in a fresh session. Read this top to bottom
+before doing anything substantial; it replaces re-reading the git history.
 
-## Release-and-close flow (2026-07-30) — the lifecycle is complete
-- Responder uploads become internal `documents` linked via `requestDocuments`
-  (taskService.submitTaskRecords). Coordinator decides each one
-  (release / release_redacted / withhold — exemption reason required unless
-  releasing in full) in the Review & release panel on the request detail page.
-- `releaseService.releaseRequest`: refuses undecided docs and all-withheld
-  "releases"; freezes artifacts into an immutable `releases` row with a NAMED
-  approver; transitions → fulfilled|partially_fulfilled; sets `closedAt`
-  (migration 0003; 0004 adds reviews.exemption_label); delivers the response
-  letter to the requester via the outbox; PUBLIC releases auto-publish an
-  archive document — the deflection corpus grows with every fulfillment.
-- Honest metrics everywhere: command center on-time% + Recently-closed strip
-  use real closedAt; reports map closedAt directly; closed requests leave the
-  open queue and the deadline sweep.
-- Seed runs Wei's request through the ENTIRE cycle, so a fresh clone opens
-  with a closed on-time request, a 100% on-time rate, a response letter in
-  the outbox, and "City Hall Janitorial Services Contract (2025)" in the
-  archive. Tracker shows "Your records are ready".
-- Next candidates: requester correspondence UI (messages table), formal
-  denial flow, deploy live, S3/MinIO BlobStore adapter for multi-instance.
-
-## Real file storage (2026-07-30)
-- `src/adapters/blobStore.ts`: BlobStore port + LocalBlobStore — bytes under
-  BLOB_PATH (volume) or ./.blobdata, traversal-rejecting keys, sha-256
-  checksums, content-type sidecars. Same turnkey posture as PGlite; S3/MinIO
-  slots in behind the port later.
-- Responders upload REAL files (multipart via server action, 25 MB × 20 cap);
-  each becomes a checksummed corpus document. Release artifacts reuse stored
-  checksums; redacted copies renamed.
-- One download gate — `/[agency]/files/[docId]`: public docs → anyone;
-  public-release artifacts → anyone; private-release artifacts → owning
-  requester; anything else → agency staff only. Withheld docs never leave.
-- Tracker shows real download buttons on released requests; review panel
-  filenames link to the file for staff. Seed stores an actual PDF, so the
-  demo download is a genuine `%PDF` with a checksum header.
-- Browser-verified: anonymous PDF download via public release; real .txt
-  upload from the responder page; staff 200 / anonymous 403 on internal docs.
-
-## Since 2026-07-28 (the "do them all" pass)
-- **Coordinator loop persists**: triage accept/dismiss, dispatch (real token +
-  outbox email + lifecycle transitions), accept records / send back / reassign
-  — server actions over the service layer. `/task/[token]` runs on live data;
-  responder start/submit/pushback are token-authenticated actions.
-- **Outbox** (`deliveries` table + DbNotifier): every outbound message recorded;
-  `/[agency]/app/outbox` is the dev mailbox (task links, verification links,
-  invites all land there).
-- **Per-tenant public archive**: classification='public' documents; answer-box
-  search + downloads log real Deflections. Live stats + §11 reports from DB.
-- **Security**: AUTH_SECRET required in prod (boot failure without); staff
-  authority re-read from DB on every request; login lockout (5/15min);
-  email-verification gate before claimed request history is visible;
-  per-source hashed ingestion keys (shown once at provisioning); append-only
-  admin_events audit shown on the agency admin page.
-- **Jobs + AI**: in-process job queue (globalThis; pg-boss-ready interface),
-  instrumentation.ts boots handlers + nightly deadline sweep into admin_events.
-  Filing enqueues intake triage — real drafts with ANTHROPIC_API_KEY, silent
-  no-op without. Voyage embeddings behind VOYAGE_API_KEY (fake fallback).
-- **Self-service**: password reset (both principals, enumeration-safe, 2h
-  single-use links) at /[agency]/forgot + /reset; staff invites (blank
-  password → 7-day invite link) from the admin roster.
-- **Hazard**: never run `next build`/`npm start` while the dev server holds
-  `./.pgdata` — PGlite is single-writer per process; two processes on one
-  dataDir lose writes. Stop one first (build wipes `.next` anyway).
-
-## Structure (multi-tenant + auth, since 2026-07-28)
-- `/` — marketing site (Clerk the product). `/admin` — platform operator console
-  (env creds: PLATFORM_ADMIN_EMAIL/PASSWORD, dev default admin@clerk.example /
-  clerk-admin-dev): list/onboard agencies, manage any tenant's accounts.
-- `/[agency]` — each government's portal (seal, official banner, its statute
-  profile). `/[agency]/login|register|account` resident accounts;
-  `/[agency]/app` staff workspace behind Auth.js (v5, credentials + JWT);
-  `/[agency]/app/admin` agency-admin roster. Tenant isolation enforced in
-  guards AND the repository layer. Registration claims prior email-deduped
-  requests. Anonymous filing still works (spec §3).
-- Demo credentials print from `npm run seed` (Riverton CA + Bellmar WA).
-- DB handle is memoized on globalThis (`src/db/createRepository.ts`) — Next dev
-  compiles per-route bundles; module-scope memoization opens multiple PGlite
-  handles on one dataDir and writes vanish. Don't "simplify" this back.
-- Deploy: turnkey — `npm run build && npm start` with NO env vars runs on
-  embedded PGlite (./.pgdata locally, PGLITE_PATH=/data/pgdata on a volume for
-  Railway/Fly/Render). Set AUTH_SECRET + platform admin creds in prod.
-  DATABASE_URL only needed for Vercel (ephemeral FS) / managed Postgres.
+Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
+**260 tests pass, typecheck + production build clean** (as of commit `e429e5f`).
 
 ## What this is
-Clerk — an AI-native public records (FOIA) platform. Root spec: `~/Desktop/foia.md`
-(+ `~/Desktop/agentic.md` for §16). Principle: **AI proposes, staff disposes** —
-every AI action is a reviewable draft; nothing legally significant without a named
-human. NOTE: fees/payments were removed on purpose — do not re-add.
+Clerk — a multi-tenant, AI-native public records (FOIA) platform. One
+deployment serves many governments; each gets its own portal, staff
+workspace, statute profile, and data. Root spec: `~/Desktop/foia.md`
+(+ `~/Desktop/agentic.md` for §16); repo docs in `docs/`.
+
+Operating principle (non-negotiable): **AI proposes, staff disposes.**
+Every AI output is a reviewable draft; nothing legally significant happens
+without a named human. Releases REQUIRE a named approver. `requestEvents`
+and `admin_events` are append-only. Fees/payments were removed on purpose —
+do not re-add.
+
+## Current state — the product loop is COMPLETE and real
+A request can travel its entire life with every step persisted and audited:
+
+file (portal, anonymous or signed-in) → AI intake triage (job queue, needs
+ANTHROPIC_API_KEY, silent no-op without) → coordinator accepts scope →
+dispatch to department (real token + outbox email) → responder uploads REAL
+files at no-login `/task/[token]` (blob store, checksummed) → coordinator
+accepts → per-document review (release / release_redacted / withhold, with
+exemption reasons) → release approved by a NAMED human → response letter to
+requester via outbox → `closedAt` stops the clock → public releases
+auto-publish to the archive → the answer box deflects the next resident.
+
+The seed (`npm run seed`) runs Wei Chen's request through this entire cycle,
+so a fresh clone demos: a closed on-time request, 100% on-time rate, a real
+PDF download in the tracker, a letter in the outbox, and a growing archive.
+
+## Architecture map (where things live)
+- **Routing**: `/` marketing · `/admin` platform-operator console (env creds)
+  · `/[agency]` resident portal (login/register/account/forgot/reset/verify,
+  request/track/archive) · `/[agency]/app` staff workspace behind a
+  `(secure)` route group (queue, request detail, admin roster, outbox,
+  reports, redact) · `/task/[token]` no-login responder · `/[agency]/files/
+  [docId]` the ONE download gate (entitlements: public doc → anyone;
+  public-release artifact → anyone; private-release artifact → owning
+  requester; else agency staff only).
+- **Data**: `src/db/schema.ts` (Drizzle, migrations 0000–0004 append-only).
+  `getRepository()` (`src/db/createRepository.ts`) → managed Postgres via
+  DATABASE_URL, else embedded PGlite persisting to `./.pgdata` / PGLITE_PATH.
+  Repository port + InMemory (tests) + Drizzle adapters:
+  `src/services/repository.ts`, `src/db/repository/drizzleRepository.ts`.
+- **Services** (`src/services/`): requestService (submit/transition/triage
+  approve), taskService (dispatch/start/submit-files/pushback/accept/
+  reassign), releaseService (review + named-approver release), account
+  Service (register/verify/reset/invite/roster/provisionAgency+ingest key),
+  deflectionService, notifications (DbNotifier → `deliveries` outbox).
+- **Auth** (`src/auth/`): Auth.js v5 credentials + JWT; kinds staff /
+  requester / platform; guards re-read role from DB per request; login
+  throttle; one-time hashed tokens (verify/reset/invite) in `auth_tokens`.
+- **Files**: `src/adapters/blobStore.ts` — BlobStore port + LocalBlobStore
+  (BLOB_PATH or `./.blobdata`), sha-256 checksums, traversal-rejecting keys.
+- **Jobs/AI**: `src/jobs/` in-process queue (pg-boss-ready interface) +
+  `src/instrumentation.ts` boot (registers handlers, nightly deadline sweep
+  → admin_events). Intake triage pipeline wired on filing. Voyage embeddings
+  behind VOYAGE_API_KEY (`src/ai/search/voyage.ts`), fake fallback.
+  Full §6 pipeline library + §16 agents exist in `src/ai/` + `src/agents/`
+  (tested; only intake triage is wired into the live path so far).
+- **View-model seam**: `src/lib/live.ts` — DB when the agency is seeded,
+  `src/lib/demo.ts` fixture only for unseeded `/riverton`.
+- **Design**: Public Sans body + Source Serif 4 display via next/font;
+  navy/gold/maroon civic triad in `globals.css`; gold-tab nav; audit-trail
+  timeline; letterhead motifs; navy marketing hero.
 
 ## Run it
 ```bash
 export PATH="/opt/homebrew/bin:$PATH"   # Node is Homebrew-installed
 npm install
-npm test                                # 238 tests
-npm run seed                            # seed City of Riverton into the embedded DB
-npm run dev                             # http://localhost:3000
+npm test          # 260 tests
+npm run seed      # both demo tenants + full-cycle Wei request + real PDF blob
+npm run dev       # http://localhost:3000
 ```
-Demo scripts: `npm run duedate` (no key), `npm run triage` (needs ANTHROPIC_API_KEY).
+Demo credentials (also printed by seed):
+- Riverton staff admin  `/riverton/app/login`  dana@riverton.gov / riverton-demo
+- Riverton resident     `/riverton/login`      jordan@rivertonledger.com / riverton-resident
+- Bellmar staff admin   `/bellmar/app/login`   amara@bellmar.gov / bellmar-demo
+- Platform operator     `/admin/login`         admin@clerk.example / clerk-admin-dev
 
-## Built (all tested)
-- **Schema** `src/db/schema.ts` (§5, corpus-centric, append-only audit, pgvector, publicId counter).
-- **Turnkey DB** `src/db/createRepository.ts` — `getRepository()` factory: `DATABASE_URL`
-  → managed Postgres (Neon/Vercel); else embedded **PGlite** (+pgvector) persisting to
-  `./.pgdata` locally or `PGLITE_PATH` on a volume. Migrations auto-run.
-  `src/db/repository/drizzleRepository.ts` implements the port; validated on PGlite.
-- **Statute engine** `src/statute/` — pure `computeDueDate()` (CA/TX/IL/WA/NY).
-- **Domain** `src/domain/` — lifecycle, taskWorkflow, deadlineRisk, publicId, templates,
-  redaction (true-redaction burn + §4 leak test).
-- **Services** `src/services/` — use cases over the Repository port (submitRequest,
-  transitions, task loop, notifications/dispatch delivery, activity source-of-truth,
-  deflection logging).
-- **AI (essentially complete across §6)** `src/ai/` — `runPipeline()` harness + pipelines:
-  intake(§6.1), routing(§6.3), correspondence(§6.6), exemption pass(§6.5), classify(§9.3),
-  summarize + answer engine + requester agent(§6.7), copilot(§6.8). Retrieval
-  `src/ai/search/` (lexical + hybrid keyword+vector, public-scope enforced), dedup
-  `src/ai/dedup/`, deterministic PII + profiles + residual check `src/ai/redaction/`.
-  Injectable `EmbeddingProvider` (fake now → real later).
-- **Agents (§16) — ALL FIVE RUN** `src/agents/*Agent.ts` through the real harness
-  (allowlist→tier→budget→append-only events): deadline (nightly digest, model-free,
-  shown in `/app`), fulfillment (search→review→route→memo), release-prep (parks at the
-  Tier-3 publish checkpoint), ingest-steward (flags PII, publication candidates),
-  requester-side (public-scope pinned).
-- **Reporting** `src/reporting/` (§11 metrics, CSV, defensibility export, proactive-pub)
-  + `/app/reports` UI.
-- **Ingestion API** `POST /api/v1/{agency}/records` (idempotent, sensitivity-gated),
-  now backed by `getRepository()`.
-- **UI** `src/app/` — portal `/` (Find/Track + file-a-request), staff Command center
-  `/app`, request detail + coordinator↔department workflow, Redaction Studio
-  `/app/requests/[id]/redact`, responder `/task/[token]`.
-- **UI ↔ DB wiring (verified end-to-end in the browser)** — filing at `/portal/request`
-  calls the `fileRequest` server action (`src/app/portal/actions.ts`) → real
-  `submitRequest` → PGlite/Postgres; the request gets a minted public id + CA statutory
-  deadline and appears in the staff queue, tracker, and detail page (whose timeline is
-  now the real append-only audit log). `src/lib/live.ts` is the view-model seam: it
-  reads via `getRepository()` when the agency is seeded and falls back to the
-  `src/lib/demo.ts` fixture on a fresh clone (banner says so). First filing bootstraps
-  the agency via `src/lib/bootstrap.ts` (shared with `npm run seed`).
+Deploy turnkey: `npm run build && npm start` with zero env vars (embedded DB
++ local blobs). Container: mount a volume, set PGLITE_PATH + BLOB_PATH,
+AUTH_SECRET (required in prod — server refuses to start without) and
+PLATFORM_ADMIN_EMAIL/PASSWORD. DATABASE_URL for managed Postgres/Vercel.
+Optional: ANTHROPIC_API_KEY (live triage), VOYAGE_API_KEY (real embeddings).
 
-## The next step
-1. **Persist coordinator actions** — `RequestWorkspace` (accept triage / dispatch task /
-   accept records) still mutates client state only. Wire its buttons to server actions
-   over `taskService` (`dispatchTask`, `acceptTaskRecords`…), and `/task/[token]` to
-   `getTaskByToken` + `startTask`/`submitTaskRecords`/`pushBackTask`. The services and
-   tests already exist — it's the same wiring pattern as `src/app/portal/actions.ts`.
-2. **Auth.js** for staff roles (coordinator vs responder vs read-only).
-3. A real **EmbeddingProvider** so hybrid search/dedup run on the live corpus.
+## Gotchas that WILL bite you (learned the hard way)
+1. **One process per `.pgdata`.** PGlite is single-writer. Never run
+   `next build`/`npm start`/`npm run seed` while the dev server is up —
+   writes vanish or corrupt. Stop the server first; reseed with
+   `rm -rf .pgdata .blobdata && npm run seed`; restart.
+2. **globalThis memoization is load-bearing** (db handle, job queue, blob
+   store, throttle). Next dev compiles per-route bundles with separate
+   module scopes — do not "simplify" back to module-level singletons.
+3. **Reseeding invalidates staff sessions** (new user ids; requireStaff
+   re-reads the DB and bounces old JWTs to login). Expected, not a bug.
+4. **Optimistic client state**: RequestWorkspace/ReviewRelease remount via a
+   server-state fingerprint `key` after router.refresh() — keep that pattern
+   for new interactive panels or stale useState will haunt you.
+5. Migrations are append-only (0000–0004 applied). New schema = new file via
+   `npm run db:generate`.
+6. Browser-automation logins race hydration — wait ~4s after page load
+   before dispatching the form, or the click submits a native GET.
 
-## Deploy (edit → git push → live)
-- **Vercel + Neon**: import repo, add Neon (one-click, injects `DATABASE_URL`, pgvector),
-  push. Run migrations via first request or a build step.
-- **Self-contained**: Railway/Render/Fly, mount a volume, set `PGLITE_PATH=/data/pgdata`.
-Same code both ways. See `.env.example`.
+## Next steps (priority order, each is one focused session)
+1. **Requester correspondence** — the `messages` table has no UI. Build:
+   clarification threads on the request detail (staff) + portal tracker
+   (resident), outbound through the outbox, inbound via portal form;
+   `clarification_needed` status round-trip; §6.6 correspondence pipeline
+   can draft staff replies (Accept/Edit/Dismiss card, like triage).
+2. **Formal denial flow** — releaseRequest refuses all-withheld sets; build
+   the explicit denial path: exemption-cited denial letter (templates table
+   exists), status → denied + closedAt, appeal-language from the statute
+   profile, audit events.
+3. **Deploy live** — Railway/Fly single container + volume (PGLITE_PATH,
+   BLOB_PATH, AUTH_SECRET, platform creds, ANTHROPIC_API_KEY). Makes the
+   demo shareable; the marketing site's links become real.
+4. **Wire more of the existing AI library into the live path** — routing
+   suggestions (§6.3) are currently a heuristic on the detail page; the real
+   pipeline exists. Same for correspondence drafts, exemption pass in the
+   review panel, and hybrid search in the answer box (needs VOYAGE_API_KEY
+   + embedding backfill job).
+5. **Redaction studio on real documents** — it still renders a fixture;
+   point it at the request's uploaded docs (extracted text is the missing
+   piece — needs a text-extraction step in the upload job).
+6. **S3/MinIO BlobStore adapter** + pg-boss queue adapter for multi-instance
+   deployments (both ports are ready).
+7. **Platform polish** — per-agency branding (colors/seal upload — column
+   exists on agencies), agency settings page, observed-holidays editor.
