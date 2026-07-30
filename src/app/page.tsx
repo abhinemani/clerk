@@ -33,28 +33,29 @@ export default function MarketingHome() {
       </div>
 
       <main id="main">
-        {/* Hero */}
-        <section style={{ background: "linear-gradient(180deg, var(--primary-tint), var(--paper) 70%)" }}>
-          <div className="wrap" style={{ paddingBlock: "76px 64px", textAlign: "center", maxWidth: 860 }}>
-            <span className="smallcaps" style={{ fontSize: "0.95rem", color: "var(--maroon)" }}>
+        {/* Hero — the product wears the flag: deep navy, gold aurora */}
+        <section className="mk-hero">
+          <div className="wrap" style={{ paddingBlock: "84px 72px", textAlign: "center", maxWidth: 860 }}>
+            <span className="smallcaps" style={{ fontSize: "0.95rem", color: "var(--gold)" }}>
               For city clerks, county counsel, and records officers
             </span>
-            <h1 style={{ fontSize: "clamp(2.3rem, 5.5vw, 3.6rem)", marginTop: 12, fontWeight: 600 }}>
+            <h1 style={{ fontSize: "clamp(2.3rem, 5.5vw, 3.7rem)", marginTop: 14, fontWeight: 600, color: "#ffffff" }}>
               The AI-native public records platform
             </h1>
-            <p className="muted" style={{ fontSize: "1.18rem", marginTop: 16, maxWidth: 620, marginInline: "auto" }}>
+            <hr className="letterhead-rule" aria-hidden />
+            <p style={{ fontSize: "1.18rem", marginTop: 20, maxWidth: 640, marginInline: "auto", color: "#b9c5d8" }}>
               {branding.productName} answers residents before they file, runs every request against
               its statutory clock, and leaves an audit trail your counsel will actually enjoy reading.
             </p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
-              <Link href="/riverton" className="btn btn-primary" style={{ paddingInline: 22, paddingBlock: 12 }}>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 30, flexWrap: "wrap" }}>
+              <Link href="/riverton" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
                 Explore the resident portal
               </Link>
-              <Link href="/riverton/app" className="btn" style={{ paddingInline: 22, paddingBlock: 12 }}>
+              <Link href="/riverton/app" className="btn btn-outline-light" style={{ paddingInline: 24, paddingBlock: 12 }}>
                 See the staff workspace
               </Link>
             </div>
-            <p className="muted" style={{ fontSize: "0.85rem", marginTop: 14 }}>
+            <p style={{ fontSize: "0.85rem", marginTop: 16, color: "#8fa0ba" }}>
               The demo is the real product, running for the fictional City of Riverton.
             </p>
           </div>
@@ -80,7 +81,7 @@ export default function MarketingHome() {
                 d: "Every action — human or AI — lands in an append-only event log with who, what, and why. Redactions burn true; releases carry a named approver.",
               },
             ].map((f) => (
-              <article key={f.t} className="card card-pad">
+              <article key={f.t} className="card card-pad" style={{ borderTop: "3px solid var(--gold)" }}>
                 <span className="smallcaps" style={{ color: "var(--accent)", fontSize: "0.85rem" }}>
                   {f.t}
                 </span>

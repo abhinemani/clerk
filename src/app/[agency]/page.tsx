@@ -14,12 +14,13 @@ export default async function Portal({ params }: { params: Promise<{ agency: str
   const releases = (await listArchive(slug)).slice(0, 3);
 
   return (
-    <div className="wrap" style={{ paddingBlock: "52px 8px" }}>
-      {/* Hero — official letterhead: seal, office line, double rule. The
-          question box stays the front door, not a form (§6.7). */}
-      <section style={{ maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
+    <>
+    {/* Hero — official letterhead: seal, office line, double rule, full-bleed
+        wash. The question box stays the front door, not a form (§6.7). */}
+    <section className="portal-hero">
+      <div className="wrap" style={{ maxWidth: 768, paddingBlock: "56px 40px", textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-          <Seal size={64} label={`Seal of the ${agency.name}`} />
+          <Seal size={68} label={`Seal of the ${agency.name}`} />
         </div>
         <span className="smallcaps" style={{ fontSize: "0.95rem", color: "var(--maroon)" }}>
           {agency.name} · Office of the City Clerk
@@ -50,10 +51,12 @@ export default async function Portal({ params }: { params: Promise<{ agency: str
             ),
           )}
         </div>
-      </section>
+      </div>
+    </section>
 
+    <div className="wrap" style={{ paddingBlock: "8px" }}>
       {/* How it works */}
-      <section style={{ marginTop: 72 }}>
+      <section style={{ marginTop: 48 }}>
         <div className="stat-row" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
           {[
             {
@@ -126,5 +129,6 @@ export default async function Portal({ params }: { params: Promise<{ agency: str
         </div>
       </section>
     </div>
+    </>
   );
 }

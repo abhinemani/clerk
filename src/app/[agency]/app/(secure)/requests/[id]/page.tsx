@@ -156,23 +156,16 @@ export default async function RequestDetail({
                 </span>
               )}
             </div>
-            <ol style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 14 }}>
+            <ol className="audit-trail">
               {timeline.map((e, i) => (
-                <li key={i} style={{ display: "flex", gap: 10 }}>
+                <li key={i}>
                   <span
                     aria-hidden
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      marginTop: 6,
-                      flex: "none",
-                      background: e.tone === "ai" ? "var(--ai)" : e.tone === "alert" ? "var(--overdue)" : "var(--border-strong)",
-                    }}
+                    className={`audit-dot${e.tone === "ai" ? " tone-ai" : e.tone === "alert" ? " tone-alert" : ""}`}
                   />
                   <div>
                     <div style={{ fontSize: "0.88rem", fontWeight: 500 }}>{e.title}</div>
-                    <div className="muted" style={{ fontSize: "0.78rem" }}>
+                    <div className="muted" style={{ fontSize: "0.78rem", marginTop: 1 }}>
                       {e.meta}
                     </div>
                   </div>

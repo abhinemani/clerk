@@ -56,10 +56,12 @@
   --shadow: 0 1px 2px rgba(24, 26, 31, 0.05), 0 4px 12px -4px rgba(24, 26, 31, 0.09);
   --shadow-lg: 0 12px 32px -8px rgba(24, 26, 31, 0.16);
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, "Apple Color Emoji", sans-serif;
-  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
-    Georgia, ui-serif, serif;
+  /* Public Sans (USWDS — the U.S. government's typeface) + Source Serif
+     display, self-hosted via next/font; system stacks as fallback. */
+  --font-sans: var(--font-public-sans, ui-sans-serif), ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: var(--font-source-serif, ui-serif), "Iowan Old Style",
+    "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
   --wrap: 1120px;
@@ -160,13 +162,14 @@ select {
 h1,
 h2 {
   font-family: var(--font-serif);
-  line-height: 1.15;
-  letter-spacing: -0.01em;
+  line-height: 1.18;
+  letter-spacing: 0;
   font-weight: 600;
+  text-wrap: balance;
 }
 h3 {
-  line-height: 1.15;
-  letter-spacing: -0.015em;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
   font-weight: 600;
 }
 
@@ -266,20 +269,25 @@ h3 {
   margin-left: auto;
 }
 .nav-link {
-  padding: 7px 12px;
-  border-radius: var(--r-sm);
+  display: inline-flex;
+  align-items: center;
+  height: 66px; /* full nav height → the underline sits on the nav rule */
+  padding: 0 13px;
   color: var(--ink-2);
   font-weight: 500;
   font-size: 0.93rem;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px; /* overlap the nav border so the gold sits on it */
 }
 .nav-link:hover {
-  background: var(--surface-2);
   color: var(--ink);
   text-decoration: none;
+  border-bottom-color: var(--border-strong);
 }
 .nav-link[aria-current="page"] {
-  background: var(--primary-tint);
   color: var(--primary);
+  font-weight: 600;
+  border-bottom-color: var(--gold);
 }
 
 /* ---- buttons ---- */
@@ -295,6 +303,7 @@ h3 {
   color: var(--ink);
   font-weight: 550;
   font-size: 0.93rem;
+  letter-spacing: 0.005em;
   cursor: pointer;
   transition: background 0.14s ease, border-color 0.14s ease, transform 0.06s ease,
     box-shadow 0.14s ease;
@@ -302,20 +311,21 @@ h3 {
 }
 .btn:hover {
   background: var(--surface-2);
+  border-color: var(--muted);
   text-decoration: none;
 }
 .btn:active {
-  transform: translateY(0.5px);
+  transform: translateY(1px);
 }
 .btn-primary {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: linear-gradient(180deg, var(--primary-hover), var(--primary));
+  border-color: var(--primary-deep);
   color: var(--primary-ink);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 .btn-primary:hover {
   background: var(--primary-hover);
-  border-color: var(--primary-hover);
+  border-color: var(--primary);
 }
 .btn-maroon {
   background: var(--maroon);
@@ -355,6 +365,7 @@ h3 {
   border: 1px solid var(--border);
   border-radius: var(--r);
   box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.16s ease;
 }
 .card-pad {
   padding: 22px;
@@ -447,10 +458,11 @@ label.lbl {
   padding: 16px 18px;
 }
 .stat-num {
-  font-size: 1.6rem;
-  font-weight: 680;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font-serif); /* annual-report numerals */
+  font-size: 1.85rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums lining-nums;
   color: var(--primary);
 }
 .stat-label {
@@ -504,6 +516,7 @@ label.lbl {
 /* ---- AI card (Accept / Edit / Dismiss grammar, §8) ---- */
 .ai-card {
   border: 1px solid color-mix(in srgb, var(--ai) 28%, var(--border));
+  border-left: 3px solid var(--ai);
   border-radius: var(--r);
   background: linear-gradient(180deg, var(--ai-tint), var(--surface) 62%);
   padding: 16px 16px 14px;
@@ -544,12 +557,64 @@ label.lbl {
   flex: none;
 }
 
+/* ---- hero washes ---- */
+/* Portal: a faint gold-over-navy letterhead glow behind the seal */
+.portal-hero {
+  background:
+    radial-gradient(ellipse 62% 46% at 50% 0%, color-mix(in srgb, var(--gold) 9%, transparent), transparent 75%),
+    radial-gradient(ellipse 55% 40% at 50% 6%, var(--primary-tint), transparent 72%);
+}
+/* Marketing: deep navy with a gold aurora — the product wears the flag */
+.mk-hero {
+  background:
+    radial-gradient(ellipse 80% 65% at 50% -12%, color-mix(in srgb, var(--gold) 16%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--primary-deep) 0%, #1b3457 100%);
+  color: #e8ecf3;
+  border-bottom: 3px solid var(--gold);
+}
+.btn-gold {
+  background: linear-gradient(180deg, #d9b445, var(--gold));
+  border-color: color-mix(in srgb, var(--gold) 70%, #000);
+  color: #221a04;
+  font-weight: 650;
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.btn-gold:hover {
+  background: #d9b445;
+}
+.btn-outline-light {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #e8ecf3;
+}
+.btn-outline-light:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
 /* ---- letterhead motifs (portal hero, official documents) ---- */
 .letterhead-rule {
-  width: 148px;
+  position: relative;
+  width: 180px;
   border: none;
   border-top: 4px double var(--gold);
-  margin: 20px auto 0;
+  margin: 22px auto 0;
+  overflow: visible;
+}
+/* Engraver's diamond at the center of the rule */
+.letterhead-rule::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  width: 7px;
+  height: 7px;
+  background: var(--gold);
+  transform: translate(-50%, -50%) rotate(45deg);
+  box-shadow: 0 0 0 3px var(--paper);
+}
+.mk-hero .letterhead-rule::after {
+  box-shadow: 0 0 0 3px #16304f; /* halo matches the navy hero */
 }
 .smallcaps {
   font-variant-caps: all-small-caps;
@@ -608,6 +673,52 @@ label.lbl {
     grid-template-columns: 1fr;
     gap: 24px;
   }
+}
+
+/* ---- audit trail (request timeline) ---- */
+.audit-trail {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  position: relative;
+}
+/* The connecting rule — the through-line of the record */
+.audit-trail::before {
+  content: "";
+  position: absolute;
+  left: 4.5px;
+  top: 8px;
+  bottom: 8px;
+  width: 1.5px;
+  background: linear-gradient(180deg, var(--border-strong), var(--border));
+}
+.audit-trail li {
+  display: flex;
+  gap: 12px;
+  position: relative;
+  padding-block: 7px;
+}
+.audit-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex: none;
+  background: var(--surface);
+  border: 2.5px solid var(--border-strong);
+  z-index: 1;
+}
+.audit-dot.tone-ai {
+  border-color: var(--ai);
+  background: var(--ai-tint);
+}
+.audit-dot.tone-alert {
+  border-color: var(--overdue);
+  background: var(--overdue-bg);
+}
+.audit-trail li:first-child .audit-dot {
+  border-color: var(--gold);
+  background: var(--surface);
 }
 
 /* ---- misc ---- */
