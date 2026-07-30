@@ -256,7 +256,8 @@ export async function searchArchiveAction(agencySlug: string, query: string) {
 export async function checkAlreadyReleasedAction(agencySlug: string, text: string) {
   const { searchArchive } = await import("@/lib/archive");
   const items = await searchArchive(agencySlug, text);
-  return items.slice(0, 3);
+  // Downloadable records first — a summary can inform, but a file deflects.
+  return [...items].sort((a, b) => Number(b.downloadUrl != null) - Number(a.downloadUrl != null)).slice(0, 3);
 }
 
 /**

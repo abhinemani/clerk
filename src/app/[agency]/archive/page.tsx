@@ -52,7 +52,7 @@ export default async function ArchivePage({ params }: { params: Promise<{ agency
                   {t}
                 </span>
               ))}
-              <DownloadRecordButton agencySlug={agency.slug} documentId={r.id} />
+              <DownloadRecordButton agencySlug={agency.slug} documentId={r.id} href={r.downloadUrl} />
             </div>
           </article>
         ))}

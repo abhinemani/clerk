@@ -10,6 +10,7 @@ interface RelatedRecord {
   title: string;
   summary: string;
   date: string;
+  downloadUrl: string | null;
 }
 
 type RequesterType = "individual" | "media" | "legal" | "commercial" | "government";
@@ -200,16 +201,21 @@ export function RequestForm({
           <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0, display: "grid", gap: 8 }}>
             {related.map((r) => (
               <li key={r.id} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                <a
-                  href={`/${agencySlug}/files/${r.id}`}
-                  style={{ fontWeight: 600 }}
-                  onClick={() =>
-                    // The ROI moment: a download here is a request not filed.
-                    void logDeflectionAction({ agencySlug, kind: "download", query: text, documentId: r.id })
-                  }
-                >
-                  {r.title}
-                </a>
+                {r.downloadUrl ? (
+                  <a
+                    href={r.downloadUrl}
+                    download
+                    style={{ fontWeight: 600 }}
+                    onClick={() =>
+                      // The ROI moment: a download here is a request not filed.
+                      void logDeflectionAction({ agencySlug, kind: "download", query: text, documentId: r.id })
+                    }
+                  >
+                    {r.title}
+                  </a>
+                ) : (
+                  <span style={{ fontWeight: 600 }}>{r.title}</span>
+                )}
                 <span className="muted" style={{ fontSize: "0.82rem" }}>
                   {r.summary.slice(0, 90)}
                   {r.summary.length > 90 ? "…" : ""}

@@ -833,6 +833,25 @@ export class DrizzleRepository implements Repository {
     }));
   }
 
+  async getReleaseById(agencyId: string, releaseId: string): Promise<ReleaseEntity | null> {
+    const [r] = await this.db
+      .select()
+      .from(releases)
+      .where(tenantWhere(releases.agencyId, agencyId, eq(releases.id, releaseId)))
+      .limit(1);
+    if (!r) return null;
+    return {
+      id: r.id,
+      agencyId: r.agencyId,
+      requestId: r.requestId,
+      artifacts: (r.artifacts ?? []) as ReleaseEntity["artifacts"],
+      responseLetter: r.responseLetter,
+      visibility: r.visibility,
+      approvedByUserId: r.approvedByUserId,
+      releasedAt: r.releasedAt,
+    };
+  }
+
   async appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity> {
     await this.db.insert(deflections).values({
       id: d.id,

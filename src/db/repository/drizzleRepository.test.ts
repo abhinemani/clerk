@@ -267,6 +267,24 @@ describe("DrizzleRepository (embedded PGlite)", () => {
     expect(await repo.listMessages(AG2, r.id)).toHaveLength(0); // tenant-scoped
   });
 
+  it("fetches a release by id, tenant-scoped (archive download resolution)", async () => {
+    const d = deps(repo);
+    const r = await submitRequest(d, { agencyId: AG1, rawText: "release lookup" });
+    const release = await repo.createRelease({
+      id: crypto.randomUUID(),
+      agencyId: AG1,
+      requestId: r.id,
+      artifacts: [{ blobRef: "k", filename: "f.pdf", checksum: "cs", documentId: crypto.randomUUID() }],
+      responseLetter: null,
+      visibility: "public",
+      approvedByUserId: USER1,
+      releasedAt: new Date(),
+    });
+    const back = await repo.getReleaseById(AG1, release.id);
+    expect(back?.artifacts[0]?.filename).toBe("f.pdf");
+    expect(await repo.getReleaseById(AG2, release.id)).toBeNull(); // tenant-scoped
+  });
+
   it("persists extension history through updateRequest (§7 invariant 7)", async () => {
     const d = deps(repo);
     const r = await submitRequest(d, { agencyId: AG1, rawText: "Big archive ask." });

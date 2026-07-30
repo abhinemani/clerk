@@ -124,12 +124,20 @@ export function AnswerBox({ agencySlug }: { agencySlug: string }) {
                         ))}
                       </div>
                     </div>
-                    <button
-                      className={`btn btn-sm ${downloaded === r.id ? "" : "btn-primary"}`}
-                      onClick={() => download(r)}
-                    >
-                      {downloaded === r.id ? "✓ Downloaded" : "Download"}
-                    </button>
+                    {r.downloadUrl ? (
+                      <a
+                        className={`btn btn-sm ${downloaded === r.id ? "" : "btn-primary"}`}
+                        href={r.downloadUrl}
+                        download
+                        onClick={() => download(r)}
+                      >
+                        {downloaded === r.id ? "✓ Downloaded" : "Download"}
+                      </a>
+                    ) : (
+                      <span className="tag" title="Summary entry — no file attached">
+                        Summary
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

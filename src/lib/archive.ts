@@ -6,7 +6,7 @@
  */
 import { DEMO_AGENCY, DEMO_RELEASES, searchPublicReleases } from "@/lib/demo";
 import { getRepository } from "@/db/createRepository";
-import type { DocumentEntity } from "@/services/repository";
+import type { DocumentEntity, Repository } from "@/services/repository";
 
 export interface ArchiveItem {
   id: string;
@@ -15,9 +15,16 @@ export interface ArchiveItem {
   date: string;
   tags: string[];
   keywords: string[];
+  /**
+   * Where the record's actual bytes download from, or null for metadata-only
+   * entries (nothing to serve). Always a /{slug}/files/{docId} URL — the one
+   * gate enforces entitlements; this only resolves WHICH document holds the
+   * bytes.
+   */
+  downloadUrl: string | null;
 }
 
-function toArchiveItem(d: DocumentEntity): ArchiveItem {
+function toArchiveItem(d: DocumentEntity, downloadUrl: string | null): ArchiveItem {
   const meta = (d.metadata ?? {}) as {
     title?: string;
     summary?: string;
@@ -32,7 +39,37 @@ function toArchiveItem(d: DocumentEntity): ArchiveItem {
     date: meta.releasedOn ?? d.createdAt.toISOString().slice(0, 10),
     tags: meta.tags ?? (d.recordType ? [d.recordType] : []),
     keywords: meta.keywords ?? [],
+    downloadUrl,
   };
+}
+
+/**
+ * The document whose bytes an archive entry downloads: itself when it carries
+ * a blob; for release-born entries (metadata.releaseId), the release's first
+ * frozen artifact — the burned/approved bytes a named human shipped. Null for
+ * metadata-only entries. Exported for tests.
+ */
+export async function resolveArchiveDownloadUrl(
+  repo: Repository,
+  agencyId: string,
+  slug: string,
+  d: DocumentEntity,
+): Promise<string | null> {
+  if (d.blobRef && d.byteSize != null) return `/${slug}/files/${d.id}`;
+  const releaseId = (d.metadata as { releaseId?: string } | null)?.releaseId;
+  if (!releaseId) return null;
+  const release = await repo.getReleaseById(agencyId, releaseId);
+  // Only public releases feed the archive; enforce it here too, not just at
+  // the gate — a private release's artifacts never get advertised.
+  if (!release || release.visibility !== "public") return null;
+  const artifact = release.artifacts.find((a) => a.documentId);
+  return artifact?.documentId ? `/${slug}/files/${artifact.documentId}` : null;
+}
+
+async function toItems(repo: Repository, agencyId: string, slug: string, docs: DocumentEntity[]) {
+  return Promise.all(
+    docs.map(async (d) => toArchiveItem(d, await resolveArchiveDownloadUrl(repo, agencyId, slug, d))),
+  );
 }
 
 /** Everything this tenant has released, newest first. */
@@ -41,7 +78,7 @@ export async function listArchive(slug: string): Promise<ArchiveItem[]> {
   const agency = await repo.getAgencyBySlug(slug);
   if (!agency) return slug === DEMO_AGENCY.slug ? DEMO_RELEASES.map(demoToItem) : [];
   const docs = await repo.listPublicDocuments(agency.id);
-  return docs.map(toArchiveItem);
+  return toItems(repo, agency.id, slug, docs);
 }
 
 /**
@@ -66,7 +103,8 @@ export async function searchArchive(slug: string, query: string): Promise<Archiv
 
   const terms = q.split(/\s+/);
   const docs = await repo.listPublicDocuments(agency.id);
-  const itemById = new Map(docs.map((d) => [d.id, toArchiveItem(d)]));
+  const items = await toItems(repo, agency.id, slug, docs);
+  const itemById = new Map(items.map((it) => [it.id, it]));
 
   const lexical = docs
     .map((d) => {
@@ -111,5 +149,6 @@ export async function searchArchive(slug: string, query: string): Promise<Archiv
 }
 
 function demoToItem(r: (typeof DEMO_RELEASES)[number]): ArchiveItem {
-  return { id: r.id, title: r.title, summary: r.summary, date: r.date, tags: r.tags, keywords: r.keywords };
+  // The unseeded demo fixture has no real bytes to serve.
+  return { id: r.id, title: r.title, summary: r.summary, date: r.date, tags: r.tags, keywords: r.keywords, downloadUrl: null };
 }

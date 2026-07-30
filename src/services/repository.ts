@@ -365,6 +365,8 @@ export interface Repository {
 
   createRelease(r: ReleaseEntity): Promise<ReleaseEntity>;
   listReleases(agencyId: string, requestId: string): Promise<ReleaseEntity[]>;
+  /** Release by id — resolves an archive entry back to its frozen artifacts. */
+  getReleaseById(agencyId: string, releaseId: string): Promise<ReleaseEntity | null>;
 
   appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity>;
   listDeflections(agencyId: string): Promise<DeflectionEntity[]>;
@@ -692,6 +694,9 @@ export class InMemoryRepository implements Repository {
   }
   async listReleases(agencyId: string, requestId: string) {
     return this.releases.filter((r) => r.agencyId === agencyId && r.requestId === requestId);
+  }
+  async getReleaseById(agencyId: string, releaseId: string) {
+    return this.releases.find((r) => r.agencyId === agencyId && r.id === releaseId) ?? null;
   }
 
   async appendDeflection(d: DeflectionEntity) {

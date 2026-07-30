@@ -23,8 +23,11 @@
   --primary-hover: #274b78;
   --primary-ink: #ffffff;
   --primary-tint: #eef2f8;
-  /* Deep civic maroon — eyebrows, small-caps labels, official accents */
+  /* Deep civic maroon — eyebrows, small-caps labels, official accents.
+     --maroon is tuned for TEXT on the mode's background; --maroon-btn is the
+     fill for solid controls (white ink on it in both modes). */
   --maroon: #6e1b28;
+  --maroon-btn: #6e1b28;
   --maroon-tint: #f7eef0;
   --accent: #6e1b28;
   /* Decorative gold — seals, rules, flourishes only (never body text) */
@@ -85,9 +88,15 @@
     --primary-hover: #6295d6;
     --primary-ink: #0f1319;
     --primary-tint: #1f2a3a;
-    --maroon: #d4909a;
+    /* Dark-mode maroon: the deepest crimson-burgundy that still passes AA
+       for small text on --paper (~4.6:1). The previous #d4909a read PINK —
+       a lightened maroon must keep saturation and stay near the red end,
+       not drift pastel. Buttons don't need a lightened value at all: a true
+       maroon fill with white ink works on any background. */
+    --maroon: #c9686a;
+    --maroon-btn: #8a2637;
     --maroon-tint: #2c1a1e;
-    --accent: #d4909a;
+    --accent: #c9686a;
     --gold: #d8b13c;
 
     --ai: #3fb6d3;
@@ -328,14 +337,14 @@ h3 {
   border-color: var(--primary);
 }
 .btn-maroon {
-  background: var(--maroon);
-  border-color: var(--maroon);
+  background: var(--maroon-btn);
+  border-color: var(--maroon-btn);
   color: #ffffff;
   box-shadow: var(--shadow-sm);
 }
 .btn-maroon:hover {
-  background: color-mix(in srgb, var(--maroon) 86%, #000);
-  border-color: color-mix(in srgb, var(--maroon) 86%, #000);
+  background: color-mix(in srgb, var(--maroon-btn) 86%, #000);
+  border-color: color-mix(in srgb, var(--maroon-btn) 86%, #000);
 }
 .btn-ghost {
   background: transparent;
