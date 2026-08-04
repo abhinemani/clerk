@@ -46,11 +46,18 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
       <span className="eyebrow" style={{ display: "block", marginTop: 12 }}>
         {agency.name} · Administration
       </span>
-      <h1 style={{ fontSize: "1.7rem", marginTop: 6, marginBottom: 6 }}>Staff accounts</h1>
-      <p className="muted" style={{ marginBottom: 20, maxWidth: 560 }}>
-        Who can work records for the {agency.name}, and what they can do. Admins manage this roster;
-        coordinators run requests; responders only see tasks shared with them.
-      </p>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontSize: "1.7rem", marginTop: 6, marginBottom: 6 }}>Staff accounts</h1>
+          <p className="muted" style={{ marginBottom: 20, maxWidth: 560 }}>
+            Who can work records for the {agency.name}, and what they can do. Admins manage this
+            roster; coordinators run requests; responders only see tasks shared with them.
+          </p>
+        </div>
+        <Link href={`/${slug}/app/admin/import`} className="btn btn-sm">
+          Import legacy requests
+        </Link>
+      </div>
       <StaffRoster agencySlug={slug} rows={rows} />
 
       <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>Workflow automation</h2>
