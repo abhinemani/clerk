@@ -20,6 +20,10 @@ export interface AuditReportInput {
     statutoryDueAt?: Date | null;
   };
   events: EventEntity[];
+  /** Resolve an actorUserId to a real name/email for the printed report;
+   *  falls back to "user:<id>" when a user isn't in the map (e.g. since
+   *  removed from the roster — the id still proves who acted at the time). */
+  actorNameById?: Map<string, string>;
 }
 
 export interface AuditEntry {
@@ -62,11 +66,14 @@ export function buildDefensibilityReport(input: AuditReportInput): Defensibility
     } else if (e.kind === "status_change" && p.from) {
       detail = `${p.from} → ${p.to}`;
     }
+    const actor = e.actorUserId
+      ? (input.actorNameById?.get(e.actorUserId) ?? `user:${e.actorUserId}`)
+      : "system/AI";
     return {
       at: fmt(e.createdAt),
       kind: e.kind,
       summary: e.summary,
-      actor: e.actorUserId ? `user:${e.actorUserId}` : "system/AI",
+      actor,
       detail,
     };
   });

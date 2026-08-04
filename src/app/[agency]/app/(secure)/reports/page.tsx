@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getRepository } from "@/db/createRepository";
 import { getAgencyForSlug } from "@/lib/live";
+import { liveComplianceDataset } from "@/lib/reportingData";
 import { DEFLECTIONS_YTD, reportingDataset } from "@/lib/reportingDemo";
-import { complianceReport, type RequestForMetrics } from "@/reporting/metrics";
+import { complianceReport } from "@/reporting/metrics";
 import { metricsCsv } from "@/reporting/csv";
 import { DownloadButton } from "../../../../_components/DownloadButton";
 
@@ -11,36 +11,13 @@ export const dynamic = "force-dynamic";
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
-/** Map live rows through the same pure §11 metrics the fixture uses. */
-async function liveDataset(agencyId: string): Promise<{ records: RequestForMetrics[]; deflections: number }> {
-  const repo = await getRepository();
-  const [requests, requesters, deflections] = await Promise.all([
-    repo.listRequests(agencyId),
-    repo.listRequesters(agencyId),
-    repo.listDeflections(agencyId),
-  ]);
-  const typeById = new Map(requesters.map((r) => [r.id, r.type]));
-  return {
-    records: requests.map((r) => ({
-      receivedAt: r.receivedAt ?? r.createdAt,
-      closedAt: r.closedAt, // real closure timestamps from the release flow
-      statutoryDueAt: r.statutoryDueAt,
-      status: r.status,
-      requesterType: (r.requesterId && typeById.get(r.requesterId)) || "individual",
-      extended: false,
-      exemptionsCited: [],
-    })),
-    deflections: deflections.length,
-  };
-}
-
 export default async function ReportsPage({ params }: { params: Promise<{ agency: string }> }) {
   const { agency: slug } = await params;
   const agency = await getAgencyForSlug(slug);
   if (!agency) notFound();
 
   const report = agency.id
-    ? await liveDataset(agency.id).then(({ records, deflections }) => complianceReport(records, deflections))
+    ? await liveComplianceDataset(agency.id).then(({ records, deflections }) => complianceReport(records, deflections))
     : complianceReport(reportingDataset(), DEFLECTIONS_YTD);
 
   const months = Object.entries(report.volumeByMonth).sort(([a], [b]) => a.localeCompare(b));
@@ -71,7 +48,14 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
           <span className="eyebrow">{agency.name} · Public Records Act</span>
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Compliance report · 2026</h1>
         </div>
-        <DownloadButton filename="clerk-compliance-2026.csv" content={csv} label="Download CSV" />
+        <div style={{ display: "flex", gap: 8 }}>
+          <DownloadButton filename="clerk-compliance-2026.csv" content={csv} label="Download CSV" />
+          {agency.id && (
+            <a href={`/${slug}/app/reports/annual-report.pdf`} className="btn btn-sm">
+              Download PDF
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="stat-row" style={{ marginTop: 20, gridTemplateColumns: "repeat(4, 1fr)" }}>

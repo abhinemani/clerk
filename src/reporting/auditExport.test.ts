@@ -35,6 +35,29 @@ const INPUT = {
   ],
 };
 
+describe("buildDefensibilityReport — actor names", () => {
+  it("resolves actorUserId to a real name when given a map, falling back to the id", () => {
+    const report = buildDefensibilityReport({
+      ...INPUT,
+      events: [
+        ev({ kind: "approval", summary: "Approved", actorUserId: "u-1" }),
+        ev({ kind: "note", summary: "Unknown actor", actorUserId: "u-ghost" }),
+        ev({ kind: "ai_action", summary: "AI ran", actorUserId: null }),
+      ],
+      actorNameById: new Map([["u-1", "Dana Okafor"]]),
+    });
+    expect(report.entries.map((e) => e.actor)).toEqual(["Dana Okafor", "user:u-ghost", "system/AI"]);
+  });
+
+  it("falls back to the raw id form when no map is given (unchanged default behavior)", () => {
+    const report = buildDefensibilityReport({
+      ...INPUT,
+      events: [ev({ kind: "approval", summary: "Approved", actorUserId: "u-1" })],
+    });
+    expect(report.entries[0]!.actor).toBe("user:u-1");
+  });
+});
+
 describe("buildDefensibilityReport", () => {
   it("orders the audit trail chronologically and summarizes integrity", () => {
     const report = buildDefensibilityReport(INPUT);

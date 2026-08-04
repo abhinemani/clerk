@@ -243,6 +243,15 @@ export default async function RequestDetail({
           <Link href={`/${slug}/app/requests/${r.id}/redact`} className="btn btn-sm">
             Redact records →
           </Link>
+          {detail.source === "live" && (
+            <a
+              href={`/${slug}/app/requests/${r.id}/defensibility-report.pdf`}
+              className="btn btn-sm"
+              title="Full audit trail as a PDF — for counsel or an appeal"
+            >
+              Defensibility report
+            </a>
+          )}
         </div>
       </div>
 
