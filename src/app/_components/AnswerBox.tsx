@@ -11,6 +11,8 @@ interface AgentTurn {
   text: string;
   items?: ArchiveItem[];
   suggestedRequest?: string | null;
+  /** Why the agent replied this way — gates which affordances we render. */
+  intent?: "answer" | "clarify" | "draft_request";
 }
 
 /**
@@ -52,7 +54,16 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
       // cited records) and scope-downs — never merely for answering.
       setThread((prev) => [
         ...prev,
-        { role: "assistant", text: res.message, items: res.items, suggestedRequest: res.suggestedRequest },
+        {
+          role: "assistant",
+          text: res.message,
+          items: res.items,
+          intent: res.intent,
+          // Only a draft_request turn may offer a drafted request. Models
+          // sometimes return scratch text in suggestedRequest while ANSWERING;
+          // rendering that as "here's your request" is worse than useless.
+          suggestedRequest: res.intent === "draft_request" ? res.suggestedRequest : null,
+        },
       ]);
     });
   }
@@ -178,7 +189,7 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
                         ))}
                       </ul>
                     )}
-                    {turn.suggestedRequest && (
+                    {turn.intent === "draft_request" && turn.suggestedRequest && (
                       <div style={{ marginTop: 10, border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "10px 12px", background: "var(--surface-2)" }}>
                         <div className="muted" style={{ fontSize: "0.78rem" }}>Drafted request — file it as-is or edit:</div>
                         <p style={{ margin: "4px 0 0", fontSize: "0.9rem", fontStyle: "italic" }}>

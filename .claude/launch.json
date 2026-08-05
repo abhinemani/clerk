@@ -4,7 +4,10 @@
     {
       "name": "clerk-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000,
       "autoPort": true
     },
@@ -24,6 +27,14 @@
         "dev"
       ],
       "port": 3100
+    },
+    {
+      "name": "clerk-live",
+      "runtimeExecutable": "/opt/homebrew/bin/npm",
+      "runtimeArgs": [
+        "start"
+      ],
+      "port": 3000
     }
   ]
 }
