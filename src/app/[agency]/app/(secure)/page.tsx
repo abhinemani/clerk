@@ -2,45 +2,35 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getRepository } from "@/db/createRepository";
 import { decisionsFor, getWorkspace, outstandingTasks, workloadFor } from "@/lib/live";
-import { deadlineRisk, byRiskDesc, type RiskBand } from "@/domain/deadlineRisk";
+import { deadlineRisk, byRiskDesc } from "@/domain/deadlineRisk";
+import { isAssignableRole } from "@/domain/workflow";
+import { matchesQueueFilters, parseQueueFilters, hasActiveFilters } from "@/domain/queueFilters";
 import { runDeadlineSweep } from "@/agents/deadlineAgent";
-import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/format";
+import { dateShort, requestStatusLabel } from "@/lib/format";
 import { requireStaff } from "@/auth/guards";
 import { portalSignOut } from "../../actions";
-import { AiPill, Avatar, DeadlineBand, RiskMeter, StatusPill } from "../../../_components/ui";
+import { AiPill, Avatar, StatusPill } from "../../../_components/ui";
+import { QueueFilterBar } from "../../../_components/QueueFilterBar";
+import { QueueTable, type QueueRowVM } from "../../../_components/QueueTable";
 
 // Reads the live database — never prerender a stale queue at build time.
 export const dynamic = "force-dynamic";
-
-const BAND_LABEL: Record<RiskBand, string> = {
-  overdue: "Overdue",
-  due_soon: "Due soon",
-  on_track: "On track",
-};
 
 export default async function Queue({
   params,
   searchParams,
 }: {
   params: Promise<{ agency: string }>;
-  searchParams: Promise<{ assignee?: string }>;
+  searchParams: Promise<{ assignee?: string; status?: string; risk?: string; dept?: string }>;
 }) {
-  const [{ agency: slug }, { assignee }] = await Promise.all([params, searchParams]);
+  const [{ agency: slug }, sp] = await Promise.all([params, searchParams]);
   const staff = await requireStaff(slug);
   const ws = await getWorkspace(slug);
   if (!ws) notFound();
+  const filters = parseQueueFilters(sp);
 
   // Closed requests are out of the race — the clock stopped at closedAt.
   const allOpen = ws.requests.filter((r) => r.closedAt == null);
-  // Assignment filter (§6.3 queue ergonomics): mine / unassigned / everyone.
-  const assigneeFilter = assignee === "me" || assignee === "unassigned" ? assignee : null;
-  const openRequests = allOpen.filter((r) =>
-    assigneeFilter === "me"
-      ? r.assignedCoordinatorId === staff.userId
-      : assigneeFilter === "unassigned"
-        ? r.assignedCoordinatorId == null
-        : true,
-  );
   const closedRequests = ws.requests.filter((r) => r.closedAt != null);
 
   // The deadline agent runs its nightly sweep (pure logic, no model) and hands
@@ -55,22 +45,66 @@ export default async function Queue({
     })),
   });
 
-  const rows = openRequests
-    .map((r) => {
-      const risk = deadlineRisk({
+  // Risk is computed for EVERY open request (the stat row must reflect the
+  // whole queue, not the filtered view); filtering happens after.
+  const scored = allOpen
+    .map((r) => ({
+      r,
+      risk: deadlineRisk({
         dueAt: r.dueAt,
         now: ws.now,
         outstandingTasks: outstandingTasks(r),
         complexityScore: r.complexityScore ?? 0,
-      });
-      return { r, risk };
-    })
+      }),
+    }))
     .sort((a, b) => byRiskDesc(a.risk, b.risk));
 
+  const rows: QueueRowVM[] = scored
+    .filter(({ r, risk }) =>
+      matchesQueueFilters(
+        {
+          assignedCoordinatorId: r.assignedCoordinatorId,
+          status: r.status,
+          riskBand: risk.band,
+          departmentIds: r.tasks.map((t) => t.departmentId).filter((d): d is string => d != null),
+        },
+        filters,
+        staff.userId,
+      ),
+    )
+    .map(({ r, risk }) => ({
+      id: r.id,
+      publicId: r.publicId,
+      interpretedScope: r.interpretedScope,
+      requesterName: r.requesterName,
+      requesterType: r.requesterType,
+      status: r.status,
+      triageReady: r.triageReady,
+      redFlags: r.redFlags,
+      assignedCoordinatorId: r.assignedCoordinatorId,
+      assignedCoordinatorName: r.assignedCoordinatorName,
+      dueAtISO: r.dueAt.toISOString(),
+      riskBand: risk.band,
+      riskScore: risk.score,
+      daysRemaining: risk.daysRemaining,
+    }));
+
   const open = allOpen.length;
-  const overdue = rows.filter((x) => x.risk.band === "overdue").length;
+  const overdue = scored.filter((x) => x.risk.band === "overdue").length;
   const decisions = decisionsFor(allOpen, ws.now);
   const workload = workloadFor(ws.departments, ws.requests);
+
+  // Only statuses actually present in the open queue — an empty filter option
+  // is a dead end.
+  const availableStatuses = [...new Set(allOpen.map((r) => r.status))].sort();
+  let assignableStaff: { id: string; name: string }[] = [];
+  if (ws.source === "live" && ws.agencyId) {
+    const repo = await getRepository();
+    assignableStaff = (await repo.listUsers(ws.agencyId))
+      .filter((u) => isAssignableRole(u.role))
+      .map((u) => ({ id: u.id, name: u.name ?? u.email }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
 
   // Honest numbers: computed from the live DB, or the fixture's story numbers
   // when we're showing the unseeded demo. "—" beats a made-up percentage.
@@ -238,97 +272,34 @@ export default async function Queue({
       <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginTop: 28, marginBottom: 12, flexWrap: "wrap" }}>
         <h2 style={{ fontSize: "1.15rem", margin: 0 }}>
           Open requests <span className="muted" style={{ fontWeight: 400, fontSize: "0.9rem" }}>· by deadline risk</span>
+          {rows.length !== open && (
+            <span className="muted" style={{ fontWeight: 400, fontSize: "0.9rem" }}>
+              {" "}· showing {rows.length} of {open}
+            </span>
+          )}
         </h2>
-        {/* Assignment filter (§6.3): the queue at a glance vs. just my desk. */}
-        <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
-          {[
-            { label: "All", href: `/${slug}/app`, active: assigneeFilter === null },
-            { label: "Mine", href: `/${slug}/app?assignee=me`, active: assigneeFilter === "me" },
-            { label: "Unassigned", href: `/${slug}/app?assignee=unassigned`, active: assigneeFilter === "unassigned" },
-          ].map((f) => (
-            <Link key={f.label} href={f.href} className={`btn btn-sm${f.active ? " btn-primary" : ""}`}>
-              {f.label}
-            </Link>
-          ))}
-        </div>
+        <QueueFilterBar
+          agencySlug={slug}
+          userId={staff.userId}
+          basePath={`/${slug}/app`}
+          filters={filters}
+          availableStatuses={availableStatuses}
+          departments={ws.departments.map((d) => ({ id: d.id, name: d.name }))}
+        />
       </div>
 
-      <div className="card" style={{ overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table className="queue">
-            <thead>
-              <tr>
-                <th style={{ width: 120 }}>Deadline</th>
-                <th>Request</th>
-                <th className="hide-sm">Requester</th>
-                <th className="hide-sm">Status</th>
-                <th style={{ width: 90 }}>Risk</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ r, risk }) => (
-                <tr key={r.id}>
-                  <td>
-                    <DeadlineBand band={risk.band} label={BAND_LABEL[risk.band]} />
-                    <div className="muted" style={{ fontSize: "0.8rem", marginTop: 5 }}>
-                      {dateShort(r.dueAt)} · {daysLabel(risk.daysRemaining)}
-                    </div>
-                  </td>
-                  <td>
-                    <Link href={`/${slug}/app/requests/${r.id}`} style={{ fontWeight: 600, color: "var(--ink)" }}>
-                      {r.interpretedScope}
-                    </Link>
-                    <div style={{ display: "flex", gap: 8, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
-                      <span className="mono muted">{r.publicId}</span>
-                      {r.assignedCoordinatorName && (
-                        <span
-                          className="pill"
-                          title="Assigned coordinator"
-                          style={r.assignedCoordinatorId === staff.userId ? { fontWeight: 600 } : undefined}
-                        >
-                          {r.assignedCoordinatorId === staff.userId ? "Mine" : r.assignedCoordinatorName}
-                        </span>
-                      )}
-                      {r.triageReady && <AiPill>Triage ready</AiPill>}
-                      {r.redFlags.map((f) => (
-                        <span key={f} className="pill band-overdue" title="Statutory red flag">
-                          {titleCase(f)}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="hide-sm">
-                    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                      <Avatar name={r.requesterName} />
-                      <div>
-                        <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>{r.requesterName}</div>
-                        <div className="muted" style={{ fontSize: "0.78rem" }}>
-                          {titleCase(r.requesterType)}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="hide-sm">
-                    <StatusPill label={requestStatusLabel(r.status)} />
-                  </td>
-                  <td>
-                    <RiskMeter score={risk.score} band={risk.band} />
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="muted" style={{ padding: 20 }}>
-                    {assigneeFilter
-                      ? "Nothing matches this filter."
-                      : "No requests yet — file one from the portal and it lands here."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <QueueTable
+        agencySlug={slug}
+        currentUserId={staff.userId}
+        rows={rows}
+        assignableStaff={assignableStaff}
+        emptyMessage={
+          hasActiveFilters(filters)
+            ? "Nothing matches these filters."
+            : "No requests yet — file one from the portal and it lands here."
+        }
+      />
+
 
       {closedRequests.length > 0 && (
         <>
