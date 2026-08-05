@@ -151,6 +151,10 @@ export interface DocumentEntity {
   /** Text rendition (extraction at ingest, §6.5) — what redaction operates on. */
   extractedText?: string | null;
   pageCount?: number | null;
+  /** Agency retention schedule date ("destroy after"); null = unscheduled. */
+  retentionUntil?: Date | null;
+  /** Non-null = do not destroy, whatever the schedule says (§ retention). */
+  legalHoldReason?: string | null;
   createdAt: Date;
 }
 
@@ -351,7 +355,12 @@ export interface Repository {
   updateDocument(
     agencyId: string,
     id: string,
-    patch: Partial<Pick<DocumentEntity, "metadata" | "processingStatus" | "extractedText" | "pageCount">>,
+    patch: Partial<
+      Pick<
+        DocumentEntity,
+        "metadata" | "processingStatus" | "extractedText" | "pageCount" | "retentionUntil" | "legalHoldReason"
+      >
+    >,
   ): Promise<DocumentEntity>;
   /** Store a document's search embedding (chunk 0 in document_chunks). */
   setDocumentEmbedding(agencyId: string, id: string, embedding: number[], content: string): Promise<void>;

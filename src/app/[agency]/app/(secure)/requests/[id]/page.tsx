@@ -82,6 +82,10 @@ export default async function RequestDetail({
   // Assignment (§6.3 queue ergonomics): current owner + who could own it.
   let assignableStaff: { id: string; name: string }[] = [];
   let assigneeId: string | null = null;
+  // Retention: documents in this review set at risk of destruction, and the
+  // holds protecting the rest. Spoliation is the failure this surfaces.
+  let retentionRisk: { filename: string; label: string }[] = [];
+  let heldCount = 0;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -159,6 +163,15 @@ export default async function RequestDetail({
           aiSensitivityNote: aiClass?.sensitivityNote ?? null,
         };
       });
+    {
+      const { documentsAtRetentionRisk, retentionStatus } = await import("@/domain/retention");
+      const reviewSet = docs.filter((d) => d.classification === "internal");
+      retentionRisk = documentsAtRetentionRisk(reviewSet, now).map(({ doc, status }) => ({
+        filename: doc.filename ?? doc.id,
+        label: status.label,
+      }));
+      heldCount = reviewSet.filter((d) => retentionStatus(d, now).state === "held").length;
+    }
     const rel = releases[0];
     if (rel) {
       const approver = await repo.getUser(staff.agencyId, rel.approvedByUserId);
@@ -276,6 +289,38 @@ export default async function RequestDetail({
                 staff={assignableStaff}
                 assigneeId={assigneeId}
               />
+            </div>
+          )}
+
+          {/* Anti-spoliation: a record answering this request must not be
+              destroyed on schedule while the request is still open. */}
+          {retentionRisk.length > 0 && (
+            <div className="card card-pad" style={{ borderColor: "var(--overdue-border)", background: "var(--overdue-bg)" }}>
+              <div className="panel-title" style={{ color: "var(--overdue)" }}>
+                Retention risk
+              </div>
+              <p style={{ fontSize: "0.88rem", margin: "6px 0 0" }}>
+                {retentionRisk.length} document{retentionRisk.length === 1 ? " is" : "s are"} scheduled
+                for destruction and not under hold. Destroying a record responsive to an open request
+                is spoliation — place a hold before the schedule runs.
+              </p>
+              <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "grid", gap: 4 }}>
+                {retentionRisk.map((d) => (
+                  <li key={d.filename} style={{ fontSize: "0.82rem" }}>
+                    <span className="mono">{d.filename}</span>{" "}
+                    <span className="muted">— {d.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {heldCount > 0 && retentionRisk.length === 0 && (
+            <div className="card card-pad">
+              <div className="panel-title">Retention</div>
+              <p className="muted" style={{ fontSize: "0.85rem", margin: "6px 0 0" }}>
+                {heldCount} document{heldCount === 1 ? "" : "s"} held against destruction while this
+                request is open.
+              </p>
             </div>
           )}
 

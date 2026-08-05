@@ -549,6 +549,15 @@ export const documents = pgTable(
     externalSystemId: text("external_system_id"),
     externalDeepLink: text("external_deep_link"),
 
+    // Retention schedule + legal hold. Destroying a record that is responsive
+    // to an open request is spoliation; a hold is the flag that stops it.
+    // retentionUntil is the agency's own schedule date (imported or set);
+    // legalHoldReason non-null means "do not destroy", whatever the schedule
+    // says. Cleared only by a named human (or automatically when the last
+    // open request touching the document closes).
+    retentionUntil: timestamp("retention_until", { withTimezone: true }),
+    legalHoldReason: text("legal_hold_reason"),
+
     ...timestamps,
   },
   (t) => [

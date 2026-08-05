@@ -520,6 +520,8 @@ export class DrizzleRepository implements Repository {
       checksum: d.checksum,
       extractedText: d.extractedText,
       pageCount: d.pageCount,
+      retentionUntil: d.retentionUntil,
+      legalHoldReason: d.legalHoldReason,
       createdAt: d.createdAt,
     };
   }
@@ -701,7 +703,12 @@ export class DrizzleRepository implements Repository {
   async updateDocument(
     agencyId: string,
     id: string,
-    patch: Partial<Pick<DocumentEntity, "metadata" | "processingStatus" | "extractedText" | "pageCount">>,
+    patch: Partial<
+      Pick<
+        DocumentEntity,
+        "metadata" | "processingStatus" | "extractedText" | "pageCount" | "retentionUntil" | "legalHoldReason"
+      >
+    >,
   ): Promise<DocumentEntity> {
     const rows = await this.db
       .update(documents)
@@ -712,6 +719,8 @@ export class DrizzleRepository implements Repository {
           : {}),
         ...(patch.extractedText !== undefined ? { extractedText: patch.extractedText } : {}),
         ...(patch.pageCount !== undefined ? { pageCount: patch.pageCount } : {}),
+        ...(patch.retentionUntil !== undefined ? { retentionUntil: patch.retentionUntil } : {}),
+        ...(patch.legalHoldReason !== undefined ? { legalHoldReason: patch.legalHoldReason } : {}),
       })
       .where(tenantWhere(documents.agencyId, agencyId, eq(documents.id, id)))
       .returning();

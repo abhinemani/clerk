@@ -106,6 +106,14 @@ export async function attachDocumentToRequest(
   if (existing.some((d) => d.id === document.id)) return; // idempotent
 
   await repo.linkRequestDocument(input.agencyId, input.requestId, document.id);
+  // Responsive to an open request ⇒ hold it against the retention schedule.
+  // Destroying a record that answers a pending request is spoliation.
+  const { holdForOpenRequest } = await import("./retentionService");
+  await holdForOpenRequest(deps, {
+    agencyId: input.agencyId,
+    requestId: input.requestId,
+    documentId: document.id,
+  });
   await repo.appendEvent({
     id: deps.genId(),
     agencyId: input.agencyId,
