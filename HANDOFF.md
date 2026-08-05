@@ -6,7 +6,7 @@ Written 2026-07-29 at the end of a long build window — everything below was
 verified working in that window unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**358 tests pass, typecheck + production build clean** (as of the OCR/DOCX commit).
+**467 tests pass, typecheck + production build clean** (as of `3aef253`).
 
 ## What this is
 
@@ -171,6 +171,20 @@ Also complete:
   design), `QueueTable` (bulk select + bulk assign, each row still going
   through the per-request `assignCoordinator` so every change is
   individually audited). Stats/sweep always cover the WHOLE open queue.
+- **Inter-agency referral** (`src/services/referralService.ts`, 2026-08-04):
+  phase 1 shipped — `referred` status (NOT a denial; reported separately),
+  `agency_directory` table (migration 0007), admin directory manager at
+  `/app/admin/directory`, Refer panel on request detail, requester letter
+  with their own text pasted back. **Phases 2 (AI custodian suggestion) and
+  3 (cross-tenant forwarding) are specced in `docs/inter-agency-referral.md`.**
+- **Retention/legal holds** (`src/domain/retention.ts`, `retentionService`):
+  attaching a doc to an open request auto-holds it; closing lifts only holds
+  nothing else needs; human litigation holds are never touched by automation.
+- **Evals** (`evals/`): intake triage, answer engine, AND exemption pass
+  (recall-first, 5 golden municipal docs). `npm run eval` sets
+  RUN_LIVE_EVALS=1, which is what loads `.env` — `npm test` stays offline and
+  deterministic on purpose. Last live scorecard: exemption 5/5 · recall 100% ·
+  precision ~65-73% · 0 missed labels.
 - **Statutes**: `src/statute/` — pure `computeDueDate()` (incl. extension
   validation), profiles for CA/TX/IL/WA/NY (data, not code).
 - **Design**: Public Sans + Source Serif 4; navy/gold/red civic triad in
