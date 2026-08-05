@@ -29,11 +29,20 @@ below). The next priorities, in order (owner-reviewed 2026-08-04):
    failed jobs (kind, agency, attempts, error) and failed email relays
    (migration 0010 adds relay_status/relay_error to deliveries;
    RelayNotifier records outcomes; outbox rows kept).
-1. **RECORDS INGESTION & PUBLICATION (owner-directed, next build):** full
-   implementable spec in `docs/records-ingestion.md` — CSV/ZIP records
-   import, the publication-decision queue at /app/records (classification
-   IS the publication decision; named human publishes), AI classification
-   hints, source trust management. Start here in a fresh session.
+1. ~~Records ingestion & publication~~ **DONE** (2026-08-05, `7917a33`,
+   verified live end-to-end): CSV/ZIP import at /app/admin/records-import
+   (parser has NO classification column — bulk imports can't say public;
+   ZIP members scanned fail-closed via the exported `openZipArchive`;
+   external_id re-imports update in place; lazy per-agency file_drop
+   source), publication queue at /app/records (Undecided/Published/Kept
+   internal tabs; per-doc audited publish with prefilled archive metadata,
+   keep-internal decision; bulk loops per doc — one admin event each,
+   named actor), AI hints via new `classify_documents` job (suggestion in
+   metadata.aiClassification; classification column moves ONLY through
+   publicationService's new repo method `setDocumentClassification`),
+   source trust switching + ingest-key rotation (audited, key shown once).
+   Riverton seeds 3 undecided connector docs through the real import
+   service. Go-live "Publish or import records" points at the new page.
 2. ~~Counsel sign-off~~ **DONE** (2026-08-05): per-agency
    `settings.statuteReview` on the (previously unused) portal_settings
    column — no migration. Compliance section on /app/admin shows the
