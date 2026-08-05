@@ -1,7 +1,9 @@
 # Inter-agency referral — phases 2 and 3
 
-Phase 1 shipped (commit `3aef253`). This document is the implementable spec for
-the remaining two phases. Read `HANDOFF.md` first for repo-wide context.
+Phase 1 shipped (commit `3aef253`). **Phase 2 shipped 2026-08-04 (commit
+`1a69fa1`)** — §"Phase 2" below is kept as the as-built record; everything in it
+exists. Phase 3 remains the implementable spec for the one unbuilt piece. Read
+`HANDOFF.md` first for repo-wide context.
 
 ## Where phase 1 left things
 
@@ -22,11 +24,30 @@ that looks secretive in its published statistics.
 
 ---
 
-## Phase 2 — AI suggests the right agency at intake
+## Phase 2 — AI suggests the right agency at intake — ✅ SHIPPED 2026-08-04
 
 **Outcome:** staff stop spending time working a request they can never fulfill,
 and the resident is redirected in hours rather than after the full statutory
 clock runs out.
+
+As built (commit `1a69fa1`), matching the spec below with these specifics:
+- `custodianProposals()` in the pipeline module is the reducer between raw
+  model output and what staff see: "belongs to us" wins over any stray
+  suggestion, unknown directory ids drop, confidence < 0.5 drops, clamped 0–1.
+  The evals grade THROUGH this reducer, so they measure what ships.
+- The event only writes when proposals survive ("ours" logs nothing — no noise).
+- Detail page re-resolves the proposal against the live directory (entries can
+  be deleted between triage and view) and passes it to `ReferPanel` as an
+  `aiProposal` card: Review & refer (pre-fills target + note with the
+  rationale), Refer elsewhere, Dismiss. The phase-1 Refer button remains the
+  single acting control.
+- Live scorecard at ship time: 8/8, 0 false referrals, 0 wrong targets, 3/3
+  referrals caught.
+- Gotcha discovered en route: structured outputs reject `min`/`max` on numbers
+  in the JSON schema (400). `routing.ts` had them on `confidence` — the whole
+  live routing pass was failing silently in the triage job's catch. Bounds now
+  clamp on read everywhere (the intakeTriage convention). If you add a numeric
+  field to any pipeline schema, do NOT bound it in Zod.
 
 ### Build
 

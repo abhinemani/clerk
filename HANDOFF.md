@@ -6,7 +6,7 @@ Written 2026-07-29 at the end of a long build window — everything below was
 verified working in that window unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**467 tests pass, typecheck + production build clean** (as of `3aef253`).
+**488 tests pass, typecheck clean** (as of `230360d`, 2026-08-04).
 
 ## What this is
 
@@ -155,6 +155,15 @@ Also complete:
   reason with per-group Accept/Reject, model confidence, an "N of M
   reviewed" counter, jump-to-line, and hover-to-reveal of covered text.
   Every accept is still an explicit human act.
+  Ease pass (2026-08-04 evening, `230360d`, owner ask "redacting should be
+  easy"): **double-click a word** blacks it out (`wordSpanAt` — pure;
+  punctuation-joined tokens like emails/SSNs are one word), **"New
+  redactions cite" picker** so a batch carries the right citation instead
+  of silently taking `exemptions[0]`, **Cmd/Ctrl+Z** undoes the last act
+  (act-granular: a multi-line drag or redact-all reverts as one; window
+  listener, form fields keep native undo), **Enter in find** = redact all
+  matches. Names are the point: the PII scan can't see them, so the manual
+  path is now the one-gesture path.
 - **Legacy import** (`src/domain/legacyImport.ts` + `legacyImportService`,
   2026-08-04): admin-only `/app/admin/import`, CSV → real requests with
   historical status/dates. Bypasses submitRequest + the transition state
@@ -172,11 +181,18 @@ Also complete:
   through the per-request `assignCoordinator` so every change is
   individually audited). Stats/sweep always cover the WHOLE open queue.
 - **Inter-agency referral** (`src/services/referralService.ts`, 2026-08-04):
-  phase 1 shipped — `referred` status (NOT a denial; reported separately),
-  `agency_directory` table (migration 0007), admin directory manager at
-  `/app/admin/directory`, Refer panel on request detail, requester letter
-  with their own text pasted back. **Phases 2 (AI custodian suggestion) and
-  3 (cross-tenant forwarding) are specced in `docs/inter-agency-referral.md`.**
+  phases 1 AND 2 shipped — `referred` status (NOT a denial; reported
+  separately), `agency_directory` table (migration 0007), admin directory
+  manager at `/app/admin/directory`, Refer panel on request detail, requester
+  letter with their own text pasted back. Phase 2 (2026-08-04, `1a69fa1`):
+  `custodian_suggest` pipeline rides the triage job when the agency has
+  directory entries; surviving proposals (via `custodianProposals()` — see
+  the doc) render as a pre-filling card in ReferPanel. Nothing auto-refers.
+  Precision-first evals in `evals/custodianSuggest*` — 8/8 live, 0 false
+  referrals. **Phase 3 (cross-tenant forwarding) remains specced-not-built
+  in `docs/inter-agency-referral.md` — deliberately: value is zero until two
+  real agencies share a deployment, and it has an OPEN OWNER DECISION on
+  requester-consent before forwarding contact details (§Phase 3.5 there).**
 - **Retention/legal holds** (`src/domain/retention.ts`, `retentionService`):
   attaching a doc to an open request auto-holds it; closing lifts only holds
   nothing else needs; human litigation holds are never touched by automation.
@@ -256,6 +272,13 @@ One volume (`clerk-data` → `/data`) holds DB + blobs. Optional env:
    the pink fix).
 8. **tsc noise from `.next/types`** after concurrent build+dev corruption:
    `rm -rf .next/types` and let the dev server regenerate.
+9. **Structured outputs reject `min`/`max` on numbers** — a Zod
+   `.min(0).max(1)` puts bounds in the JSON schema and the API 400s the
+   call. Because pipeline riders catch-and-log, this fails SILENTLY (the
+   live routing pass was dead for days this way; found + fixed in
+   `1a69fa1`). Never bound numeric fields in a pipeline schema — clamp on
+   read, like intakeTriage's complexity_score and routing/custodian
+   confidence now do.
 
 ## Next: the most important things to make this USEFUL (priority order)
 
@@ -289,6 +312,21 @@ records office runs Tuesday on this." Tiered by adoption impact.
    requester-safe "Progress so far" timeline (status changes + extensions
    only — no internal notes, no task traffic) and an extension callout with
    days/date/reason (invariant 7 surfaced to the requester).
+
+**Tier 1.5 — specced, waiting on a decision or a trigger (future code, ready
+to write)**
+- **Referral phase 3 — cross-tenant forwarding.** Full implementable spec in
+  `docs/inter-agency-referral.md` (service shape, allow-list, invariant test,
+  migration). BLOCKED ON: (a) the owner's consent decision — forward the
+  requester's contact details to the peer agency, or request-text only?
+  Recommended default is a per-referral checkbox, OFF; (b) the trigger — build
+  when a second real agency lands on one deployment, not before.
+- **Redaction studio, likely next asks** (owner cares about this surface;
+  cheap now that acts are centralized in `addAct`): a redo stack to pair with
+  undo; click an existing bar to jump to its log card (bars have
+  `pointer-events: none` today — needs a hit-test in `onDown` instead);
+  "redact this word everywhere" (compose `wordSpanAt` + the find-matches
+  scan — both pure and already tested).
 
 **Tier 2 — daily-work leverage**
 4. **Staff responsive-records search (§6.4).** SHIPPED (lexical): `/app/
