@@ -14,10 +14,20 @@
  * Deployments that want operator-only onboarding set SELF_SIGNUP=off.
  */
 import { AuthError } from "next-auth";
+import { headers } from "next/headers";
 import { signIn } from "@/auth";
 import { getRepository } from "@/db/createRepository";
+import { isGovernmentEmail, SignupRateLimiter } from "@/domain/signupPolicy";
 import { AccountError, provisionAgency } from "@/services/accountService";
 import { defaultDeps } from "@/services/deps";
+
+// Survives module reloads in dev; a process restart resets it (fine here).
+const globalForLimiter = globalThis as unknown as { __signupLimiter?: SignupRateLimiter };
+const limiter = (globalForLimiter.__signupLimiter ??= new SignupRateLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  maxPerKey: 3, // per client
+  maxGlobal: 10, // deployment-wide
+}));
 
 export type SignupResult =
   | { ok: true; slug: string; ingestKey: string }
@@ -34,6 +44,27 @@ export async function selfSignupAction(input: {
   if (process.env.SELF_SIGNUP === "off") {
     return { ok: false, error: "Self-service signup is disabled on this deployment." };
   }
+
+  // Trust gate: government email required unless this deployment opts out
+  // (SIGNUP_ALLOW_ANY_EMAIL=true — self-hosted and demo setups).
+  if (
+    process.env.SIGNUP_ALLOW_ANY_EMAIL !== "true" &&
+    !isGovernmentEmail(input.adminEmail ?? "")
+  ) {
+    return {
+      ok: false,
+      error:
+        "Use your government email address (.gov, .mil, or your state's .us domain). If your jurisdiction uses another domain, contact the deployment operator to be onboarded.",
+    };
+  }
+
+  // Abuse gate: fixed-window limit per client + deployment-wide.
+  const hdrs = await headers();
+  const clientKey = (hdrs.get("x-forwarded-for") ?? "local").split(",")[0]!.trim();
+  if (!limiter.allow(clientKey, Date.now())) {
+    return { ok: false, error: "Too many signups from here right now — try again in an hour." };
+  }
+
   try {
     const repo = await getRepository();
     const { agency, ingestKey } = await provisionAgency(defaultDeps(repo), {

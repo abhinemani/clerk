@@ -16,11 +16,16 @@ export function Nav({
   agencySlug,
   stateName,
   session,
+  sealUrl,
+  officeName = "Office of the City Clerk",
 }: {
   agencyName: string;
   agencySlug: string;
   stateName: string;
   session: NavSession | null;
+  /** Uploaded tenant seal; null falls back to the generic civic seal. */
+  sealUrl?: string | null;
+  officeName?: string;
 }) {
   const path = usePathname();
   const base = `/${agencySlug}`;
@@ -69,7 +74,7 @@ export function Nav({
             </span>
           ) : (
             <span className="muted-inverse hide-sm" style={{ marginLeft: "auto" }}>
-              Office of the City Clerk · Public Records Division
+              {officeName} · Public Records Division
             </span>
           )}
         </div>
@@ -78,7 +83,12 @@ export function Nav({
       <div className="nav">
         <div className="wrap nav-inner">
           <Link href={base} className="brand" aria-label={`${agencyName} public records home`}>
-            <Seal size={38} />
+            {sealUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- tenant-uploaded, served by our own route
+              <img src={sealUrl} alt="" width={38} height={38} style={{ borderRadius: "50%", objectFit: "cover" }} />
+            ) : (
+              <Seal size={38} />
+            )}
             <span className="brand-name">
               <span className="brand-agency">{agencyName}</span>
               <span className="brand-dept">Public Records</span>

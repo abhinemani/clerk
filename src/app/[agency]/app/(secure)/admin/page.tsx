@@ -7,6 +7,7 @@ import { StaffRoster, type RosterRow } from "../../../../_components/StaffRoster
 import { WorkflowSettingsPanel } from "../../../../_components/WorkflowSettingsPanel";
 import { RoutingRulesPanel } from "../../../../_components/RoutingRulesPanel";
 import { DepartmentManager, type DepartmentRow } from "../../../../_components/DepartmentManager";
+import { BrandingPanel } from "../../../../_components/BrandingPanel";
 import { effectiveWorkflowSettings } from "@/domain/workflow";
 import { computeSetupStatus } from "@/domain/setupChecklist";
 import { getStateProfile } from "@/statute/profiles";
@@ -64,10 +65,12 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
   const sections = [
     { id: "team", label: "Team" },
     { id: "departments", label: "Departments" },
+    { id: "branding", label: "Branding" },
     { id: "automation", label: "Automation" },
     { id: "routing", label: "Routing rules" },
     { id: "activity", label: "Activity" },
   ];
+  const branding = agencyRow?.branding ?? {};
 
   return (
     <div className="wrap" style={{ maxWidth: 820, paddingBlock: "36px 48px" }}>
@@ -186,6 +189,25 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
         rows={departments.map(
           (d): DepartmentRow => ({ id: d.id, name: d.name, responderEmails: d.defaultResponderEmails }),
         )}
+      />
+
+      <h2 id="branding" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>
+        Portal branding
+      </h2>
+      <p className="muted" style={{ fontSize: "0.9rem", marginBottom: 12, maxWidth: 560 }}>
+        Make the portal yours: your seal, your accent color, your office details in the footer.
+        Residents should recognize their government, not a vendor.
+      </p>
+      <BrandingPanel
+        agencySlug={slug}
+        initial={{
+          officeName: branding.officeName ?? "",
+          contactEmail: branding.contactEmail ?? "",
+          addressLines: (branding.addressLines ?? []).join("\n"),
+          hours: branding.hours ?? "",
+          accentColor: branding.accentColor ?? "",
+          hasCustomSeal: branding.sealBlobRef != null,
+        }}
       />
 
       <h2 id="automation" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>

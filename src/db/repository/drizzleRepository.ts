@@ -86,11 +86,12 @@ export class DrizzleRepository implements Repository {
   }
   async updateAgency(
     agencyId: string,
-    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules">>,
+    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules" | "branding">>,
   ): Promise<Agency> {
     const set: Record<string, unknown> = {};
     if ("workflowSettings" in patch) set.workflowSettings = patch.workflowSettings ?? null;
     if ("defaultRoutingRules" in patch) set.defaultRoutingRules = patch.defaultRoutingRules ?? null;
+    if ("branding" in patch) set.branding = patch.branding ?? null;
     if (Object.keys(set).length > 0) {
       await this.db.update(agencies).set(set).where(eq(agencies.id, agencyId));
     }
@@ -107,6 +108,7 @@ export class DrizzleRepository implements Repository {
       observedHolidays: a.observedHolidays ?? [],
       workflowSettings: a.workflowSettings ?? null,
       defaultRoutingRules: (a.defaultRoutingRules as Agency["defaultRoutingRules"]) ?? null,
+      branding: a.branding ?? null,
     };
   }
 

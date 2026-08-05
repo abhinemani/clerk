@@ -264,3 +264,114 @@ export async function saveDepartmentAction(input: {
     return { ok: false, error: "Could not save the department." };
   }
 }
+
+/**
+ * Branding (per-tenant identity): office name/contact, accent color
+ * (contrast-guarded — white ink must clear AA on it), and the seal image
+ * (PNG/JPEG only, size-capped, virus-scanned like every other upload).
+ */
+export async function saveBrandingAction(input: {
+  agencySlug: string;
+  officeName?: string;
+  contactEmail?: string;
+  addressLines?: string; // newline-separated
+  hours?: string;
+  accentColor?: string; // empty = clear
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+    const agency = await repo.getAgency(agencyId);
+    const prev = agency?.branding ?? {};
+
+    let accentColor: string | undefined;
+    const rawAccent = input.accentColor?.trim();
+    if (rawAccent) {
+      const { checkAccentColor } = await import("@/domain/branding");
+      const check = checkAccentColor(rawAccent);
+      if (!check.ok) {
+        return {
+          ok: false,
+          error:
+            check.reason === "too_light"
+              ? "That color is too light — white text on it wouldn't meet accessibility contrast (WCAG AA). Pick a darker shade."
+              : "Enter a hex color like #1e3a5f.",
+        };
+      }
+      accentColor = check.normalized;
+    }
+
+    await repo.updateAgency(agencyId, {
+      branding: {
+        ...prev,
+        officeName: input.officeName?.trim() || undefined,
+        contactEmail: input.contactEmail?.trim() || undefined,
+        addressLines: (input.addressLines ?? "")
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .slice(0, 4),
+        hours: input.hours?.trim() || undefined,
+        accentColor,
+      },
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "branding_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: "Updated portal branding",
+      payload: { accentColor: accentColor ?? null },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}`, "layout");
+    return { ok: true };
+  } catch (e) {
+    console.error("saveBranding failed", e);
+    return { ok: false, error: "Could not save branding." };
+  }
+}
+
+const SEAL_MAX_BYTES = 1024 * 1024; // 1 MB — it's a header image, not an archive
+const SEAL_TYPES = new Set(["image/png", "image/jpeg"]);
+
+export async function uploadSealAction(formData: FormData): Promise<AdminResult> {
+  try {
+    const agencySlug = String(formData.get("agencySlug") ?? "");
+    const file = formData.get("seal");
+    if (!(file instanceof File)) return { ok: false, error: "Choose an image file." };
+    if (!SEAL_TYPES.has(file.type)) return { ok: false, error: "PNG or JPEG only." };
+    if (file.size > SEAL_MAX_BYTES) return { ok: false, error: "Keep the seal under 1 MB." };
+
+    const { actor, repo, agencyId } = await actorFor(agencySlug);
+    const bytes = Buffer.from(await file.arrayBuffer());
+
+    // Same rule as every upload in the product: unscanned bytes are never
+    // stored (fail-closed — spec §4).
+    const { assertUploadable, getVirusScanner } = await import("@/adapters/virusScan");
+    await assertUploadable(getVirusScanner(), bytes, file.name);
+
+    const { blobKey, getBlobStore } = await import("@/adapters/blobStore");
+    const key = blobKey(agencyId, `seal-${Date.now()}-${file.name}`);
+    await getBlobStore().put(key, bytes, file.type);
+
+    const agency = await repo.getAgency(agencyId);
+    await repo.updateAgency(agencyId, {
+      branding: { ...(agency?.branding ?? {}), sealBlobRef: key },
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "branding_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: "Uploaded a new agency seal",
+      payload: { filename: file.name, bytes: file.size },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${agencySlug}`, "layout");
+    return { ok: true };
+  } catch (e) {
+    console.error("uploadSeal failed", e);
+    const message = e instanceof Error ? e.message : "Could not upload the seal.";
+    return { ok: false, error: message };
+  }
+}

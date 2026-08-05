@@ -216,11 +216,7 @@ export const agencies = pgTable("agencies", {
   name: text("name").notNull(),
   jurisdiction: text("jurisdiction"), // free-form, e.g. "City of Riverton"
   stateCode: text("state_code").notNull(), // drives statute profile selection (§7)
-  branding: jsonb("branding").$type<{
-    logoUrl?: string;
-    primaryColor?: string;
-    accentColor?: string;
-  }>(),
+  branding: jsonb("branding").$type<AgencyBranding>(),
   // Statute configuration is denormalized onto the agency (§7). Seeded from a
   // maintained library of state profiles; profiles are data, not code.
   statuteConfig: jsonb("statute_config").$type<StatuteConfig>(),
@@ -1027,6 +1023,23 @@ export interface ExtensionRecord {
   days: number;
   reason: string;
   statutoryBasis?: string;
+}
+
+/**
+ * Per-tenant identity (portal branding). Everything optional — the portal
+ * falls back to the generic civic seal and sensible defaults, so a fresh
+ * tenant looks respectable before its clerk uploads anything.
+ */
+export interface AgencyBranding {
+  /** e.g. "Office of the City Clerk" (the default), "Records Division". */
+  officeName?: string;
+  contactEmail?: string;
+  addressLines?: string[];
+  hours?: string;
+  /** Hex accent replacing the portal navy — contrast-guarded on write. */
+  accentColor?: string;
+  /** Blob key of the uploaded seal image (PNG/JPEG, scanned at upload). */
+  sealBlobRef?: string;
 }
 
 /**

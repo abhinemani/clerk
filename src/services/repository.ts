@@ -13,6 +13,16 @@ import type { RoutingRule, WorkflowSettings } from "@/domain/workflow";
 
 // --- entities (DB-agnostic domain model) -----------------------------------
 
+/** Per-tenant identity — mirrors the schema's AgencyBranding. All optional. */
+export interface AgencyBranding {
+  officeName?: string;
+  contactEmail?: string;
+  addressLines?: string[];
+  hours?: string;
+  accentColor?: string;
+  sealBlobRef?: string;
+}
+
 export interface Agency {
   id: string;
   slug: string;
@@ -23,6 +33,8 @@ export interface Agency {
   workflowSettings?: WorkflowSettings | null;
   /** Deterministic keyword→department routing (src/domain/workflow.ts). */
   defaultRoutingRules?: RoutingRule[] | null;
+  /** Portal identity (seal, accent, office contact); null = defaults. */
+  branding?: AgencyBranding | null;
 }
 
 export type RequesterType =
@@ -325,7 +337,7 @@ export interface Repository {
   /** Settings-only patch (workflow policy etc.) — identity fields are fixed. */
   updateAgency(
     agencyId: string,
-    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules">>,
+    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules" | "branding">>,
   ): Promise<Agency>;
 
   findRequesterByEmail(agencyId: string, email: string): Promise<Requester | null>;
@@ -535,7 +547,7 @@ export class InMemoryRepository implements Repository {
   }
   async updateAgency(
     agencyId: string,
-    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules">>,
+    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules" | "branding">>,
   ) {
     const a = this.agencies.get(agencyId);
     if (!a) throw new NotFoundError("Agency", agencyId);

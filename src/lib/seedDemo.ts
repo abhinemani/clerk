@@ -90,6 +90,12 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
   });
   await deps.repo.updateAgency(agencyId, {
     workflowSettings: { autoAssign: true, autoDispatch: true, autoDispatchConfidence: 0.85 },
+    // Branding demo: the footer contact block renders only what's provided.
+    branding: {
+      contactEmail: "records@riverton.gov",
+      addressLines: ["City Hall, 100 Civic Center Plaza"],
+      hours: "Mon–Fri, 8:00 a.m.–5:00 p.m.",
+    },
   });
   // Deterministic routing rules — file "pothole repairs on Elm St" in the
   // portal and watch the Public Works task go out with no AI key at all.

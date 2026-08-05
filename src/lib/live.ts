@@ -108,6 +108,8 @@ export interface AgencyVM {
   name: string;
   stateCode: string;
   source: "live" | "demo";
+  /** Per-tenant portal identity (src/domain/branding.ts merges defaults). */
+  branding?: import("@/services/repository").AgencyBranding | null;
 }
 
 /**
@@ -119,7 +121,7 @@ export const getAgencyForSlug = cache(async (slug: string): Promise<AgencyVM | n
   const repo = await getRepository();
   const agency = await repo.getAgencyBySlug(slug);
   if (agency) {
-    return { id: agency.id, slug: agency.slug, name: agency.name, stateCode: agency.stateCode, source: "live" };
+    return { id: agency.id, slug: agency.slug, name: agency.name, stateCode: agency.stateCode, source: "live", branding: agency.branding ?? null };
   }
   if (slug === DEMO_AGENCY.slug) {
     return { id: null, slug, name: DEMO_AGENCY.name, stateCode: DEMO_AGENCY.state, source: "demo" };

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { branding } from "@/config/branding";
+import { effectiveBranding } from "@/domain/branding";
 import { getAgencyForSlug } from "@/lib/live";
 import { sessionUser } from "@/auth/guards";
 import { Nav } from "../_components/Nav";
@@ -16,8 +17,9 @@ export async function generateMetadata({
   const { agency: slug } = await params;
   const agency = await getAgencyForSlug(slug);
   if (!agency) return {};
+  const office = effectiveBranding(agency.branding).officeName;
   return {
-    title: `${agency.name} Public Records — Office of the City Clerk`,
+    title: `${agency.name} Public Records — ${office}`,
     description: `Request, track, and browse public records of the ${agency.name}.`,
   };
 }
@@ -40,12 +42,27 @@ export default async function AgencyLayout({
       ? { kind: user.kind, name: user.name ?? user.email ?? "Account" }
       : null;
 
+  // Tenant identity: uploaded seal, contrast-guarded accent (overrides the
+  // portal navy via CSS variables on this wrapper), office details below.
+  const b = effectiveBranding(agency.branding);
+  const sealUrl = b.hasCustomSeal ? `/${agency.slug}/seal` : null;
+  const accentVars = b.accentColor
+    ? ({ "--primary": b.accentColor, "--primary-deep": b.accentColor, "--primary-hover": b.accentColor } as React.CSSProperties)
+    : undefined;
+
   return (
-    <>
+    <div style={accentVars}>
       <a href="#main" className="skip-link">
         Skip to content
       </a>
-      <Nav agencyName={agency.name} agencySlug={agency.slug} stateName={stateName(agency.stateCode)} session={session} />
+      <Nav
+        agencyName={agency.name}
+        agencySlug={agency.slug}
+        stateName={stateName(agency.stateCode)}
+        session={session}
+        sealUrl={sealUrl}
+        officeName={b.officeName}
+      />
       <main id="main">{children}</main>
 
       <footer className="gov-footer">
@@ -53,13 +70,24 @@ export default async function AgencyLayout({
           <div className="gov-footer-grid">
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-                <Seal size={44} label={`Seal of the ${agency.name}`} />
+                {sealUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- tenant-uploaded, served by our own route
+                  <img
+                    src={sealUrl}
+                    alt={`Seal of the ${agency.name}`}
+                    width={44}
+                    height={44}
+                    style={{ borderRadius: "50%", objectFit: "cover" }}
+                  />
+                ) : (
+                  <Seal size={44} label={`Seal of the ${agency.name}`} />
+                )}
                 <div style={{ lineHeight: 1.2 }}>
                   <div className="serif" style={{ color: "#fff", fontWeight: 700, fontSize: "1.05rem" }}>
                     {agency.name}
                   </div>
                   <div style={{ fontSize: "0.78rem", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                    Office of the City Clerk
+                    {b.officeName}
                   </div>
                 </div>
               </div>
@@ -88,16 +116,24 @@ export default async function AgencyLayout({
               </ul>
             </div>
 
-            <div>
-              <div className="gov-footer-title">Records office</div>
-              <ul>
-                <li>City Hall, 100 Civic Center Plaza</li>
-                <li>Mon–Fri, 8:00 a.m.–5:00 p.m.</li>
-                <li>
-                  <a href={`mailto:records@${agency.slug}.gov`}>records@{agency.slug}.gov</a>
-                </li>
-              </ul>
-            </div>
+            {/* Contact details render ONLY when the clerk provided them —
+                a fresh tenant never shows an invented address. */}
+            {(b.addressLines.length > 0 || b.hours || b.contactEmail) && (
+              <div>
+                <div className="gov-footer-title">Records office</div>
+                <ul>
+                  {b.addressLines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                  {b.hours && <li>{b.hours}</li>}
+                  {b.contactEmail && (
+                    <li>
+                      <a href={`mailto:${b.contactEmail}`}>{b.contactEmail}</a>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
           </div>
 
           <div className="gov-footer-bottom">
@@ -111,7 +147,7 @@ export default async function AgencyLayout({
           </div>
         </div>
       </footer>
-    </>
+    </div>
   );
 }
 

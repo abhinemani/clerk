@@ -191,7 +191,23 @@ Also complete:
   machine ON PURPOSE (no milestone emails/auto-assign for a bulk history
   load; a row can be born "fulfilled"). One `note` event per row names
   the importer.
-- **Self-service jurisdiction signup** (2026-08-04 late, closes the
+- **Signup trust & safety** (2026-08-04 latest): self-signup requires a
+  GOVERNMENT email (.gov/.mil/state-local .us — `isGovernmentEmail` in
+  src/domain/signupPolicy.ts, lookalike-tested) unless
+  `SIGNUP_ALLOW_ANY_EMAIL=true` (self-hosted/demo); fixed-window rate limit
+  (3/client/hour, 10 deployment-wide, in-memory). Both env vars documented
+  in .env.example. Verified live: gmail signup refused with honest copy.
+- **Per-tenant branding** (2026-08-04 latest): `agencies.branding` jsonb
+  (column existed since 0000, unused — no migration). Office name, contact
+  email, address, hours, ACCENT COLOR (contrast-guarded: white ink must
+  clear WCAG AA 4.5:1 — `checkAccentColor` in src/domain/branding.ts, the
+  clerk gets "too light" instead of an unreadable portal), and seal upload
+  (PNG/JPEG ≤1MB, virus-scanned, blob store, served at /[agency]/seal,
+  generic civic seal fallback). Edited in /app/admin "Portal branding";
+  accent overrides --primary via a layout wrapper; footer contact block
+  renders ONLY provided fields (never an invented address — Riverton seeds
+  its details so the demo keeps them). Verified live: gold rejected, forest
+  green applied to Bellmar's nav, footer + tab title show Records Division.
   multi-tenant loop): `/signup` — any government creates its own tenant
   (name → auto-slug, state from reviewed statute profiles, admin account),
   through the SAME provisionAgency the platform console uses, so
