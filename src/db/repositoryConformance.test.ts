@@ -317,6 +317,36 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect((await repo.listAttachedDocumentIds(AG2)).includes(d.id)).toBe(false);
     });
 
+    it("publication states: counts and keyset pages agree with the queue's rules", async () => {
+      // Use a THIRD agency so earlier tests' documents can't skew counts.
+      const AG3 = uid();
+      await repo.createAgency({ id: AG3, slug: `conf-pg-${AG3.slice(0, 8)}`, name: "Pager", stateCode: "CA", observedHolidays: [] });
+      const mk = (over: Partial<DocumentEntity>) => repo.createDocument(docOf({ agencyId: AG3, ...over }));
+
+      const d1 = await mk({ createdAt: new Date("2026-08-01T00:00:00Z") }); // undecided (oldest)
+      const d2 = await mk({ createdAt: new Date("2026-08-02T00:00:00Z") }); // undecided
+      const d3 = await mk({ createdAt: new Date("2026-08-03T00:00:00Z") }); // undecided (newest)
+      await mk({ classification: "public", createdAt: new Date("2026-08-04T00:00:00Z") });
+      await mk({ metadata: { publicationDecision: { decision: "internal", byUserId: "u", byName: "U", at: "x" } } });
+      await mk({ externalSystemId: "redacted:whatever" }); // release artifact — never counted
+      const attachedDoc = await mk({ createdAt: new Date("2026-08-05T00:00:00Z") });
+      const r = await repo.createRequest(requestOf({ agencyId: AG3 }));
+      await repo.linkRequestDocument(AG3, r.id, attachedDoc.id);
+
+      expect(await repo.countPublicationStates(AG3)).toEqual({ undecided: 3, published: 1, kept_internal: 1 });
+
+      // Keyset walk, newest first, two at a time.
+      const page1 = await repo.listPublicationDocuments(AG3, "undecided", { limit: 2 });
+      expect(page1.map((d) => d.id)).toEqual([d3.id, d2.id]);
+      const last = page1[page1.length - 1]!;
+      const page2 = await repo.listPublicationDocuments(AG3, "undecided", {
+        limit: 2,
+        before: { createdAt: last.createdAt, id: last.id },
+      });
+      expect(page2.map((d) => d.id)).toEqual([d1.id]);
+      expect(await repo.countPublicationStates(AG2)).toEqual({ undecided: 0, published: 0, kept_internal: 0 });
+    });
+
     // --- embeddings / chunks -------------------------------------------------
 
     it("embeddings: public-only listing; body chunks replace on re-set, chunkIndex from 1", async () => {
@@ -432,6 +462,20 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect(events[newIdx]?.payload).toEqual({ p: 1 });
       expect((await repo.listAdminEvents(AG1, 1)).length).toBe(1);
       expect((await repo.listAdminEvents(AG2)).some((e) => e.kind === "conf_old")).toBe(false);
+    });
+
+    it("publication decisions: append-only history, newest first, doc filter, tenant-scoped", async () => {
+      const docId = uid();
+      const base = { agencyId: AG1, documentId: docId, byUserId: USER1, byName: "Conf", reason: null };
+      await repo.appendPublicationDecision({ ...base, id: uid(), decision: "published", createdAt: new Date("2026-08-01T00:00:00Z") });
+      await repo.appendPublicationDecision({ ...base, id: uid(), decision: "unpublished", reason: "PII", createdAt: new Date("2026-08-02T00:00:00Z") });
+      await repo.appendPublicationDecision({ agencyId: AG1, documentId: uid(), id: uid(), decision: "kept_internal", byUserId: USER1, byName: "Conf", reason: null, createdAt: new Date("2026-08-03T00:00:00Z") });
+
+      const forDoc = await repo.listPublicationDecisions(AG1, docId);
+      expect(forDoc.map((d) => d.decision)).toEqual(["unpublished", "published"]);
+      expect(forDoc[0]?.reason).toBe("PII");
+      expect((await repo.listPublicationDecisions(AG1)).length).toBeGreaterThanOrEqual(3);
+      expect(await repo.listPublicationDecisions(AG2, docId)).toEqual([]);
     });
 
     it("deliveries: relay outcomes recorded; failed list is deployment-wide", async () => {

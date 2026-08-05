@@ -4,8 +4,7 @@ import { getRepository } from "@/db/createRepository";
 import { getAgencyForSlug } from "@/lib/live";
 import { requireStaff } from "@/auth/guards";
 import { readDocumentMeta, sensitivitySummary } from "@/domain/documentMeta";
-import { listPublicationQueues } from "@/services/publicationService";
-import type { DocumentEntity } from "@/services/repository";
+import type { DocumentEntity, PublicationState } from "@/services/repository";
 import { PublicationQueue, type QueueDocVM } from "../../../../_components/PublicationQueue";
 
 export const dynamic = "force-dynamic";
@@ -47,33 +46,55 @@ function toVM(d: DocumentEntity, sourceNames: Map<string, string>): QueueDocVM {
   };
 }
 
+const PAGE_SIZE = 50;
+
+/** ?before= cursor: "<createdAt ISO>_<id>" of the previous page's last row. */
+function parseCursor(raw: string | undefined): { createdAt: Date; id: string } | undefined {
+  if (!raw) return undefined;
+  const sep = raw.indexOf("_");
+  if (sep < 0) return undefined;
+  const createdAt = new Date(raw.slice(0, sep));
+  const id = raw.slice(sep + 1);
+  return Number.isNaN(createdAt.getTime()) || !id ? undefined : { createdAt, id };
+}
+
 export default async function RecordsQueuePage({
   params,
   searchParams,
 }: {
   params: Promise<{ agency: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; before?: string }>;
 }) {
   const [{ agency: slug }, sp] = await Promise.all([params, searchParams]);
   const agency = await getAgencyForSlug(slug);
   if (!agency || !agency.id) notFound();
   await requireStaff(slug); // coordinator/admin — the publication decision is theirs
 
+  const tab: Tab = sp.tab === "published" ? "published" : sp.tab === "internal" ? "internal" : "undecided";
+  const state: PublicationState =
+    tab === "published" ? "published" : tab === "internal" ? "kept_internal" : "undecided";
+  const before = parseCursor(sp.before);
+
+  // Counts and pages come from the query layer — the queue never loads the
+  // whole corpus to render three pills (a real archive is tens of thousands
+  // of rows). +1 row detects whether a next page exists.
   const repo = await getRepository();
-  const [queues, sources] = await Promise.all([
-    listPublicationQueues({ repo, now: () => new Date(), genId: () => crypto.randomUUID(), genToken: () => "" }, agency.id),
+  const [counts, page, sources] = await Promise.all([
+    repo.countPublicationStates(agency.id),
+    repo.listPublicationDocuments(agency.id, state, { limit: PAGE_SIZE + 1, before }),
     repo.listSources(agency.id),
   ]);
   const sourceNames = new Map(sources.map((s) => [s.id, s.name]));
-
-  const tab: Tab = sp.tab === "published" ? "published" : sp.tab === "internal" ? "internal" : "undecided";
-  const docs = tab === "undecided" ? queues.undecided : tab === "published" ? queues.published : queues.keptInternal;
+  const docs = page.slice(0, PAGE_SIZE);
+  const lastRow = docs[docs.length - 1];
+  const nextCursor =
+    page.length > PAGE_SIZE && lastRow ? `${lastRow.createdAt.toISOString()}_${lastRow.id}` : null;
   const vms = docs.map((d) => toVM(d, sourceNames));
 
   const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: "undecided", label: "Undecided", count: queues.undecided.length },
-    { key: "published", label: "Published", count: queues.published.length },
-    { key: "internal", label: "Kept internal", count: queues.keptInternal.length },
+    { key: "undecided", label: "Undecided", count: counts.undecided },
+    { key: "published", label: "Published", count: counts.published },
+    { key: "internal", label: "Kept internal", count: counts.kept_internal },
   ];
 
   return (
@@ -117,6 +138,20 @@ export default async function RecordsQueuePage({
         mode={tab}
         docs={vms}
       />
+
+      {nextCursor && (
+        <p style={{ marginTop: 14, textAlign: "center" }}>
+          <Link
+            className="btn btn-sm"
+            href={`/${slug}/app/records?${new URLSearchParams({
+              ...(tab === "undecided" ? {} : { tab }),
+              before: nextCursor,
+            }).toString()}`}
+          >
+            Load older records →
+          </Link>
+        </p>
+      )}
 
       {tab === "internal" && vms.length > 0 && (
         <p className="muted" style={{ fontSize: "0.82rem", marginTop: 10 }}>

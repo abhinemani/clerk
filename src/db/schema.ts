@@ -862,6 +862,51 @@ export const jobs = pgTable(
   (t) => [index("jobs_status_run_after_idx").on(t.status, t.runAfter)],
 );
 
+/**
+ * publication_decisions — append-only record of every publish / keep-internal
+ * / unpublish call on a corpus document (docs/records-ingestion.md §2).
+ * The jsonb `metadata.publicationDecision` on the document is a denormalized
+ * cache of the LATEST row here (cheap rendering, same pattern as
+ * forwarded_from); THIS table is the tamper-evident history counsel reads.
+ * Insert-only; no update/delete paths, ever — same rule as request_events.
+ * by_user_id deliberately has no FK: an audit row outlives everything.
+ */
+export const publicationDecisionKind = pgEnum("publication_decision_kind", [
+  "published",
+  "kept_internal",
+  "unpublished",
+]);
+
+export const publicationDecisions = pgTable(
+  "publication_decisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    documentId: uuid("document_id").notNull(), // no FK — history survives the doc
+    decision: publicationDecisionKind("decision").notNull(),
+    byUserId: uuid("by_user_id").notNull(),
+    byName: text("by_name").notNull(),
+    /** Mandatory for unpublish; null otherwise. */
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("publication_decisions_agency_doc_idx").on(t.agencyId, t.documentId, t.createdAt)],
+);
+
+/**
+ * instance_meta — this database's own identity, minted once at first boot.
+ * Session JWTs carry the instance id as a claim; guards reject tokens minted
+ * against a different database, so a cookie from one deployment (or a
+ * reseeded dev database) grants nothing here. Rotating the row is the
+ * "sign everyone out" lever.
+ */
+export const instanceMeta = pgTable("instance_meta", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const deflections = pgTable(
   "deflections",
   {
@@ -1172,6 +1217,8 @@ export const allTables = {
   agentRuns,
   publicIdCounters,
   jobs,
+  publicationDecisions,
+  instanceMeta,
 } as const;
 
 // Silence unused-import warning for `sql` when no raw defaults are used yet; it

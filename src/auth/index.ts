@@ -31,6 +31,8 @@ declare module "next-auth" {
       agencySlug?: string;
       /** Staff only. */
       role?: StaffRole;
+      /** Which database this token was minted against (src/lib/instance.ts). */
+      inst?: string;
     } & DefaultSession["user"];
   }
   interface User {
@@ -147,13 +149,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user) {
         token.sub = user.id;
         token.kind = user.kind;
         token.agencyId = user.agencyId;
         token.agencySlug = user.agencySlug;
         token.role = user.role;
+        // Bind the token to THIS database. Guards reject tokens whose claim
+        // doesn't match — cookies from other deployments (or recreated dev
+        // databases) sharing AUTH_SECRET stop working here.
+        const { getInstanceId } = await import("@/lib/instance");
+        token.inst = await getInstanceId();
       }
       return token;
     },
@@ -163,6 +170,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.agencyId = token.agencyId as string;
       session.user.agencySlug = token.agencySlug as string;
       session.user.role = token.role as StaffRole | undefined;
+      session.user.inst = token.inst as string | undefined;
       return session;
     },
   },

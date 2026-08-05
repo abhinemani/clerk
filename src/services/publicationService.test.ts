@@ -217,6 +217,12 @@ describe("unpublishDocument", () => {
     expect((await repo.getDocument("ag-1", "d-1"))!.classification).toBe("public");
     const kinds = (await repo.listAdminEvents("ag-1")).map((e) => e.kind);
     expect(kinds).toEqual(["record_published", "record_unpublished", "record_published"]);
+
+    // The append-only history table carries the full cycle, in order, with
+    // the unpublish reason — this is what counsel reads, not the jsonb cache.
+    const history = await repo.listPublicationDecisions("ag-1", "d-1");
+    expect(history.map((h) => h.decision)).toEqual(["published", "unpublished", "published"]);
+    expect(history.find((h) => h.decision === "unpublished")).toMatchObject({ byName: "Casey", reason: "wrong doc" });
   });
 });
 

@@ -7,7 +7,7 @@
  * Tenant isolation is enforced in every read: queries AND `agency_id` in, and a
  * row from another agency is invisible.
  */
-import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, lte, ne, notExists, notLike, or, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import {
   adminEvents,
@@ -21,6 +21,7 @@ import {
   documents,
   jobs,
   messages,
+  publicationDecisions,
   publicIdCounters,
   releases,
   requestDocuments,
@@ -48,6 +49,8 @@ import {
   type JobRecord,
   type JobStatus,
   type MessageEntity,
+  type PublicationDecisionRow,
+  type PublicationState,
   type ReleaseEntity,
   type RequestEntity,
   type Requester,
@@ -832,6 +835,43 @@ export class DrizzleRepository implements Repository {
     }));
   }
 
+  async appendPublicationDecision(d: PublicationDecisionRow): Promise<PublicationDecisionRow> {
+    await this.db.insert(publicationDecisions).values({
+      id: d.id,
+      agencyId: d.agencyId,
+      documentId: d.documentId,
+      decision: d.decision,
+      byUserId: d.byUserId,
+      byName: d.byName,
+      reason: d.reason,
+      createdAt: d.createdAt,
+    });
+    return d;
+  }
+  async listPublicationDecisions(agencyId: string, documentId?: string): Promise<PublicationDecisionRow[]> {
+    const rows = await this.db
+      .select()
+      .from(publicationDecisions)
+      .where(
+        tenantWhere(
+          publicationDecisions.agencyId,
+          agencyId,
+          documentId ? eq(publicationDecisions.documentId, documentId) : undefined,
+        ),
+      )
+      .orderBy(desc(publicationDecisions.createdAt));
+    return rows.map((r: typeof publicationDecisions.$inferSelect) => ({
+      id: r.id,
+      agencyId: r.agencyId,
+      documentId: r.documentId,
+      decision: r.decision,
+      byUserId: r.byUserId,
+      byName: r.byName,
+      reason: r.reason,
+      createdAt: r.createdAt,
+    }));
+  }
+
   async createDelivery(d: DeliveryEntity): Promise<DeliveryEntity> {
     await this.db.insert(deliveries).values({
       id: d.id,
@@ -982,6 +1022,64 @@ export class DrizzleRepository implements Repository {
       .innerJoin(documents, eq(requestDocuments.documentId, documents.id))
       .where(eq(documents.agencyId, agencyId));
     return rows.map((r: { documentId: string }) => r.documentId);
+  }
+
+  /** The publication queue's eligibility + state predicate, in SQL. */
+  private publicationStateWhere(agencyId: string, state: PublicationState) {
+    const eligible = and(
+      eq(documents.agencyId, agencyId),
+      // Attached docs belong to the request review flow.
+      notExists(
+        this.db.select({ one: sql`1` }).from(requestDocuments).where(eq(requestDocuments.documentId, documents.id)),
+      ),
+      // Release artifacts are managed by the release flow.
+      or(isNull(documents.externalSystemId), notLike(documents.externalSystemId, "redacted:%")),
+      ne(documents.provenance, "prior_release"),
+    );
+    const decided = sql`${documents.metadata}->'publicationDecision' is not null`;
+    if (state === "published") return and(eligible, eq(documents.classification, "public"));
+    if (state === "undecided") {
+      return and(eligible, eq(documents.classification, "internal"), sql`not (${decided})`);
+    }
+    return and(eligible, eq(documents.classification, "internal"), decided);
+  }
+  async countPublicationStates(agencyId: string): Promise<Record<PublicationState, number>> {
+    const count = async (state: PublicationState) => {
+      const [row] = await this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(documents)
+        .where(this.publicationStateWhere(agencyId, state));
+      return row?.n ?? 0;
+    };
+    const [undecided, published, keptInternal] = await Promise.all([
+      count("undecided"),
+      count("published"),
+      count("kept_internal"),
+    ]);
+    return { undecided, published, kept_internal: keptInternal };
+  }
+  async listPublicationDocuments(
+    agencyId: string,
+    state: PublicationState,
+    opts: { limit: number; before?: { createdAt: Date; id: string } },
+  ): Promise<DocumentEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .where(
+        and(
+          this.publicationStateWhere(agencyId, state),
+          opts.before
+            ? or(
+                lt(documents.createdAt, opts.before.createdAt),
+                and(eq(documents.createdAt, opts.before.createdAt), lt(documents.id, opts.before.id)),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(desc(documents.createdAt), desc(documents.id))
+      .limit(opts.limit);
+    return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
   }
   async setDocumentClassification(
     agencyId: string,

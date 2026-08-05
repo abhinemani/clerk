@@ -113,6 +113,17 @@ export async function publishDocument(
   });
   const published = await repo.setDocumentClassification(input.agencyId, doc.id, "public");
 
+  // Tamper-evident history first-class (the jsonb stamp above is its cache).
+  await repo.appendPublicationDecision({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    documentId: doc.id,
+    decision: "published",
+    byUserId: actor.id,
+    byName: actor.name ?? actor.email,
+    reason: null,
+    createdAt: deps.now(),
+  });
   await repo.appendAdminEvent({
     id: deps.genId(),
     agencyId: input.agencyId,
@@ -153,6 +164,16 @@ export async function keepDocumentInternal(
     metadata: patchDocumentMeta(doc, { publicationDecision: decision }),
   });
 
+  await repo.appendPublicationDecision({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    documentId: doc.id,
+    decision: "kept_internal",
+    byUserId: actor.id,
+    byName: actor.name ?? actor.email,
+    reason: null,
+    createdAt: deps.now(),
+  });
   await repo.appendAdminEvent({
     id: deps.genId(),
     agencyId: input.agencyId,
@@ -208,6 +229,16 @@ export async function unpublishDocument(
   });
   const unpublished = await repo.setDocumentClassification(input.agencyId, doc.id, "internal");
 
+  await repo.appendPublicationDecision({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    documentId: doc.id,
+    decision: "unpublished",
+    byUserId: actor.id,
+    byName: actor.name ?? actor.email,
+    reason: reason.slice(0, 500),
+    createdAt: deps.now(),
+  });
   await repo.appendAdminEvent({
     id: deps.genId(),
     agencyId: input.agencyId,

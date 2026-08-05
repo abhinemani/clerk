@@ -248,6 +248,29 @@ export interface JobRecord {
   createdAt: Date;
 }
 
+export type PublicationDecisionKind = "published" | "kept_internal" | "unpublished";
+
+/** The publication queue's three tabs (docs/records-ingestion.md §2). */
+export type PublicationState = "undecided" | "published" | "kept_internal";
+
+/**
+ * One publish / keep-internal / unpublish act on a corpus document — the
+ * append-only history behind the jsonb `metadata.publicationDecision` cache.
+ * Insert-only, like request/admin events; documentId has no FK on purpose
+ * (an audit row outlives the document).
+ */
+export interface PublicationDecisionRow {
+  id: string;
+  agencyId: string;
+  documentId: string;
+  decision: PublicationDecisionKind;
+  byUserId: string;
+  byName: string;
+  /** Mandatory for unpublish; null otherwise. */
+  reason: string | null;
+  createdAt: Date;
+}
+
 /** Append-only account-administration audit (agency-scoped; spec §10 spirit). */
 export interface AdminEventEntity {
   id: string;
@@ -529,6 +552,11 @@ export interface Repository {
   appendAdminEvent(e: AdminEventEntity): Promise<AdminEventEntity>;
   listAdminEvents(agencyId: string, limit?: number): Promise<AdminEventEntity[]>;
 
+  /** Append-only publication history — insert only, no update/delete paths. */
+  appendPublicationDecision(d: PublicationDecisionRow): Promise<PublicationDecisionRow>;
+  /** Newest first; documentId narrows to one document's history. */
+  listPublicationDecisions(agencyId: string, documentId?: string): Promise<PublicationDecisionRow[]>;
+
   createDelivery(d: DeliveryEntity): Promise<DeliveryEntity>;
   listDeliveries(agencyId: string, limit?: number): Promise<DeliveryEntity[]>;
   /** Record the relay outcome on an outbox row (health surface reads "failed"). */
@@ -554,6 +582,21 @@ export interface Repository {
 
   /** Document ids attached to ANY request — those belong to the request review flow. */
   listAttachedDocumentIds(agencyId: string): Promise<string[]>;
+  /**
+   * Publication-queue tab counts, computed at the query layer — the queue
+   * must not load the whole corpus to render three pills. States share the
+   * queue's eligibility rule: unattached, non-release-artifact documents.
+   */
+  countPublicationStates(agencyId: string): Promise<Record<PublicationState, number>>;
+  /**
+   * One publication-queue page, newest first, keyset-paginated on
+   * (createdAt, id) — `before` is the last row of the previous page.
+   */
+  listPublicationDocuments(
+    agencyId: string,
+    state: PublicationState,
+    opts: { limit: number; before?: { createdAt: Date; id: string } },
+  ): Promise<DocumentEntity[]>;
   /**
    * The ONE way a document's classification changes after creation. Only the
    * publication service may call it (invariant 4/9: internal→public is a named
@@ -1034,6 +1077,17 @@ export class InMemoryRepository implements Repository {
     this.adminEvents.push(e); // append-only (§10)
     return e;
   }
+
+  private publicationDecisions: PublicationDecisionRow[] = [];
+  async appendPublicationDecision(d: PublicationDecisionRow) {
+    this.publicationDecisions.push(d); // append-only
+    return d;
+  }
+  async listPublicationDecisions(agencyId: string, documentId?: string) {
+    return this.publicationDecisions
+      .filter((d) => d.agencyId === agencyId && (documentId == null || d.documentId === documentId))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
   async listAdminEvents(agencyId: string, limit = 50) {
     return this.adminEvents
       .filter((e) => e.agencyId === agencyId)
@@ -1094,6 +1148,41 @@ export class InMemoryRepository implements Repository {
 
   async listAttachedDocumentIds(agencyId: string) {
     return [...new Set(this.requestDocs.filter((rd) => rd.agencyId === agencyId).map((rd) => rd.documentId))];
+  }
+
+  /** The queue's eligibility + state predicate — mirrors the Drizzle SQL. */
+  private publicationStateDocs(agencyId: string, state: PublicationState): DocumentEntity[] {
+    const attached = new Set(this.requestDocs.filter((rd) => rd.agencyId === agencyId).map((rd) => rd.documentId));
+    return [...this.documents.values()].filter((d) => {
+      if (d.agencyId !== agencyId || attached.has(d.id)) return false;
+      if (d.externalSystemId?.startsWith("redacted:") || d.provenance === "prior_release") return false;
+      const decided = (d.metadata as { publicationDecision?: unknown } | null)?.publicationDecision != null;
+      if (state === "published") return d.classification === "public";
+      if (state === "undecided") return d.classification === "internal" && !decided;
+      return d.classification === "internal" && decided;
+    });
+  }
+  async countPublicationStates(agencyId: string) {
+    return {
+      undecided: this.publicationStateDocs(agencyId, "undecided").length,
+      published: this.publicationStateDocs(agencyId, "published").length,
+      kept_internal: this.publicationStateDocs(agencyId, "kept_internal").length,
+    };
+  }
+  async listPublicationDocuments(
+    agencyId: string,
+    state: PublicationState,
+    opts: { limit: number; before?: { createdAt: Date; id: string } },
+  ) {
+    return this.publicationStateDocs(agencyId, state)
+      .filter(
+        (d) =>
+          !opts.before ||
+          d.createdAt.getTime() < opts.before.createdAt.getTime() ||
+          (d.createdAt.getTime() === opts.before.createdAt.getTime() && d.id < opts.before.id),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1))
+      .slice(0, opts.limit);
   }
   async setDocumentClassification(agencyId: string, id: string, classification: "public" | "internal") {
     const d = await this.getDocument(agencyId, id);

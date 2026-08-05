@@ -6,7 +6,18 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getRepository } from "@/db/createRepository";
+import { getInstanceId } from "@/lib/instance";
 import type { StaffRole } from "@/services/repository";
+
+/**
+ * A token is only as good as the database it was minted against: the `inst`
+ * claim must match THIS instance (src/lib/instance.ts). Tokens without the
+ * claim (pre-hardening sessions) or with another database's id are treated
+ * as signed out — one forced re-login, then cross-database cookies are dead.
+ */
+async function instanceMatches(inst: string | undefined): Promise<boolean> {
+  return inst != null && inst === (await getInstanceId());
+}
 
 export interface StaffSession {
   userId: string;
@@ -51,6 +62,7 @@ export async function requireStaff(agencySlug: string, roles?: StaffRole[]): Pro
   if (!u || u.kind !== "staff" || u.agencySlug !== agencySlug || !u.role) {
     redirect(`/${agencySlug}/app/login`);
   }
+  if (!(await instanceMatches(u.inst))) redirect(`/${agencySlug}/app/login`);
 
   const repo = await getRepository();
   const dbUser = await repo.getUser(u.agencyId!, u.id);
@@ -77,6 +89,7 @@ export async function requireRequester(agencySlug: string): Promise<RequesterSes
   if (!u || u.kind !== "requester" || u.agencySlug !== agencySlug) {
     redirect(`/${agencySlug}/login`);
   }
+  if (!(await instanceMatches(u.inst))) redirect(`/${agencySlug}/login`);
   return {
     requesterId: u.id,
     agencyId: u.agencyId!,
@@ -90,6 +103,7 @@ export async function requireRequester(agencySlug: string): Promise<RequesterSes
 export async function requirePlatformAdmin(): Promise<void> {
   const session = await auth();
   if (session?.user?.kind !== "platform") redirect("/admin/login");
+  if (!(await instanceMatches(session.user.inst))) redirect("/admin/login");
 }
 
 /** Non-redirecting session peek for UI chrome (nav links, prefills). */
