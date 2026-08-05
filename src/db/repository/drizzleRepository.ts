@@ -742,6 +742,70 @@ export class DrizzleRepository implements Repository {
         set: { content, embedding },
       });
   }
+  async setDocumentBodyChunks(
+    agencyId: string,
+    documentId: string,
+    chunks: { content: string; embedding: number[] }[],
+  ): Promise<void> {
+    // Replace-in-place: body chunks are derived data, so re-chunking a
+    // document must not leave stale spans behind. Chunk 0 (the archive-entry
+    // vector) is deliberately untouched.
+    await this.db
+      .delete(documentChunks)
+      .where(
+        tenantWhere(
+          documentChunks.agencyId,
+          agencyId,
+          eq(documentChunks.documentId, documentId),
+          sql`${documentChunks.chunkIndex} > 0`,
+        ),
+      );
+    if (chunks.length === 0) return;
+    await this.db.insert(documentChunks).values(
+      chunks.map((c, i) => ({
+        agencyId,
+        documentId,
+        chunkIndex: i + 1,
+        content: c.content,
+        embedding: c.embedding,
+      })),
+    );
+  }
+  async listBodyChunkEmbeddings(
+    agencyId: string,
+  ): Promise<{ documentId: string; chunkIndex: number; content: string; embedding: number[] }[]> {
+    const rows = await this.db
+      .select({
+        documentId: documentChunks.documentId,
+        chunkIndex: documentChunks.chunkIndex,
+        content: documentChunks.content,
+        embedding: documentChunks.embedding,
+      })
+      .from(documentChunks)
+      .where(
+        tenantWhere(
+          documentChunks.agencyId,
+          agencyId,
+          sql`${documentChunks.chunkIndex} > 0`,
+          sql`${documentChunks.embedding} is not null`,
+        ),
+      );
+    // The `is not null` filter above guarantees the vector, but the column
+    // type is nullable — narrow rather than assert.
+    return rows.flatMap(
+      (r: { documentId: string; chunkIndex: number; content: string; embedding: number[] | null }) =>
+        r.embedding
+          ? [{ documentId: r.documentId, chunkIndex: r.chunkIndex, content: r.content, embedding: r.embedding }]
+          : [],
+    );
+  }
+  async listDocumentIdsWithBodyChunks(agencyId: string): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ documentId: documentChunks.documentId })
+      .from(documentChunks)
+      .where(tenantWhere(documentChunks.agencyId, agencyId, sql`${documentChunks.chunkIndex} > 0`));
+    return rows.map((r: { documentId: string }) => r.documentId);
+  }
   async listPublicDocumentEmbeddings(agencyId: string): Promise<{ id: string; embedding: number[] }[]> {
     const rows = await this.db
       .select({ id: documentChunks.documentId, embedding: documentChunks.embedding })

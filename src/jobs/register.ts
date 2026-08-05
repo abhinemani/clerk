@@ -2,6 +2,7 @@
  * Job registration + boot-time schedules. Called once per server process from
  * instrumentation.ts (idempotent via the globalThis-memoized queue).
  */
+import { runEmbedDocumentChunksJob } from "./chunkEmbedJob";
 import { runEmbedPublicDocumentsJob } from "./embedJob";
 import { runExemptionPassJob } from "./exemptionPassJob";
 import { runOcrExtractJob } from "./ocrJob";
@@ -25,6 +26,7 @@ export function registerJobs(): void {
   queue.register("exemption_pass", runExemptionPassJob);
   queue.register("embed_public_documents", runEmbedPublicDocumentsJob);
   queue.register("ocr_extract", runOcrExtractJob);
+  queue.register("embed_document_chunks", runEmbedDocumentChunksJob);
 
   // Backfill archive embeddings shortly after boot (no-op when up to date;
   // fake embedder keeps this working without VOYAGE_API_KEY).
@@ -34,6 +36,8 @@ export function registerJobs(): void {
       const repo = await getRepository();
       for (const agency of await repo.listAgencies()) {
         queue.enqueue("embed_public_documents", { agencyId: agency.id });
+        // Staff-search body vectors for the whole corpus (§6.4).
+        queue.enqueue("embed_document_chunks", { agencyId: agency.id });
       }
     } catch (err) {
       console.error("[jobs] embedding backfill enqueue failed", err);

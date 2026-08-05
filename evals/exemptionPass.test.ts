@@ -92,28 +92,31 @@ describe("exemption grader", () => {
   });
 });
 
-const live = process.env.ANTHROPIC_API_KEY ? describe : describe.skip;
+const live = process.env.RUN_LIVE_EVALS && process.env.ANTHROPIC_API_KEY ? describe : describe.skip;
 
 live("exemption pass — live scored run", () => {
   it(
     "scores the golden set (recall gates; prints the scorecard)",
     async () => {
       const modelClient = new AnthropicModelClient(process.env.ANTHROPIC_API_KEY!);
-      const scores = [];
-      for (const gold of EXEMPTION_GOLDEN) {
-        const { output } = await runPipeline(
-          exemptionPassPipeline,
-          { lines: gold.lines, exemptions: gold.exemptions },
-          { modelClient },
-        );
-        scores.push(gradeExemptionCase(gold, output));
-      }
+      // Independent documents — run concurrently; the wall clock is one
+      // document, not five.
+      const scores = await Promise.all(
+        EXEMPTION_GOLDEN.map(async (gold) => {
+          const { output } = await runPipeline(
+            exemptionPassPipeline,
+            { lines: gold.lines, exemptions: gold.exemptions },
+            { modelClient },
+          );
+          return gradeExemptionCase(gold, output);
+        }),
+      );
       const card = exemptionScorecard(scores);
       // eslint-disable-next-line no-console
       console.log(formatExemptionScorecard(card));
       // A missed exemption is the failure mode this whole eval exists to catch.
       expect(card.totalMissed, `missed labels: ${card.cases.flatMap((c) => c.missed).join(", ")}`).toBe(0);
     },
-    120_000,
+    180_000,
   );
 });

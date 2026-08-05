@@ -56,24 +56,27 @@ describe("grader", () => {
 });
 
 // Live run — skipped unless a real API key is present.
-const live = process.env.ANTHROPIC_API_KEY ? describe : describe.skip;
+const live = process.env.RUN_LIVE_EVALS && process.env.ANTHROPIC_API_KEY ? describe : describe.skip;
 live("intake triage — live scored run", () => {
   it(
     "meets the pass-rate bar on the golden set",
     async () => {
       const client = new AnthropicModelClient();
-      const scores = [];
-      for (const gold of INTAKE_GOLDEN) {
-        const res = await runPipeline(intakeTriagePipeline, { rawText: gold.rawText }, {
-          modelClient: client,
-        });
-        scores.push(gradeCase(gold, res.output));
-      }
+      // Cases are independent — run them concurrently so the wall clock is
+      // one call, not the sum of them (sequential runs blew the timeout).
+      const scores = await Promise.all(
+        INTAKE_GOLDEN.map(async (gold) => {
+          const res = await runPipeline(intakeTriagePipeline, { rawText: gold.rawText }, {
+            modelClient: client,
+          });
+          return gradeCase(gold, res.output);
+        }),
+      );
       const card = scorecard(scores);
       // eslint-disable-next-line no-console
       console.log("\n" + formatScorecard(card) + "\n");
       expect(card.passRate).toBeGreaterThanOrEqual(0.8);
     },
-    120_000,
+    180_000,
   );
 });

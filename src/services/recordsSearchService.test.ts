@@ -112,3 +112,48 @@ describe("attachDocumentToRequest", () => {
     ).rejects.toThrow(/Request/);
   });
 });
+
+describe("hybrid search — the vector half (§6.4)", () => {
+  /** Fake vectors: same "topic" word ⇒ similar vector, no API needed. */
+  function topicVector(text: string): number[] {
+    const topics = ["fall", "injury", "paving", "budget"];
+    const lower = text.toLowerCase();
+    return topics.map((t) => (lower.includes(t) ? 1 : 0));
+  }
+
+  it("finds a document by MEANING when no keyword overlaps", async () => {
+    const { repo } = ctx();
+    await repo.createDocument(
+      doc({
+        id: "d-claim",
+        filename: "claim-2026-0044.pdf",
+        extractedText: "Claimant caught his shoe on a raised joint and fell forward, fracturing a wrist.",
+      }),
+    );
+    await repo.createDocument(
+      doc({ id: "d-budget", filename: "budget.pdf", extractedText: "Adopted budget allocations by department." }),
+    );
+
+    // Body chunks with topic vectors — "fall" is the shared concept.
+    await repo.setDocumentBodyChunks("ag-1", "d-claim", [
+      { content: "Claimant caught his shoe and fell forward, fracturing a wrist.", embedding: topicVector("fall injury") },
+    ]);
+    await repo.setDocumentBodyChunks("ag-1", "d-budget", [
+      { content: "Adopted budget allocations.", embedding: topicVector("budget") },
+    ]);
+
+    // Lexically, "fall" appears in neither title nor metadata of d-claim's
+    // corpus doc beyond the text itself — the vector half is what ranks it.
+    const hits = await searchAgencyRecords({ repo }, { agencyId: "ag-1", query: "trip and fall" });
+    expect(hits[0]!.documentId).toBe("d-claim");
+  });
+
+  it("degrades to lexical-only when nothing is embedded", async () => {
+    const { repo } = ctx();
+    await repo.createDocument(
+      doc({ id: "d-1", filename: "paving.pdf", extractedText: "Acme paving contract for Main Street." }),
+    );
+    const hits = await searchAgencyRecords({ repo }, { agencyId: "ag-1", query: "paving" });
+    expect(hits.map((h) => h.documentId)).toEqual(["d-1"]);
+  });
+});

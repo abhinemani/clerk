@@ -47,7 +47,7 @@ describe("retrieval hard-scope (deterministic, no model)", () => {
 });
 
 // Live scored run — skipped unless a real key is present.
-const live = process.env.ANTHROPIC_API_KEY ? describe : describe.skip;
+const live = process.env.RUN_LIVE_EVALS && process.env.ANTHROPIC_API_KEY ? describe : describe.skip;
 live("answer engine — live groundedness + no-leak", () => {
   it(
     "answers answerable questions with a public citation and NEVER cites internal records",

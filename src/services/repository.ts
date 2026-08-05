@@ -364,6 +364,22 @@ export interface Repository {
   ): Promise<DocumentEntity>;
   /** Store a document's search embedding (chunk 0 in document_chunks). */
   setDocumentEmbedding(agencyId: string, id: string, embedding: number[], content: string): Promise<void>;
+  /**
+   * Replace a document's body chunks (chunk 1+; chunk 0 stays the archive
+   * entry vector). STAFF-scope search reads these — they cover internal
+   * documents, so no requester-facing surface may ever query them.
+   */
+  setDocumentBodyChunks(
+    agencyId: string,
+    documentId: string,
+    chunks: { content: string; embedding: number[] }[],
+  ): Promise<void>;
+  /** Body chunks across the agency corpus — staff hybrid search (§6.4). */
+  listBodyChunkEmbeddings(
+    agencyId: string,
+  ): Promise<{ documentId: string; chunkIndex: number; content: string; embedding: number[] }[]>;
+  /** Document ids that already have body chunks — lets the job skip them. */
+  listDocumentIdsWithBodyChunks(agencyId: string): Promise<string[]>;
   /** Public docs that already have embeddings — the vector half of hybrid search. */
   listPublicDocumentEmbeddings(agencyId: string): Promise<{ id: string; embedding: number[] }[]>;
   /** Attach a document to a request's review set (§5 requestDocuments). */
@@ -663,6 +679,30 @@ export class InMemoryRepository implements Repository {
     const d = await this.getDocument(agencyId, id);
     if (!d) throw new NotFoundError("Document", id);
     this.embeddings.set(id, embedding);
+  }
+  private bodyChunks = new Map<string, { content: string; embedding: number[] }[]>();
+  async setDocumentBodyChunks(
+    agencyId: string,
+    documentId: string,
+    chunks: { content: string; embedding: number[] }[],
+  ) {
+    const d = await this.getDocument(agencyId, documentId);
+    if (!d) throw new NotFoundError("Document", documentId);
+    this.bodyChunks.set(documentId, chunks);
+  }
+  async listBodyChunkEmbeddings(agencyId: string) {
+    const out: { documentId: string; chunkIndex: number; content: string; embedding: number[] }[] = [];
+    for (const [documentId, chunks] of this.bodyChunks) {
+      const d = this.documents.get(documentId);
+      if (!d || d.agencyId !== agencyId) continue;
+      chunks.forEach((c, i) =>
+        out.push({ documentId, chunkIndex: i + 1, content: c.content, embedding: c.embedding }),
+      );
+    }
+    return out;
+  }
+  async listDocumentIdsWithBodyChunks(agencyId: string) {
+    return [...this.bodyChunks.keys()].filter((id) => this.documents.get(id)?.agencyId === agencyId);
   }
   async listPublicDocumentEmbeddings(agencyId: string) {
     const out: { id: string; embedding: number[] }[] = [];

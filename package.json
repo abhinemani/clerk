@@ -15,7 +15,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "eval": "vitest run evals/",
+    "eval": "RUN_LIVE_EVALS=1 vitest run evals/",
     "duedate": "tsx scripts/duedate.ts",
     "triage": "tsx scripts/triage.ts",
     "seed": "tsx scripts/seed.ts"

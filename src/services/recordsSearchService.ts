@@ -46,6 +46,51 @@ function toCorpusDoc(d: DocumentEntity): CorpusDoc {
   };
 }
 
+/** Reciprocal-rank fusion constant — same convention as the archive search. */
+const RRF_K = 60;
+
+/**
+ * Rank documents by their best-matching body chunk. Returns [] (silently,
+ * logged) when nothing is embedded or the embedder is unreachable — search
+ * must degrade to lexical, never fail.
+ */
+async function searchBodyChunks(
+  repo: ServiceDeps["repo"],
+  agencyId: string,
+  query: string,
+  byId: Map<string, DocumentEntity>,
+): Promise<{ documentId: string; snippet: string; similarity: number }[]> {
+  try {
+    const chunks = await repo.listBodyChunkEmbeddings(agencyId);
+    if (chunks.length === 0) return [];
+    const [{ getEmbeddingProvider }, { cosine }] = await Promise.all([
+      import("@/ai/search/voyage"),
+      import("@/ai/search/embeddings"),
+    ]);
+    const [qVec] = await getEmbeddingProvider().embed([query]);
+    if (!qVec) return [];
+
+    // Best chunk per document — a document is as relevant as its strongest passage.
+    const best = new Map<string, { snippet: string; similarity: number }>();
+    for (const c of chunks) {
+      if (!byId.has(c.documentId)) continue; // filtered out (e.g. burned artifact)
+      const similarity = cosine(qVec, c.embedding);
+      if (similarity <= 0) continue;
+      const prev = best.get(c.documentId);
+      if (!prev || similarity > prev.similarity) {
+        best.set(c.documentId, { snippet: c.content.slice(0, 220).trim(), similarity });
+      }
+    }
+    return [...best.entries()]
+      .map(([documentId, v]) => ({ documentId, ...v }))
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 20);
+  } catch (e) {
+    console.error("records search: vector half unavailable, using lexical only", e);
+    return [];
+  }
+}
+
 export async function searchAgencyRecords(
   deps: Pick<ServiceDeps, "repo">,
   input: { agencyId: string; query: string; limit?: number; forRequestId?: string },
@@ -57,9 +102,42 @@ export async function searchAgencyRecords(
     (d) => !d.externalSystemId?.startsWith("redacted:"),
   );
   const byId = new Map(docs.map((d) => [d.id, d]));
+  const limit = input.limit ?? 20;
 
   const retriever = new LexicalRetriever(docs.map(toCorpusDoc));
-  const hits = await retriever.search(input.query, { scope: "full", limit: input.limit ?? 20 });
+  const lexicalHits = await retriever.search(input.query, { scope: "full", limit: 40 });
+
+  // Vector half: body chunks (chunk 1+) over the FULL corpus — this is what
+  // makes "trip and fall" find "claimant caught his shoe and fell forward".
+  // Staff-scope only; the requester archive search never reads these.
+  const vectorRanked = await searchBodyChunks(repo, input.agencyId, input.query, byId);
+
+  // Fuse by reciprocal rank, then rebuild hits in fused order. Degrades to
+  // pure lexical when nothing is embedded yet.
+  const rrf = new Map<string, number>();
+  lexicalHits.forEach((h, rank) => rrf.set(h.id, (rrf.get(h.id) ?? 0) + 1 / (RRF_K + rank)));
+  vectorRanked.forEach((v, rank) => rrf.set(v.documentId, (rrf.get(v.documentId) ?? 0) + 1 / (RRF_K + rank)));
+
+  const lexicalById = new Map(lexicalHits.map((h) => [h.id, h]));
+  const semanticById = new Map(vectorRanked.map((v) => [v.documentId, v]));
+  const hits = [...rrf.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([id]) => {
+      const lex = lexicalById.get(id);
+      if (lex) return lex;
+      const sem = semanticById.get(id)!;
+      const d = byId.get(id)!;
+      return {
+        id,
+        title: d.filename ?? id,
+        score: 0,
+        classification: d.classification,
+        recordType: d.recordType ?? undefined,
+        whyMatched: "Semantic match on document text",
+        snippet: sem.snippet,
+      };
+    });
 
   const attached = new Set<string>(
     input.forRequestId
