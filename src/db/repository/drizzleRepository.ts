@@ -12,6 +12,7 @@ import type { PgDatabase } from "drizzle-orm/pg-core";
 import {
   adminEvents,
   agencies,
+  agencyDirectory,
   authTokens,
   deflections,
   deliveries,
@@ -39,6 +40,7 @@ import {
   type DeflectionEntity,
   type DeliveryEntity,
   type Department,
+  type DirectoryEntry,
   type DocumentEntity,
   type EventEntity,
   type MessageEntity,
@@ -288,7 +290,7 @@ export class DrizzleRepository implements Repository {
   }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>): Promise<RequestEntity> {
     const set: Record<string, unknown> = {};
-    for (const k of ["status", "interpretedScope", "recordTypes", "complexityScore", "statutoryDueAt", "receivedAt", "closedAt", "extensionHistory", "assignedCoordinatorId"] as const) {
+    for (const k of ["status", "interpretedScope", "recordTypes", "complexityScore", "statutoryDueAt", "receivedAt", "closedAt", "extensionHistory", "assignedCoordinatorId", "referredToDirectoryId", "referredAt"] as const) {
       if (k in patch) set[k] = patch[k];
     }
     const rows = await this.db
@@ -314,8 +316,81 @@ export class DrizzleRepository implements Repository {
       statutoryDueAt: r.statutoryDueAt,
       extensionHistory: r.extensionHistory ?? [],
       assignedCoordinatorId: r.assignedCoordinatorId ?? null,
+      referredToDirectoryId: r.referredToDirectoryId ?? null,
+      referredAt: r.referredAt ?? null,
       closedAt: r.closedAt,
       createdAt: r.createdAt,
+    };
+  }
+
+  async listDirectory(agencyId: string): Promise<DirectoryEntry[]> {
+    const rows = await this.db
+      .select()
+      .from(agencyDirectory)
+      .where(eq(agencyDirectory.agencyId, agencyId))
+      .orderBy(agencyDirectory.name);
+    return rows.map((d: typeof agencyDirectory.$inferSelect) => this.toDirectoryEntry(d));
+  }
+  async getDirectoryEntry(agencyId: string, id: string): Promise<DirectoryEntry | null> {
+    const [d] = await this.db
+      .select()
+      .from(agencyDirectory)
+      .where(tenantWhere(agencyDirectory.agencyId, agencyId, eq(agencyDirectory.id, id)))
+      .limit(1);
+    return d ? this.toDirectoryEntry(d) : null;
+  }
+  async createDirectoryEntry(e: DirectoryEntry): Promise<DirectoryEntry> {
+    await this.db.insert(agencyDirectory).values({
+      id: e.id,
+      agencyId: e.agencyId,
+      name: e.name,
+      jurisdictionType: e.jurisdictionType,
+      contactEmail: e.contactEmail,
+      contactPhone: e.contactPhone,
+      portalUrl: e.portalUrl,
+      recordTypes: e.recordTypes,
+      notes: e.notes,
+      peerAgencyId: e.peerAgencyId,
+    });
+    return e;
+  }
+  async updateDirectoryEntry(
+    agencyId: string,
+    id: string,
+    patch: Partial<Omit<DirectoryEntry, "id" | "agencyId">>,
+  ): Promise<DirectoryEntry> {
+    const set: Record<string, unknown> = {};
+    for (const k of [
+      "name", "jurisdictionType", "contactEmail", "contactPhone",
+      "portalUrl", "recordTypes", "notes", "peerAgencyId",
+    ] as const) {
+      if (k in patch) set[k] = patch[k];
+    }
+    const rows = await this.db
+      .update(agencyDirectory)
+      .set(set)
+      .where(tenantWhere(agencyDirectory.agencyId, agencyId, eq(agencyDirectory.id, id)))
+      .returning();
+    if (!rows[0]) throw new NotFoundError("DirectoryEntry", id);
+    return this.toDirectoryEntry(rows[0]);
+  }
+  async deleteDirectoryEntry(agencyId: string, id: string): Promise<void> {
+    await this.db
+      .delete(agencyDirectory)
+      .where(tenantWhere(agencyDirectory.agencyId, agencyId, eq(agencyDirectory.id, id)));
+  }
+  private toDirectoryEntry(d: typeof agencyDirectory.$inferSelect): DirectoryEntry {
+    return {
+      id: d.id,
+      agencyId: d.agencyId,
+      name: d.name,
+      jurisdictionType: d.jurisdictionType,
+      contactEmail: d.contactEmail,
+      contactPhone: d.contactPhone,
+      portalUrl: d.portalUrl,
+      recordTypes: d.recordTypes ?? [],
+      notes: d.notes,
+      peerAgencyId: d.peerAgencyId,
     };
   }
 

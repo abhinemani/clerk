@@ -25,6 +25,11 @@ const RESIDENT_STATUS: Record<string, { headline: string; detail: string; tone: 
   partially_fulfilled: { headline: "Some records released", detail: "Part is ready to download; more is on the way.", tone: "ok" },
   fulfilled: { headline: "Your records are ready", detail: "Download them below.", tone: "ok" },
   denied: { headline: "Request denied", detail: "See the reason and your appeal rights in your messages.", tone: "action" },
+  referred: {
+    headline: "Referred to another agency",
+    detail: "These records are held by a different agency. We've sent you their contact details — your request text is included so you don't have to write it again.",
+    tone: "action",
+  },
   closed: { headline: "Closed", detail: "This request is complete.", tone: "ok" },
 };
 

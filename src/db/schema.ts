@@ -72,8 +72,23 @@ export const requestStatus = pgEnum("request_status", [
   "partially_fulfilled",
   "fulfilled",
   "denied",
+  // Wrong custodian — the records belong to another agency. Deliberately NOT
+  // "denied": denying means we held records and withheld them, and conflating
+  // the two corrupts the denial rate an agency reports publicly.
+  "referred",
   "withdrawn",
   "closed",
+]);
+
+export const jurisdictionType = pgEnum("jurisdiction_type", [
+  "city",
+  "county",
+  "state",
+  "federal",
+  "school_district",
+  "special_district",
+  "court",
+  "other",
 ]);
 
 export const visibility = pgEnum("visibility", ["public", "private"]);
@@ -262,6 +277,40 @@ export const departments = pgTable(
   (t) => [index("departments_agency_idx").on(t.agencyId)],
 );
 
+/**
+ * Neighboring agencies this tenant refers requests to (city → county, school
+ * district, state DOJ…). Most will never be Clerk tenants, so an entry is
+ * plain contact data; `peerAgencyId` links the ones that ARE, which is what
+ * makes one-click forwarding possible (phase 3).
+ */
+export const agencyDirectory = pgTable(
+  "agency_directory",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // The tenant that owns this directory entry.
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    jurisdictionType: jurisdictionType("jurisdiction_type").notNull().default("other"),
+    contactEmail: text("contact_email"),
+    contactPhone: text("contact_phone"),
+    portalUrl: text("portal_url"),
+    // What this agency holds — drives the phase-2 AI suggestion and staff search.
+    recordTypes: jsonb("record_types").$type<string[]>().default([]),
+    notes: text("notes"),
+    // Set when the referral target is another Clerk tenant (phase 3).
+    peerAgencyId: uuid("peer_agency_id").references(() => agencies.id, {
+      onDelete: "set null",
+    }),
+    ...timestamps,
+  },
+  (t) => [
+    index("agency_directory_agency_idx").on(t.agencyId),
+    unique("agency_directory_agency_name_unique").on(t.agencyId, t.name),
+  ],
+);
+
 // Many-to-many: which departments a staff user belongs to.
 export const userDepartments = pgTable(
   "user_departments",
@@ -345,6 +394,13 @@ export const requests = pgTable(
     assignedCoordinatorId: uuid("assigned_coordinator_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    // Referral (wrong custodian). The directory entry we pointed the requester
+    // at, plus the moment it happened — the requester-facing tracker shows both.
+    referredToDirectoryId: uuid("referred_to_directory_id").references(
+      () => agencyDirectory.id,
+      { onDelete: "set null" },
+    ),
+    referredAt: timestamp("referred_at", { withTimezone: true }),
     tags: jsonb("tags").$type<string[]>().default([]),
 
     // Complexity score from intake triage (§6.1), drives internal SLAs.

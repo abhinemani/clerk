@@ -9,6 +9,7 @@ import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/forma
 import { requireStaff } from "@/auth/guards";
 import { DeadlineBand, StatusPill } from "../../../../../_components/ui";
 import { AssigneeSelect } from "../../../../../_components/AssigneeSelect";
+import { ReferPanel, type ReferTargetVM } from "../../../../../_components/ReferPanel";
 import {
   CorrespondencePanel,
   type MessageVM,
@@ -86,6 +87,10 @@ export default async function RequestDetail({
   // holds protecting the rest. Spoliation is the failure this surfaces.
   let retentionRisk: { filename: string; label: string }[] = [];
   let heldCount = 0;
+  // Referral: who we can point this requester at, and where it already went.
+  let referTargets: ReferTargetVM[] = [];
+  let referredTo: { name: string; contactEmail: string | null; portalUrl: string | null } | null = null;
+  let referredAtLabel: string | null = null;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -171,6 +176,23 @@ export default async function RequestDetail({
         label: status.label,
       }));
       heldCount = reviewSet.filter((d) => retentionStatus(d, now).state === "held").length;
+    }
+    {
+      const directory = await repo.listDirectory(staff.agencyId);
+      referTargets = directory.map((d) => ({
+        id: d.id,
+        name: d.name,
+        jurisdictionType: d.jurisdictionType,
+        contactEmail: d.contactEmail,
+        recordTypes: d.recordTypes,
+      }));
+      if (rawRequest?.referredToDirectoryId) {
+        const target = directory.find((d) => d.id === rawRequest.referredToDirectoryId);
+        if (target) {
+          referredTo = { name: target.name, contactEmail: target.contactEmail, portalUrl: target.portalUrl };
+        }
+        referredAtLabel = rawRequest.referredAt ? dateShort(rawRequest.referredAt) : null;
+      }
     }
     const rel = releases[0];
     if (rel) {
@@ -290,6 +312,17 @@ export default async function RequestDetail({
                 assigneeId={assigneeId}
               />
             </div>
+          )}
+
+          {detail.source === "live" && (r.closedAt == null || referredTo) && (
+            <ReferPanel
+              key={referredTo ? "referred" : "open"}
+              agencySlug={slug}
+              requestId={r.id}
+              targets={referTargets}
+              referredTo={referredTo}
+              referredAtLabel={referredAtLabel}
+            />
           )}
 
           {/* Anti-spoliation: a record answering this request must not be

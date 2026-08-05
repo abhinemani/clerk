@@ -121,6 +121,7 @@ const STATUS_SYNONYMS: Record<RequestStatus, string[]> = {
   partially_fulfilled: ["partial", "partially_fulfilled", "partially_completed"],
   fulfilled: ["fulfilled", "complete", "completed", "granted", "closed_fulfilled", "provided"],
   denied: ["denied", "rejected", "refused"],
+  referred: ["referred", "referral", "forwarded", "transferred", "wrong_agency"],
   withdrawn: ["withdrawn", "cancelled", "canceled", "abandoned"],
   closed: ["closed", "done", "resolved"],
 };

@@ -84,6 +84,32 @@ export async function dismissTriageAction(input: {
   }
 }
 
+export async function referRequestAction(input: {
+  agencySlug: string;
+  requestId: string;
+  directoryEntryId: string;
+  note?: string;
+  notifyTargetAgency?: boolean;
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    const { referRequest } = await import("@/services/referralService");
+    await referRequest(deps, {
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      directoryEntryId: input.directoryEntryId,
+      actorUserId: staff.userId,
+      note: input.note?.trim() || undefined,
+      notifyTargetAgency: input.notifyTargetAgency,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    revalidatePath(`/${input.agencySlug}/app`);
+    return { ok: true };
+  } catch (e) {
+    return fail("referRequest", e);
+  }
+}
+
 export async function assignCoordinatorAction(input: {
   agencySlug: string;
   requestId: string;

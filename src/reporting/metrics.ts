@@ -106,6 +106,9 @@ export interface ComplianceReport {
   total: number;
   closed: number;
   open: number;
+  /** Wrong-custodian outcomes. Reported apart from denials on purpose: a
+   *  referral means we didn't hold the records, not that we withheld them. */
+  referred: number;
   onTimeRate: number;
   daysToClose: DaysToClose;
   extensionUsageRate: number;
@@ -124,6 +127,7 @@ export function complianceReport(
     total: records.length,
     closed: records.filter(closed).length,
     open: records.filter((r) => !closed(r)).length,
+    referred: records.filter((r) => r.status === "referred").length,
     onTimeRate: onTimeRate(records),
     daysToClose: daysToClose(records),
     extensionUsageRate: extensionUsageRate(records),

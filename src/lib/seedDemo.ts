@@ -93,6 +93,45 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
     ],
   });
 
+  // Referral directory — the agencies Riverton most often points people at.
+  // Referral works with zero AI and zero integration: it's contact data.
+  for (const entry of [
+    {
+      name: "Riverton Unified School District",
+      jurisdictionType: "school_district" as const,
+      contactEmail: "records@rusd.example",
+      contactPhone: "(555) 010-2000",
+      portalUrl: "https://rusd.example/public-records",
+      recordTypes: ["student records", "board minutes", "school police reports"],
+      notes: "Student discipline and enrollment files are theirs, not the city's.",
+    },
+    {
+      name: "Riverton County Clerk-Recorder",
+      jurisdictionType: "county" as const,
+      contactEmail: "publicrecords@rivertoncounty.example",
+      contactPhone: "(555) 010-3300",
+      portalUrl: "https://rivertoncounty.example/records",
+      recordTypes: ["property deeds", "marriage licenses", "election records"],
+      notes: null,
+    },
+    {
+      name: "California Department of Justice",
+      jurisdictionType: "state" as const,
+      contactEmail: "pra@doj.ca.example",
+      contactPhone: null,
+      portalUrl: "https://oag.ca.example/records",
+      recordTypes: ["statewide criminal history", "AB 1421 filings"],
+      notes: null,
+    },
+  ]) {
+    await deps.repo.createDirectoryEntry({
+      id: deps.genId(),
+      agencyId,
+      peerAgencyId: null,
+      ...entry,
+    });
+  }
+
   // Riverton: two requests + a registered resident who owns the first one.
   const jordanRequest = await submitRequest(deps, {
     agencyId,

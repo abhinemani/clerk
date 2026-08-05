@@ -90,9 +90,29 @@ export interface RequestEntity {
   extensionHistory?: ExtensionEntry[];
   /** Owning coordinator (§6.3 queue ergonomics); null = unassigned. */
   assignedCoordinatorId?: string | null;
+  /** Referral: which directory entry the requester was pointed at, and when. */
+  referredToDirectoryId?: string | null;
+  referredAt?: Date | null;
   /** Terminal-outcome timestamp (release approved / denied / withdrawn). */
   closedAt: Date | null;
   createdAt: Date;
+}
+
+/** A neighboring agency this tenant can refer requests to. */
+export interface DirectoryEntry {
+  id: string;
+  agencyId: string;
+  name: string;
+  jurisdictionType:
+    | "city" | "county" | "state" | "federal"
+    | "school_district" | "special_district" | "court" | "other";
+  contactEmail: string | null;
+  contactPhone: string | null;
+  portalUrl: string | null;
+  recordTypes: string[];
+  notes: string | null;
+  /** Set when this target is another Clerk tenant (enables forwarding). */
+  peerAgencyId: string | null;
 }
 
 export interface TaskEntity {
@@ -319,6 +339,16 @@ export interface Repository {
     id: string,
     patch: Partial<RequestEntity>,
   ): Promise<RequestEntity>;
+
+  listDirectory(agencyId: string): Promise<DirectoryEntry[]>;
+  getDirectoryEntry(agencyId: string, id: string): Promise<DirectoryEntry | null>;
+  createDirectoryEntry(e: DirectoryEntry): Promise<DirectoryEntry>;
+  updateDirectoryEntry(
+    agencyId: string,
+    id: string,
+    patch: Partial<Omit<DirectoryEntry, "id" | "agencyId">>,
+  ): Promise<DirectoryEntry>;
+  deleteDirectoryEntry(agencyId: string, id: string): Promise<void>;
 
   createTask(t: TaskEntity): Promise<TaskEntity>;
   getTask(agencyId: string, id: string): Promise<TaskEntity | null>;
@@ -578,6 +608,40 @@ export class InMemoryRepository implements Repository {
     const updated = { ...r, ...patch, id: r.id, agencyId: r.agencyId };
     this.requests.set(id, updated);
     return updated;
+  }
+
+  private directory = new Map<string, DirectoryEntry>();
+  seedDirectoryEntry(e: DirectoryEntry): this {
+    this.directory.set(e.id, e);
+    return this;
+  }
+  async listDirectory(agencyId: string) {
+    return [...this.directory.values()]
+      .filter((e) => e.agencyId === agencyId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+  async getDirectoryEntry(agencyId: string, id: string) {
+    const e = this.directory.get(id);
+    return e && e.agencyId === agencyId ? e : null;
+  }
+  async createDirectoryEntry(e: DirectoryEntry) {
+    this.directory.set(e.id, e);
+    return e;
+  }
+  async updateDirectoryEntry(
+    agencyId: string,
+    id: string,
+    patch: Partial<Omit<DirectoryEntry, "id" | "agencyId">>,
+  ) {
+    const e = await this.getDirectoryEntry(agencyId, id);
+    if (!e) throw new NotFoundError("DirectoryEntry", id);
+    const updated = { ...e, ...patch };
+    this.directory.set(id, updated);
+    return updated;
+  }
+  async deleteDirectoryEntry(agencyId: string, id: string) {
+    const e = await this.getDirectoryEntry(agencyId, id);
+    if (e) this.directory.delete(id);
   }
 
   async createTask(t: TaskEntity) {

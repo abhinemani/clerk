@@ -17,6 +17,7 @@ export type RequestStatus =
   | "partially_fulfilled"
   | "fulfilled"
   | "denied"
+  | "referred"
   | "withdrawn"
   | "closed";
 
@@ -26,14 +27,15 @@ export type RequestStatus =
  */
 const TRANSITIONS: Record<RequestStatus, readonly RequestStatus[]> = {
   draft: ["submitted", "withdrawn"],
-  submitted: ["in_review", "withdrawn"],
-  in_review: ["clarification_needed", "in_progress", "denied", "withdrawn"],
-  clarification_needed: ["in_review", "in_progress", "denied", "withdrawn"],
-  in_progress: ["records_review", "clarification_needed", "denied", "withdrawn"],
+  submitted: ["in_review", "referred", "withdrawn"],
+  in_review: ["clarification_needed", "in_progress", "denied", "referred", "withdrawn"],
+  clarification_needed: ["in_review", "in_progress", "denied", "referred", "withdrawn"],
+  in_progress: ["records_review", "clarification_needed", "denied", "referred", "withdrawn"],
   records_review: ["partially_fulfilled", "fulfilled", "in_progress", "denied"],
   partially_fulfilled: ["records_review", "fulfilled", "denied", "closed"],
   fulfilled: ["closed"],
   denied: ["closed"],
+  referred: ["closed"],
   withdrawn: ["closed"],
   closed: [],
 };

@@ -32,6 +32,7 @@ const STATUS_LABELS: Record<string, string> = {
   partially_fulfilled: "Partially fulfilled",
   fulfilled: "Fulfilled",
   denied: "Denied",
+  referred: "Referred",
   withdrawn: "Withdrawn",
   closed: "Closed",
 };

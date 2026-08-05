@@ -32,6 +32,7 @@ export function renderComplianceNarrative(
     `  Still open:            ${report.open}`,
     `  On-time rate:          ${pct(report.onTimeRate)} (of closed requests, met statutory deadline)`,
     `  Statutory extensions:  ${pct(report.extensionUsageRate)} of requests used one`,
+    `  Referred elsewhere:    ${report.referred} (records held by another agency — not denials)`,
     `  Deflections:           ${report.deflections} (answered from the public archive, no request filed)`,
     "",
     "Days to close (closed requests)",

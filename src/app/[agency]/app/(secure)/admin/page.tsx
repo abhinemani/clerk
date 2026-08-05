@@ -54,9 +54,14 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
             roster; coordinators run requests; responders only see tasks shared with them.
           </p>
         </div>
-        <Link href={`/${slug}/app/admin/import`} className="btn btn-sm">
-          Import legacy requests
-        </Link>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link href={`/${slug}/app/admin/directory`} className="btn btn-sm">
+            Referral directory
+          </Link>
+          <Link href={`/${slug}/app/admin/import`} className="btn btn-sm">
+            Import legacy requests
+          </Link>
+        </div>
       </div>
       <StaffRoster agencySlug={slug} rows={rows} />
 
