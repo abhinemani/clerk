@@ -6,7 +6,28 @@ Written 2026-07-29 at the end of a long build window — everything below was
 verified working in that window unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**488 tests pass, typecheck clean** (as of `230360d`, 2026-08-04).
+**506 tests pass, typecheck clean** (as of `f454a17`, 2026-08-04 late night).
+
+**RESUME HERE for the next session:** everything through referral phase 3,
+department-scoped accounts, answer-with-link, the platform-console redesign,
+and the go-live onboarding checklist is SHIPPED and verified (inventory
+below). The next priorities, in order (owner-reviewed 2026-08-04):
+1. **Production durability trio** — pg-boss job adapter (in-process queue
+   loses jobs on restart; port ready in src/jobs/queue.ts), S3/MinIO blob
+   adapter (port ready in src/adapters/blobStore.ts), and a tested
+   backup/restore runbook for the clerk-data volume. The gap between demo
+   and pilot is operational now, not functional.
+2. **Operator health surface** — outbox delivery failures and job errors
+   (triage, exemption pass, OCR) only go to console logs today; put a
+   health strip on the /admin dashboard (deliveries table exists; job
+   failures need a small persisted record first).
+3. **Counsel sign-off + statute breadth** — "reviewed by counsel on DATE"
+   per state profile, surfaced in the workspace; add states as pilots need.
+4. Small knock-offs: responder email notification on dispatch to their
+   department (they have logins now; only the dept inbox gets the token
+   link) · copilot prefill of task/extension panels · redaction redo stack,
+   click-a-bar-to-jump, "redact this word everywhere".
+5. Phase 5 agents stay gated until real-user proof (docs/agentic-horizon.md).
 
 ## What this is
 
@@ -170,6 +191,16 @@ Also complete:
   machine ON PURPOSE (no milestone emails/auto-assign for a bulk history
   load; a row can be born "fulfilled"). One `note` event per row names
   the importer.
+- **Onboarding: go-live checklist + department CRUD** (2026-08-04 late,
+  `f454a17`): `computeSetupStatus` (src/domain/setupChecklist.ts, pure +
+  tested) derives 8 steps from REAL state — statute + departments required,
+  team/routing/directory/archive/email/test-request recommended; nothing is
+  a manual tick-box. Card on /app/admin until complete, each step linking
+  to its fix; platform tenant cards show "Setup n/8" amber pill. Department
+  create/edit finally exists (repo port createDepartment/updateDepartment,
+  DepartmentManager on /app/admin; NO delete on purpose — tasks/rules/
+  responders reference departments). Email step honestly says
+  "outbox-only mode" until EMAIL_FROM + a provider key are set.
 - **Platform console redesign** (2026-08-04 evening, owner ask "beautiful
   and effective"): `/admin` is now a deployment dashboard — health stat
   strip (overdue in red), per-tenant cards with On track/overdue pills,
@@ -248,6 +279,8 @@ npm install && npm test && npm run seed && npm run dev   # :3000
 ```
 Demo credentials (seed prints them): Riverton staff `dana@riverton.gov` /
 `riverton-demo` · coordinator `casey@riverton.gov` / `riverton-demo2` ·
+responder `sam@riverton.gov` / `riverton-demo3` (Public Works only — lands
+on /app/tasks, blocked from coordinator surfaces) ·
 resident `jordan@rivertonledger.com` / `riverton-resident` · Bellmar staff
 `amara@bellmar.gov` / `bellmar-demo` · platform `admin@clerk.example` /
 `clerk-admin-dev`.
@@ -256,6 +289,10 @@ Seeded demo moments: Wei's request = full closed cycle with real PDF
 download; Jordan's = clarification round-trip (reply as Jordan, or via the
 email-in webhook); Morgan's incident report sits at the redaction step with
 real PII-laden bytes.
+
+**Platform operator login on THIS machine:** `.env` overrides the seeded
+default — use the `PLATFORM_ADMIN_EMAIL` / `PLATFORM_ADMIN_PASSWORD` values
+in `.env`, not `admin@clerk.example` (we hit this).
 
 **Port layout during the build window** (multiple things run in this repo):
 `:3000` another session's dev server on `./.pgdata` · `:3100` this window's

@@ -61,8 +61,16 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
       })),
   );
 
+  const sections = [
+    { id: "team", label: "Team" },
+    { id: "departments", label: "Departments" },
+    { id: "automation", label: "Automation" },
+    { id: "routing", label: "Routing rules" },
+    { id: "activity", label: "Activity" },
+  ];
+
   return (
-    <div className="wrap" style={{ maxWidth: 820, paddingBlock: "36px" }}>
+    <div className="wrap" style={{ maxWidth: 820, paddingBlock: "36px 48px" }}>
       <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Command center
       </Link>
@@ -71,10 +79,12 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
       </span>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: "1.7rem", marginTop: 6, marginBottom: 6 }}>Staff accounts</h1>
-          <p className="muted" style={{ marginBottom: 20, maxWidth: 560 }}>
-            Who can work records for the {agency.name}, and what they can do. Admins manage this
-            roster; coordinators run requests; responders only see tasks shared with them.
+          <h1 className="serif" style={{ fontSize: "1.8rem", marginTop: 6, marginBottom: 6, fontWeight: 600 }}>
+            Run your records office
+          </h1>
+          <p className="muted" style={{ marginBottom: 8, maxWidth: 560 }}>
+            The levers behind the workspace: who works requests, which departments hold records,
+            and what happens automatically. Every change here lands in the audit log.
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -86,9 +96,24 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
           </Link>
         </div>
       </div>
+
+      {/* Section index — one glance, one click to any lever. */}
+      <nav aria-label="Admin sections" style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0 22px" }}>
+        {sections.map((s) => (
+          <a key={s.id} href={`#${s.id}`} className="tag" style={{ textDecoration: "none" }}>
+            {s.label}
+          </a>
+        ))}
+      </nav>
+
       {/* Go-live checklist — shown until the office is actually set up.
           Every line is computed from real state; nothing here is a manual
           tick-box that can lie. */}
+      {setup.complete && (
+        <p className="pill band-on_track" style={{ marginBottom: 22 }}>
+          ✓ Go-live checklist complete — all {setup.totalCount} setup steps done
+        </p>
+      )}
       {!setup.complete && (
         <div className="card card-pad" style={{ marginBottom: 24, borderLeft: "3px solid var(--accent)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -136,13 +161,20 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
         </div>
       )}
 
+      <h2 id="team" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>
+        Team
+      </h2>
+      <p className="muted" style={{ fontSize: "0.9rem", marginBottom: 12, maxWidth: 560 }}>
+        Admins manage this roster; coordinators run requests; responders sign in and see only their
+        departments&apos; tasks.
+      </p>
       <StaffRoster
         agencySlug={slug}
         rows={rows}
         departments={departments.map((d) => ({ id: d.id, name: d.name }))}
       />
 
-      <h2 id="departments" style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>
+      <h2 id="departments" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>
         Departments
       </h2>
       <p className="muted" style={{ fontSize: "0.9rem", marginBottom: 12, maxWidth: 560 }}>
@@ -156,14 +188,27 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
         )}
       />
 
-      <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>Workflow automation</h2>
+      <h2 id="automation" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>
+        Workflow automation
+      </h2>
+      <p className="muted" style={{ fontSize: "0.9rem", marginBottom: 12, maxWidth: 560 }}>
+        Opt-in, per-agency. Auto-assignment balances new requests across coordinators;
+        confidence-gated auto-dispatch sends obvious routings out unattended. Everything stays
+        audited and reversible.
+      </p>
       <WorkflowSettingsPanel
         key={`${workflow.autoAssign}|${workflow.autoDispatch}|${workflow.autoDispatchConfidence}|${workflow.milestoneEmails}`}
         agencySlug={slug}
         initial={workflow}
       />
 
-      <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>Department routing rules</h2>
+      <h2 id="routing" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>
+        Department routing rules
+      </h2>
+      <p className="muted" style={{ fontSize: "0.9rem", marginBottom: 12, maxWidth: 560 }}>
+        Deterministic keyword rules — &ldquo;pothole&rdquo; goes to Public Works the moment it&apos;s
+        filed, no AI key required.
+      </p>
       <RoutingRulesPanel
         key={JSON.stringify(ruleKeywords)}
         agencySlug={slug}
@@ -171,7 +216,7 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
         initial={ruleKeywords}
       />
 
-      <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>
+      <h2 id="activity" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 10, scrollMarginTop: 80 }}>
         Account activity{" "}
         <span className="muted" style={{ fontWeight: 400, fontSize: "0.85rem" }}>
           · append-only audit
