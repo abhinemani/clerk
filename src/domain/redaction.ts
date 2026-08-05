@@ -63,6 +63,28 @@ export function spansFromDragRect(
   return spans;
 }
 
+/**
+ * The word under a grid point — the geometry behind double-click-to-redact.
+ *
+ * A "word" is a contiguous run of non-whitespace, which deliberately includes
+ * punctuation-joined tokens: `123-45-6789`, `jane.doe@example.com`, `D9921874`
+ * are exactly the things staff redact one at a time, and exactly the things a
+ * character-precise drag makes fiddly. Returns null on whitespace or off-text.
+ */
+export function wordSpanAt(lines: readonly string[], point: GridPoint): RedactionSpan | null {
+  const text = lines[point.line];
+  if (text == null) return null;
+  // A click past the last character maps to the last character, so
+  // double-clicking the tail of a word still selects it.
+  const col = Math.max(0, Math.min(point.col, text.length - 1));
+  if (!text[col] || /\s/.test(text[col]!)) return null;
+  let start = col;
+  let end = col + 1;
+  while (start > 0 && !/\s/.test(text[start - 1]!)) start--;
+  while (end < text.length && !/\s/.test(text[end]!)) end++;
+  return { line: point.line, startCol: start, endCol: end };
+}
+
 function clampSpan(len: number, s: RedactionSpan): { start: number; end: number } {
   const start = Math.max(0, Math.min(s.startCol, len));
   const end = Math.max(start, Math.min(s.endCol, len));

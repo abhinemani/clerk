@@ -10,6 +10,7 @@ import {
   redactedValues,
   spansFromDragRect,
   suggestRedactionsFromPii,
+  wordSpanAt,
 } from "./redaction";
 
 const LINES = [
@@ -127,5 +128,40 @@ describe("spansFromDragRect — multi-line selection geometry", () => {
     expect(released.join("\n")).not.toContain("Jane Doe");
     expect(released.join("\n")).not.toContain("123-45-6789");
     expect(released[0]).toContain("Reporting party: "); // kept text survives
+  });
+});
+
+describe("wordSpanAt — double-click-to-redact geometry", () => {
+  const lines = [
+    "Reporting party:  Jane A. Doe",
+    "Email: jane.doe@example.com  SSN: 123-45-6789",
+    "   ",
+  ];
+
+  it("selects the whole word under the point", () => {
+    // Click in the middle of "Jane" (line 0, cols 18–22).
+    expect(wordSpanAt(lines, { line: 0, col: 20 })).toEqual({ line: 0, startCol: 18, endCol: 22 });
+  });
+
+  it("treats punctuation-joined tokens as one word — emails and SSNs redact in one click", () => {
+    expect(wordSpanAt(lines, { line: 1, col: 12 })).toEqual({ line: 1, startCol: 7, endCol: 27 });
+    expect(wordSpanAt(lines, { line: 1, col: 38 })).toEqual({ line: 1, startCol: 34, endCol: 45 });
+  });
+
+  it("returns null on whitespace, blank lines, and off-document points", () => {
+    expect(wordSpanAt(lines, { line: 0, col: 16 })).toBeNull(); // between the two spaces
+    expect(wordSpanAt(lines, { line: 2, col: 1 })).toBeNull();
+    expect(wordSpanAt(lines, { line: 99, col: 0 })).toBeNull();
+  });
+
+  it("clicking past the end of a line selects its last word", () => {
+    expect(wordSpanAt(lines, { line: 0, col: 999 })).toEqual({ line: 0, startCol: 26, endCol: 29 });
+  });
+
+  it("produces burnable spans — the word is gone from the release", () => {
+    const span = wordSpanAt(lines, { line: 0, col: 20 })!;
+    const released = applyRedactions(lines, [span]);
+    expect(released[0]).not.toContain("Jane");
+    expect(released[0]).toContain("Doe"); // only the clicked word burns
   });
 });

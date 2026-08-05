@@ -8,6 +8,7 @@ import {
   redactedValues,
   spansFromDragRect,
   suggestRedactionsFromPii,
+  wordSpanAt,
   type GridPoint,
   type RedactionSpan,
 } from "@/domain/redaction";
@@ -140,6 +141,15 @@ export function RedactionStudio({
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [revealedId, setRevealedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  /**
+   * The citation new staff redactions get. Redaction work comes in batches of
+   * one kind ("black out every witness detail"), so pick the reason once up
+   * front instead of fixing it card-by-card after — each card's select still
+   * overrides per span.
+   */
+  const [defaultReason, setDefaultReason] = useState(exemptions[0]!);
+  /** Each entry is the ids added by one act — what Cmd/Ctrl+Z takes back. */
+  const undoStack = useRef<string[][]>([]);
 
   function finalize(acceptResidualRisk = false) {
     if (!live) {
@@ -193,28 +203,40 @@ export function RedactionStudio({
     return { line, col };
   }
 
+  /** Add staff redactions as ONE act — a single Cmd/Ctrl+Z takes it back. */
+  const addAct = useCallback((spans: RedactionSpan[], groupKey: string, reason: string) => {
+    if (spans.length === 0) return;
+    const ids = spans.map((_, i) => `staff-${groupKey}-${i}`);
+    undoStack.current.push(ids);
+    setRedactions((prev) => [
+      ...prev.filter((r) => !ids.includes(r.id)), // re-running an act replaces it
+      ...spans.map((s, i) => ({
+        id: ids[i]!,
+        line: s.line,
+        startCol: s.startCol,
+        endCol: s.endCol,
+        reason,
+        source: "staff" as const,
+        status: "accepted" as const,
+        groupId: spans.length > 1 ? `g-${groupKey}` : undefined,
+      })),
+    ]);
+  }, []);
+
+  const undoLastAct = useCallback(() => {
+    const ids = undoStack.current.pop();
+    if (!ids) return;
+    setRedactions((prev) => prev.filter((r) => !ids.includes(r.id)));
+  }, []);
+
   /** Turn the current selection into redactions — one span per covered line. */
   const commitSelection = useCallback(
     (sel: Selection | null) => {
       if (!sel) return;
       const spans = spansFromDragRect(lineLengths, sel.anchor, sel.focus);
-      if (spans.length === 0) return;
-      const groupId = `g-${sel.anchor.line}-${sel.anchor.col}-${sel.focus.line}-${sel.focus.col}`;
-      setRedactions((prev) => [
-        ...prev,
-        ...spans.map((s, i) => ({
-          id: `staff-${groupId}-${i}`,
-          line: s.line,
-          startCol: s.startCol,
-          endCol: s.endCol,
-          reason: exemptions[0]!,
-          source: "staff" as const,
-          status: "accepted" as const,
-          groupId: spans.length > 1 ? groupId : undefined,
-        })),
-      ]);
+      addAct(spans, `${sel.anchor.line}-${sel.anchor.col}-${sel.focus.line}-${sel.focus.col}`, defaultReason);
     },
-    [exemptions, lineLengths],
+    [addAct, defaultReason, lineLengths],
   );
 
   function onDown(e: React.MouseEvent) {
@@ -238,6 +260,14 @@ export function RedactionStudio({
       return null;
     });
   }
+  /** Double-click blacks out the word under the cursor — the one-gesture path
+      for the spans the PII scan can't see (names, above all). */
+  function onDoubleClick(e: React.MouseEvent) {
+    if (finalized) return;
+    const point = locate(e.clientX, e.clientY);
+    const span = wordSpanAt(lines, point);
+    if (span) addAct([span], `w-${span.line}-${span.startCol}-${span.endCol}`, defaultReason);
+  }
 
   /**
    * Keyboard redaction — arrows move the caret, shift+arrows extend a
@@ -247,6 +277,7 @@ export function RedactionStudio({
   function onKeyDown(e: React.KeyboardEvent) {
     if (finalized) return;
     const key = e.key;
+    // Cmd/Ctrl+Z is handled by the window listener below — it works studio-wide.
     // Compute from the CURRENT caret and set both states directly — a state
     // updater must stay pure, so no setSelection inside setCaret.
     const move = (dLine: number, dCol: number) => {
@@ -373,21 +404,7 @@ export function RedactionStudio({
   }, [query, lines]);
 
   function redactAllMatches() {
-    if (matches.length === 0) return;
-    const groupId = `find-${query.trim().toLowerCase()}`;
-    setRedactions((prev) => [
-      ...prev.filter((r) => r.groupId !== groupId),
-      ...matches.map((m, i) => ({
-        id: `staff-${groupId}-${i}`,
-        line: m.line,
-        startCol: m.startCol,
-        endCol: m.endCol,
-        reason: exemptions[0]!,
-        source: "staff" as const,
-        status: "accepted" as const,
-        groupId,
-      })),
-    ]);
+    addAct(matches, `find-${query.trim().toLowerCase()}`, defaultReason);
   }
 
   // Escape clears search focus from anywhere in the studio.
@@ -395,6 +412,22 @@ export function RedactionStudio({
     if (!finalized) return;
     setSelection(null);
   }, [finalized]);
+
+  // Undo works from anywhere in the studio, not just with the document
+  // focused — a mis-drag shouldn't cost a trip to the log's Remove button.
+  // Form fields keep their native undo.
+  useEffect(() => {
+    if (finalized) return;
+    const onWindowKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      const t = e.target as HTMLElement | null;
+      if (t && ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
+      e.preventDefault();
+      undoLastAct();
+    };
+    window.addEventListener("keydown", onWindowKey);
+    return () => window.removeEventListener("keydown", onWindowKey);
+  }, [finalized, undoLastAct]);
 
   return (
     <div className="redact-grid">
@@ -423,14 +456,20 @@ export function RedactionStudio({
               placeholder="Find in document…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              aria-label="Find text in document"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  redactAllMatches();
+                }
+              }}
+              aria-label="Find text in document — Enter redacts every match"
             />
             {matches.length > 0 && (
               <>
                 <span className="muted" style={{ fontSize: "0.82rem" }}>
                   {matches.length} match{matches.length === 1 ? "" : "es"}
                 </span>
-                <button className="btn btn-sm" onClick={redactAllMatches}>
+                <button className="btn btn-sm" onClick={redactAllMatches} title="Or press Enter in the search box">
                   Redact all matches
                 </button>
               </>
@@ -438,8 +477,27 @@ export function RedactionStudio({
             {query.trim().length >= 2 && matches.length === 0 && (
               <span className="muted" style={{ fontSize: "0.82rem" }}>No matches</span>
             )}
-            <span className="muted" style={{ fontSize: "0.8rem", marginLeft: "auto" }}>
-              Drag across text — or use arrow keys, shift to select, Enter to black out
+            {/* The citation every NEW redaction gets — pick once, work in a
+                batch; each log card can still override its own. */}
+            <label style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: "auto" }}>
+              <span className="lbl" style={{ whiteSpace: "nowrap" }}>New redactions cite</span>
+              <select
+                className="field"
+                style={{ fontSize: "0.82rem", padding: "6px 8px", maxWidth: 260 }}
+                value={defaultReason}
+                onChange={(e) => setDefaultReason(e.target.value)}
+                aria-label="Exemption reason applied to new redactions"
+              >
+                {exemptions.map((ex) => (
+                  <option key={ex} value={ex}>
+                    {ex}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="muted" style={{ fontSize: "0.8rem", flexBasis: "100%" }}>
+              Drag across text or double-click a word to black it out · arrow keys + shift select,
+              Enter commits · ⌘/Ctrl+Z undoes
             </span>
           </div>
         )}
@@ -455,6 +513,7 @@ export function RedactionStudio({
             onMouseMove={onMove}
             onMouseUp={onUp}
             onMouseLeave={onUp}
+            onDoubleClick={onDoubleClick}
             onKeyDown={onKeyDown}
             tabIndex={finalized ? -1 : 0}
             role="textbox"
@@ -463,7 +522,7 @@ export function RedactionStudio({
             aria-label={
               finalized
                 ? "Released copy of the document"
-                : "Document text — drag, or use arrow keys with shift to select and Enter to redact"
+                : "Document text — drag or double-click a word, or use arrow keys with shift to select and Enter to redact"
             }
             style={{ cursor: finalized ? "default" : "crosshair" }}
           >
