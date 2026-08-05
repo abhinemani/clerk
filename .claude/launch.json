@@ -29,6 +29,21 @@
       "port": 3100
     },
     {
+      "name": "clerk-dev-isolated-b",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "PGLITE_PATH=/private/tmp/claude-501/-Users-abhinemani-Sites-clerk/ba35e352-8f28-4484-b566-55460fd5b71b/scratchpad/pgdata",
+        "BLOB_PATH=/private/tmp/claude-501/-Users-abhinemani-Sites-clerk/ba35e352-8f28-4484-b566-55460fd5b71b/scratchpad/blobdata",
+        "SEED_DEMO=true",
+        "APP_BASE_URL=http://localhost:3300",
+        "PORT=3300",
+        "/opt/homebrew/bin/npm",
+        "run",
+        "dev"
+      ],
+      "port": 3300
+    },
+    {
       "name": "clerk-live",
       "runtimeExecutable": "/opt/homebrew/bin/npm",
       "runtimeArgs": [

@@ -18,8 +18,11 @@ export const routingSchema = z
           department: z.string(),
           scope: z.string(),
           rationale: z.string(),
-          /** Model's confidence this department holds responsive records (0–1). */
-          confidence: z.number().min(0).max(1),
+          // Confidence 0–1. No numeric bounds in the JSON schema — structured
+          // outputs reject min/max with a 400, which was silently killing the
+          // whole live routing pass (the triage job catches and logs). The
+          // triage job clamps on read instead, like intake's complexity_score.
+          confidence: z.number(),
         })
         .strict(),
     ),

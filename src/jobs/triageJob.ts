@@ -7,12 +7,14 @@
  * without AI; the scope card simply shows the raw text until staff edit it).
  */
 import { getRepository } from "@/db/createRepository";
-import { AnthropicModelClient } from "@/ai/modelClient";
+import { AnthropicModelClient, type ModelClient } from "@/ai/modelClient";
 import { runPipeline } from "@/ai/runPipeline";
 import { clampComplexity, intakeTriagePipeline } from "@/ai/pipelines/intakeTriage";
 import { routingPipeline } from "@/ai/pipelines/routing";
+import { custodianProposals, custodianSuggestPipeline } from "@/ai/pipelines/custodianSuggest";
 import { defaultDeps } from "@/services/deps";
 import { applyTriageDraft } from "@/services/requestService";
+import type { Repository } from "@/services/repository";
 import type { JobPayloads } from "./queue";
 
 export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]): Promise<void> {
@@ -40,18 +42,37 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
     redFlags: result.output.statutory_red_flags,
   });
 
-  // Routing suggestions (§6.3) ride the same job: propose which departments
-  // hold the records, with a drafted per-department scope. Stored as an
-  // ai_action event; the detail page renders the latest one as proposal
-  // cards, and the coordinator's dispatch is still the only thing that acts.
+  const triaged = {
+    interpretedScope: result.output.interpreted_scope,
+    recordTypes: result.output.record_types,
+  };
+
+  // Two more drafts ride this job, each isolated: a failure in either must not
+  // undo the triage above, and neither must starve the other.
+  await suggestRouting(repo, modelClient, payload, triaged);
+  await suggestCustodian(repo, modelClient, payload, triaged);
+}
+
+/**
+ * Routing suggestions (§6.3): propose which departments hold the records, with
+ * a drafted per-department scope. Stored as an ai_action event; the detail page
+ * renders the latest one as proposal cards, and the coordinator's dispatch is
+ * still the only thing that acts.
+ */
+async function suggestRouting(
+  repo: Repository,
+  modelClient: ModelClient,
+  payload: JobPayloads["intake_triage"],
+  triaged: { interpretedScope: string; recordTypes: string[] },
+): Promise<void> {
   try {
     const departments = await repo.listDepartments(payload.agencyId);
     if (departments.length === 0) return;
     const routing = await runPipeline(
       routingPipeline,
       {
-        interpretedScope: result.output.interpreted_scope,
-        recordTypes: result.output.record_types,
+        interpretedScope: triaged.interpretedScope,
+        recordTypes: triaged.recordTypes,
         departments: departments.map((d) => ({ name: d.name })),
       },
       { modelClient },
@@ -63,7 +84,9 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
         department: a.department,
         scope: a.scope,
         rationale: a.rationale,
-        confidence: a.confidence,
+        // Clamp on read — the schema carries no numeric bounds (see routing.ts),
+        // and an out-of-range confidence must not sail past auto-dispatch's gate.
+        confidence: Math.min(1, Math.max(0, a.confidence)),
       }))
       .filter((a) => a.departmentId != null);
     await repo.appendEvent({
@@ -99,5 +122,69 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
   } catch (err) {
     // Routing is a bonus draft — a failure must not undo the triage above.
     console.error("[jobs] routing suggestions failed", err);
+  }
+}
+
+/**
+ * Custodian suggestion (inter-agency referral, phase 2): when the records look
+ * like another body's, name that body while the clock is still young. Stored as
+ * an ai_action event the detail page reads back into the Refer panel.
+ *
+ * There is deliberately no auto-refer counterpart to auto-dispatch. Dispatch is
+ * internal; a referral closes the request and writes to the resident, so it
+ * stays a named human's act (invariant 4).
+ */
+async function suggestCustodian(
+  repo: Repository,
+  modelClient: ModelClient,
+  payload: JobPayloads["intake_triage"],
+  triaged: { interpretedScope: string; recordTypes: string[] },
+): Promise<void> {
+  try {
+    const [directory, agency] = await Promise.all([
+      repo.listDirectory(payload.agencyId),
+      repo.getAgency(payload.agencyId),
+    ]);
+    // Nobody to refer to — asking the model "is this ours?" with no alternative
+    // is just an invitation to invent one.
+    if (directory.length === 0 || !agency) return;
+
+    const custodian = await runPipeline(
+      custodianSuggestPipeline,
+      {
+        interpretedScope: triaged.interpretedScope,
+        recordTypes: triaged.recordTypes,
+        agencyName: agency.name,
+        directory: directory.map((d) => ({
+          id: d.id,
+          name: d.name,
+          recordTypes: d.recordTypes,
+          notes: d.notes ?? undefined,
+        })),
+      },
+      { modelClient },
+    );
+
+    const proposals = custodianProposals(custodian.output, directory);
+    if (proposals.length === 0) return; // "ours" is the common case; don't log noise
+
+    await repo.appendEvent({
+      id: crypto.randomUUID(),
+      agencyId: payload.agencyId,
+      requestId: payload.requestId,
+      kind: "ai_action",
+      actorUserId: null,
+      summary: `Possible wrong custodian — suggested ${proposals[0]!.name}`,
+      payload: {
+        pipeline: "custodian_suggest",
+        promptVersion: custodianSuggestPipeline.promptVersion,
+        model: custodian.model,
+        proposals,
+      },
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    // Same rule as routing: a bonus draft never breaks intake.
+    console.error("[jobs] custodian suggestion failed", err);
   }
 }

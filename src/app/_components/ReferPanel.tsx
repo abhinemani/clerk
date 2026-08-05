@@ -8,6 +8,7 @@
  */
 import { useState, useTransition } from "react";
 import { referRequestAction } from "../[agency]/app/(secure)/requests/[id]/actions";
+import { AiPill } from "./ui";
 
 export interface ReferTargetVM {
   id: string;
@@ -17,12 +18,21 @@ export interface ReferTargetVM {
   recordTypes: string[];
 }
 
+/** Phase-2 custodian suggestion — an AI draft the panel renders as a card. */
+export interface CustodianProposalVM {
+  directoryEntryId: string;
+  name: string;
+  confidence: number;
+  rationale: string;
+}
+
 export function ReferPanel({
   agencySlug,
   requestId,
   targets,
   referredTo,
   referredAtLabel,
+  aiProposal,
 }: {
   agencySlug: string;
   requestId: string;
@@ -30,11 +40,14 @@ export function ReferPanel({
   /** Set when this request has already been referred. */
   referredTo?: { name: string; contactEmail: string | null; portalUrl: string | null } | null;
   referredAtLabel?: string | null;
+  /** AI custodian suggestion, if the intake pass produced one. Never acts alone. */
+  aiProposal?: CustodianProposalVM | null;
 }) {
   const [open, setOpen] = useState(false);
   const [targetId, setTargetId] = useState("");
   const [note, setNote] = useState("");
   const [notifyTarget, setNotifyTarget] = useState(false);
+  const [proposalDismissed, setProposalDismissed] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -69,19 +82,67 @@ export function ReferPanel({
   }
 
   const selected = targets.find((t) => t.id === targetId);
+  const proposal =
+    aiProposal && !proposalDismissed && targets.some((t) => t.id === aiProposal.directoryEntryId)
+      ? aiProposal
+      : null;
 
   return (
     <div className="card card-pad">
       <div className="panel-title">Refer elsewhere</div>
       {!open ? (
-        <>
-          <p className="muted" style={{ fontSize: "0.88rem", margin: "8px 0 0" }}>
-            If another agency holds these records, point the requester there instead of denying.
-          </p>
-          <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setOpen(true)}>
-            Refer this request…
-          </button>
-        </>
+        proposal ? (
+          // AI proposes; the coordinator disposes. Accepting only pre-fills the
+          // form — the Refer button below stays the single human act.
+          <div className="ai-card" style={{ marginTop: 10 }}>
+            <div className="ai-head">
+              <AiPill>Custodian</AiPill>
+              <span className="muted" style={{ fontSize: "0.78rem", marginLeft: "auto" }}>
+                confidence {Math.round(proposal.confidence * 100)}%
+              </span>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>
+              These records may belong to {proposal.name}
+            </div>
+            <div className="muted" style={{ fontSize: "0.82rem", marginTop: 6 }}>
+              {proposal.rationale}
+            </div>
+            <div className="ai-actions">
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => {
+                  setTargetId(proposal.directoryEntryId);
+                  setNote(proposal.rationale);
+                  setOpen(true);
+                }}
+              >
+                Review & refer…
+              </button>
+              <button
+                className="btn btn-sm"
+                onClick={() => {
+                  setTargetId("");
+                  setNote("");
+                  setOpen(true);
+                }}
+              >
+                Refer elsewhere…
+              </button>
+              <button className="btn btn-sm btn-ghost" onClick={() => setProposalDismissed(true)}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="muted" style={{ fontSize: "0.88rem", margin: "8px 0 0" }}>
+              If another agency holds these records, point the requester there instead of denying.
+            </p>
+            <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setOpen(true)}>
+              Refer this request…
+            </button>
+          </>
+        )
       ) : (
         <>
           <label style={{ display: "grid", gap: 4, marginTop: 10 }}>

@@ -9,7 +9,11 @@ import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/forma
 import { requireStaff } from "@/auth/guards";
 import { DeadlineBand, StatusPill } from "../../../../../_components/ui";
 import { AssigneeSelect } from "../../../../../_components/AssigneeSelect";
-import { ReferPanel, type ReferTargetVM } from "../../../../../_components/ReferPanel";
+import {
+  ReferPanel,
+  type CustodianProposalVM,
+  type ReferTargetVM,
+} from "../../../../../_components/ReferPanel";
 import {
   CorrespondencePanel,
   type MessageVM,
@@ -91,6 +95,7 @@ export default async function RequestDetail({
   let referTargets: ReferTargetVM[] = [];
   let referredTo: { name: string; contactEmail: string | null; portalUrl: string | null } | null = null;
   let referredAtLabel: string | null = null;
+  let custodianProposal: CustodianProposalVM | null = null;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -186,6 +191,16 @@ export default async function RequestDetail({
         contactEmail: d.contactEmail,
         recordTypes: d.recordTypes,
       }));
+      // Phase-2 custodian suggestion: the latest run's top proposal pre-selects
+      // the Refer panel. The card only proposes — staff still click Refer.
+      const custodianEvent = [...events]
+        .reverse()
+        .find((e) => e.kind === "ai_action" && (e.payload as { pipeline?: string } | undefined)?.pipeline === "custodian_suggest");
+      const proposals =
+        (custodianEvent?.payload as { proposals?: CustodianProposalVM[] } | undefined)?.proposals ?? [];
+      // Re-resolve against the live directory — the entry may be gone by now.
+      custodianProposal =
+        proposals.find((p) => directory.some((d) => d.id === p.directoryEntryId)) ?? null;
       if (rawRequest?.referredToDirectoryId) {
         const target = directory.find((d) => d.id === rawRequest.referredToDirectoryId);
         if (target) {
@@ -322,6 +337,7 @@ export default async function RequestDetail({
               targets={referTargets}
               referredTo={referredTo}
               referredAtLabel={referredAtLabel}
+              aiProposal={custodianProposal}
             />
           )}
 
