@@ -11,6 +11,8 @@
 import { blobKey, checksumOf, type BlobStore } from "@/adapters/blobStore";
 import { extractText } from "@/adapters/textExtract";
 import { assertUploadable, type VirusScanner } from "@/adapters/virusScan";
+import { scanPii, summarizePii } from "@/ai/redaction/piiScan";
+import type { DocumentMeta } from "@/domain/documentMeta";
 import type { ParsedRecordRow } from "@/domain/recordsImport";
 import type { ServiceDeps } from "./deps";
 import { NotFoundError, type DocumentEntity, type SourceEntity } from "./repository";
@@ -137,12 +139,18 @@ export async function importRecords(
         };
       }
 
-      const metadata: Record<string, unknown> = {
+      // Deterministic PII pre-scan (§6.5) — same scanner the API ingest path
+      // runs in normalize(). No API key involved; the queue renders the
+      // tallies as a warning before anyone clicks Publish.
+      const scanText = blobFields.extractedText ?? row.summary ?? "";
+      const findings = scanPii(scanText);
+      const metadata: DocumentMeta = {
         title: row.title,
         ...(row.summary ? { summary: row.summary } : {}),
         tags: row.tags,
         keywords: row.keywords,
         ...(row.date ? { recordDate: row.date.toISOString().slice(0, 10) } : {}),
+        ...(findings.length > 0 ? { sensitivity: summarizePii(findings) } : {}),
       };
 
       const doc: DocumentEntity = {

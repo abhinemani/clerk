@@ -12,6 +12,7 @@ import { AnthropicModelClient } from "@/ai/modelClient";
 import { classifyDocumentPipeline, type ClassifyDocumentOutput } from "@/ai/pipelines/classifyDocument";
 import { runPipeline } from "@/ai/runPipeline";
 import { getRepository } from "@/db/createRepository";
+import { patchDocumentMeta, readDocumentMeta } from "@/domain/documentMeta";
 import type { JobPayloads } from "./queue";
 
 export async function runClassifyDocumentsJob(payload: JobPayloads["classify_documents"]): Promise<void> {
@@ -26,7 +27,7 @@ export async function runClassifyDocumentsJob(payload: JobPayloads["classify_doc
   for (const documentId of payload.documentIds) {
     const doc = await repo.getDocument(payload.agencyId, documentId);
     if (!doc) continue;
-    const meta = (doc.metadata ?? {}) as { aiClassification?: unknown; title?: string; summary?: string };
+    const meta = readDocumentMeta(doc);
     if (meta.aiClassification != null) continue; // idempotent on retry
 
     // Metadata-only records still get a hint from their catalog entry.
@@ -40,8 +41,7 @@ export async function runClassifyDocumentsJob(payload: JobPayloads["classify_doc
     );
     const c: ClassifyDocumentOutput = result.output;
     await repo.updateDocument(payload.agencyId, doc.id, {
-      metadata: {
-        ...(doc.metadata ?? {}),
+      metadata: patchDocumentMeta(doc, {
         aiClassification: {
           recordType: c.recordType,
           department: c.department,
@@ -49,7 +49,7 @@ export async function runClassifyDocumentsJob(payload: JobPayloads["classify_doc
           suggestedMetadata: c.suggestedMetadata,
           sensitivityNote: c.sensitivityNote,
         },
-      },
+      }),
     });
     classified.push(doc.id);
   }

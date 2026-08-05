@@ -9,10 +9,8 @@
  */
 import { revalidatePath } from "next/cache";
 import { openZipArchive } from "@/adapters/textExtract";
-import { requireStaff } from "@/auth/guards";
-import { getRepository } from "@/db/createRepository";
+import { staffAction } from "@/auth/actionWrapper";
 import { parseRecordsCsv, type RecordsImportRowError } from "@/domain/recordsImport";
-import { defaultDeps } from "@/services/deps";
 import { importRecords, type ImportFile } from "@/services/recordsImportService";
 import {
   PublicationError,
@@ -53,11 +51,9 @@ function matchesZip(names: Set<string>, filename: string): boolean {
   return false;
 }
 
-export async function previewRecordsImportAction(
-  agencySlug: string,
-  formData: FormData,
-): Promise<RecordsPreview | ActionError> {
-  await requireStaff(agencySlug, ["admin"]);
+export const previewRecordsImportAction = staffAction(
+  { roles: ["admin"], fallback: "Could not read the file." },
+  async (_ctx, formData: FormData): Promise<RecordsPreview | ActionError> => {
   const csvText = String(formData.get("csv") ?? "");
   if (!csvText.trim()) return { ok: false, error: "Paste or upload the records CSV first." };
 
@@ -94,16 +90,18 @@ export async function previewRecordsImportAction(
     })),
     zip: zipSummary,
   };
-}
+  },
+);
 
-export async function runRecordsImportAction(
-  agencySlug: string,
-  formData: FormData,
-): Promise<
-  | { ok: true; imported: number; updated: number; withFiles: number; failed: { rowNumber: number; reason: string }[]; missingFiles: string[]; skippedInvalid: number }
-  | ActionError
-> {
-  const staff = await requireStaff(agencySlug, ["admin"]);
+export const runRecordsImportAction = staffAction(
+  { roles: ["admin"], fallback: "Import failed." },
+  async (
+    { staff, deps, agencySlug },
+    formData: FormData,
+  ): Promise<
+    | { ok: true; imported: number; updated: number; withFiles: number; failed: { rowNumber: number; reason: string }[]; missingFiles: string[]; skippedInvalid: number }
+    | ActionError
+  > => {
   const csvText = String(formData.get("csv") ?? "");
   const { rows, errors } = parseRecordsCsv(csvText);
   if (rows.length === 0) return { ok: false, error: "Nothing to import — every row failed validation." };
@@ -127,12 +125,10 @@ export async function runRecordsImportAction(
     }
   }
 
-  try {
-    const repo = await getRepository();
     const { getBlobStore } = await import("@/adapters/blobStore");
     const { getVirusScanner } = await import("@/adapters/virusScan");
     const result = await importRecords(
-      { ...defaultDeps(repo), blobStore: getBlobStore(), virusScanner: getVirusScanner() },
+      { ...deps, blobStore: getBlobStore(), virusScanner: getVirusScanner() },
       { agencyId: staff.agencyId, actorUserId: staff.userId, rows, files },
     );
 
@@ -140,10 +136,17 @@ export async function runRecordsImportAction(
     // (no-op without a key) and staff-search vectors for the new corpus docs.
     const { getJobQueue } = await import("@/jobs/queue");
     if (result.imported.length > 0) {
-      getJobQueue().enqueue("classify_documents", {
-        agencyId: staff.agencyId,
-        documentIds: result.imported.map((r) => r.documentId),
-      });
+      // Chunked: a 2000-row import becomes ~100 independent jobs, so one
+      // mid-batch crash retries ~20 docs, not the whole import (each doc is
+      // also individually idempotent via the aiClassification check).
+      const CLASSIFY_CHUNK = 20;
+      const ids = result.imported.map((r) => r.documentId);
+      for (let i = 0; i < ids.length; i += CLASSIFY_CHUNK) {
+        getJobQueue().enqueue("classify_documents", {
+          agencyId: staff.agencyId,
+          documentIds: ids.slice(i, i + CLASSIFY_CHUNK),
+        });
+      }
       getJobQueue().enqueue("embed_document_chunks", { agencyId: staff.agencyId });
     }
 
@@ -157,56 +160,38 @@ export async function runRecordsImportAction(
       missingFiles: result.missingFiles,
       skippedInvalid: errors.length,
     };
-  } catch (e) {
-    console.error("runRecordsImport failed", e);
-    return { ok: false, error: e instanceof Error ? e.message : "Import failed." };
-  }
-}
+  },
+);
 
 // --- source management (§4) --------------------------------------------------
 
-export async function updateSourcePolicyAction(input: {
-  agencySlug: string;
-  sourceId: string;
-  trust: "auto_publish" | "review_queue";
-  defaultClassification: "public" | "internal";
-}): Promise<{ ok: true } | ActionError> {
-  try {
-    const staff = await requireStaff(input.agencySlug, ["admin"]);
-    const repo = await getRepository();
-    await updateSourcePolicy(defaultDeps(repo), {
+export const updateSourcePolicyAction = staffAction(
+  { roles: ["admin"], fallback: "Could not update the source.", exposes: [PublicationError] },
+  async (
+    { staff, deps, agencySlug },
+    input: { sourceId: string; trust: "auto_publish" | "review_queue"; defaultClassification: "public" | "internal" },
+  ): Promise<{ ok: true }> => {
+    await updateSourcePolicy(deps, {
       agencyId: staff.agencyId,
       actorUserId: staff.userId,
       sourceId: input.sourceId,
       trust: input.trust,
       defaultClassification: input.defaultClassification,
     });
-    revalidatePath(`/${input.agencySlug}/app/admin/records-import`);
+    revalidatePath(`/${agencySlug}/app/admin/records-import`);
     return { ok: true };
-  } catch (e) {
-    if (e instanceof PublicationError) return { ok: false, error: e.message };
-    console.error("updateSourcePolicy failed", e);
-    return { ok: false, error: "Could not update the source." };
-  }
-}
+  },
+);
 
-export async function rotateSourceKeyAction(input: {
-  agencySlug: string;
-  sourceId: string;
-}): Promise<{ ok: true; ingestKey: string } | ActionError> {
-  try {
-    const staff = await requireStaff(input.agencySlug, ["admin"]);
-    const repo = await getRepository();
-    const { ingestKey } = await rotateSourceApiKey(defaultDeps(repo), {
+export const rotateSourceKeyAction = staffAction(
+  { roles: ["admin"], fallback: "Could not rotate the key.", exposes: [PublicationError] },
+  async ({ staff, deps, agencySlug }, sourceId: string): Promise<{ ok: true; ingestKey: string }> => {
+    const { ingestKey } = await rotateSourceApiKey(deps, {
       agencyId: staff.agencyId,
       actorUserId: staff.userId,
-      sourceId: input.sourceId,
+      sourceId,
     });
-    revalidatePath(`/${input.agencySlug}/app/admin/records-import`);
+    revalidatePath(`/${agencySlug}/app/admin/records-import`);
     return { ok: true, ingestKey };
-  } catch (e) {
-    if (e instanceof PublicationError) return { ok: false, error: e.message };
-    console.error("rotateSourceKey failed", e);
-    return { ok: false, error: "Could not rotate the key." };
-  }
-}
+  },
+);

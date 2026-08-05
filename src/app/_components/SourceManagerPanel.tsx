@@ -38,7 +38,7 @@ export function SourceManagerPanel({ agencySlug, sources }: { agencySlug: string
   function savePolicy(sourceId: string, trust: SourceRow["trust"], defaultClassification: SourceRow["defaultClassification"]) {
     setError(null);
     startTransition(async () => {
-      const res = await updateSourcePolicyAction({ agencySlug, sourceId, trust, defaultClassification });
+      const res = await updateSourcePolicyAction(agencySlug, { sourceId, trust, defaultClassification });
       if (!res.ok) setError(res.error);
     });
   }
@@ -47,7 +47,7 @@ export function SourceManagerPanel({ agencySlug, sources }: { agencySlug: string
     setError(null);
     setConfirmRotate(null);
     startTransition(async () => {
-      const res = await rotateSourceKeyAction({ agencySlug, sourceId });
+      const res = await rotateSourceKeyAction(agencySlug, sourceId);
       if (res.ok) setRotated({ sourceId, key: res.ingestKey });
       else setError(res.error);
     });

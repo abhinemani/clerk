@@ -30,6 +30,8 @@ export interface QueueDocVM {
   keywords: string[];
   preview: string | null;
   hasFile: boolean;
+  /** Deterministic PII pre-scan summary ("ssn ×2, phone ×5") — null if clean. */
+  piiSummary: string | null;
   ai: {
     suggestedClassification: "public" | "internal";
     recordType: string;
@@ -229,6 +231,14 @@ export function PublicationQueue({
                       {d.preview}
                     </p>
                   )}
+                  {/* Deterministic PII findings get the alarm color; the LLM's
+                      advisory note stays neutral — regex hits are evidence,
+                      model prose is a hint. */}
+                  {d.piiSummary && mode !== "published" && (
+                    <p style={{ fontSize: "0.82rem", margin: "8px 0 0", color: "var(--overdue)", fontWeight: 600 }}>
+                      ⚠ Possible PII: {d.piiSummary}
+                    </p>
+                  )}
                   {d.ai && mode === "undecided" && (
                     <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
                       <AiPill>AI suggests</AiPill>
@@ -237,7 +247,7 @@ export function PublicationQueue({
                         {d.ai.recordType ? ` · looks like ${d.ai.recordType}` : ""}
                       </span>
                       {d.ai.sensitivityNote && (
-                        <span style={{ fontSize: "0.82rem", color: "var(--overdue)" }}>{d.ai.sensitivityNote}</span>
+                        <span className="muted" style={{ fontSize: "0.82rem" }}>{d.ai.sensitivityNote}</span>
                       )}
                     </div>
                   )}

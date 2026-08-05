@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getRepository } from "@/db/createRepository";
 import { getAgencyForSlug } from "@/lib/live";
 import { requireStaff } from "@/auth/guards";
+import { readDocumentMeta, sensitivitySummary } from "@/domain/documentMeta";
 import { listPublicationQueues } from "@/services/publicationService";
 import type { DocumentEntity } from "@/services/repository";
 import { PublicationQueue, type QueueDocVM } from "../../../../_components/PublicationQueue";
@@ -12,20 +13,7 @@ export const dynamic = "force-dynamic";
 type Tab = "undecided" | "published" | "internal";
 
 function toVM(d: DocumentEntity, sourceNames: Map<string, string>): QueueDocVM {
-  const meta = (d.metadata ?? {}) as {
-    title?: string;
-    summary?: string;
-    tags?: string[];
-    keywords?: string[];
-    recordDate?: string;
-    releasedOn?: string;
-    aiClassification?: {
-      suggestedClassification?: "public" | "internal";
-      recordType?: string;
-      sensitivityNote?: string | null;
-    };
-    publicationDecision?: { decision: string; byName: string; at: string };
-  };
+  const meta = readDocumentMeta(d);
   const preview = d.extractedText ? d.extractedText.slice(0, 240) : null;
   return {
     id: d.id,
@@ -39,6 +27,9 @@ function toVM(d: DocumentEntity, sourceNames: Map<string, string>): QueueDocVM {
     keywords: meta.keywords ?? [],
     preview: preview && preview !== meta.title ? preview : null,
     hasFile: d.blobRef != null && d.byteSize != null,
+    // Deterministic PII pre-scan tallies — the zero-API-key safety net; the
+    // queue shows these in the alarm color, unlike the LLM's advisory note.
+    piiSummary: sensitivitySummary(meta),
     ai: meta.aiClassification?.suggestedClassification
       ? {
           suggestedClassification: meta.aiClassification.suggestedClassification,

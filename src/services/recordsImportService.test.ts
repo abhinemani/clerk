@@ -115,6 +115,24 @@ describe("importRecords", () => {
     }
   });
 
+  it("stamps deterministic PII tallies so the queue can warn before publish", async () => {
+    const { repo, deps } = ctx();
+    await repo.createUser(ADMIN);
+    const { rows } = parseRecordsCsv(["title,filename", "HR roster,roster.txt", "Clean doc,clean.txt"].join("\n"));
+    const files = new Map([
+      ["roster.txt", { bytes: Buffer.from("Employee SSN: 123-45-6789 call 555-867-5309"), mimeType: null }],
+      ["clean.txt", { bytes: Buffer.from("Nothing sensitive in this schedule."), mimeType: null }],
+    ]);
+    await importRecords(deps, { agencyId: "ag-1", actorUserId: "u-dana", rows, files });
+
+    const docs = await repo.listDocuments("ag-1");
+    const flagged = docs.find((d) => d.filename === "roster.txt")!;
+    const sensitivity = (flagged.metadata as { sensitivity?: Record<string, number> }).sensitivity;
+    expect(sensitivity?.ssn).toBeGreaterThanOrEqual(1);
+    const clean = docs.find((d) => d.filename === "clean.txt")!;
+    expect((clean.metadata as { sensitivity?: unknown }).sensitivity).toBeUndefined();
+  });
+
   it("re-importing the same external_id updates in place instead of duplicating", async () => {
     const { repo, deps } = ctx();
     await repo.createUser(ADMIN);

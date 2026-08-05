@@ -6,6 +6,7 @@
  */
 import { DEMO_AGENCY, DEMO_RELEASES, searchPublicReleases } from "@/lib/demo";
 import { getRepository } from "@/db/createRepository";
+import { readDocumentMeta } from "@/domain/documentMeta";
 import type { DocumentEntity, Repository } from "@/services/repository";
 
 export interface ArchiveItem {
@@ -25,13 +26,7 @@ export interface ArchiveItem {
 }
 
 function toArchiveItem(d: DocumentEntity, downloadUrl: string | null): ArchiveItem {
-  const meta = (d.metadata ?? {}) as {
-    title?: string;
-    summary?: string;
-    tags?: string[];
-    keywords?: string[];
-    releasedOn?: string;
-  };
+  const meta = readDocumentMeta(d);
   return {
     id: d.id,
     title: meta.title ?? d.filename ?? "Released record",
@@ -56,7 +51,7 @@ export async function resolveArchiveDownloadUrl(
   d: DocumentEntity,
 ): Promise<string | null> {
   if (d.blobRef && d.byteSize != null) return `/${slug}/files/${d.id}`;
-  const releaseId = (d.metadata as { releaseId?: string } | null)?.releaseId;
+  const releaseId = readDocumentMeta(d).releaseId;
   if (!releaseId) return null;
   const release = await repo.getReleaseById(agencyId, releaseId);
   // Only public releases feed the archive; enforce it here too, not just at

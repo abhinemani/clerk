@@ -8,23 +8,20 @@
  * Also home to source-trust management (§4): the same publication policy,
  * expressed per source instead of per document.
  */
+import {
+  patchDocumentMeta,
+  readDocumentMeta,
+  type PublicationDecision,
+} from "@/domain/documentMeta";
 import type { ServiceDeps } from "./deps";
 import { NotFoundError, type DocumentEntity, type SourceEntity } from "./repository";
 
 export class PublicationError extends Error {}
 
-export interface PublicationDecision {
-  decision: "published" | "internal";
-  byUserId: string;
-  byName: string;
-  at: string; // ISO
-  /** Present when the decision is an UNPUBLISH — the stated justification. */
-  reason?: string;
-}
+export type { PublicationDecision };
 
 function decisionOf(doc: DocumentEntity): PublicationDecision | null {
-  const d = (doc.metadata as { publicationDecision?: PublicationDecision } | null)?.publicationDecision;
-  return d ?? null;
+  return readDocumentMeta(doc).publicationDecision ?? null;
 }
 
 /** Burned redaction artifacts belong to the release flow, never this queue. */
@@ -94,9 +91,9 @@ export async function publishDocument(
   }
   if (doc.classification === "public") return doc; // already published — nothing to redo
 
-  const prev = (doc.metadata ?? {}) as Record<string, unknown>;
+  const prev = readDocumentMeta(doc);
   const meta = input.archiveMeta ?? {};
-  const title = meta.title?.trim() || (prev.title as string | undefined) || doc.filename || "Released record";
+  const title = meta.title?.trim() || prev.title || doc.filename || "Released record";
   const decision: PublicationDecision = {
     decision: "published",
     byUserId: actor.id,
@@ -104,16 +101,15 @@ export async function publishDocument(
     at: deps.now().toISOString(),
   };
   await repo.updateDocument(input.agencyId, doc.id, {
-    metadata: {
-      ...prev,
+    metadata: patchDocumentMeta(doc, {
       title,
-      summary: meta.summary?.trim() || (prev.summary as string | undefined) || "",
-      tags: meta.tags ?? (prev.tags as string[] | undefined) ?? (doc.recordType ? [doc.recordType] : []),
-      keywords: meta.keywords ?? (prev.keywords as string[] | undefined) ?? [],
+      summary: meta.summary?.trim() || prev.summary || "",
+      tags: meta.tags ?? prev.tags ?? (doc.recordType ? [doc.recordType] : []),
+      keywords: meta.keywords ?? prev.keywords ?? [],
       // The archive shows the record's own date when the import knew it.
-      releasedOn: (prev.recordDate as string | undefined) ?? deps.now().toISOString().slice(0, 10),
+      releasedOn: prev.recordDate ?? deps.now().toISOString().slice(0, 10),
       publicationDecision: decision,
-    },
+    }),
   });
   const published = await repo.setDocumentClassification(input.agencyId, doc.id, "public");
 
@@ -154,7 +150,7 @@ export async function keepDocumentInternal(
     at: deps.now().toISOString(),
   };
   const updated = await repo.updateDocument(input.agencyId, doc.id, {
-    metadata: { ...(doc.metadata ?? {}), publicationDecision: decision },
+    metadata: patchDocumentMeta(doc, { publicationDecision: decision }),
   });
 
   await repo.appendAdminEvent({
@@ -162,7 +158,7 @@ export async function keepDocumentInternal(
     agencyId: input.agencyId,
     kind: "record_kept_internal",
     actorLabel: actor.name ?? actor.email,
-    summary: `Kept "${(doc.metadata as { title?: string } | null)?.title ?? doc.filename ?? doc.id}" internal`,
+    summary: `Kept "${readDocumentMeta(doc).title ?? doc.filename ?? doc.id}" internal`,
     payload: { documentId: doc.id, sourceId: doc.sourceId },
     createdAt: deps.now(),
   });
@@ -199,7 +195,7 @@ export async function unpublishDocument(
     throw new PublicationError("Release artifacts are managed through the release flow, not here.");
   }
 
-  const title = (doc.metadata as { title?: string } | null)?.title ?? doc.filename ?? doc.id;
+  const title = readDocumentMeta(doc).title ?? doc.filename ?? doc.id;
   const decision: PublicationDecision = {
     decision: "internal",
     byUserId: actor.id,
@@ -208,7 +204,7 @@ export async function unpublishDocument(
     reason: reason.slice(0, 500),
   };
   await repo.updateDocument(input.agencyId, doc.id, {
-    metadata: { ...(doc.metadata ?? {}), publicationDecision: decision },
+    metadata: patchDocumentMeta(doc, { publicationDecision: decision }),
   });
   const unpublished = await repo.setDocumentClassification(input.agencyId, doc.id, "internal");
 
