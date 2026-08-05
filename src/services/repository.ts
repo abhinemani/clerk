@@ -221,6 +221,25 @@ export interface DeflectionEntity {
   createdAt: Date;
 }
 
+export type JobStatus = "queued" | "running" | "done" | "failed";
+
+/** One durable background job — survives restarts; failures stay visible. */
+export interface JobRecord {
+  id: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  status: JobStatus;
+  /** Incremented on claim — attempt 1 is the first run. */
+  attempts: number;
+  maxAttempts: number;
+  lastError: string | null;
+  /** Not runnable before this moment (retry backoff). */
+  runAfter: Date;
+  startedAt?: Date | null;
+  finishedAt?: Date | null;
+  createdAt: Date;
+}
+
 /** Append-only account-administration audit (agency-scoped; spec §10 spirit). */
 export interface AdminEventEntity {
   id: string;
@@ -242,6 +261,9 @@ export interface DeliveryEntity {
   kind: string;
   requestId: string | null;
   taskId: string | null;
+  /** null = outbox-only mode; "relayed" | "failed" after a provider attempt. */
+  relayStatus?: "relayed" | "failed" | null;
+  relayError?: string | null;
   createdAt: Date;
 }
 
@@ -482,12 +504,29 @@ export interface Repository {
   appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity>;
   listDeflections(agencyId: string): Promise<DeflectionEntity[]>;
 
+  // Durable job queue (deployment-scoped — payloads carry agency ids).
+  createJob(j: JobRecord): Promise<JobRecord>;
+  /** Atomically claim the oldest runnable job: → running, attempts+1. */
+  claimNextJob(now: Date): Promise<JobRecord | null>;
+  completeJob(id: string, at: Date): Promise<void>;
+  /** Back on the queue with a later runAfter (retry with backoff). */
+  retryJob(id: string, error: string, runAfter: Date): Promise<void>;
+  /** Terminal failure — stays visible for the operator health surface. */
+  markJobFailed(id: string, error: string, at: Date): Promise<void>;
+  /** Boot recovery: jobs a dead process left "running" go back to queued. */
+  resetRunningJobs(): Promise<number>;
+  listJobs(opts?: { status?: JobStatus; limit?: number }): Promise<JobRecord[]>;
+
   /** Append-only, like appendEvent — never update or delete (§10). */
   appendAdminEvent(e: AdminEventEntity): Promise<AdminEventEntity>;
   listAdminEvents(agencyId: string, limit?: number): Promise<AdminEventEntity[]>;
 
   createDelivery(d: DeliveryEntity): Promise<DeliveryEntity>;
   listDeliveries(agencyId: string, limit?: number): Promise<DeliveryEntity[]>;
+  /** Record the relay outcome on an outbox row (health surface reads "failed"). */
+  updateDeliveryRelay(id: string, status: "relayed" | "failed", error?: string): Promise<void>;
+  /** Deployment-wide failed relays, newest first — operator health surface. */
+  listFailedDeliveries(limit?: number): Promise<DeliveryEntity[]>;
 
   createAuthToken(t: AuthTokenEntity): Promise<AuthTokenEntity>;
   findAuthTokenByHash(tokenHash: string): Promise<AuthTokenEntity | null>;
@@ -919,6 +958,49 @@ export class InMemoryRepository implements Repository {
     return this.deflections.filter((d) => d.agencyId === agencyId);
   }
 
+  private jobs = new Map<string, JobRecord>();
+  async createJob(j: JobRecord) {
+    this.jobs.set(j.id, j);
+    return j;
+  }
+  async claimNextJob(now: Date) {
+    const next = [...this.jobs.values()]
+      .filter((j) => j.status === "queued" && j.runAfter.getTime() <= now.getTime())
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+    if (!next) return null;
+    const claimed: JobRecord = { ...next, status: "running", attempts: next.attempts + 1, startedAt: now };
+    this.jobs.set(claimed.id, claimed);
+    return claimed;
+  }
+  async completeJob(id: string, at: Date) {
+    const j = this.jobs.get(id);
+    if (j) this.jobs.set(id, { ...j, status: "done", finishedAt: at });
+  }
+  async retryJob(id: string, error: string, runAfter: Date) {
+    const j = this.jobs.get(id);
+    if (j) this.jobs.set(id, { ...j, status: "queued", lastError: error, runAfter });
+  }
+  async markJobFailed(id: string, error: string, at: Date) {
+    const j = this.jobs.get(id);
+    if (j) this.jobs.set(id, { ...j, status: "failed", lastError: error, finishedAt: at });
+  }
+  async resetRunningJobs() {
+    let n = 0;
+    for (const j of this.jobs.values()) {
+      if (j.status === "running") {
+        this.jobs.set(j.id, { ...j, status: "queued" });
+        n++;
+      }
+    }
+    return n;
+  }
+  async listJobs(opts?: { status?: JobStatus; limit?: number }) {
+    return [...this.jobs.values()]
+      .filter((j) => (opts?.status ? j.status === opts.status : true))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, opts?.limit ?? 100);
+  }
+
   async appendAdminEvent(e: AdminEventEntity) {
     this.adminEvents.push(e); // append-only (§10)
     return e;
@@ -937,6 +1019,19 @@ export class InMemoryRepository implements Repository {
   async listDeliveries(agencyId: string, limit = 50) {
     return this.deliveries
       .filter((d) => d.agencyId === agencyId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+  async updateDeliveryRelay(id: string, status: "relayed" | "failed", error?: string) {
+    const d = this.deliveries.find((x) => x.id === id);
+    if (d) {
+      d.relayStatus = status;
+      d.relayError = error ?? null;
+    }
+  }
+  async listFailedDeliveries(limit = 50) {
+    return this.deliveries
+      .filter((d) => d.relayStatus === "failed")
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, limit);
   }

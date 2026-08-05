@@ -33,7 +33,7 @@ export function defaultDeps(repo: Repository): ServiceDeps {
     now: () => new Date(),
     genId: () => crypto.randomUUID(),
     genToken: () => crypto.randomUUID().replace(/-/g, "").slice(0, 20),
-    notifier: sender ? new RelayNotifier(outbox, sender) : outbox,
+    notifier: sender ? new RelayNotifier(outbox, sender, repo) : outbox,
     baseUrl: process.env.APP_BASE_URL,
   };
 }

@@ -27,6 +27,9 @@ export function registerJobs(): void {
   queue.register("embed_public_documents", runEmbedPublicDocumentsJob);
   queue.register("ocr_extract", runOcrExtractJob);
   queue.register("embed_document_chunks", runEmbedDocumentChunksJob);
+  // Durable queue: re-queue rows a dead process left "running", then start
+  // the polling worker. Jobs enqueued before a restart run after it.
+  void queue.recoverAndStart();
 
   // Backfill archive embeddings shortly after boot (no-op when up to date;
   // fake embedder keeps this working without VOYAGE_API_KEY).

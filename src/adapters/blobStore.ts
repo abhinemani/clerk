@@ -13,6 +13,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
+// Value-free import cycle: s3BlobStore only imports TYPES from this module.
+import { S3BlobStore, s3ConfigFromEnv } from "./s3BlobStore";
 
 export interface StoredBlob {
   bytes: Buffer;
@@ -82,11 +84,21 @@ interface BlobGlobal {
 }
 const g = globalThis as BlobGlobal;
 
-/** The app's blob store — one instance per process (Next bundles share it). */
+/**
+ * The app's blob store — one instance per process (Next bundles share it).
+ * S3/MinIO when the S3_* env vars are set (see s3BlobStore.ts); local
+ * filesystem otherwise (self-contained first).
+ */
 export function getBlobStore(): BlobStore {
   if (!g.__clerkBlobStore) {
-    const root = process.env.BLOB_PATH ?? join(process.cwd(), ".blobdata");
-    g.__clerkBlobStore = new LocalBlobStore(root);
+    const s3 = s3ConfigFromEnv();
+    if (s3) {
+      g.__clerkBlobStore = new S3BlobStore(s3);
+      console.log(`[blobs] using S3-compatible store at ${s3.endpoint}/${s3.bucket}`);
+    } else {
+      const root = process.env.BLOB_PATH ?? join(process.cwd(), ".blobdata");
+      g.__clerkBlobStore = new LocalBlobStore(root);
+    }
   }
   return g.__clerkBlobStore;
 }

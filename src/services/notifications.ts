@@ -97,6 +97,8 @@ export class RelayNotifier implements Notifier {
   constructor(
     private readonly outbox: Notifier,
     private readonly email: import("@/adapters/email").EmailSender,
+    /** When provided, relay outcomes land on the outbox row (health surface). */
+    private readonly repo?: import("./repository").Repository,
   ) {}
   async send(msg: OutboundMessage): Promise<DeliveryReceipt> {
     const receipt = await this.outbox.send(msg);
@@ -107,9 +109,13 @@ export class RelayNotifier implements Notifier {
         text: msg.body,
         replyTo: msg.replyTo,
       });
+      await this.repo?.updateDeliveryRelay(receipt.id, "relayed");
       return { ...receipt, channel: "email" };
     } catch (err) {
       console.error(`[email] delivery to ${msg.to} failed (outbox row ${receipt.id} kept)`, err);
+      // Never let bookkeeping mask the original problem.
+      const message = err instanceof Error ? err.message : String(err);
+      await this.repo?.updateDeliveryRelay(receipt.id, "failed", message).catch(() => {});
       return receipt; // channel stays "outbox" — honest about what happened
     }
   }

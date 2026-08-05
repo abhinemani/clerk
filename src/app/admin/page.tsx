@@ -62,6 +62,21 @@ export default async function PlatformHome() {
       }),
   );
 
+  // Deployment health: failures must be VISIBLE, not console-only. Failed
+  // jobs stay in the jobs table (durable queue); failed relays stay on their
+  // outbox rows. Green means actually green.
+  const [failedJobs, queuedJobs, failedDeliveries] = await Promise.all([
+    repo.listJobs({ status: "failed", limit: 10 }),
+    repo.listJobs({ status: "queued", limit: 100 }),
+    repo.listFailedDeliveries(10),
+  ]);
+  const agencyNameById = new Map(agencies.map((a) => [a.id, a.name]));
+  const oldestQueued = queuedJobs.at(-1); // listJobs is newest-first
+  const oldestQueuedMin = oldestQueued
+    ? Math.round((now.getTime() - oldestQueued.createdAt.getTime()) / 60_000)
+    : null;
+  const healthy = failedJobs.length === 0 && failedDeliveries.length === 0;
+
   const totals = rows.reduce(
     (t, r) => ({
       open: t.open + r.open,
@@ -113,6 +128,67 @@ export default async function PlatformHome() {
           <div className="stat-label">Resident accounts</div>
         </div>
       </div>
+
+      {/* Health — jobs and email relays. A failure here is the operator's to
+          see FIRST, not the clerk's to report. */}
+      <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 12 }}>Health</h2>
+      {healthy ? (
+        <p className="pill band-on_track" style={{ display: "inline-flex" }}>
+          ✓ All systems working — {queuedJobs.length} job{queuedJobs.length === 1 ? "" : "s"} queued
+          {oldestQueuedMin != null && oldestQueuedMin > 5 ? ` (oldest ${oldestQueuedMin} min — worker may be stuck)` : ""}
+          , no failed jobs, no failed email relays
+        </p>
+      ) : (
+        <div className="stack" style={{ gap: 10 }}>
+          {failedJobs.length > 0 && (
+            <div className="card card-pad" style={{ borderLeft: "3px solid var(--overdue)" }}>
+              <div className="panel-title" style={{ color: "var(--overdue)" }}>
+                Failed jobs · {failedJobs.length}
+              </div>
+              <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "grid", gap: 6 }}>
+                {failedJobs.map((j) => (
+                  <li key={j.id} style={{ fontSize: "0.85rem" }}>
+                    <span className="tag">{j.kind.replace(/_/g, " ")}</span>{" "}
+                    <span className="muted">
+                      {typeof j.payload.agencyId === "string"
+                        ? (agencyNameById.get(j.payload.agencyId) ?? "unknown agency")
+                        : "deployment"}{" "}
+                      · {j.attempts} attempt{j.attempts === 1 ? "" : "s"} ·{" "}
+                    </span>
+                    <span className="mono" style={{ fontSize: "0.78rem" }}>
+                      {(j.lastError ?? "unknown error").slice(0, 140)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {failedDeliveries.length > 0 && (
+            <div className="card card-pad" style={{ borderLeft: "3px solid var(--overdue)" }}>
+              <div className="panel-title" style={{ color: "var(--overdue)" }}>
+                Failed email relays · {failedDeliveries.length}
+              </div>
+              <p className="muted" style={{ fontSize: "0.82rem", margin: "6px 0 0" }}>
+                The outbox rows are kept — these messages were recorded but the provider refused
+                them. Fix the provider, then re-send from each agency&apos;s outbox.
+              </p>
+              <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "grid", gap: 6 }}>
+                {failedDeliveries.map((d) => (
+                  <li key={d.id} style={{ fontSize: "0.85rem" }}>
+                    <span className="mono">{d.toEmail}</span>{" "}
+                    <span className="muted">
+                      · {agencyNameById.get(d.agencyId) ?? "unknown agency"} · {d.subject.slice(0, 60)} ·{" "}
+                    </span>
+                    <span className="mono" style={{ fontSize: "0.78rem", color: "var(--overdue)" }}>
+                      {(d.relayError ?? "unknown error").slice(0, 100)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 12 }}>Agencies</h2>
       <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))" }}>

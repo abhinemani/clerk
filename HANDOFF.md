@@ -12,15 +12,23 @@ Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushe
 department-scoped accounts, answer-with-link, the platform-console redesign,
 and the go-live onboarding checklist is SHIPPED and verified (inventory
 below). The next priorities, in order (owner-reviewed 2026-08-04):
-1. **Production durability trio** — pg-boss job adapter (in-process queue
-   loses jobs on restart; port ready in src/jobs/queue.ts), S3/MinIO blob
-   adapter (port ready in src/adapters/blobStore.ts), and a tested
-   backup/restore runbook for the clerk-data volume. The gap between demo
-   and pilot is operational now, not functional.
-2. **Operator health surface** — outbox delivery failures and job errors
-   (triage, exemption pass, OCR) only go to console logs today; put a
-   health strip on the /admin dashboard (deliveries table exists; job
-   failures need a small persisted record first).
+1. ~~Production durability trio~~ **DONE** (2026-08-05): DURABLE JOB QUEUE —
+   jobs are rows (migration 0009), enqueue persists BEFORE running, worker
+   claims via FOR UPDATE SKIP LOCKED (multi-instance safe), retries with
+   backoff, terminal failures stay queryable; boot re-queues orphaned
+   "running" rows; works identically on PGlite and Postgres (a durable
+   table beats pg-boss here because pg-boss cannot run on the default
+   PGlite deploy — pg-boss remains a drop-in behind the same port).
+   S3/MINIO BLOB ADAPTER — fetch-only SigV4 (src/adapters/s3BlobStore.ts),
+   signing pinned against AWS's published example signature byte-for-byte,
+   activates on S3_* env (NOT yet round-tripped against a live MinIO — do
+   that before relying on it). RUNBOOK — docs/operations.md (backup/
+   restore both deploy shapes, monthly test-restore checklist).
+2. ~~Operator health surface~~ **DONE** (2026-08-05): /admin "Health" —
+   green line (with queue depth + stuck-worker hint) or red cards listing
+   failed jobs (kind, agency, attempts, error) and failed email relays
+   (migration 0010 adds relay_status/relay_error to deliveries;
+   RelayNotifier records outcomes; outbox rows kept).
 3. **Counsel sign-off + statute breadth** — "reviewed by counsel on DATE"
    per state profile, surfaced in the workspace; add states as pilots need.
 4. Small knock-offs: responder email notification on dispatch to their

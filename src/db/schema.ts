@@ -835,6 +835,33 @@ export const templates = pgTable(
 // Deflection events (§6.7) — the ROI number agencies show councils.
 // ---------------------------------------------------------------------------
 
+/**
+ * Durable job queue (spec §4). Jobs persist here so a restart loses NOTHING —
+ * the worker loop claims the oldest runnable row (SKIP LOCKED, so a second
+ * instance is safe), retries with backoff, and leaves failed rows visible for
+ * the operator health surface instead of vanishing into a log. Works on both
+ * embedded PGlite and managed Postgres; pg-boss remains a drop-in swap behind
+ * the same JobQueue port for multi-instance scale.
+ */
+export const jobs = pgTable(
+  "jobs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    // queued | running | done | failed
+    status: text("status").notNull().default("queued"),
+    attempts: integer("attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(3),
+    lastError: text("last_error"),
+    runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("jobs_status_run_after_idx").on(t.status, t.runAfter)],
+);
+
 export const deflections = pgTable(
   "deflections",
   {
@@ -899,6 +926,11 @@ export const deliveries = pgTable(
     kind: text("kind").notNull(),
     requestId: uuid("request_id").references(() => requests.id, { onDelete: "set null" }),
     taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    // Relay outcome: null = outbox-only mode (no provider configured, not a
+    // failure); "relayed" | "failed" once a provider attempt happened. The
+    // operator health surface reads "failed" rows.
+    relayStatus: text("relay_status"),
+    relayError: text("relay_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("deliveries_agency_idx").on(t.agencyId, t.createdAt)],
@@ -1124,6 +1156,7 @@ export const allTables = {
   authTokens,
   agentRuns,
   publicIdCounters,
+  jobs,
 } as const;
 
 // Silence unused-import warning for `sql` when no raw defaults are used yet; it

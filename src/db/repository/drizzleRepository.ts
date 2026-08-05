@@ -7,7 +7,7 @@
  * Tenant isolation is enforced in every read: queries AND `agency_id` in, and a
  * row from another agency is invisible.
  */
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import {
   adminEvents,
@@ -19,6 +19,7 @@ import {
   departments,
   documentChunks,
   documents,
+  jobs,
   messages,
   publicIdCounters,
   releases,
@@ -44,6 +45,8 @@ import {
   type DirectoryEntry,
   type DocumentEntity,
   type EventEntity,
+  type JobRecord,
+  type JobStatus,
   type MessageEntity,
   type ReleaseEntity,
   type RequestEntity,
@@ -690,6 +693,97 @@ export class DrizzleRepository implements Repository {
     return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
   }
 
+  // --- durable job queue ---------------------------------------------------
+
+  async createJob(j: JobRecord): Promise<JobRecord> {
+    await this.db.insert(jobs).values({
+      id: j.id,
+      kind: j.kind,
+      payload: j.payload,
+      status: j.status,
+      attempts: j.attempts,
+      maxAttempts: j.maxAttempts,
+      lastError: j.lastError,
+      runAfter: j.runAfter,
+      createdAt: j.createdAt,
+    });
+    return j;
+  }
+
+  async claimNextJob(now: Date): Promise<JobRecord | null> {
+    // SELECT ... FOR UPDATE SKIP LOCKED inside a transaction: two workers
+    // can never claim the same row, and neither blocks the other.
+    return this.db.transaction(async (tx: Db) => {
+      const [candidate] = await tx
+        .select({ id: jobs.id })
+        .from(jobs)
+        .where(and(eq(jobs.status, "queued"), lte(jobs.runAfter, now)))
+        .orderBy(asc(jobs.createdAt))
+        .limit(1)
+        .for("update", { skipLocked: true });
+      if (!candidate) return null;
+      const [row] = await tx
+        .update(jobs)
+        .set({ status: "running", startedAt: now, attempts: sql`${jobs.attempts} + 1` })
+        .where(eq(jobs.id, candidate.id))
+        .returning();
+      return row ? this.toJob(row) : null;
+    });
+  }
+
+  async completeJob(id: string, at: Date): Promise<void> {
+    await this.db.update(jobs).set({ status: "done", finishedAt: at }).where(eq(jobs.id, id));
+  }
+
+  async retryJob(id: string, error: string, runAfter: Date): Promise<void> {
+    await this.db
+      .update(jobs)
+      .set({ status: "queued", lastError: error, runAfter })
+      .where(eq(jobs.id, id));
+  }
+
+  async markJobFailed(id: string, error: string, at: Date): Promise<void> {
+    await this.db
+      .update(jobs)
+      .set({ status: "failed", lastError: error, finishedAt: at })
+      .where(eq(jobs.id, id));
+  }
+
+  async resetRunningJobs(): Promise<number> {
+    const rows = await this.db
+      .update(jobs)
+      .set({ status: "queued" })
+      .where(eq(jobs.status, "running"))
+      .returning({ id: jobs.id });
+    return rows.length;
+  }
+
+  async listJobs(opts?: { status?: JobStatus; limit?: number }): Promise<JobRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(jobs)
+      .where(opts?.status ? eq(jobs.status, opts.status) : undefined)
+      .orderBy(desc(jobs.createdAt))
+      .limit(opts?.limit ?? 100);
+    return rows.map((r: typeof jobs.$inferSelect) => this.toJob(r));
+  }
+
+  private toJob(r: typeof jobs.$inferSelect): JobRecord {
+    return {
+      id: r.id,
+      kind: r.kind,
+      payload: r.payload ?? {},
+      status: r.status as JobStatus,
+      attempts: r.attempts,
+      maxAttempts: r.maxAttempts,
+      lastError: r.lastError,
+      runAfter: r.runAfter,
+      startedAt: r.startedAt,
+      finishedAt: r.finishedAt,
+      createdAt: r.createdAt,
+    };
+  }
+
   async appendAdminEvent(e: AdminEventEntity): Promise<AdminEventEntity> {
     await this.db.insert(adminEvents).values({
       id: e.id,
@@ -734,6 +828,21 @@ export class DrizzleRepository implements Repository {
     });
     return d;
   }
+  async updateDeliveryRelay(id: string, status: "relayed" | "failed", error?: string): Promise<void> {
+    await this.db
+      .update(deliveries)
+      .set({ relayStatus: status, relayError: error ?? null })
+      .where(eq(deliveries.id, id));
+  }
+  async listFailedDeliveries(limit = 50): Promise<DeliveryEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(deliveries)
+      .where(eq(deliveries.relayStatus, "failed"))
+      .orderBy(desc(deliveries.createdAt))
+      .limit(limit);
+    return rows.map((d: typeof deliveries.$inferSelect) => this.toDelivery(d));
+  }
   async listDeliveries(agencyId: string, limit = 50): Promise<DeliveryEntity[]> {
     const rows = await this.db
       .select()
@@ -741,7 +850,10 @@ export class DrizzleRepository implements Repository {
       .where(eq(deliveries.agencyId, agencyId))
       .orderBy(desc(deliveries.createdAt))
       .limit(limit);
-    return rows.map((d: typeof deliveries.$inferSelect) => ({
+    return rows.map((d: typeof deliveries.$inferSelect) => this.toDelivery(d));
+  }
+  private toDelivery(d: typeof deliveries.$inferSelect): DeliveryEntity {
+    return {
       id: d.id,
       agencyId: d.agencyId,
       toEmail: d.toEmail,
@@ -750,8 +862,10 @@ export class DrizzleRepository implements Repository {
       kind: d.kind,
       requestId: d.requestId,
       taskId: d.taskId,
+      relayStatus: (d.relayStatus as DeliveryEntity["relayStatus"]) ?? null,
+      relayError: d.relayError ?? null,
       createdAt: d.createdAt,
-    }));
+    };
   }
 
   async createAuthToken(t: AuthTokenEntity): Promise<AuthTokenEntity> {
