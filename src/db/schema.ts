@@ -223,7 +223,7 @@ export const agencies = pgTable("agencies", {
   // Observed holidays as ISO date strings ("2026-07-03") for the business-day
   // calendar used by computeDueDate() (§7).
   observedHolidays: jsonb("observed_holidays").$type<string[]>().default([]),
-  portalSettings: jsonb("portal_settings").$type<Record<string, unknown>>(),
+  portalSettings: jsonb("portal_settings").$type<AgencySettings>(),
   // Deterministic keyword→department routing (src/domain/workflow.ts):
   // explicit agency policy, applied at filing with no model in the loop.
   defaultRoutingRules: jsonb("default_routing_rules").$type<
@@ -1055,6 +1055,21 @@ export interface ExtensionRecord {
   days: number;
   reason: string;
   statutoryBasis?: string;
+}
+
+/**
+ * Agency-level settings on the (previously unused) portal_settings column.
+ * All optional; absent = the conservative default.
+ */
+export interface AgencySettings {
+  /** Publish the public request log at /[slug]/log (opt-in — default off). */
+  publicRequestLog?: boolean;
+  /**
+   * Counsel sign-off on the statute profile (HANDOFF trust surface): who
+   * reviewed the deadline/exemption configuration for THIS agency, and when.
+   * Recorded by the agency admin; display-only everywhere else.
+   */
+  statuteReview?: { reviewedBy: string; reviewedOn: string; note?: string };
 }
 
 /**

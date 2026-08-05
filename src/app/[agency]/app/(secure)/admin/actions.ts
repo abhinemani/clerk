@@ -375,3 +375,79 @@ export async function uploadSealAction(formData: FormData): Promise<AdminResult>
     return { ok: false, error: message };
   }
 }
+
+/**
+ * Counsel sign-off (trust surface): the agency records WHO reviewed the
+ * statute profile its deadlines run on, and WHEN. Display-only everywhere
+ * else — recording it is the admin attesting on the record, so it's audited.
+ */
+export async function recordStatuteReviewAction(input: {
+  agencySlug: string;
+  reviewedBy: string;
+  reviewedOn: string; // YYYY-MM-DD
+  note?: string;
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+    const reviewedBy = input.reviewedBy.trim();
+    if (!reviewedBy) return { ok: false, error: "Name the reviewer — that's the point." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.reviewedOn)) {
+      return { ok: false, error: "Give the review date as YYYY-MM-DD." };
+    }
+    const agency = await repo.getAgency(agencyId);
+    await repo.updateAgency(agencyId, {
+      settings: {
+        ...(agency?.settings ?? {}),
+        statuteReview: {
+          reviewedBy,
+          reviewedOn: input.reviewedOn,
+          note: input.note?.trim() || undefined,
+        },
+      },
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "statute_review_recorded",
+      actorLabel: actor.name ?? actor.email,
+      summary: `Statute profile sign-off recorded: ${reviewedBy}, ${input.reviewedOn}`,
+      payload: { reviewedBy, reviewedOn: input.reviewedOn },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    return { ok: true };
+  } catch (e) {
+    console.error("recordStatuteReview failed", e);
+    return { ok: false, error: "Could not record the sign-off." };
+  }
+}
+
+/** Public request log toggle (opt-in transparency page at /[slug]/log). */
+export async function setTransparencyLogAction(input: {
+  agencySlug: string;
+  enabled: boolean;
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+    const agency = await repo.getAgency(agencyId);
+    await repo.updateAgency(agencyId, {
+      settings: { ...(agency?.settings ?? {}), publicRequestLog: input.enabled },
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "transparency_log_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: input.enabled
+        ? "Public request log ENABLED — /log is now live"
+        : "Public request log disabled",
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    revalidatePath(`/${input.agencySlug}/log`);
+    return { ok: true };
+  } catch (e) {
+    console.error("setTransparencyLog failed", e);
+    return { ok: false, error: "Could not update the setting." };
+  }
+}

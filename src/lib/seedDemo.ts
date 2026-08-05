@@ -96,6 +96,16 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
       addressLines: ["City Hall, 100 Civic Center Plaza"],
       hours: "Mon–Fri, 8:00 a.m.–5:00 p.m.",
     },
+    // Transparency demo: the public request log at /riverton/log, plus a
+    // counsel sign-off on the CA statute profile.
+    settings: {
+      publicRequestLog: true,
+      statuteReview: {
+        reviewedBy: "M. Chen, City Attorney",
+        reviewedOn: "2026-07-01",
+        note: "Confirmed against the 2026 legislative session.",
+      },
+    },
   });
   // Deterministic routing rules — file "pothole repairs on Elm St" in the
   // portal and watch the Public Works task go out with no AI key at all.

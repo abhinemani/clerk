@@ -29,8 +29,25 @@ below). The next priorities, in order (owner-reviewed 2026-08-04):
    failed jobs (kind, agency, attempts, error) and failed email relays
    (migration 0010 adds relay_status/relay_error to deliveries;
    RelayNotifier records outcomes; outbox rows kept).
-3. **Counsel sign-off + statute breadth** — "reviewed by counsel on DATE"
-   per state profile, surfaced in the workspace; add states as pilots need.
+1. **RECORDS INGESTION & PUBLICATION (owner-directed, next build):** full
+   implementable spec in `docs/records-ingestion.md` — CSV/ZIP records
+   import, the publication-decision queue at /app/records (classification
+   IS the publication decision; named human publishes), AI classification
+   hints, source trust management. Start here in a fresh session.
+2. ~~Counsel sign-off~~ **DONE** (2026-08-05): per-agency
+   `settings.statuteReview` on the (previously unused) portal_settings
+   column — no migration. Compliance section on /app/admin shows the
+   statute's actual clock params + review status; recording is an audited
+   attestation (name + date). Go-live checklist gained the step (9 steps
+   now). Riverton seeds reviewed; statute breadth (more states) still open.
+3. ~~Public transparency log~~ **DONE** (2026-08-05): opt-in per agency
+   (settings.publicRequestLog, admin toggle, audited) → /[slug]/log —
+   summary stats (total/open/on-time %/median days) + every request's
+   number, subject, dates, outcome. NO-PII invariant is pure + tested
+   (src/domain/transparencyLog.ts): requester fields never cross, subject
+   is staff-curated interpretedScope ONLY (raw filing text never published;
+   pre-triage rows say "Awaiting review"). Footer link when enabled.
+   Riverton seeds ON.
 4. Small knock-offs: responder email notification on dispatch to their
    department (they have logins now; only the dept inbox gets the token
    link) · copilot prefill of task/extension panels · redaction redo stack,

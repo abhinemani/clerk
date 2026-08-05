@@ -110,6 +110,11 @@ export default async function AgencyLayout({
                 <li>
                   <Link href={`/${agency.slug}/archive`}>Browse released records</Link>
                 </li>
+                {agency.settings?.publicRequestLog === true && (
+                  <li>
+                    <Link href={`/${agency.slug}/log`}>Public request log</Link>
+                  </li>
+                )}
                 <li>
                   <Link href={`/${agency.slug}/app`}>Staff workspace</Link>
                 </li>

@@ -8,6 +8,7 @@ import { WorkflowSettingsPanel } from "../../../../_components/WorkflowSettingsP
 import { RoutingRulesPanel } from "../../../../_components/RoutingRulesPanel";
 import { DepartmentManager, type DepartmentRow } from "../../../../_components/DepartmentManager";
 import { BrandingPanel } from "../../../../_components/BrandingPanel";
+import { CompliancePanel, type StatuteVM } from "../../../../_components/CompliancePanel";
 import { effectiveWorkflowSettings } from "@/domain/workflow";
 import { computeSetupStatus } from "@/domain/setupChecklist";
 import { getStateProfile } from "@/statute/profiles";
@@ -42,6 +43,7 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
     publicRecordCount: publicDocs.length,
     requestCount: requests.length,
     hasStatuteProfile: agencyRow ? getStateProfile(agencyRow.stateCode) != null : false,
+    statuteReviewed: agencyRow?.settings?.statuteReview != null,
     emailConfigured: getEmailSender() != null,
   });
   const workflow = effectiveWorkflowSettings(agencyRow?.workflowSettings);
@@ -66,11 +68,26 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
     { id: "team", label: "Team" },
     { id: "departments", label: "Departments" },
     { id: "branding", label: "Branding" },
+    { id: "compliance", label: "Compliance" },
     { id: "automation", label: "Automation" },
     { id: "routing", label: "Routing rules" },
     { id: "activity", label: "Activity" },
   ];
   const branding = agencyRow?.branding ?? {};
+  const agencySettings = agencyRow?.settings ?? {};
+  const profile = agencyRow ? getStateProfile(agencyRow.stateCode) : undefined;
+  const statuteVM: StatuteVM | null = profile
+    ? {
+        stateName: profile.stateName,
+        initialDays: profile.responseClock.initialDays,
+        dayType: profile.responseClock.dayType,
+        extensionMaxDays: profile.responseClock.extension.allowed
+          ? profile.responseClock.extension.maxDays
+          : null,
+        exemptionCount: profile.exemptions.length,
+        review: agencySettings.statuteReview ?? null,
+      }
+    : null;
 
   return (
     <div className="wrap" style={{ maxWidth: 820, paddingBlock: "36px 48px" }}>
@@ -208,6 +225,19 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
           accentColor: branding.accentColor ?? "",
           hasCustomSeal: branding.sealBlobRef != null,
         }}
+      />
+
+      <h2 id="compliance" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>
+        Compliance
+      </h2>
+      <p className="muted" style={{ fontSize: "0.9rem", marginBottom: 12, maxWidth: 560 }}>
+        The statute your deadlines run on — and whether your counsel has verified it — plus the
+        public request log residents and the council can check.
+      </p>
+      <CompliancePanel
+        agencySlug={slug}
+        statute={statuteVM}
+        logEnabled={agencySettings.publicRequestLog === true}
       />
 
       <h2 id="automation" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>

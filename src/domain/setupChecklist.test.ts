@@ -10,6 +10,7 @@ const FRESH: SetupSignals = {
   publicRecordCount: 0,
   requestCount: 0,
   hasStatuteProfile: true,
+  statuteReviewed: false,
   emailConfigured: false,
 };
 
@@ -47,6 +48,7 @@ describe("computeSetupStatus", () => {
       publicRecordCount: 5,
       requestCount: 4,
       hasStatuteProfile: true,
+      statuteReviewed: true,
       emailConfigured: true,
     });
     expect(status.complete).toBe(true);

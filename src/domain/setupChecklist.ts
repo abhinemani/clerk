@@ -19,6 +19,8 @@ export interface SetupSignals {
   publicRecordCount: number;
   requestCount: number;
   hasStatuteProfile: boolean;
+  /** Counsel sign-off recorded on the statute profile (trust surface). */
+  statuteReviewed: boolean;
   /** Outbound email provider configured (deployment-wide env). */
   emailConfigured: boolean;
 }
@@ -62,6 +64,16 @@ export function computeSetupStatus(s: SetupSignals): SetupStatus {
       done: s.departmentCount > 0,
       required: true,
       href: "admin#departments",
+    },
+    {
+      key: "statute-review",
+      title: "Counsel sign-off",
+      detail: s.statuteReviewed
+        ? "Your counsel verified the statute profile against current law."
+        : "Have your counsel confirm the deadlines and exemptions match current law, and record it.",
+      done: s.statuteReviewed,
+      required: false,
+      href: "admin#compliance",
     },
     {
       key: "staff",

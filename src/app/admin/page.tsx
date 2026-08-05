@@ -47,6 +47,7 @@ export default async function PlatformHome() {
           publicRecordCount: publicDocs.length,
           requestCount: requests.length,
           hasStatuteProfile: getStateProfile(a.stateCode) != null,
+          statuteReviewed: a.settings?.statuteReview != null,
           emailConfigured: getEmailSender() != null,
         });
         return {
