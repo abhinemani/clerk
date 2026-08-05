@@ -17,6 +17,7 @@ import {
   listPublicationQueues,
   publishDocument,
   rotateSourceApiKey,
+  unpublishDocument,
   updateSourcePolicy,
 } from "./publicationService";
 
@@ -152,6 +153,70 @@ describe("keepDocumentInternal", () => {
 
     const events = await repo.listAdminEvents("ag-1");
     expect(events[0]).toMatchObject({ kind: "record_kept_internal", actorLabel: "Casey" });
+  });
+});
+
+describe("unpublishDocument", () => {
+  it("pulls a public record back to internal with a named actor and audited reason", async () => {
+    const { repo, deps } = ctx();
+    await repo.createUser(STAFF);
+    await repo.createDocument(doc("d-1", { metadata: { title: "Oops report" } }));
+    await publishDocument(deps, { agencyId: "ag-1", actorUserId: "u-casey", documentId: "d-1" });
+    expect(await repo.listPublicDocuments("ag-1")).toHaveLength(1);
+
+    const back = await unpublishDocument(deps, {
+      agencyId: "ag-1",
+      actorUserId: "u-casey",
+      documentId: "d-1",
+      reason: "Contains unredacted SSNs on page 3",
+    });
+
+    expect(back.classification).toBe("internal");
+    expect(await repo.listPublicDocuments("ag-1")).toHaveLength(0); // gone from every public surface
+    const meta = (await repo.getDocument("ag-1", "d-1"))!.metadata as Record<string, unknown>;
+    expect(meta.publicationDecision).toMatchObject({
+      decision: "internal",
+      byName: "Casey",
+      reason: "Contains unredacted SSNs on page 3",
+    });
+    // It lands in the kept-internal tab, not back in undecided.
+    const q = await listPublicationQueues(deps, "ag-1");
+    expect(q.undecided).toHaveLength(0);
+    expect(q.keptInternal.map((d) => d.id)).toEqual(["d-1"]);
+
+    const events = await repo.listAdminEvents("ag-1");
+    const unpub = events.find((e) => e.kind === "record_unpublished");
+    expect(unpub).toMatchObject({ actorLabel: "Casey" });
+    expect(unpub!.summary).toContain("UNPUBLISHED");
+    expect(unpub!.summary).toContain("SSNs");
+  });
+
+  it("requires a reason and refuses non-public docs", async () => {
+    const { repo, deps } = ctx();
+    await repo.createUser(STAFF);
+    await repo.createDocument(doc("d-pub", { classification: "public" }));
+    await expect(
+      unpublishDocument(deps, { agencyId: "ag-1", actorUserId: "u-casey", documentId: "d-pub", reason: "   " }),
+    ).rejects.toThrow(/reason/i);
+    expect((await repo.getDocument("ag-1", "d-pub"))!.classification).toBe("public"); // untouched
+
+    await repo.createDocument(doc("d-int"));
+    await expect(
+      unpublishDocument(deps, { agencyId: "ag-1", actorUserId: "u-casey", documentId: "d-int", reason: "x" }),
+    ).rejects.toThrow(/not public/);
+  });
+
+  it("a record can be re-published after an unpublish — the decision cycle is audited both ways", async () => {
+    const { repo, deps } = ctx();
+    await repo.createUser(STAFF);
+    await repo.createDocument(doc("d-1", { metadata: { title: "Cycle" } }));
+    await publishDocument(deps, { agencyId: "ag-1", actorUserId: "u-casey", documentId: "d-1" });
+    await unpublishDocument(deps, { agencyId: "ag-1", actorUserId: "u-casey", documentId: "d-1", reason: "wrong doc" });
+    await publishDocument(deps, { agencyId: "ag-1", actorUserId: "u-casey", documentId: "d-1" });
+
+    expect((await repo.getDocument("ag-1", "d-1"))!.classification).toBe("public");
+    const kinds = (await repo.listAdminEvents("ag-1")).map((e) => e.kind);
+    expect(kinds).toEqual(["record_published", "record_unpublished", "record_published"]);
   });
 });
 

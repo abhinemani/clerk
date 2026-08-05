@@ -18,6 +18,8 @@ export interface PublicationDecision {
   byUserId: string;
   byName: string;
   at: string; // ISO
+  /** Present when the decision is an UNPUBLISH — the stated justification. */
+  reason?: string;
 }
 
 function decisionOf(doc: DocumentEntity): PublicationDecision | null {
@@ -165,6 +167,61 @@ export async function keepDocumentInternal(
     createdAt: deps.now(),
   });
   return updated;
+}
+
+/**
+ * Emergency takedown: pull a published record back to internal. The reverse
+ * gear publishing needs — "we published PII" cannot wait for a release
+ * process. Requires a NAMED human and a stated reason; both land in the
+ * append-only admin audit. The archive, answer box, and deflection all
+ * hard-scope to classification='public' at the query layer (invariant 3),
+ * so the record disappears from every requester-facing surface the moment
+ * the column flips — no cache or embedding cleanup in the critical path.
+ */
+export async function unpublishDocument(
+  deps: ServiceDeps,
+  input: { agencyId: string; actorUserId: string; documentId: string; reason: string },
+): Promise<DocumentEntity> {
+  const { repo } = deps;
+  const actor = await repo.getUser(input.agencyId, input.actorUserId);
+  if (!actor) throw new NotFoundError("User", input.actorUserId);
+  const doc = await repo.getDocument(input.agencyId, input.documentId);
+  if (!doc) throw new NotFoundError("Document", input.documentId);
+
+  const reason = input.reason.trim();
+  if (!reason) {
+    throw new PublicationError("State why this record is being unpublished — the reason is part of the audit record.");
+  }
+  if (doc.classification !== "public") {
+    throw new PublicationError("This record is not public — nothing to unpublish.");
+  }
+  if (isReleaseArtifact(doc)) {
+    throw new PublicationError("Release artifacts are managed through the release flow, not here.");
+  }
+
+  const title = (doc.metadata as { title?: string } | null)?.title ?? doc.filename ?? doc.id;
+  const decision: PublicationDecision = {
+    decision: "internal",
+    byUserId: actor.id,
+    byName: actor.name ?? actor.email,
+    at: deps.now().toISOString(),
+    reason: reason.slice(0, 500),
+  };
+  await repo.updateDocument(input.agencyId, doc.id, {
+    metadata: { ...(doc.metadata ?? {}), publicationDecision: decision },
+  });
+  const unpublished = await repo.setDocumentClassification(input.agencyId, doc.id, "internal");
+
+  await repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "record_unpublished",
+    actorLabel: actor.name ?? actor.email,
+    summary: `UNPUBLISHED "${title}" from the public archive — ${reason.slice(0, 200)}`,
+    payload: { documentId: doc.id, sourceId: doc.sourceId, filename: doc.filename, reason },
+    createdAt: deps.now(),
+  });
+  return unpublished;
 }
 
 // --- source trust management (§4) -------------------------------------------

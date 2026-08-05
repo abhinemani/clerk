@@ -14,6 +14,7 @@ import {
   keepDocumentInternal,
   publishDocument,
   PublicationError,
+  unpublishDocument,
 } from "@/services/publicationService";
 
 export interface PublishItem {
@@ -87,6 +88,35 @@ export async function publishRecordsAction(
   revalidatePath(`/${agencySlug}/app/records`);
   revalidatePath(`/${agencySlug}/archive`);
   return { ok: true, results };
+}
+
+/**
+ * Emergency takedown — deliberately per-record (no bulk): each unpublish is a
+ * named, reasoned act. The record leaves every public surface immediately
+ * (retrieval is query-scoped to classification='public').
+ */
+export async function unpublishRecordAction(
+  agencySlug: string,
+  documentId: string,
+  reason: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const staff = await requireStaff(agencySlug);
+  try {
+    const repo = await getRepository();
+    await unpublishDocument(defaultDeps(repo), {
+      agencyId: staff.agencyId,
+      actorUserId: staff.userId,
+      documentId,
+      reason,
+    });
+    revalidatePath(`/${agencySlug}/app/records`);
+    revalidatePath(`/${agencySlug}/archive`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof PublicationError) return { ok: false, error: e.message };
+    console.error("unpublishDocument failed", e);
+    return { ok: false, error: "Could not unpublish the record." };
+  }
 }
 
 export async function keepInternalRecordsAction(

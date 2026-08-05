@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import {
   keepInternalRecordsAction,
   publishRecordsAction,
+  unpublishRecordAction,
   type PerDocResult,
 } from "../[agency]/app/(secure)/records/actions";
 import { AiPill } from "./ui";
@@ -99,6 +100,20 @@ export function PublicationQueue({
       const res = await keepInternalRecordsAction(agencySlug, list);
       if (res.ok) applyResults(res.results, "kept internal");
       else setBanner(res.error);
+    });
+  }
+
+  function unpublish(id: string, reason: string) {
+    startTransition(async () => {
+      const res = await unpublishRecordAction(agencySlug, id, reason);
+      if (res.ok) {
+        setErrors(new Map());
+        setBanner("Record removed from the public archive.");
+        setOpenForm(null);
+        router.refresh();
+      } else {
+        setErrors(new Map([[id, res.error]]));
+      }
     });
   }
 
@@ -236,13 +251,21 @@ export function PublicationQueue({
                     <p style={{ color: "var(--overdue)", fontSize: "0.82rem", margin: "6px 0 0" }}>{errors.get(d.id)}</p>
                   )}
 
-                  {openForm === d.id && (
+                  {openForm === d.id && mode !== "published" && (
                     <PublishForm
                       key={d.id}
                       doc={d}
                       pending={pending}
                       onCancel={() => setOpenForm(null)}
                       onPublish={(form) => publishOne(d.id, form)}
+                    />
+                  )}
+                  {openForm === d.id && mode === "published" && (
+                    <UnpublishForm
+                      key={d.id}
+                      pending={pending}
+                      onCancel={() => setOpenForm(null)}
+                      onUnpublish={(reason) => unpublish(d.id, reason)}
                     />
                   )}
                 </div>
@@ -258,10 +281,57 @@ export function PublicationQueue({
                     )}
                   </div>
                 )}
+                {mode === "published" && openForm !== d.id && (
+                  <button className="btn btn-sm" disabled={pending} onClick={() => setOpenForm(d.id)}>
+                    Unpublish…
+                  </button>
+                )}
               </div>
             </li>
           ))}
         </ul>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Emergency takedown: reason is mandatory because it goes in the audit log —
+ * "we published PII" needs a paper trail, not just a vanished record.
+ */
+function UnpublishForm({
+  pending,
+  onCancel,
+  onUnpublish,
+}: {
+  pending: boolean;
+  onCancel: () => void;
+  onUnpublish: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+  return (
+    <div className="card" style={{ marginTop: 10, padding: 12, background: "var(--paper-2)" }}>
+      <label style={{ fontSize: "0.82rem", display: "block" }}>
+        Why is this record being removed from the public archive? (recorded in the audit log)
+        <input
+          className="field"
+          style={{ width: "100%", marginTop: 4 }}
+          placeholder="e.g. Contains unredacted personal information"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </label>
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <button
+          className="btn btn-sm btn-primary"
+          disabled={pending || !reason.trim()}
+          onClick={() => onUnpublish(reason)}
+        >
+          {pending ? "Removing…" : "Remove from public archive"}
+        </button>
+        <button className="btn btn-sm btn-ghost" disabled={pending} onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </div>
   );

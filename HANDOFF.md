@@ -43,6 +43,13 @@ below). The next priorities, in order (owner-reviewed 2026-08-04):
    source trust switching + ingest-key rotation (audited, key shown once).
    Riverton seeds 3 undecided connector docs through the real import
    service. Go-live "Publish or import records" points at the new page.
+   Follow-up same day: **audited emergency UNPUBLISH** (Published tab →
+   reason required → named admin event `record_unpublished`; doc lands in
+   Kept internal, re-publishable) and a **repository CONFORMANCE SUITE**
+   (src/db/repositoryConformance.test.ts — identical assertions against
+   InMemory AND Drizzle-on-PGlite; on day one it caught Drizzle dropping
+   provenance/retentionUntil/legalHoldReason on document reads+inserts,
+   now fixed). Add new port methods to the conformance suite, always.
 2. ~~Counsel sign-off~~ **DONE** (2026-08-05): per-agency
    `settings.statuteReview` on the (previously unused) portal_settings
    column — no migration. Compliance section on /app/admin shows the
