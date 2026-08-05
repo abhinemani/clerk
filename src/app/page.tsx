@@ -25,9 +25,9 @@ export default function MarketingHome() {
             <Link href="/admin" className="nav-link">
               Platform console
             </Link>
-            <a href="mailto:hello@clerk.example?subject=Clerk%20demo" className="btn btn-sm btn-maroon" style={{ marginLeft: 8 }}>
-              Request a demo
-            </a>
+            <Link href="/signup" className="btn btn-sm btn-maroon" style={{ marginLeft: 8 }}>
+              Create your records office
+            </Link>
           </nav>
         </div>
       </div>
@@ -48,11 +48,11 @@ export default function MarketingHome() {
               its statutory clock, and leaves an audit trail your counsel will actually enjoy reading.
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 30, flexWrap: "wrap" }}>
-              <Link href="/riverton" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
-                Explore the resident portal
+              <Link href="/signup" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
+                Create your records office
               </Link>
-              <Link href="/riverton/app" className="btn btn-outline-light" style={{ paddingInline: 24, paddingBlock: 12 }}>
-                See the staff workspace
+              <Link href="/riverton" className="btn btn-outline-light" style={{ paddingInline: 24, paddingBlock: 12 }}>
+                Explore the live demo
               </Link>
             </div>
             <p style={{ fontSize: "0.85rem", marginTop: 16, color: "#8fa0ba" }}>

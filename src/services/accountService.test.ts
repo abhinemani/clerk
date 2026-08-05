@@ -9,6 +9,7 @@ import {
   completePasswordReset,
   createStaffUser,
   inviteStaffUser,
+  provisionAgency,
   registerRequester,
   requestPasswordReset,
   verifyRequesterEmail,
@@ -256,5 +257,65 @@ describe("staff accounts", () => {
     await expect(
       changeStaffRole(deps, { agencyId: AG1, actor: admin, userId: admin.id, role: "read_only" }),
     ).rejects.toBeInstanceOf(AccountError);
+  });
+});
+
+describe("provisionAgency — the multi-tenant front door (self-signup + console)", () => {
+  it("creates an isolated tenant: agency, admin, one-time ingest key", async () => {
+    const deps = makeDeps();
+    const { agency, admin, ingestKey } = await provisionAgency(deps, {
+      name: "City of Marlin",
+      slug: "Marlin", // case-normalized
+      stateCode: "ca",
+      admin: { name: "Rae Ortiz", email: "Rae@Marlin.gov", password: "marlin-pass-1" },
+    });
+
+    expect(agency.slug).toBe("marlin");
+    expect(agency.stateCode).toBe("CA");
+    expect(admin.role).toBe("admin");
+    expect(ingestKey).toMatch(/^ck_/);
+
+    // Tenant isolation from row one: the new admin exists only in the new tenant.
+    expect(await deps.repo.findUserByEmail(agency.id, "rae@marlin.gov")).not.toBeNull();
+    expect(await deps.repo.findUserByEmail(AG1, "rae@marlin.gov")).toBeNull();
+    // The raw key is never stored — only its hash resolves it.
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(ingestKey).digest("hex");
+    expect(await deps.repo.findSourceByApiKeyHash(agency.id, hash)).not.toBeNull();
+    expect(await deps.repo.findSourceByApiKeyHash(agency.id, ingestKey)).toBeNull();
+  });
+
+  it("refuses reserved slugs — including /signup itself", async () => {
+    const deps = makeDeps();
+    for (const slug of ["signup", "admin", "api", "app"]) {
+      await expect(
+        provisionAgency(deps, {
+          name: "X",
+          slug,
+          stateCode: "CA",
+          admin: { name: "A", email: "a@x.gov", password: "password-11" },
+        }),
+      ).rejects.toThrow(AccountError);
+    }
+  });
+
+  it("refuses a taken slug and malformed slugs", async () => {
+    const deps = makeDeps();
+    await expect(
+      provisionAgency(deps, {
+        name: "Riverton Again",
+        slug: "riverton",
+        stateCode: "CA",
+        admin: { name: "A", email: "a@x.gov", password: "password-11" },
+      }),
+    ).rejects.toThrow(/already taken/);
+    await expect(
+      provisionAgency(deps, {
+        name: "Bad",
+        slug: "Has Spaces!",
+        stateCode: "CA",
+        admin: { name: "A", email: "a@x.gov", password: "password-11" },
+      }),
+    ).rejects.toThrow(AccountError);
   });
 });

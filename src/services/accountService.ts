@@ -369,7 +369,16 @@ export async function inviteStaffUser(
 // --- platform operator (cross-tenant; gated by requirePlatformAdmin above) --
 
 /** Root URL segments a tenant slug may not shadow. */
-const RESERVED_SLUGS = new Set(["admin", "api", "task", "login", "register", "account", "app"]);
+const RESERVED_SLUGS = new Set([
+  "admin",
+  "api",
+  "task",
+  "login",
+  "register",
+  "account",
+  "app",
+  "signup",
+]);
 
 /**
  * Onboard a new government customer: create the agency, its first admin user,

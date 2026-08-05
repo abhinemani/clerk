@@ -191,6 +191,17 @@ Also complete:
   machine ON PURPOSE (no milestone emails/auto-assign for a bulk history
   load; a row can be born "fulfilled"). One `note` event per row names
   the importer.
+- **Self-service jurisdiction signup** (2026-08-04 late, closes the
+  multi-tenant loop): `/signup` — any government creates its own tenant
+  (name → auto-slug, state from reviewed statute profiles, admin account),
+  through the SAME provisionAgency the platform console uses, so
+  self-signed-up tenants are indistinguishable from operator-provisioned
+  ones and appear in /admin immediately with their Setup n/8 pill. Ingest
+  key shown exactly once, then auto sign-in lands the new admin on their
+  go-live checklist. Marketing hero + nav CTA point at it. Kill switch:
+  `SELF_SIGNUP=off` (404s the page; action re-checks). "signup" added to
+  RESERVED_SLUGS; provisionAgency now has direct tests (reserved/taken/
+  malformed slugs, key-hash-at-rest, tenant isolation from row one).
 - **Onboarding: go-live checklist + department CRUD** (2026-08-04 late,
   `f454a17`): `computeSetupStatus` (src/domain/setupChecklist.ts, pure +
   tested) derives 8 steps from REAL state — statute + departments required,
