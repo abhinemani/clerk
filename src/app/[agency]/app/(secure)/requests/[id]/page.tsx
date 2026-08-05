@@ -100,6 +100,12 @@ export default async function RequestDetail({
   // snapshots; no cross-tenant read happens here.
   let forwardedTo: { agencyName: string; publicId: string; trackPath: string } | null = null;
   let forwardedFrom: { agencyName: string; publicId: string; atLabel: string } | null = null;
+  // Already public? The same archive retrieval the pre-filing interstitial
+  // uses, run for STAFF post-filing: if the agency already released records
+  // answering this request, the fastest correct response is a link, not a
+  // fresh production. This agency's own public archive only (invariant 3
+  // holds by construction — the corpus is public).
+  let archiveMatches: { id: string; title: string; dateLabel: string; downloadUrl: string | null }[] = [];
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -209,6 +215,16 @@ export default async function RequestDetail({
           publicId: rawRequest.forwardedFrom.publicId,
           atLabel: dateShort(new Date(rawRequest.forwardedFrom.at)),
         };
+      }
+      if (r.closedAt == null) {
+        try {
+          const { searchArchive } = await import("@/lib/archive");
+          archiveMatches = (await searchArchive(slug, r.interpretedScope || r.rawText))
+            .slice(0, 3)
+            .map((it) => ({ id: it.id, title: it.title, dateLabel: it.date, downloadUrl: it.downloadUrl }));
+        } catch (e) {
+          console.error("archive match for request detail failed", e);
+        }
       }
       // Phase-2 custodian suggestion: the latest run's top proposal pre-selects
       // the Refer panel. The card only proposes — staff still click Refer.
@@ -372,6 +388,35 @@ export default async function RequestDetail({
               forwardedTo={forwardedTo}
               aiProposal={custodianProposal}
             />
+          )}
+
+          {/* Already released: answering with a link beats working the
+              request fresh — and the requester gets records TODAY. */}
+          {archiveMatches.length > 0 && (
+            <div className="card card-pad">
+              <div className="panel-title">Already public?</div>
+              <p className="muted" style={{ fontSize: "0.85rem", margin: "6px 0 0" }}>
+                Released records in your archive match this request. If one answers it, reply with
+                the link instead of producing it again.
+              </p>
+              <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "grid", gap: 8 }}>
+                {archiveMatches.map((m) => (
+                  <li key={m.id} style={{ fontSize: "0.88rem" }}>
+                    {/* The permalink is the thing to send a requester — every
+                        released record is a citable URL (§6.7). */}
+                    <Link href={`/${slug}/archive/${m.id}`} style={{ fontWeight: 600 }}>
+                      {m.title}
+                    </Link>
+                    <span className="muted" style={{ fontSize: "0.8rem" }}> · {m.dateLabel}</span>
+                    {m.downloadUrl && (
+                      <a className="muted" href={m.downloadUrl} style={{ fontSize: "0.8rem", marginLeft: 8 }}>
+                        download
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           {/* Anti-spoliation: a record answering this request must not be
