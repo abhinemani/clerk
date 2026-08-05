@@ -105,6 +105,7 @@ export function RequestTracker({
               extension={result.extension}
               timeline={result.timeline}
               thread={result.thread}
+              forwardedTo={result.forwardedTo}
               onReplied={() => lookup(result.publicId)}
             />
           ) : validButUnknown ? (
@@ -146,6 +147,7 @@ function TrackerResult({
   extension,
   timeline = [],
   thread,
+  forwardedTo,
   onReplied,
 }: {
   agencySlug: string;
@@ -158,6 +160,7 @@ function TrackerResult({
   extension?: { days: number; reason: string; atISO: string } | null;
   timeline?: { label: string; atISO: string }[];
   thread?: { requestId: string; messages: ThreadMessage[] };
+  forwardedTo?: { agencyName: string; publicId: string; trackPath: string } | null;
   onReplied: () => void;
 }) {
   const s = RESIDENT_STATUS[status] ?? { headline: status, detail: "", tone: "wait" as const };
@@ -174,6 +177,22 @@ function TrackerResult({
       </div>
       <div style={{ padding: "18px 20px" }}>
         <p style={{ fontSize: "1.02rem" }}>{s.detail}</p>
+        {/* Phase-3 forward: the request has a new home on this deployment —
+            one click takes the requester to it, same tracking experience. */}
+        {forwardedTo && (
+          <div
+            className="card"
+            style={{ marginTop: 14, padding: "12px 14px", borderLeft: "3px solid var(--accent)", fontSize: "0.95rem" }}
+          >
+            <strong>Forwarded to {forwardedTo.agencyName}.</strong> We re-filed this request with
+            them for you — nothing to rewrite.
+            <div style={{ marginTop: 8 }}>
+              <a className="btn btn-sm btn-primary" href={forwardedTo.trackPath}>
+                Track it there → <span className="mono">{forwardedTo.publicId}</span>
+              </a>
+            </div>
+          </div>
+        )}
         {released && (
           <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
             {artifacts.map((a) => (

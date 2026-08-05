@@ -401,6 +401,13 @@ export const requests = pgTable(
       { onDelete: "set null" },
     ),
     referredAt: timestamp("referred_at", { withTimezone: true }),
+    // Cross-tenant forwarding (referral phase 3). These are DENORMALIZED
+    // snapshots (name/slug/publicId copied at forward time), so rendering
+    // "forwarded to/from X" never reads the other tenant's rows. Deliberately
+    // NOT foreign keys — a cross-tenant FK would let one tenant's delete
+    // cascade into another's data.
+    forwardedFrom: jsonb("forwarded_from").$type<ForwardLink>(),
+    forwardedTo: jsonb("forwarded_to").$type<ForwardLink>(),
     tags: jsonb("tags").$type<string[]>().default([]),
 
     // Complexity score from intake triage (§6.1), drives internal SLAs.
@@ -1020,6 +1027,20 @@ export interface ExtensionRecord {
   days: number;
   reason: string;
   statutoryBasis?: string;
+}
+
+/**
+ * One side of a cross-tenant forward (referral phase 3). Everything needed to
+ * DISPLAY the link is denormalized here so no read ever crosses tenants; the
+ * ids exist for audit, not for joins.
+ */
+export interface ForwardLink {
+  agencyId: string;
+  agencySlug: string;
+  agencyName: string;
+  requestId: string;
+  publicId: string;
+  at: string; // ISO timestamp
 }
 
 export interface ReleaseArtifact {

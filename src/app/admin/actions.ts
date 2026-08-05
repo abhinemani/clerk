@@ -106,3 +106,47 @@ export async function platformResetPassword(input: {
     return { ok: false, error: "Could not reset the password." };
   }
 }
+
+/**
+ * Link a directory entry to another tenant on this deployment (referral
+ * phase 3). PLATFORM SCOPE ON PURPOSE: knowing which agencies share a
+ * deployment is the operator's knowledge, not any single tenant's — agency
+ * admins see the link read-only in their directory manager.
+ */
+export async function linkDirectoryPeerAction(input: {
+  agencyId: string;
+  agencySlug: string;
+  entryId: string;
+  peerAgencyId: string | null;
+}): Promise<PlatformResult> {
+  await requirePlatformAdmin();
+  try {
+    const repo = await getRepository();
+    if (input.peerAgencyId === input.agencyId) {
+      return { ok: false, error: "An entry cannot forward to its own agency." };
+    }
+    if (input.peerAgencyId) {
+      const peer = await repo.getAgency(input.peerAgencyId);
+      if (!peer) return { ok: false, error: "That agency no longer exists." };
+    }
+    const entry = await repo.updateDirectoryEntry(input.agencyId, input.entryId, {
+      peerAgencyId: input.peerAgencyId,
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId: input.agencyId,
+      kind: "directory_changed",
+      actorLabel: "platform operator",
+      summary: input.peerAgencyId
+        ? `Linked directory entry "${entry.name}" to a Clerk tenant — forwarding enabled`
+        : `Unlinked directory entry "${entry.name}" — forwarding disabled`,
+      payload: { entryId: input.entryId, peerAgencyId: input.peerAgencyId },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/admin/${input.agencySlug}`);
+    return { ok: true };
+  } catch (e) {
+    console.error("linkDirectoryPeer failed", e);
+    return { ok: false, error: "Could not update the link." };
+  }
+}

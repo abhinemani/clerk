@@ -110,6 +110,38 @@ export async function referRequestAction(input: {
   }
 }
 
+/**
+ * Phase-3 forward: refer + re-file with a peer tenant in one act. The
+ * cross-tenant crossing itself lives in forwardRequest (the ONE sanctioned
+ * place); this action only authenticates the source-agency staff member.
+ */
+export async function forwardRequestAction(input: {
+  agencySlug: string;
+  requestId: string;
+  directoryEntryId: string;
+  note?: string;
+  /** Consent to share requester contact details with the peer (default off). */
+  shareContact?: boolean;
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    const { forwardRequest } = await import("@/services/referralService");
+    await forwardRequest(deps, {
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      directoryEntryId: input.directoryEntryId,
+      actorUserId: staff.userId,
+      note: input.note?.trim() || undefined,
+      shareContact: input.shareContact === true,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    revalidatePath(`/${input.agencySlug}/app`);
+    return { ok: true };
+  } catch (e) {
+    return fail("forwardRequest", e);
+  }
+}
+
 export async function assignCoordinatorAction(input: {
   agencySlug: string;
   requestId: string;

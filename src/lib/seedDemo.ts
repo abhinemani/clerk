@@ -355,6 +355,22 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
     releasedOn: "2026-02-14",
   });
 
+  // Phase-3 demo moment: Bellmar in Riverton's referral directory, PEER-LINKED
+  // — so Refer becomes "Refer & forward" and a request re-files across tenants
+  // with one click (the platform operator manages these links in /admin).
+  await deps.repo.createDirectoryEntry({
+    id: deps.genId(),
+    agencyId,
+    peerAgencyId: bellmar.id,
+    name: "City of Bellmar",
+    jurisdictionType: "city",
+    contactEmail: "records@bellmar.gov",
+    contactPhone: null,
+    portalUrl: null,
+    recordTypes: ["Bellmar city records", "sheriff records", "parks records"],
+    notes: "Neighboring city on this Clerk deployment — referrals forward directly.",
+  });
+
   console.log("Seeded City of Riverton (/riverton) and City of Bellmar (/bellmar).");
   console.log(`Bellmar ingestion API key (shown once): ${bellmarIngestKey}`);
   return { seeded: true };

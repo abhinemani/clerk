@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import {
   createAgencyAction,
+  linkDirectoryPeerAction,
   platformResetPassword,
   platformSetStaffRole,
   platformSignIn,
@@ -263,6 +264,103 @@ export function PlatformStaffTable({
           )}
         </ul>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Referral phase 3: directory ↔ tenant links. Platform scope on purpose —
+// which agencies share this deployment is the operator's knowledge.
+// ---------------------------------------------------------------------------
+
+export interface DirectoryLinkRow {
+  id: string;
+  name: string;
+  jurisdictionType: string;
+  peerAgencyId: string | null;
+}
+
+export function DirectoryPeerLinks({
+  agencyId,
+  agencySlug,
+  entries,
+  agencies,
+}: {
+  agencyId: string;
+  agencySlug: string;
+  entries: DirectoryLinkRow[];
+  /** Every OTHER tenant on this deployment. */
+  agencies: { id: string; name: string; slug: string }[];
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  if (entries.length === 0) {
+    return (
+      <p className="muted" style={{ fontSize: "0.9rem" }}>
+        This agency has no referral directory entries yet. Their admin adds them under Manage
+        staff → Referral directory; entries can then be linked to tenants here.
+      </p>
+    );
+  }
+
+  return (
+    <div className="stack" style={{ gap: 10 }}>
+      {error && (
+        <p className="pill band-overdue" role="alert" style={{ justifySelf: "start" }}>
+          {error}
+        </p>
+      )}
+      <div className="card" style={{ overflow: "hidden" }}>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {entries.map((e) => (
+            <li
+              key={e.id}
+              style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}
+            >
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontWeight: 600 }}>{e.name}</div>
+                <div className="muted" style={{ fontSize: "0.8rem" }}>
+                  {e.jurisdictionType.replace(/_/g, " ")}
+                  {e.peerAgencyId ? " · forwarding enabled" : ""}
+                </div>
+              </div>
+              <select
+                className="field"
+                style={{ fontSize: "0.85rem", padding: "7px 10px", maxWidth: 260 }}
+                value={e.peerAgencyId ?? ""}
+                disabled={pending}
+                aria-label={`Clerk tenant for ${e.name}`}
+                onChange={(ev) => {
+                  const peerAgencyId = ev.target.value || null;
+                  setError(null);
+                  startTransition(async () => {
+                    const res = await linkDirectoryPeerAction({
+                      agencyId,
+                      agencySlug,
+                      entryId: e.id,
+                      peerAgencyId,
+                    });
+                    if (!res.ok) setError(res.error);
+                  });
+                }}
+              >
+                <option value="">Not a Clerk tenant</option>
+                {agencies.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} (/{a.slug})
+                  </option>
+                ))}
+              </select>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <p className="muted" style={{ fontSize: "0.8rem" }}>
+        Linking an entry turns Refer into <strong>Refer &amp; forward</strong> in that agency&apos;s
+        workspace: one click re-files the request with the target tenant. Only the request text
+        crosses — contact details need per-forward consent from staff.
+      </p>
     </div>
   );
 }

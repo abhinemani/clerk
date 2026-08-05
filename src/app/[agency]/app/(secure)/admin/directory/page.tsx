@@ -24,6 +24,7 @@ export default async function DirectoryPage({ params }: { params: Promise<{ agen
     portalUrl: e.portalUrl,
     recordTypes: e.recordTypes,
     notes: e.notes,
+    peerLinked: e.peerAgencyId != null && e.peerAgencyId !== staff.agencyId,
   }));
 
   return (

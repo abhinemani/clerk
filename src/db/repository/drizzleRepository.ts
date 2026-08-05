@@ -290,7 +290,7 @@ export class DrizzleRepository implements Repository {
   }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>): Promise<RequestEntity> {
     const set: Record<string, unknown> = {};
-    for (const k of ["status", "interpretedScope", "recordTypes", "complexityScore", "statutoryDueAt", "receivedAt", "closedAt", "extensionHistory", "assignedCoordinatorId", "referredToDirectoryId", "referredAt"] as const) {
+    for (const k of ["status", "interpretedScope", "recordTypes", "complexityScore", "statutoryDueAt", "receivedAt", "closedAt", "extensionHistory", "assignedCoordinatorId", "referredToDirectoryId", "referredAt", "forwardedFrom", "forwardedTo"] as const) {
       if (k in patch) set[k] = patch[k];
     }
     const rows = await this.db
@@ -318,6 +318,8 @@ export class DrizzleRepository implements Repository {
       assignedCoordinatorId: r.assignedCoordinatorId ?? null,
       referredToDirectoryId: r.referredToDirectoryId ?? null,
       referredAt: r.referredAt ?? null,
+      forwardedFrom: r.forwardedFrom ?? null,
+      forwardedTo: r.forwardedTo ?? null,
       closedAt: r.closedAt,
       createdAt: r.createdAt,
     };

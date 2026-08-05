@@ -2,7 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePlatformAdmin } from "@/auth/guards";
 import { getRepository } from "@/db/createRepository";
-import { PlatformStaffTable, type PlatformStaffRow } from "../../_components/PlatformConsole";
+import {
+  DirectoryPeerLinks,
+  PlatformStaffTable,
+  type DirectoryLinkRow,
+  type PlatformStaffRow,
+} from "../../_components/PlatformConsole";
 import { Avatar } from "../../_components/ui";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +20,12 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
   const agency = await repo.getAgencyBySlug(slug);
   if (!agency) notFound();
 
-  const [users, requesters, requests] = await Promise.all([
+  const [users, requesters, requests, directory, allAgencies] = await Promise.all([
     repo.listUsers(agency.id),
     repo.listRequesters(agency.id),
     repo.listRequests(agency.id),
+    repo.listDirectory(agency.id),
+    repo.listAgencies(),
   ]);
   const requestCountByRequester = new Map<string, number>();
   for (const r of requests) {
@@ -32,6 +39,17 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
 
   const residentAccounts = requesters.filter((r) => r.passwordHash);
   const emailOnly = requesters.filter((r) => !r.passwordHash && r.email);
+
+  const directoryRows: DirectoryLinkRow[] = directory.map((d) => ({
+    id: d.id,
+    name: d.name,
+    jurisdictionType: d.jurisdictionType,
+    peerAgencyId: d.peerAgencyId,
+  }));
+  const peerAgencies = allAgencies
+    .filter((a) => a.id !== agency.id)
+    .map((a) => ({ id: a.id, name: a.name, slug: a.slug }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="wrap" style={{ maxWidth: 860, paddingBlock: "36px" }}>
@@ -49,6 +67,16 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
 
       <h2 style={{ fontSize: "1.1rem", marginTop: 26, marginBottom: 10 }}>Staff accounts</h2>
       <PlatformStaffTable agencyId={agency.id} agencySlug={agency.slug} rows={staffRows} />
+
+      <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>
+        Referral directory — tenant links
+      </h2>
+      <DirectoryPeerLinks
+        agencyId={agency.id}
+        agencySlug={agency.slug}
+        entries={directoryRows}
+        agencies={peerAgencies}
+      />
 
       <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>
         Resident accounts{" "}

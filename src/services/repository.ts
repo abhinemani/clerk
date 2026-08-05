@@ -65,6 +65,20 @@ export interface Department {
   defaultResponderEmails: string[];
 }
 
+/**
+ * One side of a cross-tenant forward — mirrors the schema's ForwardLink.
+ * Denormalized on purpose: everything needed to display "forwarded to/from X"
+ * is snapshotted at forward time so no read ever crosses tenants.
+ */
+export interface ForwardLink {
+  agencyId: string;
+  agencySlug: string;
+  agencyName: string;
+  requestId: string;
+  publicId: string;
+  at: string; // ISO timestamp
+}
+
 /** One taken statutory extension (§7) — mirrors the schema's ExtensionRecord. */
 export interface ExtensionEntry {
   at: string; // ISO timestamp
@@ -93,6 +107,10 @@ export interface RequestEntity {
   /** Referral: which directory entry the requester was pointed at, and when. */
   referredToDirectoryId?: string | null;
   referredAt?: Date | null;
+  /** Cross-tenant forwarding (referral phase 3) — denormalized snapshots so
+      display never reads the other tenant. See schema.ts ForwardLink. */
+  forwardedFrom?: ForwardLink | null;
+  forwardedTo?: ForwardLink | null;
   /** Terminal-outcome timestamp (release approved / denied / withdrawn). */
   closedAt: Date | null;
   createdAt: Date;

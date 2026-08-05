@@ -7,7 +7,10 @@
  * stays honest.
  */
 import { useState, useTransition } from "react";
-import { referRequestAction } from "../[agency]/app/(secure)/requests/[id]/actions";
+import {
+  forwardRequestAction,
+  referRequestAction,
+} from "../[agency]/app/(secure)/requests/[id]/actions";
 import { AiPill } from "./ui";
 
 export interface ReferTargetVM {
@@ -16,6 +19,9 @@ export interface ReferTargetVM {
   jurisdictionType: string;
   contactEmail: string | null;
   recordTypes: string[];
+  /** True when this entry is linked to another tenant on this deployment —
+      Refer becomes Refer & forward (phase 3). */
+  peerLinked?: boolean;
 }
 
 /** Phase-2 custodian suggestion — an AI draft the panel renders as a card. */
@@ -32,6 +38,7 @@ export function ReferPanel({
   targets,
   referredTo,
   referredAtLabel,
+  forwardedTo,
   aiProposal,
 }: {
   agencySlug: string;
@@ -40,6 +47,8 @@ export function ReferPanel({
   /** Set when this request has already been referred. */
   referredTo?: { name: string; contactEmail: string | null; portalUrl: string | null } | null;
   referredAtLabel?: string | null;
+  /** Set when the referral was a phase-3 forward — where the request lives now. */
+  forwardedTo?: { agencyName: string; publicId: string; trackPath: string } | null;
   /** AI custodian suggestion, if the intake pass produced one. Never acts alone. */
   aiProposal?: CustodianProposalVM | null;
 }) {
@@ -47,9 +56,27 @@ export function ReferPanel({
   const [targetId, setTargetId] = useState("");
   const [note, setNote] = useState("");
   const [notifyTarget, setNotifyTarget] = useState(false);
+  const [shareContact, setShareContact] = useState(false); // consent — default OFF
   const [proposalDismissed, setProposalDismissed] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  if (forwardedTo) {
+    return (
+      <div className="card card-pad">
+        <div className="panel-title">Forwarded</div>
+        <p style={{ fontSize: "0.92rem", margin: "8px 0 0" }}>
+          Re-filed with <strong>{forwardedTo.agencyName}</strong>
+          {referredAtLabel ? ` on ${referredAtLabel}` : ""} as{" "}
+          <span className="mono">{forwardedTo.publicId}</span>. The requester keeps one thread —
+          their tracker links straight to it.
+        </p>
+        <a className="btn btn-sm" style={{ marginTop: 10 }} href={forwardedTo.trackPath}>
+          View their tracker →
+        </a>
+      </div>
+    );
+  }
 
   if (referredTo) {
     return (
@@ -152,11 +179,20 @@ export function ReferPanel({
               {targets.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
+                  {t.peerLinked ? " ⚡ on Clerk" : ""}
                   {t.recordTypes.length > 0 ? ` — ${t.recordTypes.slice(0, 3).join(", ")}` : ""}
                 </option>
               ))}
             </select>
           </label>
+
+          {selected?.peerLinked && (
+            <div className="card" style={{ marginTop: 10, padding: "10px 12px", borderLeft: "3px solid var(--accent)", fontSize: "0.85rem" }}>
+              <strong>{selected.name} is on this Clerk deployment.</strong> Referring will re-file
+              the request with them directly — same text, new tracking number, nothing for the
+              requester to rewrite.
+            </div>
+          )}
 
           <label style={{ display: "grid", gap: 4, marginTop: 10 }}>
             <span className="lbl">Note to the requester (optional)</span>
@@ -168,21 +204,40 @@ export function ReferPanel({
             />
           </label>
 
-          {selected?.contactEmail && (
+          {selected?.peerLinked ? (
+            // Consent (owner decision 2026-08-04): contact details cross the
+            // tenant line only when a human checks this, per forward.
             <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 10, cursor: "pointer" }}>
               <input
                 type="checkbox"
-                checked={notifyTarget}
-                onChange={(e) => setNotifyTarget(e.target.checked)}
+                checked={shareContact}
+                onChange={(e) => setShareContact(e.target.checked)}
                 style={{ marginTop: 3 }}
               />
               <span style={{ fontSize: "0.88rem" }}>
-                Also email {selected.name} a heads-up
+                Also send the requester&apos;s contact details so {selected.name} can reply directly
                 <span className="muted" style={{ display: "block", fontSize: "0.8rem" }}>
-                  Sends only what the requester already wrote.
+                  Off = only the request text is forwarded; the new request is anonymous there.
                 </span>
               </span>
             </label>
+          ) : (
+            selected?.contactEmail && (
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 10, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={notifyTarget}
+                  onChange={(e) => setNotifyTarget(e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <span style={{ fontSize: "0.88rem" }}>
+                  Also email {selected.name} a heads-up
+                  <span className="muted" style={{ display: "block", fontSize: "0.8rem" }}>
+                    Sends only what the requester already wrote.
+                  </span>
+                </span>
+              </label>
+            )
           )}
 
           {error && <p style={{ color: "var(--overdue)", fontSize: "0.85rem", marginTop: 8 }}>{error}</p>}
@@ -194,18 +249,32 @@ export function ReferPanel({
               onClick={() => {
                 setError(null);
                 startTransition(async () => {
-                  const res = await referRequestAction({
-                    agencySlug,
-                    requestId,
-                    directoryEntryId: targetId,
-                    note,
-                    notifyTargetAgency: notifyTarget,
-                  });
+                  const res = selected?.peerLinked
+                    ? await forwardRequestAction({
+                        agencySlug,
+                        requestId,
+                        directoryEntryId: targetId,
+                        note,
+                        shareContact,
+                      })
+                    : await referRequestAction({
+                        agencySlug,
+                        requestId,
+                        directoryEntryId: targetId,
+                        note,
+                        notifyTargetAgency: notifyTarget,
+                      });
                   if (!res.ok) setError(res.error);
                 });
               }}
             >
-              {pending ? "Referring…" : "Refer & notify requester"}
+              {pending
+                ? selected?.peerLinked
+                  ? "Forwarding…"
+                  : "Referring…"
+                : selected?.peerLinked
+                  ? "Refer & forward request"
+                  : "Refer & notify requester"}
             </button>
             <button className="btn btn-sm btn-ghost" onClick={() => setOpen(false)} disabled={pending}>
               Cancel

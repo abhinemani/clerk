@@ -96,6 +96,10 @@ export default async function RequestDetail({
   let referredTo: { name: string; contactEmail: string | null; portalUrl: string | null } | null = null;
   let referredAtLabel: string | null = null;
   let custodianProposal: CustodianProposalVM | null = null;
+  // Phase-3 forwarding, both directions — rendered from denormalized
+  // snapshots; no cross-tenant read happens here.
+  let forwardedTo: { agencyName: string; publicId: string; trackPath: string } | null = null;
+  let forwardedFrom: { agencyName: string; publicId: string; atLabel: string } | null = null;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -190,7 +194,22 @@ export default async function RequestDetail({
         jurisdictionType: d.jurisdictionType,
         contactEmail: d.contactEmail,
         recordTypes: d.recordTypes,
+        peerLinked: d.peerAgencyId != null && d.peerAgencyId !== staff.agencyId,
       }));
+      if (rawRequest?.forwardedTo) {
+        forwardedTo = {
+          agencyName: rawRequest.forwardedTo.agencyName,
+          publicId: rawRequest.forwardedTo.publicId,
+          trackPath: `/${rawRequest.forwardedTo.agencySlug}/track?id=${encodeURIComponent(rawRequest.forwardedTo.publicId)}`,
+        };
+      }
+      if (rawRequest?.forwardedFrom) {
+        forwardedFrom = {
+          agencyName: rawRequest.forwardedFrom.agencyName,
+          publicId: rawRequest.forwardedFrom.publicId,
+          atLabel: dateShort(new Date(rawRequest.forwardedFrom.at)),
+        };
+      }
       // Phase-2 custodian suggestion: the latest run's top proposal pre-selects
       // the Refer panel. The card only proposes — staff still click Refer.
       const custodianEvent = [...events]
@@ -329,14 +348,28 @@ export default async function RequestDetail({
             </div>
           )}
 
-          {detail.source === "live" && (r.closedAt == null || referredTo) && (
+          {/* Provenance: this request arrived by forward from a peer tenant.
+              Snapshot only — the source agency's file stays theirs. */}
+          {forwardedFrom && (
+            <div className="card card-pad" style={{ borderLeft: "3px solid var(--accent)" }}>
+              <div className="panel-title">Forwarded in</div>
+              <p style={{ fontSize: "0.9rem", margin: "8px 0 0" }}>
+                Sent over by <strong>{forwardedFrom.agencyName}</strong> on {forwardedFrom.atLabel}{" "}
+                (their <span className="mono">{forwardedFrom.publicId}</span>). Their file stays
+                with them — this one starts fresh here.
+              </p>
+            </div>
+          )}
+
+          {detail.source === "live" && (r.closedAt == null || referredTo || forwardedTo) && (
             <ReferPanel
-              key={referredTo ? "referred" : "open"}
+              key={forwardedTo ? "forwarded" : referredTo ? "referred" : "open"}
               agencySlug={slug}
               requestId={r.id}
               targets={referTargets}
               referredTo={referredTo}
               referredAtLabel={referredAtLabel}
+              forwardedTo={forwardedTo}
               aiProposal={custodianProposal}
             />
           )}

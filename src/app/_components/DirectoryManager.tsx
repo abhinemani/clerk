@@ -22,6 +22,9 @@ export interface DirectoryRow {
   portalUrl: string | null;
   recordTypes: string[];
   notes: string | null;
+  /** Linked to a tenant on this deployment (set by the platform operator —
+      read-only here). Refer becomes Refer & forward when true. */
+  peerLinked?: boolean;
 }
 
 const JURISDICTIONS = [
@@ -113,7 +116,18 @@ export function DirectoryManager({ agencySlug, rows }: { agencySlug: string; row
             {rows.map((r) => (
               <tr key={r.id}>
                 <td>
-                  <div style={{ fontWeight: 600 }}>{r.name}</div>
+                  <div style={{ fontWeight: 600 }}>
+                    {r.name}
+                    {r.peerLinked && (
+                      <span
+                        className="tag"
+                        style={{ marginLeft: 6, fontSize: "0.68rem" }}
+                        title="This agency runs on the same Clerk deployment — referrals forward the request directly. Links are managed by the platform operator."
+                      >
+                        ⚡ forwarding
+                      </span>
+                    )}
+                  </div>
                   <div className="muted" style={{ fontSize: "0.78rem" }}>
                     {JURISDICTIONS.find(([v]) => v === r.jurisdictionType)?.[1] ?? r.jurisdictionType}
                   </div>

@@ -151,6 +151,9 @@ export type TrackResult =
        * guessable; messages never travel on the number alone.
        */
       thread?: { requestId: string; messages: ThreadMessage[] };
+      /** Set when this request was forwarded to a peer agency on this
+       *  deployment (referral phase 3) — where it lives now. */
+      forwardedTo?: { agencyName: string; publicId: string; trackPath: string } | null;
     }
   | { found: false };
 
@@ -163,6 +166,7 @@ export async function trackRequest(agencySlug: string, publicId: string): Promis
   let thread: { requestId: string; messages: ThreadMessage[] } | undefined;
   let extension: { days: number; reason: string; atISO: string } | null = null;
   let timeline: { label: string; atISO: string }[] = [];
+  let forwardedTo: { agencyName: string; publicId: string; trackPath: string } | null = null;
   try {
     const repo = await getRepository();
     const agency = await repo.getAgencyBySlug(agencySlug);
@@ -175,6 +179,15 @@ export async function trackRequest(agencySlug: string, publicId: string): Promis
       const taken = request.extensionHistory?.[0];
       if (taken) {
         extension = { days: taken.days, reason: taken.reason, atISO: new Date(taken.at).toISOString() };
+      }
+      // Forwarded to a peer tenant (phase 3): point the requester at its new
+      // home. Rendered from the denormalized snapshot — no cross-tenant read.
+      if (request.forwardedTo) {
+        forwardedTo = {
+          agencyName: request.forwardedTo.agencyName,
+          publicId: request.forwardedTo.publicId,
+          trackPath: `/${request.forwardedTo.agencySlug}/track?id=${encodeURIComponent(request.forwardedTo.publicId)}`,
+        };
       }
       const { requestStatusLabel } = await import("@/lib/format");
       const events = await repo.listEvents(agency.id, request.id);
@@ -246,6 +259,7 @@ export async function trackRequest(agencySlug: string, publicId: string): Promis
     extension,
     timeline,
     thread,
+    forwardedTo,
   };
 }
 
