@@ -258,6 +258,23 @@ function readZipEntries(bytes: Buffer): Map<string, ZipEntry> | null {
   return entries;
 }
 
+/**
+ * Minimal ZIP archive access for the records importer — the same reader DOCX
+ * extraction uses, exposed as open-once/read-many. Returns null when the bytes
+ * aren't a readable zip. Directory entries are omitted; member names keep any
+ * folder prefix (the caller matches on basename if it wants folder tolerance).
+ */
+export function openZipArchive(
+  bytes: Buffer,
+): { names: string[]; read: (name: string) => Buffer | null } | null {
+  const entries = readZipEntries(bytes);
+  if (!entries) return null;
+  return {
+    names: [...entries.keys()].filter((n) => !n.endsWith("/")),
+    read: (name) => readZipEntry(bytes, entries, name),
+  };
+}
+
 function readZipEntry(bytes: Buffer, entries: Map<string, ZipEntry>, name: string): Buffer | null {
   const entry = entries.get(name);
   if (!entry) return null;

@@ -108,7 +108,7 @@ export function computeSetupStatus(s: SetupSignals): SetupStatus {
         "A stocked public archive deflects requests before they're filed and lets staff answer with a link.",
       done: s.publicRecordCount > 0,
       required: false,
-      href: "admin/import",
+      href: "admin/records-import",
     },
     {
       key: "email",

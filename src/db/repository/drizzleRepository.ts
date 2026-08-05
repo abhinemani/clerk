@@ -632,6 +632,14 @@ export class DrizzleRepository implements Repository {
           recordType: doc.recordType,
           processingStatus: doc.processingStatus as never,
           metadata: doc.metadata,
+          // Re-pushes that carry bytes refresh them; undefined fields are
+          // skipped by drizzle, so metadata-only re-pushes leave bytes alone.
+          blobRef: doc.blobRef ?? undefined,
+          byteSize: doc.byteSize ?? undefined,
+          mimeType: doc.mimeType ?? undefined,
+          checksum: doc.checksum ?? undefined,
+          extractedText: doc.extractedText ?? undefined,
+          pageCount: doc.pageCount ?? undefined,
         })
         .where(eq(documents.id, existing.id))
         .returning();
@@ -642,8 +650,13 @@ export class DrizzleRepository implements Repository {
       id: doc.id,
       agencyId: doc.agencyId,
       sourceId: doc.sourceId,
-      provenance: "connector",
-      blobRef: doc.filename ?? doc.externalSystemId ?? doc.id,
+      provenance: doc.provenance ?? "connector",
+      blobRef: doc.blobRef ?? doc.filename ?? doc.externalSystemId ?? doc.id,
+      byteSize: doc.byteSize,
+      mimeType: doc.mimeType,
+      checksum: doc.checksum,
+      extractedText: doc.extractedText,
+      pageCount: doc.pageCount,
       externalSystemId: doc.externalSystemId,
       filename: doc.filename,
       classification: doc.classification,
@@ -921,15 +934,64 @@ export class DrizzleRepository implements Repository {
       .where(tenantWhere(sources.agencyId, agencyId, eq(sources.credentialsRef, `sha256:${apiKeyHash}`)))
       .limit(1);
     if (!s) return null;
+    return this.toSource(s);
+  }
+  private toSource(s: typeof sources.$inferSelect): SourceEntity {
     return {
       id: s.id,
       agencyId: s.agencyId,
       name: s.name,
       type: s.type,
-      apiKeyHash,
+      apiKeyHash: s.credentialsRef?.startsWith("sha256:") ? s.credentialsRef.slice("sha256:".length) : null,
       trust: s.trust,
       defaultClassification: s.defaultClassification,
     };
+  }
+  async listSources(agencyId: string): Promise<SourceEntity[]> {
+    const rows = await this.db.select().from(sources).where(eq(sources.agencyId, agencyId));
+    return rows.map((s: typeof sources.$inferSelect) => this.toSource(s));
+  }
+  async updateSource(
+    agencyId: string,
+    id: string,
+    patch: Partial<Pick<SourceEntity, "trust" | "defaultClassification" | "apiKeyHash">>,
+  ): Promise<SourceEntity> {
+    const rows = await this.db
+      .update(sources)
+      .set({
+        trust: patch.trust,
+        defaultClassification: patch.defaultClassification,
+        // apiKeyHash present in the patch (even as null) replaces the credential.
+        ...("apiKeyHash" in patch
+          ? { credentialsRef: patch.apiKeyHash ? `sha256:${patch.apiKeyHash}` : null }
+          : {}),
+      })
+      .where(tenantWhere(sources.agencyId, agencyId, eq(sources.id, id)))
+      .returning();
+    if (!rows[0]) throw new NotFoundError("Source", id);
+    return this.toSource(rows[0]);
+  }
+
+  async listAttachedDocumentIds(agencyId: string): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ documentId: requestDocuments.documentId })
+      .from(requestDocuments)
+      .innerJoin(documents, eq(requestDocuments.documentId, documents.id))
+      .where(eq(documents.agencyId, agencyId));
+    return rows.map((r: { documentId: string }) => r.documentId);
+  }
+  async setDocumentClassification(
+    agencyId: string,
+    id: string,
+    classification: "public" | "internal",
+  ): Promise<DocumentEntity> {
+    const rows = await this.db
+      .update(documents)
+      .set({ classification })
+      .where(tenantWhere(documents.agencyId, agencyId, eq(documents.id, id)))
+      .returning();
+    if (!rows[0]) throw new NotFoundError("Document", id);
+    return this.toDocument(rows[0]);
   }
 
   async createDocument(doc: DocumentEntity): Promise<DocumentEntity> {

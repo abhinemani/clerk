@@ -133,6 +133,9 @@ export default async function Queue({
           <Link href={`/${slug}/app/search`} className="btn btn-sm">
             Records search
           </Link>
+          <Link href={`/${slug}/app/records`} className="btn btn-sm">
+            Records queue
+          </Link>
           <Link href={`/${slug}/app/reports`} className="btn btn-sm">
             Compliance report →
           </Link>

@@ -11,7 +11,7 @@ import { hashPassword } from "@/auth/passwords";
 import { extractText } from "@/adapters/textExtract";
 import { getDb, getRepository } from "@/db/createRepository";
 import { departments } from "@/db/schema";
-import { ensureAgency } from "@/lib/bootstrap";
+import { COORDINATOR_ID, ensureAgency } from "@/lib/bootstrap";
 import { REDACTION_DEMO } from "@/lib/redactionDemo";
 import { provisionAgency, registerRequester } from "@/services/accountService";
 import { defaultDeps, type ServiceDeps } from "@/services/deps";
@@ -349,6 +349,36 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
     keywords: ["budget", "finance", "fiscal", "spending", "allocation", "capital"],
     releasedOn: "2024-11-22",
   });
+
+  // Records-ingestion demo: piped-in connector docs sitting UNDECIDED in the
+  // publication queue (/riverton/app/records) — one with real PDF bytes, two
+  // metadata-only. Runs through the real import service, so the file-drop
+  // source, the audit event, and the internal-only invariant are all live.
+  {
+    const { parseRecordsCsv } = await import("@/domain/recordsImport");
+    const { importRecords } = await import("@/services/recordsImportService");
+    const { getVirusScanner } = await import("@/adapters/virusScan");
+    const csv = [
+      "external_id,title,summary,date,record_type,tags,keywords,filename",
+      'FD-2026-0007,"Vendor payment register — Q2 2026","Quarterly vendor payment register exported from the finance system.",2026-07-01,report,"finance","vendor payments invoices",vendor-payments-q2-2026.pdf',
+      ',"Building permits issued — June 2026","Monthly permit log from the permitting system.",2026-07-02,log,"permits","building permits june",',
+      ',"Fleet fuel-card statements, H1 2026","Raw statement export; may include cardholder details.",2026-07-10,statement,"finance; fleet","fuel card statements",',
+    ].join("\n");
+    await importRecords(
+      { ...deps, blobStore: getBlobStore(), virusScanner: getVirusScanner() },
+      {
+        agencyId,
+        actorUserId: COORDINATOR_ID,
+        rows: parseRecordsCsv(csv).rows,
+        files: new Map([
+          [
+            "vendor-payments-q2-2026.pdf",
+            { bytes: demoPdf("Vendor Payment Register Q2 2026"), mimeType: "application/pdf" },
+          ],
+        ]),
+      },
+    );
+  }
 
   // Bellmar: a second tenant on the same deployment (WA statute profile).
   const { agency: bellmar, ingestKey: bellmarIngestKey } = await provisionAgency(deps, {

@@ -543,6 +543,27 @@ export interface Repository {
   createSource(s: SourceEntity): Promise<SourceEntity>;
   /** Key auth for §9.1 push: hash the presented key, look it up per agency. */
   findSourceByApiKeyHash(agencyId: string, apiKeyHash: string): Promise<SourceEntity | null>;
+  /** The agency's ingestion sources — source-management UI + lazy file-drop lookup. */
+  listSources(agencyId: string): Promise<SourceEntity[]>;
+  /** Trust/classification policy changes and key rotation (audited at the service layer). */
+  updateSource(
+    agencyId: string,
+    id: string,
+    patch: Partial<Pick<SourceEntity, "trust" | "defaultClassification" | "apiKeyHash">>,
+  ): Promise<SourceEntity>;
+
+  /** Document ids attached to ANY request — those belong to the request review flow. */
+  listAttachedDocumentIds(agencyId: string): Promise<string[]>;
+  /**
+   * The ONE way a document's classification changes after creation. Only the
+   * publication service may call it (invariant 4/9: internal→public is a named
+   * human's decision, audited there) — never pipelines or jobs.
+   */
+  setDocumentClassification(
+    agencyId: string,
+    id: string,
+    classification: "public" | "internal",
+  ): Promise<DocumentEntity>;
 }
 
 export class NotFoundError extends Error {
@@ -1055,6 +1076,31 @@ export class InMemoryRepository implements Repository {
         (s) => s.agencyId === agencyId && s.apiKeyHash != null && s.apiKeyHash === apiKeyHash,
       ) ?? null
     );
+  }
+  async listSources(agencyId: string) {
+    return [...this.sources.values()].filter((s) => s.agencyId === agencyId);
+  }
+  async updateSource(
+    agencyId: string,
+    id: string,
+    patch: Partial<Pick<SourceEntity, "trust" | "defaultClassification" | "apiKeyHash">>,
+  ) {
+    const s = this.sources.get(id);
+    if (!s || s.agencyId !== agencyId) throw new NotFoundError("Source", id);
+    const updated = { ...s, ...patch, id: s.id, agencyId: s.agencyId };
+    this.sources.set(id, updated);
+    return updated;
+  }
+
+  async listAttachedDocumentIds(agencyId: string) {
+    return [...new Set(this.requestDocs.filter((rd) => rd.agencyId === agencyId).map((rd) => rd.documentId))];
+  }
+  async setDocumentClassification(agencyId: string, id: string, classification: "public" | "internal") {
+    const d = await this.getDocument(agencyId, id);
+    if (!d) throw new NotFoundError("Document", id);
+    const updated = { ...d, classification };
+    this.documents.set(id, updated);
+    return updated;
   }
 
   async createAuthToken(t: AuthTokenEntity) {

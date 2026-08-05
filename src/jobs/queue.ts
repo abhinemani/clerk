@@ -19,7 +19,8 @@ export type JobKind =
   | "exemption_pass"
   | "embed_public_documents"
   | "embed_document_chunks"
-  | "ocr_extract";
+  | "ocr_extract"
+  | "classify_documents";
 
 export interface JobPayloads {
   intake_triage: { agencyId: string; requestId: string };
@@ -31,6 +32,8 @@ export interface JobPayloads {
   ocr_extract: { agencyId: string; requestId?: string; documentId?: string };
   /** §6.4: body-chunk vectors for STAFF hybrid search (full corpus). */
   embed_document_chunks: { agencyId: string; documentId?: string };
+  /** Records-import hints: suggested public/internal for the publication queue. */
+  classify_documents: { agencyId: string; documentIds: string[] };
 }
 
 export type JobHandler<K extends JobKind = JobKind> = (payload: JobPayloads[K]) => Promise<void>;

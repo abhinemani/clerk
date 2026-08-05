@@ -2,6 +2,7 @@
  * Job registration + boot-time schedules. Called once per server process from
  * instrumentation.ts (idempotent via the globalThis-memoized queue).
  */
+import { runClassifyDocumentsJob } from "./classifyDocumentsJob";
 import { runEmbedDocumentChunksJob } from "./chunkEmbedJob";
 import { runEmbedPublicDocumentsJob } from "./embedJob";
 import { runExemptionPassJob } from "./exemptionPassJob";
@@ -27,6 +28,7 @@ export function registerJobs(): void {
   queue.register("embed_public_documents", runEmbedPublicDocumentsJob);
   queue.register("ocr_extract", runOcrExtractJob);
   queue.register("embed_document_chunks", runEmbedDocumentChunksJob);
+  queue.register("classify_documents", runClassifyDocumentsJob);
   // Durable queue: re-queue rows a dead process left "running", then start
   // the polling worker. Jobs enqueued before a restart run after it.
   void queue.recoverAndStart();
