@@ -8,11 +8,14 @@ import {
   type DirectoryLinkRow,
   type PlatformStaffRow,
 } from "../../_components/PlatformConsole";
-import { Avatar } from "../../_components/ui";
+import { Avatar, Seal } from "../../_components/ui";
 
 export const dynamic = "force-dynamic";
 
-/** One tenant's accounts: staff roster + resident accounts. */
+/**
+ * One tenant, for the operator: health first, then the levers they actually
+ * pull — staff accounts, forwarding links, resident accounts.
+ */
 export default async function PlatformAgencyPage({ params }: { params: Promise<{ slug: string }> }) {
   await requirePlatformAdmin();
   const { slug } = await params;
@@ -20,6 +23,7 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
   const agency = await repo.getAgencyBySlug(slug);
   if (!agency) notFound();
 
+  const now = new Date();
   const [users, requesters, requests, directory, allAgencies] = await Promise.all([
     repo.listUsers(agency.id),
     repo.listRequesters(agency.id),
@@ -32,6 +36,16 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
     if (r.requesterId)
       requestCountByRequester.set(r.requesterId, (requestCountByRequester.get(r.requesterId) ?? 0) + 1);
   }
+
+  const open = requests.filter((r) => r.closedAt == null);
+  const overdue = open.filter(
+    (r) => r.statutoryDueAt != null && r.statutoryDueAt.getTime() < now.getTime(),
+  );
+  const closed = requests.filter((r) => r.closedAt != null);
+  const closedOnTime = closed.filter(
+    (r) => r.statutoryDueAt == null || r.closedAt!.getTime() <= r.statutoryDueAt.getTime(),
+  );
+  const onTimeRate = closed.length === 0 ? null : Math.round((closedOnTime.length / closed.length) * 100);
 
   const staffRows: PlatformStaffRow[] = users
     .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email))
@@ -52,23 +66,60 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="wrap" style={{ maxWidth: 860, paddingBlock: "36px" }}>
+    <div className="wrap" style={{ maxWidth: 920, paddingBlock: "36px 48px" }}>
       <Link href="/admin" className="muted" style={{ fontSize: "0.9rem" }}>
         ← All agencies
       </Link>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-        <h1 style={{ fontSize: "1.7rem" }}>{agency.name}</h1>
-        <span className="mono muted">/{agency.slug}</span>
-        <span className="tag">{agency.stateCode}</span>
-        <Link href={`/${agency.slug}`} className="btn btn-sm" style={{ marginLeft: "auto" }}>
-          Open portal ↗
-        </Link>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 14, flexWrap: "wrap" }}>
+        <Seal size={44} />
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <h1 className="serif" style={{ fontSize: "1.8rem", fontWeight: 600 }}>
+            {agency.name}
+          </h1>
+          <div className="muted mono" style={{ fontSize: "0.82rem", marginTop: 2 }}>
+            /{agency.slug} · {agency.stateCode} statute profile
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link href={`/${agency.slug}`} className="btn btn-sm">
+            Portal ↗
+          </Link>
+          <Link href={`/${agency.slug}/app`} className="btn btn-sm">
+            Workspace ↗
+          </Link>
+        </div>
       </div>
 
-      <h2 style={{ fontSize: "1.1rem", marginTop: 26, marginBottom: 10 }}>Staff accounts</h2>
+      <div className="stat-row" style={{ marginTop: 20, gridTemplateColumns: "repeat(5, 1fr)" }}>
+        <div className="stat">
+          <div className="stat-num">{open.length}</div>
+          <div className="stat-label">Open requests</div>
+        </div>
+        <div className="stat">
+          <div className="stat-num" style={{ color: overdue.length ? "var(--overdue)" : undefined }}>
+            {overdue.length}
+          </div>
+          <div className="stat-label">Overdue</div>
+        </div>
+        <div className="stat">
+          <div className="stat-num">{onTimeRate == null ? "—" : `${onTimeRate}%`}</div>
+          <div className="stat-label">On-time closures</div>
+        </div>
+        <div className="stat">
+          <div className="stat-num">{staffRows.length}</div>
+          <div className="stat-label">Staff accounts</div>
+        </div>
+        <div className="stat">
+          <div className="stat-num">{residentAccounts.length}</div>
+          <div className="stat-label">Resident accounts</div>
+        </div>
+      </div>
+
+      <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 10 }}>Staff accounts</h2>
       <PlatformStaffTable agencyId={agency.id} agencySlug={agency.slug} rows={staffRows} />
 
-      <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>
+      <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 10 }}>
         Referral directory — tenant links
       </h2>
       <DirectoryPeerLinks
@@ -78,7 +129,7 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
         agencies={peerAgencies}
       />
 
-      <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>
+      <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 10 }}>
         Resident accounts{" "}
         <span className="muted" style={{ fontWeight: 400, fontSize: "0.9rem" }}>
           · {residentAccounts.length} registered, {emailOnly.length} email-only
@@ -87,7 +138,10 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
       <div className="card" style={{ overflow: "hidden" }}>
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {residentAccounts.map((r) => (
-            <li key={r.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+            <li
+              key={r.id}
+              style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)" }}
+            >
               <Avatar name={r.name ?? r.email ?? "?"} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>{r.name ?? r.email}</div>

@@ -170,6 +170,18 @@ Also complete:
   machine ON PURPOSE (no milestone emails/auto-assign for a bulk history
   load; a row can be born "fulfilled"). One `note` event per row names
   the importer.
+- **Platform console redesign** (2026-08-04 evening, owner ask "beautiful
+  and effective"): `/admin` is now a deployment dashboard — health stat
+  strip (overdue in red), per-tenant cards with On track/overdue pills,
+  forwarding-link counts, and Manage/Portal/Workspace actions; `/admin/
+  [slug]` gets seal + serif header, a stat strip (incl. on-time closures),
+  and sectioned Staff / Tenant links / Residents. Same tokens as the rest
+  of the app (stat-row, card, pill, tag) — no new CSS.
+- **"Already public?" on request detail** (2026-08-04 evening): open
+  requests are matched against the agency's OWN public archive (same
+  retrieval as the pre-filing interstitial); top matches render with
+  citable permalinks so staff can answer with a link. No cross-tenant
+  anything.
 - **Compliance PDFs** (2026-08-04): `/app/requests/[id]/
   defensibility-report.pdf` and `/app/reports/annual-report.pdf`, both via
   `renderTextPdf` (no new dep). `buildDefensibilityReport` takes an
@@ -189,10 +201,18 @@ Also complete:
   directory entries; surviving proposals (via `custodianProposals()` — see
   the doc) render as a pre-filling card in ReferPanel. Nothing auto-refers.
   Precision-first evals in `evals/custodianSuggest*` — 8/8 live, 0 false
-  referrals. **Phase 3 (cross-tenant forwarding) remains specced-not-built
-  in `docs/inter-agency-referral.md` — deliberately: value is zero until two
-  real agencies share a deployment, and it has an OPEN OWNER DECISION on
-  requester-consent before forwarding contact details (§Phase 3.5 there).**
+  referrals. Phase 3 (2026-08-04 evening, owner-directed): **cross-tenant
+  forwarding SHIPPED** — `forwardRequest` is THE one sanctioned crossing
+  (allow-list: rawText verbatim + requester contact ONLY behind a
+  per-forward consent checkbox, default OFF — owner decision on record;
+  pinned by an invariant test in referralService.test.ts). Migration 0008
+  adds `forwarded_from`/`forwarded_to` jsonb (denormalized snapshots — no
+  cross-tenant reads at render, deliberately no FK). Peer links are
+  platform-operator scope (/admin/[slug]); staff see "⚡ on Clerk" and the
+  button becomes "Refer & forward"; requester tracker deep-links to the
+  new request's tracker. Riverton seeds a peer-linked Bellmar entry.
+  Verified live: forward created Bellmar's PR-2026-00002, anonymous (no
+  consent), zero identity leakage on the rendered page.
 - **Retention/legal holds** (`src/domain/retention.ts`, `retentionService`):
   attaching a doc to an open request auto-holds it; closing lifts only holds
   nothing else needs; human litigation holds are never touched by automation.
@@ -315,12 +335,8 @@ records office runs Tuesday on this." Tiered by adoption impact.
 
 **Tier 1.5 — specced, waiting on a decision or a trigger (future code, ready
 to write)**
-- **Referral phase 3 — cross-tenant forwarding.** Full implementable spec in
-  `docs/inter-agency-referral.md` (service shape, allow-list, invariant test,
-  migration). BLOCKED ON: (a) the owner's consent decision — forward the
-  requester's contact details to the peer agency, or request-text only?
-  Recommended default is a per-referral checkbox, OFF; (b) the trigger — build
-  when a second real agency lands on one deployment, not before.
+- ~~Referral phase 3~~ **SHIPPED** (see inventory above) — owner overrode the
+  two-real-tenants trigger and decided consent = checkbox default OFF.
 - **Redaction studio, likely next asks** (owner cares about this surface;
   cheap now that acts are centralized in `addAct`): a redo stack to pair with
   undo; click an existing bar to jump to its log card (bars have
