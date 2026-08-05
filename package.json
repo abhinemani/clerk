@@ -2,7 +2,7 @@
   "name": "clerk",
   "version": "0.1.0",
   "private": true,
-  "description": "Clerk — an AI-native public records request platform",
+  "description": "Clerk \u2014 an AI-native public records request platform",
   "type": "module",
   "scripts": {
     "dev": "next dev",
@@ -18,7 +18,8 @@
     "eval": "RUN_LIVE_EVALS=1 vitest run evals/",
     "duedate": "tsx scripts/duedate.ts",
     "triage": "tsx scripts/triage.ts",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
@@ -33,6 +34,7 @@
     "zod-to-json-schema": "^3.24.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",

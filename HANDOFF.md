@@ -50,6 +50,24 @@ below). The next priorities, in order (owner-reviewed 2026-08-04):
    InMemory AND Drizzle-on-PGlite; on day one it caught Drizzle dropping
    provenance/retentionUntil/legalHoldReason on document reads+inserts,
    now fixed). Add new port methods to the conformance suite, always.
+   Hardening sweep (2026-08-05 evening, all 8 recommended fixes): typed
+   metadata accessors (src/domain/documentMeta.ts — the ONE schema for
+   documents.metadata; read via readDocumentMeta, write via
+   patchDocumentMeta, never raw casts) · deterministic PII flags on import
+   (scanPii → metadata.sensitivity → red "⚠ Possible PII" chip, zero API
+   key; the LLM note is neutral ink now) · staffAction() wrapper
+   (src/auth/actionWrapper.ts — new actions use it; convert old ones as
+   touched) · migration 0011: publication_decisions (append-only decision
+   history; jsonb publicationDecision is its cache) + instance_meta ·
+   SESSION BINDING: JWTs carry an `inst` claim, guards reject other
+   databases' cookies (rotate the instance_meta row to sign everyone out)
+   · queue counts + keyset pagination at the query layer
+   (countPublicationStates / listPublicationDocuments, 50/page, "Load
+   older records") · classify jobs chunked 20 ids each · PLAYWRIGHT SMOKE
+   (`npm run test:e2e`, e2e/spine.spec.ts): login → CSV import → publish →
+   public archive against a throwaway seeded PGlite; waits on the
+   layout's `html[data-hydrated]` stamp (HydrationSignal) instead of
+   sleeps — use that in any future browser automation too.
 2. ~~Counsel sign-off~~ **DONE** (2026-08-05): per-agency
    `settings.statuteReview` on the (previously unused) portal_settings
    column — no migration. Compliance section on /app/admin shows the

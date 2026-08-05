@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Public_Sans, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import { branding } from "@/config/branding";
+import { HydrationSignal } from "./_components/HydrationSignal";
 
 // Self-hosted at build time (next/font) — no runtime font requests.
 // Public Sans is the U.S. government's own typeface (USWDS); Source Serif
@@ -30,7 +31,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${publicSans.variable} ${sourceSerif.variable}`}>
-      <body>{children}</body>
+      <body>
+        <HydrationSignal />
+        {children}
+      </body>
     </html>
   );
 }
