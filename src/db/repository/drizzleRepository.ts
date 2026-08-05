@@ -234,6 +234,40 @@ export class DrizzleRepository implements Repository {
     }));
   }
 
+  async createDepartment(d: Department): Promise<Department> {
+    await this.db.insert(departments).values({
+      id: d.id,
+      agencyId: d.agencyId,
+      name: d.name,
+      defaultResponderEmails: d.defaultResponderEmails,
+    });
+    return d;
+  }
+
+  async updateDepartment(
+    agencyId: string,
+    id: string,
+    patch: Partial<Omit<Department, "id" | "agencyId">>,
+  ): Promise<Department> {
+    const set: Record<string, unknown> = {};
+    for (const k of ["name", "defaultResponderEmails"] as const) {
+      if (k in patch) set[k] = patch[k];
+    }
+    const rows = await this.db
+      .update(departments)
+      .set(set)
+      .where(tenantWhere(departments.agencyId, agencyId, eq(departments.id, id)))
+      .returning();
+    if (!rows[0]) throw new NotFoundError("Department", id);
+    const d = rows[0] as typeof departments.$inferSelect;
+    return {
+      id: d.id,
+      agencyId: d.agencyId,
+      name: d.name,
+      defaultResponderEmails: d.defaultResponderEmails ?? [],
+    };
+  }
+
   async listUserDepartmentIds(agencyId: string, userId: string): Promise<string[]> {
     // The join table carries no agency column; scope through the user row.
     const rows = await this.db

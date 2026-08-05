@@ -6,7 +6,11 @@ import { requireStaff } from "@/auth/guards";
 import { StaffRoster, type RosterRow } from "../../../../_components/StaffRoster";
 import { WorkflowSettingsPanel } from "../../../../_components/WorkflowSettingsPanel";
 import { RoutingRulesPanel } from "../../../../_components/RoutingRulesPanel";
+import { DepartmentManager, type DepartmentRow } from "../../../../_components/DepartmentManager";
 import { effectiveWorkflowSettings } from "@/domain/workflow";
+import { computeSetupStatus } from "@/domain/setupChecklist";
+import { getStateProfile } from "@/statute/profiles";
+import { getEmailSender } from "@/adapters/email";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +21,28 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
   const staff = await requireStaff(slug, ["admin"]);
 
   const repo = await getRepository();
-  const [users, activity, agencyRow, departments] = await Promise.all([
-    repo.listUsers(agency.id),
-    repo.listAdminEvents(agency.id, 20),
-    repo.getAgency(agency.id),
-    repo.listDepartments(agency.id),
-  ]);
+  const [users, activity, agencyRow, departments, directory, publicDocs, requests] =
+    await Promise.all([
+      repo.listUsers(agency.id),
+      repo.listAdminEvents(agency.id, 20),
+      repo.getAgency(agency.id),
+      repo.listDepartments(agency.id),
+      repo.listDirectory(agency.id),
+      repo.listPublicDocuments(agency.id),
+      repo.listRequests(agency.id),
+    ]);
+
+  // Go-live checklist — computed from what exists, never manually ticked.
+  const setup = computeSetupStatus({
+    staffCount: users.length,
+    departmentCount: departments.length,
+    routingRuleCount: (agencyRow?.defaultRoutingRules ?? []).length,
+    directoryCount: directory.length,
+    publicRecordCount: publicDocs.length,
+    requestCount: requests.length,
+    hasStatuteProfile: agencyRow ? getStateProfile(agencyRow.stateCode) != null : false,
+    emailConfigured: getEmailSender() != null,
+  });
   const workflow = effectiveWorkflowSettings(agencyRow?.workflowSettings);
   const ruleKeywords = Object.fromEntries(
     (agencyRow?.defaultRoutingRules ?? []).map((r) => [r.departmentId, r.keywords.join(", ")]),
@@ -66,10 +86,74 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
           </Link>
         </div>
       </div>
+      {/* Go-live checklist — shown until the office is actually set up.
+          Every line is computed from real state; nothing here is a manual
+          tick-box that can lie. */}
+      {!setup.complete && (
+        <div className="card card-pad" style={{ marginBottom: 24, borderLeft: "3px solid var(--accent)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div className="panel-title">Go-live checklist</div>
+            <span className="pill" style={{ marginLeft: "auto" }}>
+              {setup.doneCount} of {setup.totalCount} done
+            </span>
+            {setup.requiredRemaining > 0 && (
+              <span className="pill band-overdue">
+                {setup.requiredRemaining} required step{setup.requiredRemaining === 1 ? "" : "s"} left
+              </span>
+            )}
+          </div>
+          <ul style={{ listStyle: "none", margin: "12px 0 0", padding: 0, display: "grid", gap: 10 }}>
+            {setup.steps.map((step) => (
+              <li key={step.key} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span
+                  aria-hidden
+                  style={{
+                    fontWeight: 700,
+                    color: step.done ? "var(--ok)" : step.required ? "var(--overdue)" : "var(--ink-2)",
+                    width: 18,
+                    textAlign: "center",
+                  }}
+                >
+                  {step.done ? "✓" : "○"}
+                </span>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <span style={{ fontWeight: 600, fontSize: "0.92rem" }}>
+                    {step.title}
+                    {step.required && !step.done && (
+                      <span className="muted" style={{ fontWeight: 400 }}> — required</span>
+                    )}
+                  </span>
+                  <div className="muted" style={{ fontSize: "0.82rem" }}>{step.detail}</div>
+                </div>
+                {!step.done && step.href && (
+                  <a className="btn btn-sm" href={`/${slug}/app/${step.href}`}>
+                    Set up →
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <StaffRoster
         agencySlug={slug}
         rows={rows}
         departments={departments.map((d) => ({ id: d.id, name: d.name }))}
+      />
+
+      <h2 id="departments" style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>
+        Departments
+      </h2>
+      <p className="muted" style={{ fontSize: "0.9rem", marginBottom: 12, maxWidth: 560 }}>
+        The custodians requests get dispatched to. Each department can fulfill from a no-login
+        email link, or its responders can sign in and see their tasks.
+      </p>
+      <DepartmentManager
+        agencySlug={slug}
+        rows={departments.map(
+          (d): DepartmentRow => ({ id: d.id, name: d.name, responderEmails: d.defaultResponderEmails }),
+        )}
       />
 
       <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>Workflow automation</h2>

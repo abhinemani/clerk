@@ -216,3 +216,51 @@ export async function setStaffDepartmentsAction(input: {
     return { ok: false, error: "Could not update departments." };
   }
 }
+
+/**
+ * Department management (onboarding): the custodians dispatch routes to.
+ * Create + rename/re-address only — no delete, because tasks and routing
+ * rules reference departments and history must keep resolving.
+ */
+export async function saveDepartmentAction(input: {
+  agencySlug: string;
+  id?: string;
+  name: string;
+  responderEmails?: string;
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+    const name = input.name.trim();
+    if (!name) return { ok: false, error: "Give the department a name." };
+    const defaultResponderEmails = (input.responderEmails ?? "")
+      .split(",")
+      .map((e) => e.trim())
+      .filter((e) => e.includes("@"))
+      .slice(0, 10);
+
+    if (input.id) {
+      await repo.updateDepartment(agencyId, input.id, { name, defaultResponderEmails });
+    } else {
+      await repo.createDepartment({
+        id: crypto.randomUUID(),
+        agencyId,
+        name,
+        defaultResponderEmails,
+      });
+    }
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "department_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: `${input.id ? "Updated" : "Created"} department: ${name}`,
+      payload: { name, defaultResponderEmails },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    return { ok: true };
+  } catch (e) {
+    console.error("saveDepartment failed", e);
+    return { ok: false, error: "Could not save the department." };
+  }
+}

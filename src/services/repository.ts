@@ -346,6 +346,12 @@ export interface Repository {
   listRequestsByRequester(agencyId: string, requesterId: string): Promise<RequestEntity[]>;
 
   listDepartments(agencyId: string): Promise<Department[]>;
+  createDepartment(d: Department): Promise<Department>;
+  updateDepartment(
+    agencyId: string,
+    id: string,
+    patch: Partial<Omit<Department, "id" | "agencyId">>,
+  ): Promise<Department>;
   /** Departments a staff member belongs to (responder scoping). */
   listUserDepartmentIds(agencyId: string, userId: string): Promise<string[]>;
   /** Replace a staff member's department memberships (admin act). */
@@ -597,6 +603,17 @@ export class InMemoryRepository implements Repository {
 
   async listDepartments(agencyId: string) {
     return [...this.departments.values()].filter((d) => d.agencyId === agencyId);
+  }
+  async createDepartment(d: Department) {
+    this.departments.set(d.id, d);
+    return d;
+  }
+  async updateDepartment(agencyId: string, id: string, patch: Partial<Omit<Department, "id" | "agencyId">>) {
+    const d = this.departments.get(id);
+    if (!d || d.agencyId !== agencyId) throw new NotFoundError("Department", id);
+    const updated = { ...d, ...patch, id: d.id, agencyId: d.agencyId };
+    this.departments.set(id, updated);
+    return updated;
   }
 
   private userDepartments = new Map<string, Set<string>>();

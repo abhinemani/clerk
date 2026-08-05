@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { requirePlatformAdmin } from "@/auth/guards";
 import { getRepository } from "@/db/createRepository";
+import { computeSetupStatus } from "@/domain/setupChecklist";
+import { getStateProfile } from "@/statute/profiles";
+import { getEmailSender } from "@/adapters/email";
 import { CreateAgencyForm } from "../_components/PlatformConsole";
 import { Seal } from "../_components/ui";
 import { platformSignOut } from "./actions";
@@ -23,16 +26,29 @@ export default async function PlatformHome() {
     agencies
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(async (a) => {
-        const [requests, users, requesters, directory] = await Promise.all([
-          repo.listRequests(a.id),
-          repo.listUsers(a.id),
-          repo.listRequesters(a.id),
-          repo.listDirectory(a.id),
-        ]);
+        const [requests, users, requesters, directory, departments, publicDocs] =
+          await Promise.all([
+            repo.listRequests(a.id),
+            repo.listUsers(a.id),
+            repo.listRequesters(a.id),
+            repo.listDirectory(a.id),
+            repo.listDepartments(a.id),
+            repo.listPublicDocuments(a.id),
+          ]);
         const open = requests.filter((r) => r.closedAt == null);
         const overdue = open.filter(
           (r) => r.statutoryDueAt != null && r.statutoryDueAt.getTime() < now.getTime(),
         );
+        const setup = computeSetupStatus({
+          staffCount: users.length,
+          departmentCount: departments.length,
+          routingRuleCount: (a.defaultRoutingRules ?? []).length,
+          directoryCount: directory.length,
+          publicRecordCount: publicDocs.length,
+          requestCount: requests.length,
+          hasStatuteProfile: getStateProfile(a.stateCode) != null,
+          emailConfigured: getEmailSender() != null,
+        });
         return {
           agency: a,
           open: open.length,
@@ -41,6 +57,7 @@ export default async function PlatformHome() {
           staff: users.length,
           residents: requesters.filter((r) => r.passwordHash).length,
           peerLinks: directory.filter((d) => d.peerAgencyId).length,
+          setup,
         };
       }),
   );
@@ -99,7 +116,7 @@ export default async function PlatformHome() {
 
       <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 12 }}>Agencies</h2>
       <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))" }}>
-        {rows.map(({ agency, open, overdue, total, staff, residents, peerLinks }) => (
+        {rows.map(({ agency, open, overdue, total, staff, residents, peerLinks, setup }) => (
           <article key={agency.id} className="card card-pad hover-lift" style={{ display: "grid", gap: 12, alignContent: "start" }}>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <Seal size={36} />
@@ -113,6 +130,13 @@ export default async function PlatformHome() {
               </div>
               {overdue > 0 ? (
                 <span className="pill band-overdue">{overdue} overdue</span>
+              ) : !setup.complete ? (
+                <span
+                  className="pill band-due_soon"
+                  title={`Go-live checklist: ${setup.doneCount} of ${setup.totalCount} steps done — see the agency's Manage staff page`}
+                >
+                  Setup {setup.doneCount}/{setup.totalCount}
+                </span>
               ) : (
                 <span className="pill band-on_track">On track</span>
               )}
