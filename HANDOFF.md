@@ -145,6 +145,32 @@ Also complete:
   All/Mine/Unassigned filter, detail-page reassign select, admin "Workflow
   automation" card. Riverton seeds with both ON (+ second coordinator
   casey@riverton.gov / riverton-demo2); everything defaults OFF elsewhere.
+- **Redaction studio UX** (2026-08-04): multi-line drag (one gesture →
+  one span per covered line, sharing a `groupId` so removing any part
+  removes the act; geometry is pure — `spansFromDragRect` in
+  `src/domain/redaction.ts`), full keyboard path (arrows move a caret,
+  shift+arrows select, Enter burns, Escape cancels — `role="textbox"`,
+  focusable, not `role=application`), find-in-document with "redact all
+  matches", and an AI triage panel that groups suggestions by exemption
+  reason with per-group Accept/Reject, model confidence, an "N of M
+  reviewed" counter, jump-to-line, and hover-to-reveal of covered text.
+  Every accept is still an explicit human act.
+- **Legacy import** (`src/domain/legacyImport.ts` + `legacyImportService`,
+  2026-08-04): admin-only `/app/admin/import`, CSV → real requests with
+  historical status/dates. Bypasses submitRequest + the transition state
+  machine ON PURPOSE (no milestone emails/auto-assign for a bulk history
+  load; a row can be born "fulfilled"). One `note` event per row names
+  the importer.
+- **Compliance PDFs** (2026-08-04): `/app/requests/[id]/
+  defensibility-report.pdf` and `/app/reports/annual-report.pdf`, both via
+  `renderTextPdf` (no new dep). `buildDefensibilityReport` takes an
+  optional `actorNameById` so trails print real names.
+- **Queue ergonomics** (2026-08-04): `src/domain/queueFilters.ts` (pure
+  assignee/status/risk/department combining), `QueueFilterBar` (saved
+  filters = named query strings in localStorage, browser-local by
+  design), `QueueTable` (bulk select + bulk assign, each row still going
+  through the per-request `assignCoordinator` so every change is
+  individually audited). Stats/sweep always cover the WHOLE open queue.
 - **Statutes**: `src/statute/` — pure `computeDueDate()` (incl. extension
   validation), profiles for CA/TX/IL/WA/NY (data, not code).
 - **Design**: Public Sans + Source Serif 4; navy/gold/red civic triad in

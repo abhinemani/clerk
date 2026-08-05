@@ -27,6 +27,42 @@ export interface SuggestedRedaction extends RedactionSpan {
 /** The block glyph the burned characters become. */
 export const BLOCK = "█";
 
+/** A caret position in the monospace document grid. */
+export interface GridPoint {
+  line: number;
+  col: number;
+}
+
+/**
+ * Convert a two-point drag (or keyboard selection) into per-line spans — the
+ * geometry behind selecting a paragraph in one gesture.
+ *
+ * A span never crosses a line, because the burn works line by line: dragging
+ * from the middle of line 3 to the middle of line 6 yields "line 3 from the
+ * anchor to end-of-line", whole lines 4–5, and "line 6 up to the focus". Empty
+ * lines contribute nothing (there is nothing to black out). Direction-agnostic:
+ * dragging up produces the same spans as dragging down.
+ */
+export function spansFromDragRect(
+  lineLengths: readonly number[],
+  anchor: GridPoint,
+  focus: GridPoint,
+): RedactionSpan[] {
+  const clampLine = (l: number) => Math.max(0, Math.min(l, lineLengths.length - 1));
+  const a = { line: clampLine(anchor.line), col: Math.max(0, anchor.col) };
+  const f = { line: clampLine(focus.line), col: Math.max(0, focus.col) };
+  const [from, to] = a.line < f.line || (a.line === f.line && a.col <= f.col) ? [a, f] : [f, a];
+
+  const spans: RedactionSpan[] = [];
+  for (let line = from.line; line <= to.line; line++) {
+    const len = lineLengths[line] ?? 0;
+    const startCol = line === from.line ? Math.min(from.col, len) : 0;
+    const endCol = line === to.line ? Math.min(to.col, len) : len;
+    if (endCol > startCol) spans.push({ line, startCol, endCol });
+  }
+  return spans;
+}
+
 function clampSpan(len: number, s: RedactionSpan): { start: number; end: number } {
   const start = Math.max(0, Math.min(s.startCol, len));
   const end = Math.max(start, Math.min(s.endCol, len));

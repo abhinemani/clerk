@@ -8,6 +8,7 @@ import {
   BLOCK,
   findLeaks,
   redactedValues,
+  spansFromDragRect,
   suggestRedactionsFromPii,
 } from "./redaction";
 
@@ -82,3 +83,49 @@ function spanOf(line: number, needle: string) {
   const start = LINES[line]!.indexOf(needle);
   return { line, startCol: start, endCol: start + needle.length };
 }
+
+describe("spansFromDragRect — multi-line selection geometry", () => {
+  const lengths = [20, 0, 15, 30]; // line 1 is empty
+
+  it("a single-line drag yields one span", () => {
+    expect(spansFromDragRect(lengths, { line: 0, col: 4 }, { line: 0, col: 9 })).toEqual([
+      { line: 0, startCol: 4, endCol: 9 },
+    ]);
+  });
+
+  it("a multi-line drag covers anchor-to-EOL, whole middles, and SOL-to-focus", () => {
+    expect(spansFromDragRect(lengths, { line: 0, col: 5 }, { line: 3, col: 7 })).toEqual([
+      { line: 0, startCol: 5, endCol: 20 },
+      { line: 2, startCol: 0, endCol: 15 }, // line 1 is empty — contributes nothing
+      { line: 3, startCol: 0, endCol: 7 },
+    ]);
+  });
+
+  it("is direction-agnostic — dragging up equals dragging down", () => {
+    const down = spansFromDragRect(lengths, { line: 0, col: 5 }, { line: 2, col: 3 });
+    const up = spansFromDragRect(lengths, { line: 2, col: 3 }, { line: 0, col: 5 });
+    expect(up).toEqual(down);
+  });
+
+  it("clamps past-the-end columns and lines to the document", () => {
+    // Anchor starts past the end of line 0, so line 0 contributes nothing;
+    // the drag still runs through the (clamped) last line.
+    expect(spansFromDragRect(lengths, { line: 0, col: 999 }, { line: 99, col: 999 })).toEqual([
+      { line: 2, startCol: 0, endCol: 15 },
+      { line: 3, startCol: 0, endCol: 30 },
+    ]);
+  });
+
+  it("a zero-width drag selects nothing", () => {
+    expect(spansFromDragRect(lengths, { line: 2, col: 5 }, { line: 2, col: 5 })).toEqual([]);
+  });
+
+  it("spans it produces are burnable — applyRedactions removes exactly that text", () => {
+    const lines = ["Reporting party: Jane Doe", "SSN: 123-45-6789"];
+    const spans = spansFromDragRect(lines.map((l) => l.length), { line: 0, col: 17 }, { line: 1, col: 16 });
+    const released = applyRedactions(lines, spans);
+    expect(released.join("\n")).not.toContain("Jane Doe");
+    expect(released.join("\n")).not.toContain("123-45-6789");
+    expect(released[0]).toContain("Reporting party: "); // kept text survives
+  });
+});
