@@ -199,8 +199,10 @@ export interface DocumentEntity {
 export interface DeflectionEntity {
   id: string;
   agencyId: string;
-  /** "download" (satisfied without filing) or "scope_down" (narrowed a request). */
-  kind: "download" | "scope_down";
+  /** "download" (satisfied without filing), "scope_down" (narrowed a request),
+      or "answered_by_link" (a FILED request closed by citing already-public
+      records — production avoided, not filing). */
+  kind: "download" | "scope_down" | "answered_by_link";
   query: string | null;
   documentId: string | null;
   estimatedStaffHoursAvoided: number;
@@ -344,6 +346,10 @@ export interface Repository {
   listRequestsByRequester(agencyId: string, requesterId: string): Promise<RequestEntity[]>;
 
   listDepartments(agencyId: string): Promise<Department[]>;
+  /** Departments a staff member belongs to (responder scoping). */
+  listUserDepartmentIds(agencyId: string, userId: string): Promise<string[]>;
+  /** Replace a staff member's department memberships (admin act). */
+  setUserDepartments(agencyId: string, userId: string, departmentIds: string[]): Promise<void>;
 
   nextPublicIdSeq(agencyId: string, year: number): Promise<number>;
   createRequest(r: RequestEntity): Promise<RequestEntity>;
@@ -591,6 +597,22 @@ export class InMemoryRepository implements Repository {
 
   async listDepartments(agencyId: string) {
     return [...this.departments.values()].filter((d) => d.agencyId === agencyId);
+  }
+
+  private userDepartments = new Map<string, Set<string>>();
+  async listUserDepartmentIds(agencyId: string, userId: string) {
+    const user = this.users.get(userId);
+    if (!user || user.agencyId !== agencyId) return []; // tenant isolation
+    return [...(this.userDepartments.get(userId) ?? [])];
+  }
+  async setUserDepartments(agencyId: string, userId: string, departmentIds: string[]) {
+    const user = this.users.get(userId);
+    if (!user || user.agencyId !== agencyId) throw new NotFoundError("User", userId);
+    // Only this agency's departments can be attached — a cross-tenant id is a bug.
+    const valid = new Set(
+      [...this.departments.values()].filter((d) => d.agencyId === agencyId).map((d) => d.id),
+    );
+    this.userDepartments.set(userId, new Set(departmentIds.filter((id) => valid.has(id))));
   }
 
   async nextPublicIdSeq(agencyId: string, year: number) {

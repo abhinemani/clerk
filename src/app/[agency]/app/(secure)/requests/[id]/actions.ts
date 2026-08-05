@@ -712,3 +712,32 @@ export async function reassignTaskAction(input: {
     return fail("reassignTask", e);
   }
 }
+
+/**
+ * "Answer with this link" — close the request by citing an already-public
+ * archive record. One click, but still a named human's decision; the service
+ * refuses non-public documents.
+ */
+export async function fulfillByReferenceAction(input: {
+  agencySlug: string;
+  requestId: string;
+  documentId: string;
+  note?: string;
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    const { fulfillByReference } = await import("@/services/releaseService");
+    await fulfillByReference(deps, {
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      actorUserId: staff.userId,
+      documentId: input.documentId,
+      note: input.note?.trim() || undefined,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    revalidatePath(`/${input.agencySlug}/app`);
+    return { ok: true };
+  } catch (e) {
+    return fail("fulfillByReference", e);
+  }
+}

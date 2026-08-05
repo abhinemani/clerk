@@ -180,3 +180,39 @@ export async function setStaffRole(input: {
     return { ok: false, error: "Could not change the role." };
   }
 }
+
+/**
+ * Department membership (department-scoped accounts): which departments a
+ * staff member — in practice a responder — belongs to. Their /app/tasks view
+ * shows exactly these departments' tasks.
+ */
+export async function setStaffDepartmentsAction(input: {
+  agencySlug: string;
+  userId: string;
+  departmentIds: string[];
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+    const target = await repo.getUser(agencyId, input.userId);
+    if (!target) return { ok: false, error: "That staff account was not found." };
+    await repo.setUserDepartments(agencyId, input.userId, input.departmentIds);
+    const departments = await repo.listDepartments(agencyId);
+    const names = departments
+      .filter((d) => input.departmentIds.includes(d.id))
+      .map((d) => d.name);
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "staff_departments_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: `${target.name ?? target.email} now covers ${names.length > 0 ? names.join(", ") : "no departments"}`,
+      payload: { userId: input.userId, departmentIds: input.departmentIds },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    return { ok: true };
+  } catch (e) {
+    console.error("setStaffDepartments failed", e);
+    return { ok: false, error: "Could not update departments." };
+  }
+}

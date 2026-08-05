@@ -25,12 +25,17 @@ export type RequestStatus =
  * Allowed forward transitions. Withdrawal and denial are reachable from most
  * active states; `closed` is the single terminal sink.
  */
+// "fulfilled" is reachable from every open working state, not only
+// records_review: answering with a link to ALREADY-PUBLIC records (the
+// fulfill-by-reference path) legitimately closes a request that never needed
+// document production. The act is still a named human's explicit decision —
+// the service layer enforces that; this map only says the move is legal.
 const TRANSITIONS: Record<RequestStatus, readonly RequestStatus[]> = {
   draft: ["submitted", "withdrawn"],
-  submitted: ["in_review", "referred", "withdrawn"],
-  in_review: ["clarification_needed", "in_progress", "denied", "referred", "withdrawn"],
-  clarification_needed: ["in_review", "in_progress", "denied", "referred", "withdrawn"],
-  in_progress: ["records_review", "clarification_needed", "denied", "referred", "withdrawn"],
+  submitted: ["in_review", "fulfilled", "referred", "withdrawn"],
+  in_review: ["clarification_needed", "in_progress", "fulfilled", "denied", "referred", "withdrawn"],
+  clarification_needed: ["in_review", "in_progress", "fulfilled", "denied", "referred", "withdrawn"],
+  in_progress: ["records_review", "clarification_needed", "fulfilled", "denied", "referred", "withdrawn"],
   records_review: ["partially_fulfilled", "fulfilled", "in_progress", "denied"],
   partially_fulfilled: ["records_review", "fulfilled", "denied", "closed"],
   fulfilled: ["closed"],

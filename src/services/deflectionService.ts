@@ -10,6 +10,7 @@ import type { DeflectionEntity } from "./repository";
 const HOURS_AVOIDED: Record<DeflectionEntity["kind"], number> = {
   download: 1.5, // a full request that never needed to be filed
   scope_down: 0.5, // a request that got narrower/faster
+  answered_by_link: 1.0, // a filed request answered by citation, not production
 };
 
 export async function logDeflection(

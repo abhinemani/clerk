@@ -78,6 +78,16 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
     role: "coordinator",
     passwordHash: hashPassword("riverton-demo2"),
   });
+  // A department responder with a real login (department-scoped accounts):
+  // signs in and sees only Public Works' tasks at /riverton/app/tasks.
+  const samResponder = await deps.repo.createUser({
+    id: deps.genId(),
+    agencyId,
+    email: "sam@riverton.gov",
+    name: "Sam Iyer",
+    role: "responder",
+    passwordHash: hashPassword("riverton-demo3"),
+  });
   await deps.repo.updateAgency(agencyId, {
     workflowSettings: { autoAssign: true, autoDispatch: true, autoDispatchConfidence: 0.85 },
   });
@@ -85,6 +95,8 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
   // portal and watch the Public Works task go out with no AI key at all.
   const seedDepts = await deps.repo.listDepartments(agencyId);
   const deptIdByName = new Map(seedDepts.map((d) => [d.name, d.id]));
+  const publicWorksId = deptIdByName.get("Public Works");
+  if (publicWorksId) await deps.repo.setUserDepartments(agencyId, samResponder.id, [publicWorksId]);
   await deps.repo.updateAgency(agencyId, {
     defaultRoutingRules: [
       { departmentId: deptIdByName.get("Public Works")!, keywords: ["pothole", "paving", "sidewalk", "street light", "inspection"] },
@@ -381,6 +393,7 @@ export function printCredentials() {
 Demo credentials
   Riverton staff admin   /riverton/app/login   dana@riverton.gov / riverton-demo
   Riverton coordinator   /riverton/app/login   casey@riverton.gov / riverton-demo2
+  Riverton responder     /riverton/app/login   sam@riverton.gov / riverton-demo3 (Public Works only)
   Riverton resident      /riverton/login       jordan@rivertonledger.com / riverton-resident
   Bellmar staff admin    /bellmar/app/login    amara@bellmar.gov / bellmar-demo
   Platform operator      /admin/login          admin@clerk.example / clerk-admin-dev

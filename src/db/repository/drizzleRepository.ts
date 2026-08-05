@@ -29,6 +29,7 @@ import {
   reviews,
   sources,
   tasks,
+  userDepartments,
   users,
 } from "@/db/schema";
 import { tenantWhere } from "@/db/tenant";
@@ -231,6 +232,38 @@ export class DrizzleRepository implements Repository {
       name: d.name,
       defaultResponderEmails: d.defaultResponderEmails ?? [],
     }));
+  }
+
+  async listUserDepartmentIds(agencyId: string, userId: string): Promise<string[]> {
+    // The join table carries no agency column; scope through the user row.
+    const rows = await this.db
+      .select({ departmentId: userDepartments.departmentId })
+      .from(userDepartments)
+      .innerJoin(users, eq(users.id, userDepartments.userId))
+      .where(tenantWhere(users.agencyId, agencyId, eq(userDepartments.userId, userId)));
+    return rows.map((r: { departmentId: string }) => r.departmentId);
+  }
+
+  async setUserDepartments(agencyId: string, userId: string, departmentIds: string[]): Promise<void> {
+    const [user] = await this.db
+      .select({ id: users.id })
+      .from(users)
+      .where(tenantWhere(users.agencyId, agencyId, eq(users.id, userId)))
+      .limit(1);
+    if (!user) throw new NotFoundError("User", userId);
+    // Only this agency's departments can be attached.
+    const valid = await this.db
+      .select({ id: departments.id })
+      .from(departments)
+      .where(eq(departments.agencyId, agencyId));
+    const validIds = new Set(valid.map((d: { id: string }) => d.id));
+    const keep = departmentIds.filter((id) => validIds.has(id));
+    await this.db.delete(userDepartments).where(eq(userDepartments.userId, userId));
+    if (keep.length > 0) {
+      await this.db
+        .insert(userDepartments)
+        .values(keep.map((departmentId) => ({ userId, departmentId })));
+    }
   }
 
   async nextPublicIdSeq(agencyId: string, year: number): Promise<number> {

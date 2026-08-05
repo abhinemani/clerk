@@ -27,16 +27,19 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
   const ruleKeywords = Object.fromEntries(
     (agencyRow?.defaultRoutingRules ?? []).map((r) => [r.departmentId, r.keywords.join(", ")]),
   );
-  const rows: RosterRow[] = users
-    .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email))
-    .map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      role: u.role,
-      isSelf: u.id === staff.userId,
-      hasPassword: u.passwordHash != null,
-    }));
+  const rows: RosterRow[] = await Promise.all(
+    users
+      .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email))
+      .map(async (u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        isSelf: u.id === staff.userId,
+        hasPassword: u.passwordHash != null,
+        departmentIds: await repo.listUserDepartmentIds(staff.agencyId, u.id),
+      })),
+  );
 
   return (
     <div className="wrap" style={{ maxWidth: 820, paddingBlock: "36px" }}>
@@ -63,7 +66,11 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
           </Link>
         </div>
       </div>
-      <StaffRoster agencySlug={slug} rows={rows} />
+      <StaffRoster
+        agencySlug={slug}
+        rows={rows}
+        departments={departments.map((d) => ({ id: d.id, name: d.name }))}
+      />
 
       <h2 style={{ fontSize: "1.1rem", marginTop: 28, marginBottom: 10 }}>Workflow automation</h2>
       <WorkflowSettingsPanel

@@ -429,3 +429,124 @@ function defaultResponseLetter(input: {
   lines.push(``, `Thank you for using the public records portal.`);
   return lines.join("\n");
 }
+
+// ---------------------------------------------------------------------------
+// Fulfill by reference — "the records you asked for are already public."
+// ---------------------------------------------------------------------------
+
+export interface FulfillByReferenceInput {
+  agencyId: string;
+  requestId: string;
+  /** The named human deciding the public record answers the request (invariant 4). */
+  actorUserId: string;
+  /** The already-public archive document being cited. */
+  documentId: string;
+  /** Optional staff note prepended to the letter. */
+  note?: string;
+}
+
+export interface FulfillByReferenceOutcome {
+  request: RequestEntity;
+  letter: string;
+  requesterNotified: boolean;
+}
+
+/**
+ * Close a request by citing records the agency has ALREADY released — the
+ * fastest correct response when the archive holds the answer. No production,
+ * no review set, no burn: the response letter carries the record's citable
+ * permalink. Status → fulfilled (by reference), clock stopped, everything
+ * audited. The cited document must be public — this can never become a side
+ * door around review (invariant 3 mindset: the corpus it cites is already
+ * public by definition).
+ */
+export async function fulfillByReference(
+  deps: ServiceDeps,
+  input: FulfillByReferenceInput,
+): Promise<FulfillByReferenceOutcome> {
+  const { repo } = deps;
+  if (!input.actorUserId) throw new ReleaseError("Fulfilling by reference requires a named approver.");
+
+  const [agency, request, doc, actor] = await Promise.all([
+    repo.getAgency(input.agencyId),
+    repo.getRequest(input.agencyId, input.requestId),
+    repo.getDocument(input.agencyId, input.documentId),
+    repo.getUser(input.agencyId, input.actorUserId),
+  ]);
+  if (!agency) throw new NotFoundError("Agency", input.agencyId);
+  if (!request) throw new NotFoundError("Request", input.requestId);
+  if (!actor) throw new NotFoundError("User", input.actorUserId);
+  if (!doc) throw new NotFoundError("Document", input.documentId);
+  if (doc.classification !== "public") {
+    // The whole premise is "already released". A non-public document has NOT
+    // been reviewed for release — refusing here keeps this path honest.
+    throw new ReleaseError("Only an already-public record can answer a request by reference.");
+  }
+  assertTransition(request.status, "fulfilled"); // throws before anything is written
+
+  const requester = request.requesterId
+    ? await repo.getRequester(input.agencyId, request.requesterId)
+    : null;
+
+  const baseUrl = deps.baseUrl ?? process.env.APP_BASE_URL ?? "http://localhost:3000";
+  const meta = (doc.metadata ?? {}) as { title?: string };
+  const title = meta.title ?? doc.filename ?? "the released record";
+  const permalink = `${baseUrl}/${agency.slug}/archive/${doc.id}`;
+
+  const letter = [
+    `Hi ${requester?.name ?? "there"},`,
+    ``,
+    `Good news about your request (${request.publicId}): the records you asked for`,
+    `are already public. ${agency.name} released them previously, and they're`,
+    `available right now — no waiting on us.`,
+    ``,
+    input.note ? `${input.note}\n` : ``,
+    `  ${title}`,
+    `  ${permalink}`,
+    ``,
+    `That link is permanent and shareable. We're closing ${request.publicId} as`,
+    `fulfilled. If the record doesn't fully answer what you were after, just`,
+    `reply and we'll reopen the conversation.`,
+    ``,
+    `— ${agency.name} records office`,
+  ]
+    .filter((l) => l !== ``)
+    .join("\n");
+
+  const now = deps.now();
+  // The letter first (threaded + delivered via the outbox, named sender);
+  // sendStaffMessage validates the body and actor.
+  await sendStaffMessage(deps, {
+    agencyId: input.agencyId,
+    requestId: request.id,
+    actorUserId: input.actorUserId,
+    subject: `${agency.name}: your request ${request.publicId} — records already available`,
+    body: letter,
+  });
+
+  const updated = await repo.updateRequest(input.agencyId, request.id, {
+    status: "fulfilled",
+    closedAt: now,
+  });
+  await repo.appendEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    requestId: request.id,
+    kind: "status_change",
+    actorUserId: input.actorUserId,
+    summary: `Fulfilled by reference to already-public record by ${actor.name ?? actor.email}`,
+    payload: { from: request.status, to: "fulfilled", byReference: true, documentId: doc.id },
+    createdAt: now,
+  });
+
+  // The ROI number: production avoided because the archive already had it.
+  const { logDeflection } = await import("./deflectionService");
+  await logDeflection(deps, {
+    agencyId: input.agencyId,
+    kind: "answered_by_link",
+    query: request.interpretedScope ?? request.rawText,
+    documentId: doc.id,
+  });
+
+  return { request: updated, letter, requesterNotified: requester?.email != null };
+}

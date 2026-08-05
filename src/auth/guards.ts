@@ -25,11 +25,25 @@ export interface RequesterSession {
   email: string | null;
 }
 
+/** Every staff role — pass to requireStaff to mean "authenticate only". */
+export const ALL_STAFF_ROLES: StaffRole[] = [
+  "admin",
+  "coordinator",
+  "reviewer",
+  "responder",
+  "read_only",
+];
+
 /**
  * Staff member of this agency, optionally restricted to certain roles. The
  * JWT only *identifies* the user; authority (role, continued existence) is
  * re-read from the database on every call — a demoted or removed staffer's
  * old token grants nothing.
+ *
+ * Responders are DEFAULT-DENIED: with no `roles` list, a responder is sent to
+ * their department task list instead of the coordinator surface. A page that
+ * genuinely serves responders opts in by passing a roles list that includes
+ * "responder" (or ALL_STAFF_ROLES). New coordinator pages are safe by default.
  */
 export async function requireStaff(agencySlug: string, roles?: StaffRole[]): Promise<StaffSession> {
   const session = await auth();
@@ -41,7 +55,10 @@ export async function requireStaff(agencySlug: string, roles?: StaffRole[]): Pro
   const repo = await getRepository();
   const dbUser = await repo.getUser(u.agencyId!, u.id);
   if (!dbUser) redirect(`/${agencySlug}/app/login`); // account removed
-  if (roles && !roles.includes(dbUser.role)) redirect(`/${agencySlug}/app`);
+  if (!roles && dbUser.role === "responder") redirect(`/${agencySlug}/app/tasks`);
+  if (roles && !roles.includes(dbUser.role)) {
+    redirect(dbUser.role === "responder" ? `/${agencySlug}/app/tasks` : `/${agencySlug}/app`);
+  }
 
   return {
     userId: dbUser.id,

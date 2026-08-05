@@ -8,6 +8,7 @@ import { canTransition } from "@/domain/requestLifecycle";
 import { daysLabel, dateShort, requestStatusLabel, titleCase } from "@/lib/format";
 import { requireStaff } from "@/auth/guards";
 import { DeadlineBand, StatusPill } from "../../../../../_components/ui";
+import { AnswerWithLink } from "../../../../../_components/AnswerWithLink";
 import { AssigneeSelect } from "../../../../../_components/AssigneeSelect";
 import {
   ReferPanel,
@@ -106,6 +107,7 @@ export default async function RequestDetail({
   // fresh production. This agency's own public archive only (invariant 3
   // holds by construction — the corpus is public).
   let archiveMatches: { id: string; title: string; dateLabel: string; downloadUrl: string | null }[] = [];
+  let requesterHasEmail = false;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -224,6 +226,10 @@ export default async function RequestDetail({
             .map((it) => ({ id: it.id, title: it.title, dateLabel: it.date, downloadUrl: it.downloadUrl }));
         } catch (e) {
           console.error("archive match for request detail failed", e);
+        }
+        if (rawRequest?.requesterId) {
+          const req = await repo.getRequester(staff.agencyId, rawRequest.requesterId);
+          requesterHasEmail = req?.email != null;
         }
       }
       // Phase-2 custodian suggestion: the latest run's top proposal pre-selects
@@ -413,6 +419,13 @@ export default async function RequestDetail({
                         download
                       </a>
                     )}
+                    <AnswerWithLink
+                      agencySlug={slug}
+                      requestId={r.id}
+                      documentId={m.id}
+                      title={m.title}
+                      requesterHasEmail={requesterHasEmail}
+                    />
                   </li>
                 ))}
               </ul>

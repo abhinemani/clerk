@@ -181,7 +181,14 @@ Also complete:
   requests are matched against the agency's OWN public archive (same
   retrieval as the pre-filing interstitial); top matches render with
   citable permalinks so staff can answer with a link. No cross-tenant
-  anything.
+  anything. **Completed by "Answer with this link"** (same night):
+  one click (inline confirm) → `fulfillByReference` in releaseService
+  sends the letter with the permalink under the staff name, closes the
+  request as fulfilled (lifecycle now allows open-state → fulfilled for
+  exactly this by-reference path; draft still can't), refuses non-public
+  documents (no side door around review), and logs an `answered_by_link`
+  deflection (1.0 staff-hours — the ROI number ticks). Anonymous
+  requesters: closure still works, letter noted as tracker-only.
 - **Compliance PDFs** (2026-08-04): `/app/requests/[id]/
   defensibility-report.pdf` and `/app/reports/annual-report.pdf`, both via
   `renderTextPdf` (no new dep). `buildDefensibilityReport` takes an
@@ -367,8 +374,18 @@ to write)**
    in the workspace so review status is honest.
 
 **Tier 3 — durability & scale**
-8. **Department-scoped accounts** — responders as first-class users (the
-   token link stays for the no-login path), department-filtered views.
+8. ~~**Department-scoped accounts**~~ **DONE** (2026-08-04 late): responder
+   role is live — real logins, `user_departments` wired through the repo
+   port (`listUserDepartmentIds`/`setUserDepartments`, tenancy-checked),
+   `/app/tasks` shows exactly the signed-in responder's departments' tasks
+   (fulfillment still happens on the one `/task/[token]` surface; the
+   no-login email path is untouched). Guard rule: `requireStaff` with NO
+   roles list default-denies responders (→ their task list), so every
+   coordinator page — current and future — is safe without edits; pages
+   that serve responders opt in via ALL_STAFF_ROLES. Admin roster gets
+   per-responder department checkboxes; seed adds sam@riverton.gov /
+   riverton-demo3 (Public Works). Coordinators also see /app/tasks as an
+   all-departments workload view.
 9. **Retention awareness / legal holds** — flag requested records nearing
    scheduled destruction (small new data model; prevents the catastrophic
    failure mode).
