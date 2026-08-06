@@ -611,6 +611,40 @@ export async function finalizeRedactionAction(input: {
   }
 }
 
+export async function finalizeVisualRedactionAction(input: {
+  agencySlug: string;
+  requestId: string;
+  documentId: string;
+  boxes: { page: number; x: number; y: number; w: number; h: number; reason: string }[];
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    const { getBlobStore } = await import("@/adapters/blobStore");
+    const { RedactionError } = await import("@/services/redactionService");
+    const { finalizeVisualRedaction } = await import("@/services/visualRedactionService");
+    try {
+      await finalizeVisualRedaction(
+        { ...deps, blobStore: getBlobStore() },
+        {
+          agencyId: staff.agencyId,
+          requestId: input.requestId,
+          documentId: input.documentId,
+          actorUserId: staff.userId, // the named human who finalizes
+          boxes: input.boxes,
+        },
+      );
+    } catch (e) {
+      if (e instanceof RedactionError) return { ok: false, error: e.message };
+      throw e;
+    }
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}/redact-visual`);
+    return { ok: true };
+  } catch (e) {
+    return fail("finalizeVisualRedaction", e);
+  }
+}
+
 export interface CopilotActionVM {
   type: "draft_message" | "propose_task" | "propose_extension" | "none";
   detail: string;

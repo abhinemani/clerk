@@ -98,17 +98,30 @@ export default async function RedactPage({
 
       {detail.source === "live" && docs.length > 1 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-          {docs.map((d) => (
-            <Link
-              key={d.id}
-              href={`/${slug}/app/requests/${id}/redact?doc=${d.id}`}
-              className={`btn btn-sm${selected?.id === d.id ? " btn-primary" : ""}`}
-              style={!d.hasText ? { opacity: 0.5, pointerEvents: "none" } : undefined}
-            >
-              {d.filename}
-              {!d.hasText && (d.scanLike && ocrEnabled ? " (scan — OCR running)" : " (no text)")}
-            </Link>
-          ))}
+          {docs.map((d) =>
+            d.hasText ? (
+              <Link
+                key={d.id}
+                href={`/${slug}/app/requests/${id}/redact?doc=${d.id}`}
+                className={`btn btn-sm${selected?.id === d.id ? " btn-primary" : ""}`}
+              >
+                {d.filename}
+              </Link>
+            ) : d.scanLike ? (
+              // No text layer, but there are pixels — the visual studio's case.
+              <Link
+                key={d.id}
+                href={`/${slug}/app/requests/${id}/redact-visual?doc=${d.id}`}
+                className="btn btn-sm"
+              >
+                {d.filename} (visual studio →)
+              </Link>
+            ) : (
+              <span key={d.id} className="btn btn-sm" style={{ opacity: 0.5, pointerEvents: "none" }}>
+                {d.filename} (no text)
+              </span>
+            ),
+          )}
         </div>
       )}
 
@@ -122,12 +135,15 @@ export default async function RedactPage({
           <p className="muted" style={{ margin: "6px 0 0", fontSize: "0.92rem" }}>
             {docs.length === 0
               ? "Documents arrive here when a department submits records for this request."
-              : docs.some((d) => d.scanLike) && ocrEnabled
-                ? "These look like scans — OCR is running in the background and text usually appears within a minute. Until it does, a document we can't read can't be certified as redacted."
-                : docs.some((d) => d.scanLike)
-                  ? "These look like scans, and this deployment has no OCR engine configured (set TESSERACT_PATH or OCR_ENDPOINT). A document we can't read can't be certified as redacted — withhold those documents or release them in full from the request page."
-                  : "A document we can't read can't be certified as redacted — withhold those documents or release them in full from the request page."}
+              : docs.some((d) => d.scanLike)
+                ? "These look like scans — redact them visually by drawing boxes on the page itself."
+                : "A document we can't read can't be certified as redacted — withhold those documents or release them in full from the request page."}
           </p>
+          {docs.some((d) => d.scanLike) && (
+            <Link href={`/${slug}/app/requests/${id}/redact-visual`} className="btn btn-sm btn-primary" style={{ marginTop: 12 }}>
+              Open the visual redaction studio →
+            </Link>
+          )}
         </div>
       ) : (
         <RedactionStudio

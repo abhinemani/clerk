@@ -59,6 +59,8 @@ export const documentMetaSchema = z
     releaseId: z.string().optional(),
     /** Deep link back to the system of record (§9.1 ingest payload). */
     deepLink: z.string().optional(),
+    /** Burned artifacts: which studio minted them ("text" | "visual"). */
+    redactionMode: z.enum(["text", "visual"]).optional(),
     /** Deterministic PII pre-scan tallies: { ssn: 2, phone: 5, … } (§6.5). */
     sensitivity: z.record(z.number()).optional(),
     publicationDecision: publicationDecisionSchema.optional(),

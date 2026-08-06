@@ -8,6 +8,28 @@ verified working in that window unless marked otherwise.
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
 **506 tests pass, typecheck clean** (as of `f454a17`, 2026-08-04 late night).
 
+**NEWEST (2026-08-06): VISUAL REDACTION SHIPPED** — the functional gap for
+scans/photos/PDFs without a text layer (the docs the text studio could only
+withhold). `/app/requests/[id]/redact-visual`: staff draw boxes on rendered
+pages; finalize BURNS the pixels server-side (decode → black rects →
+re-encode; content destroyed, not overlaid) and mints an image-only PDF
+under the same `redacted:{docId}` convention, so releaseService ships it
+unchanged. Invariant-1 machinery mirrored: `findUnburnedRegions` verifies
+the re-encoded bytes are black (the visual findLeaks); per-page byte check;
+artifact carries NO extractedText (OCR text never rides into a release).
+Pieces: `src/adapters/imageCodec.ts` (jpeg-js dep — pure JS — + hand-rolled
+PNG decoder), `src/domain/imagePdf.ts` (binary-safe assembly; its tests are
+the adversary round-trip via extractPdfImages), `visualRedactionService`,
+`VisualRedactionStudio` + page-image route, text-studio handoff links.
+Fixed along the way: extractPdfImages' scanner matched "stream" inside
+"endstream" and skipped real streams on tightly-packed PDFs. E2E
+(e2e/visualRedaction.spec.ts): portal file → keyword auto-dispatch →
+no-login scan upload → box → burn → artifact fetch; also proved the
+responder heads-up email live. NOT covered (honest): text-BORN PDFs still
+render only via the text studio (no pure-JS rasterizer — visual studio
+covers image-backed docs, which is the actual gap); OCR-suggested boxes
+(needs word boxes from tesseract TSV — follow-up).
+
 **RESUME HERE for the next session:** everything through referral phase 3,
 department-scoped accounts, answer-with-link, the platform-console redesign,
 and the go-live onboarding checklist is SHIPPED and verified (inventory

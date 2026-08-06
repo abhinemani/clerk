@@ -167,7 +167,10 @@ export function extractPdfImages(bytes: Buffer): { bytes: Buffer; mimeType: stri
   if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") return [];
   const raw = bytes.toString("latin1");
   const images: { bytes: Buffer; mimeType: string }[] = [];
-  const re = /stream\r?\n/g;
+  // (?<!end): "endstream\n" contains "stream\n" — matching it would swallow
+  // the NEXT real stream via the lastIndex skip (bit us with generated PDFs
+  // whose endstream/endobj/obj sequence packs tighter than scanner output).
+  const re = /(?<!end)stream\r?\n/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(raw))) {
     const start = m.index + m[0].length;
