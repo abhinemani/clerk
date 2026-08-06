@@ -4,7 +4,7 @@
  */
 import { crc32, deflateRawSync, deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { extractPdfImages, extractText } from "./textExtract";
+import { MAX_ZIP_MEMBER_BYTES, extractPdfImages, extractText, openZipArchive } from "./textExtract";
 import { renderTextPdf, MAX_COLS } from "@/domain/textPdf";
 import { applyRedactions, findLeaks, redactedValues } from "@/domain/redaction";
 
@@ -221,6 +221,62 @@ describe("extractText — DOCX", () => {
     const zip = buildZip([{ name: "readme.txt", data: "just a zip" }]);
     expect(extractText(zip, "application/zip")).toBeNull();
     expect(extractText(Buffer.from("PK\x03\x04garbage"), DOCX_MIME)).toBeNull();
+  });
+});
+
+describe("openZipArchive — decompression bomb guard", () => {
+  /** buildZip for Buffer payloads (the string helper would double memory). */
+  function buildZipRaw(entries: { name: string; raw: Buffer }[]): Buffer {
+    const chunks: Buffer[] = [];
+    const central: Buffer[] = [];
+    let offset = 0;
+    for (const e of entries) {
+      const body = deflateRawSync(e.raw);
+      const name = Buffer.from(e.name, "utf8");
+      const crc = crc32(e.raw);
+      const local = Buffer.alloc(30);
+      local.writeUInt32LE(0x04034b50, 0);
+      local.writeUInt16LE(20, 4);
+      local.writeUInt16LE(8, 8);
+      local.writeUInt32LE(crc, 14);
+      local.writeUInt32LE(body.length, 18);
+      local.writeUInt32LE(e.raw.length, 22);
+      local.writeUInt16LE(name.length, 26);
+      chunks.push(local, name, body);
+      const cen = Buffer.alloc(46);
+      cen.writeUInt32LE(0x02014b50, 0);
+      cen.writeUInt16LE(20, 6);
+      cen.writeUInt16LE(8, 10);
+      cen.writeUInt32LE(crc, 16);
+      cen.writeUInt32LE(body.length, 20);
+      cen.writeUInt32LE(e.raw.length, 24);
+      cen.writeUInt16LE(name.length, 28);
+      cen.writeUInt32LE(offset, 42);
+      central.push(cen, name);
+      offset += 30 + name.length + body.length;
+    }
+    const centralBuf = Buffer.concat(central);
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(entries.length, 8);
+    eocd.writeUInt16LE(entries.length, 10);
+    eocd.writeUInt32LE(centralBuf.length, 12);
+    eocd.writeUInt32LE(offset, 16);
+    return Buffer.concat([...chunks, centralBuf, eocd]);
+  }
+
+  it("refuses a member that inflates past the ceiling; honest members still read", () => {
+    // ~100 KB of deflate that wants to become >100 MB of zeros.
+    const bomb = Buffer.alloc(MAX_ZIP_MEMBER_BYTES + 1);
+    const zip = openZipArchive(
+      buildZipRaw([
+        { name: "bomb.bin", raw: bomb },
+        { name: "honest.txt", raw: Buffer.from("fine") },
+      ]),
+    );
+    expect(zip).not.toBeNull();
+    expect(zip!.read("bomb.bin")).toBeNull(); // aborted, treated as corrupt
+    expect(zip!.read("honest.txt")?.toString("utf8")).toBe("fine");
   });
 });
 

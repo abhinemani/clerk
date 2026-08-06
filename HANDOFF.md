@@ -68,6 +68,17 @@ below). The next priorities, in order (owner-reviewed 2026-08-04):
    public archive against a throwaway seeded PGlite; waits on the
    layout's `html[data-hydrated]` stamp (HydrationSignal) instead of
    sleeps — use that in any future browser automation too.
+   Second sweep (same night): responder heads-up email on dispatch
+   (task_responder_notice — sign-in pointer ONLY, the token link stays
+   with the dept inbox; invariant test pins that) · decision trail
+   rendered on Published/Kept rows (history table, cache fallback for
+   pre-0011 rows) · zip decompression-bomb ceiling (MAX_ZIP_MEMBER_BYTES
+   in textExtract — protects DOCX + records-import ZIPs) · sessionUser()
+   applies the instance check (header can't claim a session guards would
+   reject) · listPublicationQueues now delegates to the port predicate
+   (was a third copy) · upsertReview returns the STORED row on conflict
+   (Drizzle fabricated an id; conformance-pinned) · GitHub Actions CI
+   (.github/workflows/ci.yml: tsc + vitest + Playwright smoke).
 2. ~~Counsel sign-off~~ **DONE** (2026-08-05): per-agency
    `settings.statuteReview` on the (previously unused) portal_settings
    column — no migration. Compliance section on /app/admin shows the

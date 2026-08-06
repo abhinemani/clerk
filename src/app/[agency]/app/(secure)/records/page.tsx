@@ -4,14 +4,24 @@ import { getRepository } from "@/db/createRepository";
 import { getAgencyForSlug } from "@/lib/live";
 import { requireStaff } from "@/auth/guards";
 import { readDocumentMeta, sensitivitySummary } from "@/domain/documentMeta";
-import type { DocumentEntity, PublicationState } from "@/services/repository";
+import type { DocumentEntity, PublicationDecisionRow, PublicationState } from "@/services/repository";
 import { PublicationQueue, type QueueDocVM } from "../../../../_components/PublicationQueue";
 
 export const dynamic = "force-dynamic";
 
 type Tab = "undecided" | "published" | "internal";
 
-function toVM(d: DocumentEntity, sourceNames: Map<string, string>): QueueDocVM {
+const DECISION_LABEL: Record<PublicationDecisionRow["decision"], string> = {
+  published: "Published",
+  kept_internal: "Kept internal",
+  unpublished: "Unpublished",
+};
+
+function toVM(
+  d: DocumentEntity,
+  sourceNames: Map<string, string>,
+  history: PublicationDecisionRow[] = [],
+): QueueDocVM {
   const meta = readDocumentMeta(d);
   const preview = d.extractedText ? d.extractedText.slice(0, 240) : null;
   return {
@@ -43,6 +53,17 @@ function toVM(d: DocumentEntity, sourceNames: Map<string, string>): QueueDocVM {
           at: meta.publicationDecision.at.slice(0, 10),
         }
       : null,
+    // The append-only trail (oldest first, reading order). Rows decided
+    // before the history table existed fall back to the cache line above.
+    history: history
+      .slice()
+      .reverse()
+      .map((h) => ({
+        label: DECISION_LABEL[h.decision],
+        byName: h.byName,
+        at: h.createdAt.toISOString().slice(0, 10),
+        reason: h.reason,
+      })),
   };
 }
 
@@ -89,7 +110,19 @@ export default async function RecordsQueuePage({
   const lastRow = docs[docs.length - 1];
   const nextCursor =
     page.length > PAGE_SIZE && lastRow ? `${lastRow.createdAt.toISOString()}_${lastRow.id}` : null;
-  const vms = docs.map((d) => toVM(d, sourceNames));
+
+  // Decided tabs show the append-only trail per row (who did what, when, why).
+  const historyByDoc = new Map<string, PublicationDecisionRow[]>();
+  if (tab !== "undecided" && docs.length > 0) {
+    const pageIds = new Set(docs.map((d) => d.id));
+    for (const row of await repo.listPublicationDecisions(agency.id)) {
+      if (!pageIds.has(row.documentId)) continue;
+      const list = historyByDoc.get(row.documentId) ?? [];
+      list.push(row);
+      historyByDoc.set(row.documentId, list);
+    }
+  }
+  const vms = docs.map((d) => toVM(d, sourceNames, historyByDoc.get(d.id)));
 
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "undecided", label: "Undecided", count: counts.undecided },

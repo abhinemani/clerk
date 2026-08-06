@@ -381,14 +381,19 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect(await repo.listMessages(AG2, r.id)).toEqual([]);
     });
 
-    it("reviews: one decision per (request, document); re-deciding replaces", async () => {
+    it("reviews: one decision per (request, document); re-deciding replaces and returns the STORED row", async () => {
       const r = await repo.createRequest(requestOf());
       const d = await repo.createDocument(docOf());
-      await repo.upsertReview({ id: uid(), agencyId: AG1, requestId: r.id, documentId: d.id, decision: "withhold", exemptionLabel: "PII", decidedByUserId: USER1, createdAt: new Date() });
-      await repo.upsertReview({ id: uid(), agencyId: AG1, requestId: r.id, documentId: d.id, decision: "release", exemptionLabel: null, decidedByUserId: USER1, createdAt: new Date() });
+      const first = await repo.upsertReview({ id: uid(), agencyId: AG1, requestId: r.id, documentId: d.id, decision: "withhold", exemptionLabel: "PII", decidedByUserId: USER1, createdAt: new Date() });
+      const second = await repo.upsertReview({ id: uid(), agencyId: AG1, requestId: r.id, documentId: d.id, decision: "release", exemptionLabel: null, decidedByUserId: USER1, createdAt: new Date() });
+      // The original row survives a re-decide — the returned id must be the
+      // stored one, never the discarded input id.
+      expect(second.id).toBe(first.id);
+      expect(second.decision).toBe("release");
       const reviews = await repo.listReviews(AG1, r.id);
       expect(reviews).toHaveLength(1);
       expect(reviews[0]?.decision).toBe("release");
+      expect(reviews[0]?.id).toBe(first.id);
     });
 
     it("releases: lookup by id and by contained document, tenant-scoped", async () => {

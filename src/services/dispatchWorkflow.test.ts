@@ -81,6 +81,59 @@ describe("dispatchTask delivery", () => {
   });
 });
 
+describe("dispatchTask — responder heads-up (department-scoped accounts)", () => {
+  async function setupWithResponders() {
+    const ctx = await setup();
+    await ctx.repo.createDepartment({ id: "dept-pw", agencyId: "ag-1", name: "Public Works", defaultResponderEmails: [] });
+    await ctx.repo.createDepartment({ id: "dept-pd", agencyId: "ag-1", name: "Police Records", defaultResponderEmails: [] });
+    await ctx.repo.createUser({ id: "u-sam", agencyId: "ag-1", email: "sam@riverton.gov", name: "Sam Iyer", role: "responder", passwordHash: "x" });
+    await ctx.repo.createUser({ id: "u-kai", agencyId: "ag-1", email: "kai@riverton.gov", name: "Kai Ortiz", role: "responder", passwordHash: "x" });
+    await ctx.repo.createUser({ id: "u-dana", agencyId: "ag-1", email: "dana@riverton.gov", name: "Dana", role: "coordinator", passwordHash: "x" });
+    await ctx.repo.setUserDepartments("ag-1", "u-sam", ["dept-pw"]);
+    await ctx.repo.setUserDepartments("ag-1", "u-kai", ["dept-pd"]);
+    return ctx;
+  }
+
+  it("notifies the dispatched department's responders — sign-in pointer, NO token", async () => {
+    const { deps, notifier, repo, requestId } = await setupWithResponders();
+    const task = await dispatchTask(deps, {
+      agencyId: "ag-1",
+      requestId,
+      departmentId: "dept-pw",
+      departmentName: "Public Works",
+      departmentEmail: "mbell@riverton.gov",
+      scopeText: "Inspection reports.",
+    });
+
+    const notices = notifier.sent.filter((m) => m.kind === "task_responder_notice");
+    expect(notices.map((m) => m.to)).toEqual(["sam@riverton.gov"]); // Kai is Police Records — not notified
+    // The credential link stays with the department inbox ONLY (handoff rule):
+    // a forwarded heads-up must not carry fulfillment authority.
+    expect(notices[0]!.body).not.toContain(task.token);
+    expect(notices[0]!.body).toContain("https://clerk.example/riverton/app/tasks");
+
+    const events = await repo.listEvents("ag-1", requestId);
+    const headsUp = events.find((e) => e.summary.includes("Heads-up"));
+    expect(headsUp?.payload?.to).toEqual(["sam@riverton.gov"]);
+  });
+
+  it("skips coordinators, other departments, and the dept inbox itself", async () => {
+    const { deps, notifier, repo } = await setupWithResponders();
+    // Sam's login email IS the department inbox — no duplicate notice.
+    await repo.updateUser("ag-1", "u-sam", { email: "mbell@riverton.gov" });
+    const request2 = await submitRequest(deps, { agencyId: "ag-1", rawText: "more records" });
+    await dispatchTask(deps, {
+      agencyId: "ag-1",
+      requestId: request2.id,
+      departmentId: "dept-pw",
+      departmentName: "Public Works",
+      departmentEmail: "mbell@riverton.gov",
+      scopeText: "s",
+    });
+    expect(notifier.sent.filter((m) => m.kind === "task_responder_notice")).toHaveLength(0);
+  });
+});
+
 describe("remindResponder", () => {
   it("sends a reminder and logs it as a delivery", async () => {
     const { deps, notifier, repo, requestId } = await setup();

@@ -97,6 +97,51 @@ export async function dispatchTask(deps: ServiceDeps, input: DispatchTaskInput):
     });
   }
 
+  // Signed-up responders of this department get a heads-up too — WITHOUT the
+  // token. The no-login credential link goes to the department inbox only;
+  // responders with accounts work from /app/tasks behind their own login,
+  // so this email can't leak fulfillment authority if forwarded.
+  if (deps.notifier && input.departmentId) {
+    const [agency, users] = await Promise.all([repo.getAgency(input.agencyId), repo.listUsers(input.agencyId)]);
+    const notified: string[] = [];
+    for (const user of users) {
+      if (user.role !== "responder" || user.email === input.departmentEmail) continue;
+      const departmentIds = await repo.listUserDepartmentIds(input.agencyId, user.id);
+      if (!departmentIds.includes(input.departmentId)) continue;
+      await deps.notifier.send({
+        agencyId: input.agencyId,
+        to: user.email,
+        subject: `New records task for ${input.departmentName ?? "your department"} — ${request.publicId}`,
+        body: [
+          `${user.name ?? "Hello"},`,
+          ``,
+          `A records task was just assigned to ${input.departmentName ?? "your department"}:`,
+          ``,
+          `  ${input.scopeText}`,
+          ``,
+          `Sign in to your task list to work it:`,
+          `  ${deps.baseUrl ?? ""}/${agency?.slug ?? ""}/app/tasks`,
+        ].join("\n"),
+        kind: "task_responder_notice",
+        requestId: request.id,
+        taskId: task.id,
+      });
+      notified.push(user.email);
+    }
+    if (notified.length > 0) {
+      await repo.appendEvent({
+        id: deps.genId(),
+        agencyId: input.agencyId,
+        requestId: request.id,
+        kind: "delivery",
+        actorUserId: input.actorUserId ?? null,
+        summary: `Heads-up sent to ${notified.length} signed-in responder${notified.length === 1 ? "" : "s"} (${input.departmentName ?? "department"})`,
+        payload: { taskId: task.id, to: notified },
+        createdAt: deps.now(),
+      });
+    }
+  }
+
   return task;
 }
 

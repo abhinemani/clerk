@@ -15,6 +15,8 @@
 export type NotificationKind =
   | "task_dispatch"
   | "task_reminder"
+  /** Sign-in heads-up to a department's account-holding responders (no token). */
+  | "task_responder_notice"
   | "requester_update"
   | "account_verify"
   | "password_reset"

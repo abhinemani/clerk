@@ -106,8 +106,15 @@ export async function requirePlatformAdmin(): Promise<void> {
   if (!(await instanceMatches(session.user.inst))) redirect("/admin/login");
 }
 
-/** Non-redirecting session peek for UI chrome (nav links, prefills). */
+/**
+ * Non-redirecting session peek for UI chrome (nav links, prefills). Applies
+ * the SAME instance check as the guards — otherwise the header says
+ * "Signed in as X" from a stale cookie the guards would reject, and the
+ * chrome lies about a session that grants nothing.
+ */
 export async function sessionUser() {
   const session = await auth();
-  return session?.user ?? null;
+  const u = session?.user ?? null;
+  if (!u) return null;
+  return (await instanceMatches(u.inst)) ? u : null;
 }

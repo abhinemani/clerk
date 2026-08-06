@@ -1302,7 +1302,10 @@ export class DrizzleRepository implements Repository {
   }
 
   async upsertReview(r: ReviewEntity): Promise<ReviewEntity> {
-    await this.db
+    // .returning() so a re-decide reports the STORED row — on conflict the
+    // original row (and id) survives; returning the input would fabricate an
+    // id that exists nowhere (the InMemory adapter always kept the stored id).
+    const rows = await this.db
       .insert(reviews)
       .values({
         id: r.id,
@@ -1317,8 +1320,19 @@ export class DrizzleRepository implements Repository {
       .onConflictDoUpdate({
         target: [reviews.requestId, reviews.documentId],
         set: { decision: r.decision, exemptionLabel: r.exemptionLabel, decidedByUserId: r.decidedByUserId },
-      });
-    return r;
+      })
+      .returning();
+    const row = rows[0]!;
+    return {
+      id: row.id,
+      agencyId: row.agencyId,
+      requestId: row.requestId,
+      documentId: row.documentId,
+      decision: row.decision,
+      exemptionLabel: row.exemptionLabel,
+      decidedByUserId: row.decidedByUserId ?? "",
+      createdAt: row.createdAt,
+    };
   }
   async listReviews(agencyId: string, requestId: string): Promise<ReviewEntity[]> {
     const rows = await this.db

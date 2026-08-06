@@ -275,6 +275,15 @@ export function openZipArchive(
   };
 }
 
+/**
+ * Decompression-bomb ceiling per zip member. A few KB of crafted deflate
+ * stream can inflate to gigabytes; zlib aborts the inflate the moment output
+ * exceeds this, so a hostile ZIP (records import) or DOCX costs bounded
+ * memory. Far above any legitimate document part; a member that trips it is
+ * treated like a corrupt entry.
+ */
+export const MAX_ZIP_MEMBER_BYTES = 100 * 1024 * 1024; // 100 MB
+
 function readZipEntry(bytes: Buffer, entries: Map<string, ZipEntry>, name: string): Buffer | null {
   const entry = entries.get(name);
   if (!entry) return null;
@@ -286,10 +295,10 @@ function readZipEntry(bytes: Buffer, entries: Map<string, ZipEntry>, name: strin
   const dataStart = at + 30 + nameLen + extraLen;
   const body = bytes.subarray(dataStart, dataStart + entry.compressedSize);
   try {
-    if (entry.method === 8) return inflateRawSync(body);
+    if (entry.method === 8) return inflateRawSync(body, { maxOutputLength: MAX_ZIP_MEMBER_BYTES });
     if (entry.method === 0) return Buffer.from(body);
   } catch {
-    // Corrupt entry — treat as absent.
+    // Corrupt entry (or a decompression bomb) — treat as absent.
   }
   return null;
 }

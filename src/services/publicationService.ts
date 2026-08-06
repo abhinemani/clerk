@@ -14,15 +14,17 @@ import {
   type PublicationDecision,
 } from "@/domain/documentMeta";
 import type { ServiceDeps } from "./deps";
-import { NotFoundError, type DocumentEntity, type SourceEntity } from "./repository";
+import {
+  NotFoundError,
+  type DocumentEntity,
+  type PublicationState,
+  type SourceEntity,
+} from "./repository";
 
 export class PublicationError extends Error {}
 
 export type { PublicationDecision };
 
-function decisionOf(doc: DocumentEntity): PublicationDecision | null {
-  return readDocumentMeta(doc).publicationDecision ?? null;
-}
 
 /** Burned redaction artifacts belong to the release flow, never this queue. */
 function isReleaseArtifact(doc: DocumentEntity): boolean {
@@ -43,19 +45,24 @@ export interface PublicationQueues {
  * excluded everywhere — those belong to the request review flow (no
  * double-review), and their path to the archive is a release.
  */
-export async function listPublicationQueues(deps: ServiceDeps, agencyId: string): Promise<PublicationQueues> {
-  const [docs, attachedIds] = await Promise.all([
-    deps.repo.listDocuments(agencyId),
-    deps.repo.listAttachedDocumentIds(agencyId),
-  ]);
-  const attached = new Set(attachedIds);
-  const eligible = docs.filter((d) => !attached.has(d.id) && !isReleaseArtifact(d));
+/**
+ * All three queues at once (service-level convenience; the /app/records page
+ * itself pages through the same port methods). Delegates entirely to
+ * listPublicationDocuments so the queue predicate lives in EXACTLY ONE place
+ * per adapter — pinned against both by the conformance suite. A third copy
+ * here already drifted once; don't reintroduce it.
+ */
+const QUEUE_VIEW_LIMIT = 1000;
 
-  return {
-    undecided: eligible.filter((d) => d.classification === "internal" && decisionOf(d) == null),
-    published: eligible.filter((d) => d.classification === "public"),
-    keptInternal: eligible.filter((d) => d.classification === "internal" && decisionOf(d)?.decision === "internal"),
-  };
+export async function listPublicationQueues(deps: ServiceDeps, agencyId: string): Promise<PublicationQueues> {
+  const page = (state: PublicationState) =>
+    deps.repo.listPublicationDocuments(agencyId, state, { limit: QUEUE_VIEW_LIMIT });
+  const [undecided, published, keptInternal] = await Promise.all([
+    page("undecided"),
+    page("published"),
+    page("kept_internal"),
+  ]);
+  return { undecided, published, keptInternal };
 }
 
 export interface ArchiveMeta {

@@ -38,6 +38,8 @@ export interface QueueDocVM {
     sensitivityNote: string | null;
   } | null;
   decision: { decision: string; byName: string; at: string } | null;
+  /** Append-only decision trail, oldest first ("Published by X · date — reason"). */
+  history: { label: string; byName: string; at: string; reason: string | null }[];
 }
 
 type Mode = "undecided" | "published" | "internal";
@@ -251,7 +253,19 @@ export function PublicationQueue({
                       )}
                     </div>
                   )}
-                  {d.decision && mode !== "undecided" && (
+                  {/* The append-only trail; rows decided before the history
+                      table existed fall back to the cached last decision. */}
+                  {mode !== "undecided" && d.history.length > 0 && (
+                    <ul style={{ listStyle: "none", margin: "6px 0 0", padding: 0 }}>
+                      {d.history.map((h, i) => (
+                        <li key={i} className="muted" style={{ fontSize: "0.78rem" }}>
+                          {h.label} by {h.byName} · {h.at}
+                          {h.reason ? ` — ${h.reason}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {mode !== "undecided" && d.history.length === 0 && d.decision && (
                     <p className="muted" style={{ fontSize: "0.78rem", margin: "6px 0 0" }}>
                       {d.decision.decision === "published" ? "Published" : "Kept internal"} by {d.decision.byName} ·{" "}
                       {d.decision.at}
