@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { branding } from "@/config/branding";
 import {
   createAgencyAction,
   linkDirectoryPeerAction,
@@ -330,7 +331,7 @@ export function DirectoryPeerLinks({
                 style={{ fontSize: "0.85rem", padding: "7px 10px", maxWidth: 260 }}
                 value={e.peerAgencyId ?? ""}
                 disabled={pending}
-                aria-label={`Clerk tenant for ${e.name}`}
+                aria-label={`${branding.productName} tenant for ${e.name}`}
                 onChange={(ev) => {
                   const peerAgencyId = ev.target.value || null;
                   setError(null);
@@ -345,7 +346,7 @@ export function DirectoryPeerLinks({
                   });
                 }}
               >
-                <option value="">Not a Clerk tenant</option>
+                <option value="">Not a {branding.productName} tenant</option>
                 {agencies.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name} (/{a.slug})

@@ -8,6 +8,7 @@
 import { AuthError } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { signIn, signOut } from "@/auth";
+import { branding } from "@/config/branding";
 import { requirePlatformAdmin } from "@/auth/guards";
 import { getRepository } from "@/db/createRepository";
 import {
@@ -138,7 +139,7 @@ export async function linkDirectoryPeerAction(input: {
       kind: "directory_changed",
       actorLabel: "platform operator",
       summary: input.peerAgencyId
-        ? `Linked directory entry "${entry.name}" to a Clerk tenant — forwarding enabled`
+        ? `Linked directory entry "${entry.name}" to a ${branding.productName} tenant — forwarding enabled`
         : `Unlinked directory entry "${entry.name}" — forwarding disabled`,
       payload: { entryId: input.entryId, peerAgencyId: input.peerAgencyId },
       createdAt: new Date(),

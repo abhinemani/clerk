@@ -7,6 +7,7 @@
  * stays honest.
  */
 import { useState, useTransition } from "react";
+import { branding } from "@/config/branding";
 import {
   forwardRequestAction,
   referRequestAction,
@@ -179,7 +180,7 @@ export function ReferPanel({
               {targets.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
-                  {t.peerLinked ? " ⚡ on Clerk" : ""}
+                  {t.peerLinked ? ` ⚡ on ${branding.productName}` : ""}
                   {t.recordTypes.length > 0 ? ` — ${t.recordTypes.slice(0, 3).join(", ")}` : ""}
                 </option>
               ))}
@@ -188,7 +189,7 @@ export function ReferPanel({
 
           {selected?.peerLinked && (
             <div className="card" style={{ marginTop: 10, padding: "10px 12px", borderLeft: "3px solid var(--accent)", fontSize: "0.85rem" }}>
-              <strong>{selected.name} is on this Clerk deployment.</strong> Referring will re-file
+              <strong>{selected.name} is on this {branding.productName} deployment.</strong> Referring will re-file
               the request with them directly — same text, new tracking number, nothing for the
               requester to rewrite.
             </div>

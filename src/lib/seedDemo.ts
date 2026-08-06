@@ -7,6 +7,7 @@
  * Idempotent: a seeded database returns { seeded: false } untouched.
  */
 import { blobKey, checksumOf, getBlobStore } from "@/adapters/blobStore";
+import { branding } from "@/config/branding";
 import { hashPassword } from "@/auth/passwords";
 import { extractText } from "@/adapters/textExtract";
 import { getDb, getRepository } from "@/db/createRepository";
@@ -426,7 +427,7 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
     contactPhone: null,
     portalUrl: null,
     recordTypes: ["Bellmar city records", "sheriff records", "parks records"],
-    notes: "Neighboring city on this Clerk deployment — referrals forward directly.",
+    notes: `Neighboring city on this ${branding.productName} deployment — referrals forward directly.`,
   });
 
   console.log("Seeded City of Riverton (/riverton) and City of Bellmar (/bellmar).");

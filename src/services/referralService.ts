@@ -11,6 +11,7 @@
  * withheld them. Conflating the two corrupts the denial rate an agency
  * publishes, and makes an office look secretive when it was being helpful.
  */
+import { branding } from "@/config/branding";
 import { assertTransition } from "@/domain/requestLifecycle";
 import type { ServiceDeps } from "./deps";
 import {
@@ -334,7 +335,7 @@ export async function forwardRequest(
   if (!target) throw new NotFoundError("DirectoryEntry", input.directoryEntryId);
   if (!actor) throw new NotFoundError("User", input.actorUserId);
   if (!target.peerAgencyId) {
-    throw new ReferralError(`${target.name} is not linked to a Clerk tenant — use Refer instead.`);
+    throw new ReferralError(`${target.name} is not linked to a ${branding.productName} tenant — use Refer instead.`);
   }
   if (target.peerAgencyId === input.agencyId) {
     throw new ReferralError("A request cannot be forwarded to its own agency.");

@@ -8,6 +8,7 @@
  * Clerk tenants.
  */
 import { useState, useTransition } from "react";
+import { branding } from "@/config/branding";
 import {
   deleteDirectoryEntryAction,
   saveDirectoryEntryAction,
@@ -122,7 +123,7 @@ export function DirectoryManager({ agencySlug, rows }: { agencySlug: string; row
                       <span
                         className="tag"
                         style={{ marginLeft: 6, fontSize: "0.68rem" }}
-                        title="This agency runs on the same Clerk deployment — referrals forward the request directly. Links are managed by the platform operator."
+                        title={`This agency runs on the same ${branding.productName} deployment — referrals forward the request directly. Links are managed by the platform operator.`}
                       >
                         ⚡ forwarding
                       </span>

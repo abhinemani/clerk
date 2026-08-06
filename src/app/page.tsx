@@ -197,7 +197,10 @@ export default function MarketingHome() {
             response, New York's FOIL — configured, not coded.
           </p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 20, flexWrap: "wrap" }}>
-            <a href="mailto:hello@clerk.example?subject=Clerk%20demo" className="btn btn-maroon">
+            <a
+              href={`mailto:hello@holmes.example?subject=${encodeURIComponent(`${branding.productName} demo`)}`}
+              className="btn btn-maroon"
+            >
               Request a demo
             </a>
             <Link href="/riverton" className="btn">

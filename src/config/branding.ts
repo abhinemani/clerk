@@ -4,9 +4,9 @@
  * row (§5); this is the platform-level product identity.
  */
 export const branding = {
-  productName: "Clerk",
+  productName: "Holmes",
   tagline: "An AI-native public records request platform",
-  supportEmail: "support@clerk.example",
+  supportEmail: "support@holmes.example",
 } as const;
 
 export type Branding = typeof branding;
