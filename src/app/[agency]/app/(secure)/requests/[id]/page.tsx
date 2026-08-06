@@ -31,6 +31,7 @@ import {
   type ReleaseVM,
   type ReviewDocVM,
 } from "../../../../../_components/ReviewRelease";
+import { MailboxImportPanel } from "../../../../../_components/MailboxImportPanel";
 import {
   RequestWorkspace,
   type SuggestionVM,
@@ -601,6 +602,14 @@ export default async function RequestDetail({
             denied={r.status === "denied" || (r.status === "closed" && !releaseVM && reviewDocs.some((d) => d.decision === "withhold"))}
             exemptionOptions={exemptionOptions}
           />
+        </div>
+      )}
+
+      {/* Email fulfillment: most responsive records ARE emails — bring in the
+          custodian's export without asking IT for anything fancier. */}
+      {detail.source === "live" && r.closedAt == null && (
+        <div style={{ marginTop: 24, maxWidth: 720 }}>
+          <MailboxImportPanel agencySlug={slug} requestId={r.id} />
         </div>
       )}
 

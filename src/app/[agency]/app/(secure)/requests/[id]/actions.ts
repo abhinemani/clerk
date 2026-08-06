@@ -645,6 +645,108 @@ export async function finalizeVisualRedactionAction(input: {
   }
 }
 
+const MAX_MAILBOX_BYTES = 95 * 1024 * 1024; // under the 100mb server-action limit
+
+export interface MailboxPreview {
+  ok: true;
+  messages: number;
+  unparseable: number;
+  attachments: number;
+  dateRange: { from: string; to: string } | null;
+  sampleSubjects: string[];
+}
+
+/**
+ * Mailbox import, step 1: parse-only preview. The SAME parser the import
+ * runs — what you preview is exactly what gets written.
+ */
+export async function previewMailboxImportAction(
+  input: { agencySlug: string; requestId: string },
+  formData: FormData,
+): Promise<MailboxPreview | { ok: false; error: string }> {
+  await ctx(input.agencySlug);
+  const file = formData.get("mailbox");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose a mailbox file first." };
+  if (file.size > MAX_MAILBOX_BYTES) return { ok: false, error: "Keep mailbox uploads under 95 MB — split the export." };
+
+  const { parseMailboxUpload } = await import("@/services/mailboxImportService");
+  const parsed = parseMailboxUpload(Buffer.from(await file.arrayBuffer()), file.name);
+  if (!parsed || parsed.messages.length === 0) {
+    return { ok: false, error: "That file doesn't look like a mailbox export (.mbox, .eml, or a ZIP of .eml files)." };
+  }
+  const dates = parsed.messages.map((m) => m.date).filter((d): d is Date => d != null);
+  return {
+    ok: true,
+    messages: parsed.messages.length,
+    unparseable: parsed.unparseable.length,
+    attachments: parsed.messages.reduce((n, m) => n + m.attachments.length, 0),
+    dateRange:
+      dates.length > 0
+        ? {
+            from: new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString().slice(0, 10),
+            to: new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString().slice(0, 10),
+          }
+        : null,
+    sampleSubjects: parsed.messages.slice(0, 6).map((m) => m.subject ?? "(no subject)"),
+  };
+}
+
+export async function runMailboxImportAction(
+  input: { agencySlug: string; requestId: string },
+  formData: FormData,
+): Promise<
+  | { ok: true; messages: number; attachments: number; refused: string[]; unparseable: number }
+  | { ok: false; error: string }
+> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    const file = formData.get("mailbox");
+    if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose a mailbox file first." };
+    if (file.size > MAX_MAILBOX_BYTES) return { ok: false, error: "Keep mailbox uploads under 95 MB — split the export." };
+
+    const { getBlobStore } = await import("@/adapters/blobStore");
+    const { getVirusScanner } = await import("@/adapters/virusScan");
+    const { importMailbox, MailboxImportError } = await import("@/services/mailboxImportService");
+    let result;
+    try {
+      result = await importMailbox(
+        { ...deps, blobStore: getBlobStore(), virusScanner: getVirusScanner() },
+        {
+          agencyId: staff.agencyId,
+          requestId: input.requestId,
+          actorUserId: staff.userId,
+          filename: file.name,
+          bytes: Buffer.from(await file.arrayBuffer()),
+        },
+      );
+    } catch (e) {
+      if (e instanceof MailboxImportError) return { ok: false, error: e.message };
+      throw e;
+    }
+
+    // AI proposes off the request path (no-ops without a key); staff-search
+    // vectors for the new corpus docs; OCR for text-less attachments.
+    const { getJobQueue } = await import("@/jobs/queue");
+    getJobQueue().enqueue("exemption_pass", { agencyId: staff.agencyId, requestId: input.requestId });
+    getJobQueue().enqueue("embed_document_chunks", { agencyId: staff.agencyId });
+    if (result.textlessAttachments > 0) {
+      getJobQueue().enqueue("ocr_extract", { agencyId: staff.agencyId, requestId: input.requestId });
+    }
+
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    return {
+      ok: true,
+      messages: result.messages,
+      attachments: result.attachments,
+      refused: result.refused,
+      unparseable: result.unparseable.length,
+    };
+  } catch (e) {
+    console.error("runMailboxImport failed", e);
+    return { ok: false, error: "Import failed — nothing was written." };
+  }
+}
+
 export interface CopilotActionVM {
   type: "draft_message" | "propose_task" | "propose_extension" | "none";
   detail: string;

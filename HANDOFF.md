@@ -8,7 +8,27 @@ verified working in that window unless marked otherwise.
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
 **506 tests pass, typecheck clean** (as of `f454a17`, 2026-08-04 late night).
 
-**NEWEST (2026-08-06): VISUAL REDACTION SHIPPED** — the functional gap for
+**NEWEST (2026-08-06 later): EMAIL INGESTION SHIPPED** — "most responsive
+records ARE emails." Request detail gains "Import a mailbox export"
+(coordinator-facing, open requests): .mbox / single .eml / ZIP-of-.eml →
+preview (count, date range, subjects; same parser as import) → every
+message becomes a review-set document (raw RFC 822 bytes preserved as the
+record, mimeType message/rfc822, recordType "email", searchable
+headers+body rendition as extractedText, deterministic PII stamps) and
+every attachment its own linked document (extracted, OCR-queued if
+text-less). Fail-closed PER ITEM: infected/oversize items are refused +
+reported, the rest import; one named-actor audit event carries all counts
++ refusals. Parser: src/adapters/mailbox.ts (pure — mbox framing, nested
+MIME, base64/QP, RFC 2047 headers, HTML→text, >From unescaping).
+Service: mailboxImportService (importMailbox / parseMailboxUpload).
+Server-action body limit raised 25→100 MB (per-file caps stay 25 MB).
+E2E: e2e/mailboxImport.spec.ts. NOTE: playwright now runs workers:1 — the
+specs share one server+DB and parallel runs raced (we hit this).
+Follow-ups: threading view (messages carry emailFrom/To/Date metadata,
+grouping is a UI exercise), PST support (needs a real parser — punt until
+demanded; IT can export mbox/eml), dedupe on Message-ID.
+
+**PREVIOUS (2026-08-06): VISUAL REDACTION SHIPPED** — the functional gap for
 scans/photos/PDFs without a text layer (the docs the text studio could only
 withhold). `/app/requests/[id]/redact-visual`: staff draw boxes on rendered
 pages; finalize BURNS the pixels server-side (decode → black rects →

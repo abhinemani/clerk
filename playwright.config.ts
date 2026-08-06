@@ -19,6 +19,9 @@ export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
   retries: process.env.CI ? 1 : 0,
+  // ONE worker: all specs share one dev server + database; parallel specs
+  // mutating the same seeded requests race each other (we hit this).
+  workers: 1,
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",

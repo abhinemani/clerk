@@ -88,7 +88,12 @@ test("visual spine: file → auto-dispatch → scan upload → draw box → burn
   await page.getByRole("link", { name: new RegExp(scopeTag.slice(0, 30)) }).first().click();
   await page.getByRole("link", { name: "Redact" }).click();
   await waitHydrated(page);
-  await page.getByRole("link", { name: /visual redaction studio/i }).click();
+  // Entry differs by review-set shape: the empty-state button when nothing
+  // has text, the per-doc chip when other text docs exist. Accept either.
+  await page
+    .getByRole("link", { name: /visual redaction studio|visual studio/i })
+    .first()
+    .click();
   await waitHydrated(page);
 
   // --- draw a box over the top of the page and burn -------------------------
