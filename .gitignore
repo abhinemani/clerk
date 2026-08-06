@@ -18,9 +18,6 @@ next-env.d.ts
 .env
 .env*.local
 
-# drizzle
-/drizzle/meta
-
 # misc
 .DS_Store
 *.pem

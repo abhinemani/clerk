@@ -1,0 +1,90 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1785271061128,
+      "tag": "0000_sudden_stark_industries",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785273342839,
+      "tag": "0001_wealthy_viper",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785275261707,
+      "tag": "0002_special_daredevil",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785371191342,
+      "tag": "0003_living_madame_masque",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785371246742,
+      "tag": "0004_short_rawhide_kid",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785384117139,
+      "tag": "0005_misty_makkari",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785889101675,
+      "tag": "0006_panoramic_stryfe",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785891880887,
+      "tag": "0007_lonely_human_fly",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785894712278,
+      "tag": "0008_old_shape",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785965922768,
+      "tag": "0009_curvy_zaran",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785966220873,
+      "tag": "0010_spotty_secret_warriors",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785969804614,
+      "tag": "0011_true_mesmero",
+      "breakpoints": true
+    }
+  ]
+}
