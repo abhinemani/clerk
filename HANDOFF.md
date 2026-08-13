@@ -7,10 +7,39 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**745 tests pass, typecheck clean** (as of the 2026-08-13 studio-round-2
+**755 tests pass, typecheck clean** (as of the 2026-08-13 phase-4
 entry below).
 
-**NEWEST (2026-08-13 night): REDACTION STUDIO ROUND 2 + COPILOT PREFILL.**
+**NEWEST (2026-08-13 late night): RAG'D TRIAGE + ROUTING (ANSWER-FIRST
+PHASE 4) + LAPTOP DOC MOBILE CHECKLIST.**
+Owner-directed. The last unbuilt piece of docs/answer-first.md is live —
+see that doc's phase-4 section for the full design; the short version:
+- `requests.embedding` finally has writers: best-effort at submit (a
+  provider outage never blocks filing — tripwire test guards the silent
+  path) + `embed_requests` boot backfill so legacy-imported history joins
+  the precedent corpus.
+- `similarRequestsService.findResolvedPrecedents()`: k nearest
+  HUMAN-REVIEWED requests (interpretedScope set; closed ranks above open),
+  cosine over stored vectors with per-request and whole-call lexical
+  degradation, noise floor instead of force-filled k. Staff-only surface.
+- Intake triage + routing prompts bumped to 2026-08-13.1: precedents as
+  calibration/custodian evidence with explicit contamination guardrails.
+  ⚠ EVAL DEBT WIDENED: request_match AND both 2026-08-13.1 prompts now
+  await the first keyed `npm run eval`; the golden set gained RAG cases
+  including a scope-contamination check (`scopeExcludes` grader support),
+  so that one run covers everything.
+- Both ai_action events cite the precedent publicIds the model saw.
+- docs/laptop-setup.md gained the "⚡ keep coding from your phone"
+  checklist up top: Anthropic + Voyage keys into the claude.ai environment
+  settings (+ network-policy note), then hand Part B to any phone-started
+  session. After that, only Docker (Part C) and email/DNS (Part D)
+  genuinely need a laptop.
+755 tests (10 new), typecheck clean. Not verifiable live here (triage needs
+a key) — the retrieval, writes, degradation, and grader paths are all
+unit-tested offline; first keyed session should file a request and eyeball
+the precedent citations in the audit trail.
+
+**PREVIOUS (2026-08-13 night): REDACTION STUDIO ROUND 2 + COPILOT PREFILL.**
 The tier-1.5 "likely next asks" plus the copilot-prefill gap, all
 browser-verified through the real spine (resident files → task upload →
 studio):
@@ -873,8 +902,11 @@ and appeal-defense packet builder first). Bucket A is fully wired.
 - The Elasticsearch adapter has never been exercised against a live
   cluster; the S3/MinIO adapter has never round-tripped against live MinIO.
   (Both on the laptop-setup verification-debt list.)
-- `requests.embedding` exists and nothing writes it (answer-first phase 3
-  remainder); phase 4 (RAG'd triage prompts) is specified, not built.
+- ~~`requests.embedding` unwritten; phase 4 unbuilt~~ — BOTH DONE
+  (2026-08-13 late night, see newest entry). Remaining phase-4 wish:
+  the intake dedup in `[agency]/actions.ts` still re-embeds the whole
+  request corpus per filing via findDuplicates — it should read the same
+  stored vectors the precedent path uses. Small perf win, any session.
 - Connected data sources: **phase 1 SHIPPED** (see the newest entry).
   Phase 2 = HTTP/Socrata connectors + standing-publication mode with its
   four rails (attestation cited per publish, PII always quarantines,

@@ -365,6 +365,24 @@ export class DrizzleRepository implements Repository {
       .orderBy(desc(requests.createdAt));
     return rows.map((r: typeof requests.$inferSelect) => this.toRequest(r));
   }
+  async setRequestEmbedding(agencyId: string, id: string, embedding: number[]): Promise<void> {
+    const rows = await this.db
+      .update(requests)
+      .set({ embedding })
+      .where(tenantWhere(requests.agencyId, agencyId, eq(requests.id, id)))
+      .returning({ id: requests.id });
+    if (!rows[0]) throw new NotFoundError("Request", id);
+  }
+  async listRequestEmbeddings(agencyId: string): Promise<{ id: string; embedding: number[] }[]> {
+    const rows = await this.db
+      .select({ id: requests.id, embedding: requests.embedding })
+      .from(requests)
+      .where(tenantWhere(requests.agencyId, agencyId, sql`${requests.embedding} is not null`));
+    return rows.filter(
+      (r: { id: string; embedding: number[] | null }): r is { id: string; embedding: number[] } =>
+        r.embedding != null,
+    );
+  }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>): Promise<RequestEntity> {
     const set: Record<string, unknown> = {};
     for (const k of ["status", "interpretedScope", "recordTypes", "complexityScore", "statutoryDueAt", "receivedAt", "closedAt", "extensionHistory", "assignedCoordinatorId", "referredToDirectoryId", "referredAt", "forwardedFrom", "forwardedTo"] as const) {

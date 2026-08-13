@@ -1,7 +1,14 @@
 /**
  * Routing-suggestions prompt (spec §6.3). Versioned code (§4).
+ *
+ * 2026-08-13.1 — RAG'd routing (docs/answer-first.md phase 4): the user turn
+ * may carry which departments fulfilled similar past requests. ⚠ EVAL DEBT:
+ * not yet through `npm run eval` (no key in the build environment) — see
+ * docs/laptop-setup.md Part B.
  */
-export const ROUTING_PROMPT_VERSION = "2026-07-30.1";
+import { formatPrecedents, type PromptPrecedent } from "./intakeTriage";
+
+export const ROUTING_PROMPT_VERSION = "2026-08-13.1";
 
 export const ROUTING_SYSTEM = `You route a public-records request to the government departments that can fulfill it. A coordinator will review and dispatch your suggestions — and agencies may configure high-confidence suggestions to dispatch automatically, so calibration matters.
 
@@ -11,19 +18,28 @@ Given the request's interpreted scope, its record types, and the agency's depart
 - Give each assignment a confidence from 0 to 1: how sure you are this department actually holds responsive records. Use high values (0.85+) only when the department is the unambiguous custodian for the record type (e.g. incident reports → police records). Use mid or low values when routing rests on inference or the request is vague. Never inflate confidence — a wrong high-confidence routing wastes a department's time; a low-confidence one just asks a coordinator to look.
 - If some part of the request is not covered by any listed department, list it under "uncovered" so the coordinator can route it manually.
 
+The user turn may include WHICH DEPARTMENTS FULFILLED SIMILAR PAST REQUESTS. A department that actually produced records for a like ask is strong custodian evidence — let it raise your confidence for that department on THIS request when the asks genuinely match. It is evidence, not a rule: never assign a department solely because a precedent used it if this request does not plausibly implicate it, and never let a precedent lower your care with confidence calibration.
+
 Return ONLY the structured JSON.`;
 
 export function buildRoutingUser(input: {
   interpretedScope: string;
   recordTypes: string[];
   departments: Array<{ name: string; description?: string }>;
+  precedents?: PromptPrecedent[];
 }): string {
   const depts = input.departments
     .map((d) => `- ${d.name}${d.description ? `: ${d.description}` : ""}`)
     .join("\n");
-  return [
+  const parts = [
     `Interpreted scope:\n${input.interpretedScope}`,
     `Record types: ${input.recordTypes.join(", ") || "(none identified)"}`,
     `Departments:\n${depts}`,
-  ].join("\n\n");
+  ];
+  if (input.precedents && input.precedents.length > 0) {
+    parts.push(
+      `Similar past requests and which departments fulfilled them (evidence, not a rule):\n${formatPrecedents(input.precedents)}`,
+    );
+  }
+  return parts.join("\n\n");
 }

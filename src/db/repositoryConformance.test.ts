@@ -161,6 +161,21 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       await expect(repo.updateRequest(AG2, r.id, { status: "closed" })).rejects.toBeInstanceOf(NotFoundError);
     });
 
+    it("requests: ask-vector round-trip, tenancy, and null-embedding exclusion", async () => {
+      const r = await repo.createRequest(requestOf());
+      const other = await repo.createRequest(requestOf()); // never embedded
+      const vec = Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0));
+      await repo.setRequestEmbedding(AG1, r.id, vec);
+      const listed = await repo.listRequestEmbeddings(AG1);
+      const mine = listed.find((x) => x.id === r.id);
+      expect(mine?.embedding.slice(0, 3)).toEqual([1, 0, 0]);
+      expect(mine?.embedding).toHaveLength(1024);
+      // Unembedded requests don't appear as nulls; other tenants see nothing.
+      expect(listed.some((x) => x.id === other.id)).toBe(false);
+      expect((await repo.listRequestEmbeddings(AG2)).some((x) => x.id === r.id)).toBe(false);
+      await expect(repo.setRequestEmbedding(AG2, r.id, vec)).rejects.toBeInstanceOf(NotFoundError);
+    });
+
     it("requests: listRequests newest-first; listRequestsByRequester scoped", async () => {
       const requester = await repo.createRequester({ id: uid(), agencyId: AG1, email: null, name: "Lister", type: "individual" });
       const older = await repo.createRequest(requestOf({ createdAt: new Date("2026-01-01T00:00:00Z"), requesterId: requester.id }));

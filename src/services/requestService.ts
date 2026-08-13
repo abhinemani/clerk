@@ -179,6 +179,13 @@ export async function submitRequest(
     console.error("received-milestone email failed", e);
   }
 
+  // Ask vector (answer-first phase 4): written at the moment of filing so
+  // this request joins the precedent corpus for every later one. Best-effort
+  // inside writeRequestEmbedding — an embedding provider being down must
+  // never be the reason a request cannot be filed.
+  const { writeRequestEmbedding } = await import("./similarRequestsService");
+  await writeRequestEmbedding(deps, { agencyId: agency.id, requestId: request.id });
+
   // Opt-in auto-assignment (src/domain/workflow.ts): load-balance the new
   // request across coordinators so no single person routes the whole queue.
   // Internal workflow only — deterministic, evented, reassignable in the UI.
@@ -509,6 +516,8 @@ export async function applyTriageDraft(
     model: string;
     /** Statutory red flags surfaced by the pipeline (recorded for the audit log). */
     redFlags?: string[];
+    /** Phase 4: which resolved precedents the model saw (audit trail). */
+    precedentPublicIds?: string[];
   },
 ): Promise<RequestEntity> {
   const { repo } = deps;
@@ -534,6 +543,8 @@ export async function applyTriageDraft(
       promptVersion: input.promptVersion,
       model: input.model,
       redFlags: input.redFlags ?? [],
+      // A grounded draft cites its grounding, like every other AI artifact.
+      ...(input.precedentPublicIds?.length ? { precedents: input.precedentPublicIds } : {}),
     },
     createdAt: at,
   });

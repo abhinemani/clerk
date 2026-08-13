@@ -15,6 +15,7 @@ import { custodianProposals, custodianSuggestPipeline } from "@/ai/pipelines/cus
 import { defaultDeps } from "@/services/deps";
 import { applyTriageDraft } from "@/services/requestService";
 import type { Repository } from "@/services/repository";
+import type { ResolvedPrecedent } from "@/services/similarRequestsService";
 import type { JobPayloads } from "./queue";
 
 export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]): Promise<void> {
@@ -27,9 +28,28 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
   if (request.interpretedScope) return; // already triaged (or staff got there first)
 
   const modelClient = new AnthropicModelClient(apiKey);
-  const result = await runPipeline(intakeTriagePipeline, { rawText: request.rawText }, {
-    modelClient,
-  });
+
+  // RAG'd triage (docs/answer-first.md phase 4): the k nearest resolved
+  // requests ride along as calibration context. Best-effort — precedent
+  // retrieval failing must never stop intake, so triage degrades to the
+  // phase-3 behavior (empty context) rather than erroring.
+  let precedents: ResolvedPrecedent[] = [];
+  try {
+    const { findResolvedPrecedents } = await import("@/services/similarRequestsService");
+    precedents = await findResolvedPrecedents(defaultDeps(repo), {
+      agencyId: payload.agencyId,
+      text: request.rawText,
+      excludeRequestId: request.id,
+    });
+  } catch (e) {
+    console.error("[jobs] precedent retrieval failed — triage proceeds without", e);
+  }
+
+  const result = await runPipeline(
+    intakeTriagePipeline,
+    { rawText: request.rawText, precedents },
+    { modelClient },
+  );
 
   await applyTriageDraft(defaultDeps(repo), {
     agencyId: payload.agencyId,
@@ -40,6 +60,8 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
     promptVersion: intakeTriagePipeline.promptVersion,
     model: result.model,
     redFlags: result.output.statutory_red_flags,
+    // Which precedents the model saw — auditability for a grounded draft.
+    precedentPublicIds: precedents.map((p) => p.publicId),
   });
 
   const triaged = {
@@ -49,7 +71,7 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
 
   // Two more drafts ride this job, each isolated: a failure in either must not
   // undo the triage above, and neither must starve the other.
-  await suggestRouting(repo, modelClient, payload, triaged);
+  await suggestRouting(repo, modelClient, payload, triaged, precedents);
   await suggestCustodian(repo, modelClient, payload, triaged);
 }
 
@@ -64,6 +86,7 @@ async function suggestRouting(
   modelClient: ModelClient,
   payload: JobPayloads["intake_triage"],
   triaged: { interpretedScope: string; recordTypes: string[] },
+  precedents: ResolvedPrecedent[] = [],
 ): Promise<void> {
   try {
     const departments = await repo.listDepartments(payload.agencyId);
@@ -74,6 +97,8 @@ async function suggestRouting(
         interpretedScope: triaged.interpretedScope,
         recordTypes: triaged.recordTypes,
         departments: departments.map((d) => ({ name: d.name })),
+        // Custodian evidence: which departments fulfilled similar requests.
+        precedents,
       },
       { modelClient },
     );
@@ -102,6 +127,7 @@ async function suggestRouting(
         model: routing.model,
         suggestions,
         uncovered: routing.output.uncovered,
+        ...(precedents.length ? { precedents: precedents.map((p) => p.publicId) } : {}),
       },
       createdAt: new Date(),
     });

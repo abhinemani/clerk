@@ -59,6 +59,8 @@ export type IntakeTriageOutput = z.infer<typeof intakeTriageSchema>;
 
 export interface IntakeTriageInput {
   rawText: string;
+  /** Phase-4 precedents: how the office resolved similar past requests. */
+  precedents?: import("../prompts/intakeTriage").PromptPrecedent[];
 }
 
 export const intakeTriagePipeline: PipelineDefinition<IntakeTriageInput, IntakeTriageOutput> = {

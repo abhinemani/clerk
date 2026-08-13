@@ -21,7 +21,8 @@ export type JobKind =
   | "embed_document_chunks"
   | "ocr_extract"
   | "classify_documents"
-  | "sync_connected_source";
+  | "sync_connected_source"
+  | "embed_requests";
 
 export interface JobPayloads {
   intake_triage: { agencyId: string; requestId: string };
@@ -37,6 +38,8 @@ export interface JobPayloads {
   classify_documents: { agencyId: string; documentIds: string[] };
   /** Connected data sources: pull the source's slices into the corpus. */
   sync_connected_source: { agencyId: string; sourceId: string; actorLabel?: string };
+  /** Answer-first phase 4: backfill ask vectors for requests missing one. */
+  embed_requests: { agencyId: string };
 }
 
 export type JobHandler<K extends JobKind = JobKind> = (payload: JobPayloads[K]) => Promise<void>;

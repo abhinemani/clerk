@@ -6,12 +6,58 @@ sessions can build, test, and browser-verify everything offline — but they
 have **no API keys, no OAuth browser, and no DNS access**. This file is the
 complete list of what needs you at a real keyboard, written so each item ends
 in something **committed to the repo or configured in claude.ai** that every
-future cloud session can use. Work the parts in order; A unblocks the most.
+future cloud session can use.
 
 **The one rule: never commit a secret.** `.env` is gitignored — keep it that
 way. What IS committable: eval scorecards, HANDOFF status updates, docs, and
 any code fix you make along the way. Keys go in exactly two places: your
-laptop's `.env`, and the claude.ai environment settings (Part A).
+laptop's `.env`, and the claude.ai environment settings (below).
+
+---
+
+## ⚡ To keep coding from your phone: the 20-minute checklist
+
+This is the short version — everything needed so mobile-started sessions can
+do ALL the work, done from any browser (a phone works for every step except
+maybe the console copy-paste; a laptop is comfier, not required).
+
+**What already works from your phone today, with zero setup:** building
+features, the full offline test suite, browser verification, seeding,
+pushing to GitHub — every session so far ran this way.
+
+**What's blocked until you do the steps below:** anything needing a model or
+real embeddings — running `npm run eval` (a standing CLAUDE.md debt that now
+covers the unevaled `request_match` prompt AND any later prompt versions),
+verifying live triage/copilot/RAG behavior, and semantic-quality retrieval.
+
+1. **Anthropic key (5 min):** <https://console.anthropic.com> → *API keys*
+   → *Create key* → name `brandeis-dev` → copy the `sk-ant-…` (shown once).
+2. **Voyage key (3 min, free tier):** <https://dash.voyageai.com> → *API
+   keys* → create → copy the `pa-…`. This one got more valuable with RAG'd
+   triage: without it, "similar past requests" fall back to word overlap;
+   with it, "sweepers" finds "street cleaning".
+3. **Put both into the cloud environment (5 min):** <https://claude.ai> →
+   *Settings* → *Code* → open the environment your Brandeis sessions use →
+   *Environment variables*:
+   ```
+   ANTHROPIC_API_KEY=sk-ant-…
+   VOYAGE_API_KEY=pa-…
+   ```
+   New sessions pick these up at start (existing sessions don't — start a
+   fresh one).
+4. **Check the environment's network policy** (same settings page): it must
+   allow reaching `api.anthropic.com` and `api.voyageai.com`. If the
+   environment is on a restricted allowlist, add those two hosts; "trusted
+   network access" or broader already covers them.
+5. **Hand the debt to a session (1 min):** start a session from your phone
+   and say: *"Keys are configured — run `npm run eval`, record the scorecard
+   in HANDOFF, and retune the priorAnswerService floors if request_match
+   looks wrong."* That is Part B below, verbatim, and the session can now do
+   all of it — including the eval debt for the RAG'd-triage prompt bumps.
+
+After step 5, the only things left that genuinely need YOU are Part C
+(Docker on a real machine) and Part D (email accounts + DNS). Everything
+else in this product can be built, verified, and shipped from your phone.
 
 ---
 

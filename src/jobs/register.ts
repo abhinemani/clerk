@@ -5,6 +5,7 @@
 import { runClassifyDocumentsJob } from "./classifyDocumentsJob";
 import { runEmbedDocumentChunksJob } from "./chunkEmbedJob";
 import { runEmbedPublicDocumentsJob } from "./embedJob";
+import { runEmbedRequestsJob } from "./embedRequestsJob";
 import { runExemptionPassJob } from "./exemptionPassJob";
 import { runOcrExtractJob } from "./ocrJob";
 import { getJobQueue } from "./queue";
@@ -31,6 +32,7 @@ export function registerJobs(): void {
   queue.register("embed_document_chunks", runEmbedDocumentChunksJob);
   queue.register("classify_documents", runClassifyDocumentsJob);
   queue.register("sync_connected_source", runSyncConnectedSourceJob);
+  queue.register("embed_requests", runEmbedRequestsJob);
   // Durable queue: re-queue rows a dead process left "running", then start
   // the polling worker. Jobs enqueued before a restart run after it.
   void queue.recoverAndStart();
@@ -45,6 +47,9 @@ export function registerJobs(): void {
         queue.enqueue("embed_public_documents", { agencyId: agency.id });
         // Staff-search body vectors for the whole corpus (§6.4).
         queue.enqueue("embed_document_chunks", { agencyId: agency.id });
+        // Ask vectors for the precedent corpus (answer-first phase 4) —
+        // no-op once caught up; catches legacy imports and pre-phase-4 rows.
+        queue.enqueue("embed_requests", { agencyId: agency.id });
       }
     } catch (err) {
       console.error("[jobs] embedding backfill enqueue failed", err);

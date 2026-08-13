@@ -47,6 +47,15 @@ describe("submitRequest", () => {
     expect(events[0]!.payload?.to).toBe("submitted");
   });
 
+  it("writes the ask vector at submit — the request joins the precedent corpus (phase 4)", async () => {
+    // The write is BEST-EFFORT in submitRequest, so a silent breakage here
+    // would never fail a filing; this assertion is the tripwire.
+    const r = await submitRequest(deps, { agencyId: "ag-1", rawText: "Street sweeping schedule for Riverbend." });
+    const embedded = await repo.listRequestEmbeddings("ag-1");
+    expect(embedded.map((e) => e.id)).toContain(r.id);
+    expect(embedded.find((e) => e.id === r.id)!.embedding.length).toBeGreaterThan(0);
+  });
+
   it("increments the per-agency/year sequence", async () => {
     const a = await submitRequest(deps, { agencyId: "ag-1", rawText: "one" });
     const b = await submitRequest(deps, { agencyId: "ag-1", rawText: "two" });

@@ -61,6 +61,15 @@ export function gradeCase(gold: IntakeGoldenCase, actual: IntakeTriageOutput): C
       detail: `${actual.complexity_score}`,
     });
   }
+  // RAG guardrail (phase 4): precedent vocabulary must not leak into the
+  // interpreted scope — the raw text governs, precedents only calibrate.
+  for (const term of gold.expect.scopeExcludes ?? []) {
+    checks.push({
+      name: `scope excludes "${term}"`,
+      ok: !actual.interpreted_scope.toLowerCase().includes(term.toLowerCase()),
+      detail: actual.interpreted_scope,
+    });
+  }
 
   return { id: gold.id, passed: checks.every((c) => c.ok), checks };
 }

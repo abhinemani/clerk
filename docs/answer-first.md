@@ -1,8 +1,9 @@
 # Answer-first search, and the loop that makes it compound
 
-Status: **phases 1–3 shipped 2026-08-13.** Date-aware retrieval, the
-ask-alias loop, and the GenAI matcher over a pluggable search index. Phase 4
-(RAG'd triage prompts) is specified, not built.
+Status: **phases 1–4 shipped 2026-08-13.** Date-aware retrieval, the
+ask-alias loop, the GenAI matcher over a pluggable search index, and RAG'd
+triage/routing (phase 4, shipped the same evening — see the section below,
+now describing what IS built).
 
 ## The user story
 
@@ -150,21 +151,43 @@ one point where its answer changes what the person does next.
 no matches and filing proceeds. A matcher must never be the reason a request
 cannot be filed.
 
-**Still open:** `requests.embedding` is still unwritten. BM25 plus alias
-boosting plus the GenAI rerank covers the flagship cases, but pure semantic
-retrieval ("sweepers" ↔ "cleaning" with no shared token and no alias yet)
-still depends on the alias loop having seen that phrasing once.
+~~**Still open:** `requests.embedding` is still unwritten.~~ Written as of
+phase 4: at submit (best-effort — a provider outage never blocks filing) and
+backfilled by the `embed_requests` job at boot, so legacy-imported history
+joins the corpus.
 
-## What is specified and NOT built
+### Phase 4 — retrieval-augmented triage and routing (SHIPPED 2026-08-13)
 
-### Phase 4 — retrieval-augmented triage and routing
+Prompts were static: `buildIntakeTriageUser` took only `{ rawText }` —
+request #10,000 got a byte-identical prompt to request #1. Now intake
+retrieves the k nearest **resolved** requests and passes their asks, scopes,
+routing outcomes and complexity as calibration context. No fine-tuning, no
+training pipeline — retrieval-augmented, versioned in `/src/ai/prompts/`
+(both prompts bumped to 2026-08-13.1), measurable through `npm run eval`.
 
-Prompts are static today: `buildIntakeTriageUser` takes only `{ rawText }`.
-Request #10,000 gets a byte-identical prompt to request #1. With phases 2–3
-in place, intake can retrieve the k nearest *resolved* requests and pass their
-asks, scopes and routing outcomes as few-shot context. No fine-tuning, no
-training pipeline — retrieval-augmented, versioned in `/src/ai/prompts/`, and
-measurable through `npm run eval` like every other prompt change.
+What shipped, and the decisions inside it:
+
+- **`similarRequestsService.findResolvedPrecedents()`** — cosine over stored
+  ask vectors, falling back to token overlap per-request (an unembedded
+  corpus still contributes) and entirely (a provider outage degrades to
+  lexical, and a retrieval failure degrades triage to phase-3 behavior —
+  intake never starves). Only requests with a human-accepted
+  `interpretedScope` qualify: an untriaged request has nothing to teach.
+  A noise floor drops unrelated precedents rather than force-filling k.
+  STAFF-ONLY surface — invariant 3 governs the requester-facing matcher in
+  priorAnswerService, not this.
+- **Prompt guardrails, graded:** precedents calibrate vocabulary,
+  complexity and custodian evidence; the raw text governs; scope never
+  restates a precedent. The eval golden set gained RAG cases including a
+  contamination guard (`scopeExcludes`) asserting precedent vocabulary does
+  NOT leak into the interpreted scope. ⚠ Prompt versions 2026-08-13.1 carry
+  the standing eval debt (no key in the build environment) — laptop-setup
+  Part B covers them.
+- **Audit:** the triage and routing `ai_action` events record which
+  precedent publicIds the model saw — a grounded draft cites its grounding.
+- **Routing:** departments that fulfilled similar asks ride along as
+  custodian evidence ("evidence, not a rule" — the prompt is explicit that
+  precedent alone never assigns a department).
 
 ## What this does NOT solve
 

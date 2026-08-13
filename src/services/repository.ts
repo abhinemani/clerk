@@ -449,6 +449,15 @@ export interface Repository {
     id: string,
     patch: Partial<RequestEntity>,
   ): Promise<RequestEntity>;
+  /**
+   * Store the request's ask vector (answer-first phase 4). Written
+   * best-effort at submit and by the embed_requests backfill; read by
+   * precedent retrieval for RAG'd triage. Kept off RequestEntity on purpose
+   * — a 1024-float column has no business riding along on every list/get.
+   */
+  setRequestEmbedding(agencyId: string, id: string, embedding: number[]): Promise<void>;
+  /** Every stored ask vector for the agency (ids + vectors only). */
+  listRequestEmbeddings(agencyId: string): Promise<{ id: string; embedding: number[] }[]>;
 
   listDirectory(agencyId: string): Promise<DirectoryEntry[]>;
   getDirectoryEntry(agencyId: string, id: string): Promise<DirectoryEntry | null>;
@@ -816,6 +825,20 @@ export class InMemoryRepository implements Repository {
     return [...this.requests.values()]
       .filter((r) => r.agencyId === agencyId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  private requestEmbeddings = new Map<string, number[]>();
+  async setRequestEmbedding(agencyId: string, id: string, embedding: number[]) {
+    const r = this.requests.get(id);
+    if (!r || r.agencyId !== agencyId) throw new NotFoundError("Request", id);
+    this.requestEmbeddings.set(id, embedding);
+  }
+  async listRequestEmbeddings(agencyId: string) {
+    const out: { id: string; embedding: number[] }[] = [];
+    for (const [id, embedding] of this.requestEmbeddings) {
+      const r = this.requests.get(id);
+      if (r && r.agencyId === agencyId) out.push({ id, embedding });
+    }
+    return out;
   }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>) {
     const r = await this.getRequest(agencyId, id);

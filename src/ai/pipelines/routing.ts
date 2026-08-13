@@ -36,6 +36,8 @@ export interface RoutingInput {
   interpretedScope: string;
   recordTypes: string[];
   departments: Array<{ name: string; description?: string }>;
+  /** Phase-4 precedents: departments that fulfilled similar past requests. */
+  precedents?: import("../prompts/intakeTriage").PromptPrecedent[];
 }
 
 export const routingPipeline: PipelineDefinition<RoutingInput, RoutingOutput> = {

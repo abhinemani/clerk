@@ -42,6 +42,17 @@ describe("grader", () => {
     expect(score.checks.some((c) => c.name.includes("personnel") && !c.ok)).toBe(true);
   });
 
+  it("fails when precedent vocabulary leaks into the interpreted scope (RAG guardrail)", () => {
+    const gold = INTAKE_GOLDEN.find((c) => c.id === "rag-precedent-does-not-contaminate")!;
+    const leaked = { ...sample, record_types: ["contracts"], interpreted_scope: "Janitorial contract plus police overtime records." };
+    const score = gradeCase(gold, leaked);
+    expect(score.passed).toBe(false);
+    expect(score.checks.some((c) => c.name.includes("excludes") && !c.ok)).toBe(true);
+    // The same case passes when the scope stays on the actual ask.
+    const clean = { ...sample, record_types: ["contracts"], interpreted_scope: "The current janitorial services contract for the library." };
+    expect(gradeCase(gold, clean).passed).toBe(true);
+  });
+
   it("bands complexity correctly", () => {
     const broad = INTAKE_GOLDEN.find((c) => c.id === "broad-emails")!;
     const highComplexity = { ...sample, record_types: ["emails"], complexity_score: 0.9 };
@@ -66,9 +77,11 @@ live("intake triage — live scored run", () => {
       // one call, not the sum of them (sequential runs blew the timeout).
       const scores = await Promise.all(
         INTAKE_GOLDEN.map(async (gold) => {
-          const res = await runPipeline(intakeTriagePipeline, { rawText: gold.rawText }, {
-            modelClient: client,
-          });
+          const res = await runPipeline(
+            intakeTriagePipeline,
+            { rawText: gold.rawText, precedents: gold.precedents },
+            { modelClient: client },
+          );
           return gradeCase(gold, res.output);
         }),
       );
