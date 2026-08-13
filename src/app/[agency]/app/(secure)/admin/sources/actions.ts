@@ -10,10 +10,13 @@
 import { revalidatePath } from "next/cache";
 import { getBlobStore } from "@/adapters/blobStore";
 import { getVirusScanner } from "@/adapters/virusScan";
+import type { ConnectorConfig } from "@/adapters/dataSource";
 import { staffAction } from "@/auth/actionWrapper";
 import {
+  attestDataset,
   deleteConnectedSource,
   registerConnectedSource,
+  revokeDatasetAttestation,
   setConnectedSourceSchedule,
   syncConnectedSource,
   type SyncResult,
@@ -21,14 +24,52 @@ import {
 
 export const registerConnectedSourceAction = staffAction(
   { roles: ["admin"], fallback: "Could not register the source.", exposes: [Error] },
-  async ({ staff, deps, agencySlug }, name: string): Promise<{ ok: true; dropDir: string }> => {
+  async (
+    { staff, deps, agencySlug },
+    input: { name: string; kind: string; config: ConnectorConfig },
+  ): Promise<{ ok: true; dropDir: string }> => {
     const { dropDir } = await registerConnectedSource(deps, {
       agencyId: staff.agencyId,
       actorUserId: staff.userId,
-      name,
+      name: input.name,
+      kind: input.kind,
+      config: input.config,
     });
     revalidatePath(`/${agencySlug}/app/admin/sources`);
     return { ok: true, dropDir };
+  },
+);
+
+/**
+ * Standing publication, on and off. Both are named-actor acts through the
+ * service (which re-checks the admin role and the attested column shape) —
+ * the action layer only carries the session identity in.
+ */
+export const attestDatasetAction = staffAction(
+  { roles: ["admin"], fallback: "Could not turn on standing publication.", exposes: [Error] },
+  async ({ staff, deps, agencySlug }, input: { sourceId: string; dataset: string }): Promise<{ ok: true; byName: string }> => {
+    const attestation = await attestDataset(deps, {
+      agencyId: staff.agencyId,
+      actorUserId: staff.userId,
+      sourceId: input.sourceId,
+      dataset: input.dataset,
+    });
+    revalidatePath(`/${agencySlug}/app/admin/sources`);
+    return { ok: true, byName: attestation.byName };
+  },
+);
+
+export const revokeAttestationAction = staffAction(
+  { roles: ["admin"], fallback: "Could not turn off standing publication.", exposes: [Error] },
+  async ({ staff, deps, agencySlug }, input: { sourceId: string; dataset: string }): Promise<{ ok: true }> => {
+    await revokeDatasetAttestation(deps, {
+      agencyId: staff.agencyId,
+      actorUserId: staff.userId,
+      sourceId: input.sourceId,
+      dataset: input.dataset,
+    });
+    revalidatePath(`/${agencySlug}/app/admin/sources`);
+    return { ok: true };
   },
 );
 

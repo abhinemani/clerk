@@ -1,13 +1,18 @@
 # Connected data sources — auto-answering from the city's own public data
 
-Status: **phase 1 SHIPPED 2026-08-13** (file-drop connector, reviewed mode,
-flagged answers, admin surface, Riverton seed) — see the HANDOFF entry for
-what landed and what deviated. All decision points are resolved — they were
-marked ⚑ for the owner per CLAUDE.md (anything that changes what a requester
-can see gets asked, not guessed); the owner delegated them the same day
-("do what you think is best"), and each ⚑ below records the decision and its
-reasoning. Phase 2 (HTTP/Socrata connectors + standing-publication with its
-four rails) is next.
+Status: **phases 1 and 2 SHIPPED 2026-08-13.** Phase 1: file-drop connector,
+reviewed mode, flagged answers, admin surface, Riverton seed. Phase 2:
+HTTP + Socrata connectors and standing publication with all four rails —
+verified in a browser against Chicago's **live** open-data portal
+(`data.cityofchicago.org/ygr5-vcbg`, 2,520 real rows in one monthly slice)
+plus a file-drop source exercising auto-publish, schema-drift revocation,
+and PII quarantine end to end. Phase 3 (structured row store, tabular
+answers) stays gated on real usage.
+
+All decision points are resolved — they were marked ⚑ for the owner per
+CLAUDE.md (anything that changes what a requester can see gets asked, not
+guessed); the owner delegated them the same day ("do what you think is
+best"), and each ⚑ below records the decision and its reasoning.
 
 **Build deviation worth knowing:** the spec called for a new
 `connected_sources` table (migration 0012). The build needed NO migration —
@@ -135,9 +140,18 @@ honest ways to run a connected source, and the difference is one toggle:
   here nothing judges — a deterministic sync repeats a named human's
   recorded decision for new periods of the same data.
 
+  **As built (2026-08-13), plus one rule the build added:** an attestation
+  only makes FUTURE slices be born public. Nothing in the sync path ever
+  flips an *existing* internal document to public — that direction is
+  precisely what invariant 9 forbids without a named human act, so slices
+  that landed before the attestation still need a per-slice publish. The
+  attestation UI says so where the click happens.
+
   The rails, which are what make the above true:
   - Every auto-published slice's event cites the attestation (who, when,
-    which dataset) — the audit trail always reaches a named human.
+    which dataset) — the audit trail always reaches a named human. Built as
+    one `document_published` admin event per record (the same rule bulk
+    publish follows) plus a `publicationDecision` on the document itself.
   - Slices failing the deterministic PII scan ALWAYS quarantine to
     Undecided regardless of mode, with the standing attestation shown next
     to the quarantine so the clerk sees what almost happened.
@@ -234,7 +248,23 @@ deletions are all named-actor admin events.
 1. **File-drop connector + reviewed mode + flagged answer card.** Zero
    services, every invariant untouched, demoable with Riverton's sweeping
    log. This is the build-next slice.
-2. **HTTP + Socrata connectors, scheduled sync, standing-publication mode
-   (with all four rails), admin surface polish.**
+2. ~~**HTTP + Socrata connectors, scheduled sync, standing-publication mode
+   (with all four rails), admin surface polish.**~~ **SHIPPED 2026-08-13.**
+   Notes worth carrying into phase 3:
+   - Connector config lives in `sources.mappingConfig.connector`, validated
+     at write time (`validateConnectorConfig`): https-only URLs, Socrata 4×4
+     ids, slug-shaped dataset names. Bearer tokens are **env var NAMES**
+     (`tokenEnv`), never values — the DB never holds a credential, which is
+     what `sources.credentials_ref` always promised.
+   - Socrata slices server-side with SoQL (`$where` window + `$limit`/
+     `$offset` paging, 100k-row cap that reports `truncated` rather than
+     silently cutting); the HTTP connector fetches one file and slices
+     client-side by a date column. Both share `rowsToSlices`.
+   - Undated rows are dropped from slices, not filed under a guessed month:
+     `recordDate` is what the archive's date filter trusts.
+   - Attestations live in `sources.mappingConfig.attestations[dataset]` with
+     the column shape the human saw; `classifyNewSlice()` is the whole
+     publicness decision in one pure function, which is what the invariant
+     tests point at.
 3. **Structured row store + tabular slice answers**, only if real usage
    shows document-granularity answers falling short.

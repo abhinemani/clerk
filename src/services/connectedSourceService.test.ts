@@ -1,5 +1,5 @@
 /**
- * Connected sources (docs/connected-sources.md phase 1). The invariant tests
+ * Connected sources (docs/connected-sources.md phases 1-2). The invariant tests
  * here are load-bearing:
  *  - sync NEVER sets classification='public' — every new slice is born
  *    internal and waits for a named human (reviewed mode, invariant 9);
@@ -16,13 +16,18 @@ import { readDocumentMeta } from "@/domain/documentMeta";
 import type { ServiceDeps } from "./deps";
 import { InMemoryRepository, type Agency, type UserEntity } from "./repository";
 import {
+  attestDataset,
+  classifyNewSlice,
   deleteConnectedSource,
   describeSyncState,
   isConnectedSource,
   listConnectedSources,
+  readSourceConfig,
   registerConnectedSource,
+  revokeDatasetAttestation,
   setConnectedSourceSchedule,
   syncConnectedSource,
+  type ConnectedDeps,
 } from "./connectedSourceService";
 
 const AGENCY: Agency = { id: "ag-1", slug: "riverton", name: "Riverton", stateCode: "CA", observedHolidays: [] };
@@ -246,5 +251,210 @@ describe("pause / resume / delete", () => {
     const docs = await repo.listDocuments("ag-1");
     expect(docs).toHaveLength(2); // the corpus survives, detached
     for (const d of docs) expect(d.sourceId).toBeNull();
+  });
+});
+
+/* ==========================================================================
+   PHASE 2 — standing publication and its four rails.
+   ========================================================================== */
+
+describe("classifyNewSlice — the whole publicness decision, in one place", () => {
+  const attestation = {
+    byUserId: "u-dana",
+    byName: "Dana",
+    at: "2026-08-13T00:00:00.000Z",
+    columns: ["date", "route"],
+  };
+  const slice = { columns: ["date", "route"] };
+
+  it("reviewed mode (no attestation) never yields public", () => {
+    expect(classifyNewSlice(undefined, slice, 0)).toEqual({ classification: "internal" });
+  });
+
+  it("a live attestation with a clean, matching slice yields public", () => {
+    expect(classifyNewSlice(attestation, slice, 0)).toEqual({ classification: "public" });
+  });
+
+  it("RAIL 2: any PII finding quarantines, attestation or not", () => {
+    expect(classifyNewSlice(attestation, slice, 1)).toEqual({
+      classification: "internal",
+      quarantined: "pii",
+    });
+  });
+
+  it("RAIL 3: drifted columns quarantine AND kill the attestation", () => {
+    expect(classifyNewSlice(attestation, { columns: ["date", "route", "operator"] }, 0)).toEqual({
+      classification: "internal",
+      quarantined: "schema_drift",
+      drift: true,
+    });
+    // Reordering is drift too — the shape a human read is the ordered header.
+    expect(classifyNewSlice(attestation, { columns: ["route", "date"] }, 0).drift).toBe(true);
+  });
+});
+
+describe("standing publication (phase 2)", () => {
+  const MAY = { dataset: "street-sweeping", period: "2026-05", csv: "date,route\n2026-05-02,North" };
+  const JUNE = { dataset: "street-sweeping", period: "2026-06", csv: "date,route\n2026-06-06,South" };
+  const JULY = { dataset: "street-sweeping", period: "2026-07", csv: "date,route\n2026-07-04,North" };
+
+  /** Register, sync one period, then attest the dataset — the real order. */
+  async function attested(deps: ConnectedDeps, repo: InMemoryRepository) {
+    const source = await registered(deps);
+    await syncConnectedSource(deps, { agencyId: "ag-1", sourceId: source.id }, createMemoryConnector([MAY]));
+    const attestation = await attestDataset(deps, {
+      agencyId: "ag-1",
+      actorUserId: "u-dana",
+      sourceId: source.id,
+      dataset: "street-sweeping",
+    });
+    void repo;
+    return { source, attestation };
+  }
+
+  it("attesting requires a synced slice to look at, and an admin", async () => {
+    const { repo, deps } = ctx();
+    const source = await registered(deps);
+    // Nothing synced yet — there is no column shape to attest to.
+    await expect(
+      attestDataset(deps, { agencyId: "ag-1", actorUserId: "u-dana", sourceId: source.id, dataset: "street-sweeping" }),
+    ).rejects.toThrow(/sync this dataset at least once/i);
+
+    await syncConnectedSource(deps, { agencyId: "ag-1", sourceId: source.id }, createMemoryConnector([MAY]));
+    await repo.createUser({ id: "u-coord", agencyId: "ag-1", email: "c@riverton.gov", name: "Coord", role: "coordinator", passwordHash: null });
+    await expect(
+      attestDataset(deps, { agencyId: "ag-1", actorUserId: "u-coord", sourceId: source.id, dataset: "street-sweeping" }),
+    ).rejects.toThrow(/only an agency admin/i);
+  });
+
+  it("attesting records who, when, and the exact columns seen — and publishes nothing retroactively", async () => {
+    const { repo, deps } = ctx();
+    const { source, attestation } = await attested(deps, repo);
+    expect(attestation.byName).toBe("Dana");
+    expect(attestation.columns).toEqual(["date", "route"]);
+
+    // RAIL 4 / INVARIANT 9: the already-synced May slice stays internal.
+    // Attesting is not a bulk publish — that direction needs a named act.
+    const may = (await repo.listDocuments("ag-1")).find((d) => d.externalSystemId === "street-sweeping:2026-05")!;
+    expect(may.classification).toBe("internal");
+
+    const events = await repo.listAdminEvents("ag-1");
+    expect(events.find((e) => e.kind === "connected_dataset_attested")?.actorLabel).toBe("Dana");
+    void source;
+  });
+
+  it("RAIL 1: future slices are born public and cite the attestation, per record", async () => {
+    const { repo, deps } = ctx();
+    const { source } = await attested(deps, repo);
+
+    const result = await syncConnectedSource(
+      deps,
+      { agencyId: "ag-1", sourceId: source.id },
+      createMemoryConnector([MAY, JUNE, JULY]),
+    );
+    expect(result.autoPublished).toBe(2); // June + July; May was already here
+
+    const june = (await repo.listDocuments("ag-1")).find((d) => d.externalSystemId === "street-sweeping:2026-06")!;
+    expect(june.classification).toBe("public");
+    const meta = readDocumentMeta(june);
+    expect(meta.publicationDecision).toMatchObject({ decision: "published", byName: "Dana" });
+    expect(meta.publicationDecision?.reason).toContain("Standing publication");
+
+    // One audited publish event per record, naming the attesting human.
+    const published = (await repo.listAdminEvents("ag-1")).filter((e) => e.kind === "document_published");
+    expect(published).toHaveLength(2);
+    expect(published[0]!.actorLabel).toBe("Dana");
+    expect(published[0]!.payload).toMatchObject({ automated: true, attestedBy: "u-dana" });
+  });
+
+  it("RAIL 2: a PII-bearing slice is held back even under a live attestation", async () => {
+    const { repo, deps } = ctx();
+    const { source } = await attested(deps, repo);
+    const withPii = { dataset: "street-sweeping", period: "2026-06", csv: "date,route\n2026-06-06,SSN 123-45-6789" };
+
+    const result = await syncConnectedSource(
+      deps,
+      { agencyId: "ag-1", sourceId: source.id },
+      createMemoryConnector([withPii]),
+    );
+    expect(result.autoPublished).toBe(0);
+    expect(result.quarantined).toEqual([{ dataset: "street-sweeping", period: "2026-06", why: "pii" }]);
+
+    const june = (await repo.listDocuments("ag-1")).find((d) => d.externalSystemId === "street-sweeping:2026-06")!;
+    expect(june.classification).toBe("internal");
+    const meta = readDocumentMeta(june);
+    expect(meta.connectedSource?.quarantined).toBe("pii");
+    expect(meta.sensitivity).toBeTruthy();
+    // The attestation survives a PII quarantine — this slice is the problem,
+    // not the dataset's shape.
+    expect(readSourceConfig((await listConnectedSources(deps, "ag-1"))[0]!).attestations["street-sweeping"]).toBeTruthy();
+  });
+
+  it("RAIL 3: drifted columns quarantine the slice and revoke the attestation", async () => {
+    const { repo, deps } = ctx();
+    const { source } = await attested(deps, repo);
+    const drifted = { dataset: "street-sweeping", period: "2026-06", csv: "date,route,operator\n2026-06-06,South,Kim" };
+
+    const result = await syncConnectedSource(
+      deps,
+      { agencyId: "ag-1", sourceId: source.id },
+      createMemoryConnector([drifted]),
+    );
+    expect(result.autoPublished).toBe(0);
+    expect(result.driftRevoked).toEqual(["street-sweeping"]);
+
+    const june = (await repo.listDocuments("ag-1")).find((d) => d.externalSystemId === "street-sweeping:2026-06")!;
+    expect(june.classification).toBe("internal");
+    expect(readDocumentMeta(june).connectedSource?.quarantined).toBe("schema_drift");
+
+    // The attestation is gone from the source, and the office was told why.
+    const after = (await listConnectedSources(deps, "ag-1"))[0]!;
+    expect(readSourceConfig(after).attestations["street-sweeping"]).toBeUndefined();
+    const revoked = (await repo.listAdminEvents("ag-1")).find(
+      (e) => e.kind === "connected_dataset_attestation_revoked",
+    );
+    expect(revoked?.summary).toContain("columns changed");
+    expect(after.lastSyncError).toContain("standing publication revoked");
+  });
+
+  it("INVARIANT: revoking stops publication on the very next sync", async () => {
+    const { repo, deps } = ctx();
+    const { source } = await attested(deps, repo);
+    await revokeDatasetAttestation(deps, {
+      agencyId: "ag-1",
+      actorUserId: "u-dana",
+      sourceId: source.id,
+      dataset: "street-sweeping",
+      reason: "council asked us to review it first",
+    });
+
+    const result = await syncConnectedSource(
+      deps,
+      { agencyId: "ag-1", sourceId: source.id },
+      createMemoryConnector([MAY, JUNE]),
+    );
+    expect(result.autoPublished).toBe(0);
+    const june = (await repo.listDocuments("ag-1")).find((d) => d.externalSystemId === "street-sweeping:2026-06")!;
+    expect(june.classification).toBe("internal");
+  });
+
+  it("INVARIANT 9: sync NEVER flips an existing internal document to public", async () => {
+    const { repo, deps } = ctx();
+    const source = await registered(deps);
+    // June lands first, in reviewed mode → internal.
+    await syncConnectedSource(deps, { agencyId: "ag-1", sourceId: source.id }, createMemoryConnector([JUNE]));
+    await attestDataset(deps, { agencyId: "ag-1", actorUserId: "u-dana", sourceId: source.id, dataset: "street-sweeping" });
+
+    // Now the same slice changes at the source AND the dataset is attested.
+    const juneChanged = { dataset: "street-sweeping", period: "2026-06", csv: "date,route\n2026-06-06,South\n2026-06-20,South" };
+    await syncConnectedSource(
+      deps,
+      { agencyId: "ag-1", sourceId: source.id },
+      createMemoryConnector([juneChanged]),
+    );
+
+    const june = (await repo.listDocuments("ag-1")).find((d) => d.externalSystemId === "street-sweeping:2026-06")!;
+    expect(june.classification).toBe("internal"); // still awaiting its human
+    expect(june.extractedText).toContain("2026-06-20"); // but the bytes refreshed
   });
 });

@@ -59,6 +59,13 @@ export const connectedSourceStampSchema = z
     period: z.string(),
     checksum: z.string(),
     syncedAt: z.string(),
+    /** Column shape at sync time — phase 2 compares it against the
+     *  attestation to catch schema drift. */
+    columns: z.array(z.string()).optional(),
+    /** A row cap stopped this pull short (surfaced, never silent). */
+    truncated: z.boolean().optional(),
+    /** Why a slice landed internal despite a standing attestation. */
+    quarantined: z.enum(["pii", "schema_drift"]).optional(),
   })
   .passthrough();
 export type ConnectedSourceStamp = z.infer<typeof connectedSourceStampSchema>;

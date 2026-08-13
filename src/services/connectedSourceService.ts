@@ -1,9 +1,29 @@
 /**
- * Connected data sources, phase 1 (docs/connected-sources.md): a registered
- * source is pulled on a schedule and its dataset slices become ORDINARY
- * documents — born internal, PII-scanned, idempotent per (source, dataset,
- * period) — waiting in the publication queue for a named human publish
- * (reviewed mode; standing-publication is phase 2 and NOT built here).
+ * Connected data sources (docs/connected-sources.md), phases 1–2: a
+ * registered source is pulled on a schedule and its dataset slices become
+ * ORDINARY documents — PII-scanned, idempotent per (source, dataset,
+ * period) — landing in the publication queue for a named human.
+ *
+ * TWO PUBLICATION MODES, and the difference is one attestation:
+ *  - REVIEWED (default): every slice waits for a per-slice human publish.
+ *  - STANDING (phase 2, opt-in per dataset): a named admin attested "this
+ *    dataset is public data; publish future slices automatically", and the
+ *    sync repeats that recorded decision for new periods of the same data.
+ *
+ * The standing mode's four rails are non-negotiable parts of the feature,
+ * and they live in `classifyNewSlice` below:
+ *  1. Every auto-published slice cites the attestation (who, when) in its
+ *     publicationDecision and in an admin event — the audit trail always
+ *     reaches a named human.
+ *  2. A slice whose PII scan finds anything quarantines to internal
+ *     regardless of mode.
+ *  3. Schema drift quarantines AND revokes: an attestation covers the data
+ *     shape the human looked at, not whatever the source sends later.
+ *  4. FUTURE SLICES ONLY. A standing attestation can make a NEW slice be
+ *     born public; nothing here ever flips an EXISTING internal document to
+ *     public. That direction is exactly what invariant 9 forbids without a
+ *     named human act, so slices that landed before the attestation still
+ *     need a per-slice publish.
  *
  * The sync path deliberately avoids upsertDocumentByExternalId for updates:
  * that method overwrites classification and metadata wholesale, which would
@@ -15,11 +35,12 @@
  * same shape as a trusted re-push in the ingestion API — and the stamp's
  * syncedAt tells the requester how fresh what they see is.
  */
-import type { DataSourceConnector } from "@/adapters/dataSource";
+import type { ConnectorConfig, DataSourceConnector, DatasetSlice } from "@/adapters/dataSource";
 import {
   CONNECTOR_KIND_FILE_DROP,
   connectedDropDir,
-  createFileDropConnector,
+  createConnector,
+  validateConnectorConfig,
 } from "@/adapters/dataSource";
 import { blobKey, checksumOf, type BlobStore } from "@/adapters/blobStore";
 import { assertUploadable, type VirusScanner } from "@/adapters/virusScan";
@@ -45,13 +66,77 @@ async function getConnectedSource(deps: ServiceDeps, agencyId: string, sourceId:
   return source;
 }
 
-function connectorFor(source: SourceEntity): DataSourceConnector {
-  // Phase 1: file drop only. The drop directory is DERIVED from the agency,
-  // never stored or typed — see the tenancy note in adapters/dataSource.ts.
-  if (source.connectorKind !== CONNECTOR_KIND_FILE_DROP) {
-    throw new Error(`Unknown connector kind "${source.connectorKind}"`);
+/* ---- source config + per-dataset attestations ------------------------------
+ *
+ * Both live in `sources.mappingConfig`. The connector half is operator
+ * config (validated at write time, never trusted at read time); the
+ * attestation half is the record of a named human's standing decision.
+ */
+
+export interface DatasetAttestation {
+  byUserId: string;
+  byName: string;
+  at: string;
+  /** The column shape the human attested to — rail 3 compares against it. */
+  columns: string[];
+}
+
+interface SourceConfig {
+  connector: ConnectorConfig;
+  attestations: Record<string, DatasetAttestation>;
+}
+
+export function readSourceConfig(source: SourceEntity): SourceConfig {
+  const raw = (source.mappingConfig ?? {}) as Partial<SourceConfig>;
+  const connector = (raw.connector ?? {}) as ConnectorConfig;
+  const attestations: Record<string, DatasetAttestation> = {};
+  for (const [dataset, a] of Object.entries(raw.attestations ?? {})) {
+    // Tolerant read: a malformed attestation is treated as ABSENT, which
+    // fails safe (reviewed mode) rather than auto-publishing on junk.
+    if (a && typeof a === "object" && typeof a.byUserId === "string" && Array.isArray(a.columns)) {
+      attestations[dataset] = {
+        byUserId: a.byUserId,
+        byName: String(a.byName ?? "Unknown"),
+        at: String(a.at ?? ""),
+        columns: a.columns.map(String),
+      };
+    }
   }
-  return createFileDropConnector(source.agencyId);
+  return { connector, attestations };
+}
+
+function connectorFor(source: SourceEntity): DataSourceConnector {
+  const { connector } = readSourceConfig(source);
+  // The file drop's directory is DERIVED from the agency, never stored or
+  // typed — see the tenancy note in adapters/dataSource.ts.
+  return createConnector(source.connectorKind ?? CONNECTOR_KIND_FILE_DROP, source.agencyId, connector);
+}
+
+/** Same column names in the same order — the drift test (rail 3). */
+function sameColumns(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((c, i) => c === b[i]);
+}
+
+/**
+ * How a NEW slice is born. This is the whole publicness decision in one
+ * pure function, so the invariant tests can point at it:
+ *
+ *  - no live attestation  → internal (reviewed mode: a human publishes)
+ *  - PII found            → internal, quarantined (rail 2 — regardless of mode)
+ *  - columns drifted      → internal, quarantined + the attestation dies (rail 3)
+ *  - otherwise            → public, under the attestation (rail 1 cites it)
+ */
+export function classifyNewSlice(
+  attestation: DatasetAttestation | undefined,
+  slice: Pick<DatasetSlice, "columns">,
+  piiFindingCount: number,
+): { classification: "public" | "internal"; quarantined?: "pii" | "schema_drift"; drift?: boolean } {
+  if (!attestation) return { classification: "internal" };
+  if (piiFindingCount > 0) return { classification: "internal", quarantined: "pii" };
+  if (!sameColumns(attestation.columns, slice.columns)) {
+    return { classification: "internal", quarantined: "schema_drift", drift: true };
+  }
+  return { classification: "public" };
 }
 
 /**
@@ -60,7 +145,14 @@ function connectorFor(source: SourceEntity): DataSourceConnector {
  */
 export async function registerConnectedSource(
   deps: ServiceDeps,
-  input: { agencyId: string; actorUserId: string; name: string },
+  input: {
+    agencyId: string;
+    actorUserId: string;
+    name: string;
+    /** Defaults to the file drop — the zero-service on-ramp. */
+    kind?: string;
+    config?: ConnectorConfig;
+  },
 ): Promise<{ source: SourceEntity; dropDir: string }> {
   const { repo } = deps;
   const actor = await repo.getUser(input.agencyId, input.actorUserId);
@@ -68,31 +160,131 @@ export async function registerConnectedSource(
   const name = input.name.trim();
   if (!name) throw new Error("A source needs a name.");
 
+  const checked = validateConnectorConfig(input.kind ?? CONNECTOR_KIND_FILE_DROP, input.config ?? {});
+  if (!checked.ok) throw new Error(checked.reason);
+
   const source = await repo.createSource({
     id: deps.genId(),
     agencyId: input.agencyId,
     name,
-    type: "file_drop",
+    // The schema's source types: a pulled feed is a scheduled_pull, a
+    // watched directory is a file_drop.
+    type: checked.kind === CONNECTOR_KIND_FILE_DROP ? "file_drop" : "scheduled_pull",
     apiKeyHash: null,
-    // Reviewed mode: everything a sync lands waits for a named human in the
-    // publication queue. auto_publish is the phase-2 standing-attestation
-    // door and stays closed here.
+    // Reviewed mode at birth, always: a source becomes standing-publication
+    // only when a named admin attests a specific dataset, never at
+    // registration time in one click.
     trust: "review_queue",
     defaultClassification: "internal",
-    connectorKind: CONNECTOR_KIND_FILE_DROP,
+    connectorKind: checked.kind,
     syncSchedule: "nightly",
     lastSyncStatus: "never",
+    mappingConfig: { connector: checked.config, attestations: {} },
   });
   await repo.appendAdminEvent({
     id: deps.genId(),
     agencyId: input.agencyId,
     kind: "connected_source_registered",
     actorLabel: actor.name ?? actor.email,
-    summary: `Registered connected data source "${name}" (file drop, reviewed mode)`,
-    payload: { sourceId: source.id, connectorKind: CONNECTOR_KIND_FILE_DROP },
+    summary: `Registered connected data source "${name}" (${checked.kind.replace("dataset_", "")}, reviewed mode)`,
+    payload: { sourceId: source.id, connectorKind: checked.kind, config: checked.config },
     createdAt: deps.now(),
   });
   return { source, dropDir: connectedDropDir(input.agencyId) };
+}
+
+/**
+ * STANDING PUBLICATION (phase 2). A named admin attests that a dataset is
+ * public data, so FUTURE slices of it publish without a per-slice click.
+ * The attestation records who, when, and the column shape they looked at.
+ *
+ * `columns` comes from the slices already synced for this dataset — the
+ * admin is attesting to data they can see, not to an abstraction. Attesting
+ * does NOT publish anything that already landed: existing internal slices
+ * still need a named publish (invariant 9 — nothing here reclassifies).
+ */
+export async function attestDataset(
+  deps: ServiceDeps,
+  input: { agencyId: string; actorUserId: string; sourceId: string; dataset: string },
+): Promise<DatasetAttestation> {
+  const { repo } = deps;
+  const actor = await repo.getUser(input.agencyId, input.actorUserId);
+  if (!actor) throw new NotFoundError("User", input.actorUserId);
+  if (actor.role !== "admin") {
+    throw new Error("Only an agency admin can put a dataset on standing publication.");
+  }
+  const source = await getConnectedSource(deps, input.agencyId, input.sourceId);
+  const config = readSourceConfig(source);
+
+  // The shape being attested to: the columns of the most recent slice we
+  // hold for this dataset. No slices yet = nothing to look at = no
+  // attestation, rather than a blank cheque against future columns.
+  const docs = (await repo.listDocuments(input.agencyId)).filter((d) => d.sourceId === source.id);
+  const slices = docs
+    .map((d) => ({ doc: d, stamp: connectedStampOf(d) }))
+    .filter((x) => x.stamp?.dataset === input.dataset)
+    .sort((a, b) => (a.stamp!.period < b.stamp!.period ? 1 : -1));
+  const columns = slices[0]?.stamp?.columns ?? [];
+  if (columns.length === 0) {
+    throw new Error(
+      "Sync this dataset at least once before attesting — you attest to the columns you can see.",
+    );
+  }
+
+  const attestation: DatasetAttestation = {
+    byUserId: actor.id,
+    byName: actor.name ?? actor.email,
+    at: deps.now().toISOString(),
+    columns,
+  };
+  await repo.updateSource(input.agencyId, source.id, {
+    mappingConfig: {
+      ...config,
+      attestations: { ...config.attestations, [input.dataset]: attestation },
+    },
+  });
+  await repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "connected_dataset_attested",
+    actorLabel: attestation.byName,
+    summary: `Standing publication ON for "${input.dataset}" (${source.name}) — future slices publish automatically under ${attestation.byName}'s attestation`,
+    payload: {
+      sourceId: source.id,
+      dataset: input.dataset,
+      columns,
+      attestedBy: attestation.byUserId,
+    },
+    createdAt: deps.now(),
+  });
+  return attestation;
+}
+
+/** Revoke a standing attestation — the next sync is back to reviewed mode. */
+export async function revokeDatasetAttestation(
+  deps: ServiceDeps,
+  input: { agencyId: string; actorUserId: string; sourceId: string; dataset: string; reason?: string },
+): Promise<void> {
+  const { repo } = deps;
+  const actor = await repo.getUser(input.agencyId, input.actorUserId);
+  if (!actor) throw new NotFoundError("User", input.actorUserId);
+  const source = await getConnectedSource(deps, input.agencyId, input.sourceId);
+  const config = readSourceConfig(source);
+  if (!config.attestations[input.dataset]) return;
+
+  const { [input.dataset]: _removed, ...rest } = config.attestations;
+  await repo.updateSource(input.agencyId, source.id, {
+    mappingConfig: { ...config, attestations: rest },
+  });
+  await repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "connected_dataset_attestation_revoked",
+    actorLabel: actor.name ?? actor.email,
+    summary: `Standing publication OFF for "${input.dataset}" (${source.name})${input.reason ? ` — ${input.reason}` : ""}. Already-published slices stay public; new ones wait for review.`,
+    payload: { sourceId: source.id, dataset: input.dataset, reason: input.reason ?? null },
+    createdAt: deps.now(),
+  });
 }
 
 /** Pause (schedule null) or resume ("nightly") future syncs. Audited. */
@@ -152,6 +344,12 @@ export interface SyncResult {
   /** For the caller to enqueue follow-up jobs (services stay queue-free). */
   createdIds: string[];
   touchedIds: string[];
+  /** Slices born public under a standing attestation (phase 2). */
+  autoPublished: number;
+  /** Slices an attested dataset held back, and why (rails 2 and 3). */
+  quarantined: { dataset: string; period: string; why: "pii" | "schema_drift" }[];
+  /** Datasets whose attestation this sync revoked for schema drift. */
+  driftRevoked: string[];
 }
 
 function titleFor(dataset: string, period: string): string {
@@ -185,7 +383,17 @@ export async function syncConnectedSource(
     datasets: [],
     createdIds: [],
     touchedIds: [],
+    autoPublished: 0,
+    quarantined: [],
+    driftRevoked: [],
   };
+
+  // Attestations are read ONCE per sync and mutated locally: a dataset that
+  // drifts mid-sync stops auto-publishing for its remaining slices in the
+  // same run, before the revocation is persisted below.
+  const liveAttestations = { ...readSourceConfig(source).attestations };
+  const driftedDatasets = new Set<string>();
+
   try {
     const existingDocs = (await repo.listDocuments(input.agencyId)).filter(
       (d) => d.sourceId === source.id,
@@ -218,6 +426,19 @@ export async function syncConnectedSource(
 
           const csvText = slice.csv.toString("utf8");
           const findings = scanPii(csvText);
+
+          // ---- the standing-publication rails, for NEW slices only ----
+          // (rail 4: an existing document's classification is never touched
+          // by sync — that direction needs a named human, invariant 9.)
+          const attestation = liveAttestations[dataset];
+          const verdict = classifyNewSlice(attestation, slice, findings.length);
+          if (verdict.drift && attestation) {
+            // Rail 3: the shape changed under the attestation. Drop this
+            // dataset back to reviewed and tell the office why.
+            driftedDatasets.add(dataset);
+            delete liveAttestations[dataset];
+          }
+
           const stamp = {
             sourceId: source.id,
             sourceName: source.name,
@@ -225,12 +446,28 @@ export async function syncConnectedSource(
             period,
             checksum,
             syncedAt: deps.now().toISOString(),
+            columns: slice.columns,
+            ...(slice.truncated ? { truncated: true } : {}),
+            ...(verdict.quarantined ? { quarantined: verdict.quarantined } : {}),
           };
           const freshMeta: Partial<DocumentMeta> = {
             title: titleFor(dataset, period),
             recordDate: slice.recordDate,
             connectedSource: stamp,
             ...(findings.length > 0 ? { sensitivity: summarizePii(findings) } : {}),
+            // Rail 1: an auto-published slice carries the attestation as its
+            // publication decision, so the record itself names the human.
+            ...(verdict.classification === "public" && attestation
+              ? {
+                  publicationDecision: {
+                    decision: "published" as const,
+                    byUserId: attestation.byUserId,
+                    byName: attestation.byName,
+                    at: deps.now().toISOString(),
+                    reason: `Standing publication for "${dataset}", attested ${attestation.at.slice(0, 10)}`,
+                  },
+                }
+              : {}),
           };
           const blobRef = await deps.blobStore.put(
             blobKey(input.agencyId, slice.filename),
@@ -251,8 +488,9 @@ export async function syncConnectedSource(
             blobRef,
             extractedText: csvText,
             // A changed slice keeps its human decision (see module comment);
-            // a new slice is born internal — reviewed mode, always.
-            classification: existing?.classification ?? "internal",
+            // a NEW slice is born internal unless a live attestation, a
+            // clean PII scan, and a matching column shape all agree.
+            classification: existing?.classification ?? verdict.classification,
             recordType: "dataset",
             processingStatus: "ready",
             metadata: existing
@@ -260,6 +498,9 @@ export async function syncConnectedSource(
                   ...freshMeta,
                   // A stale sensitivity tally must not survive a clean re-sync.
                   sensitivity: findings.length > 0 ? summarizePii(findings) : undefined,
+                  // Never let a re-sync stamp a publication decision onto a
+                  // document a human decided (or hasn't yet).
+                  publicationDecision: readDocumentMeta(existing).publicationDecision,
                 })
               : (freshMeta as DocumentMeta as Record<string, unknown>),
             createdAt: existing?.createdAt ?? deps.now(),
@@ -269,6 +510,30 @@ export async function syncConnectedSource(
           if (created) {
             result.createdIds.push(document.id);
             result.created++;
+            if (verdict.classification === "public" && attestation) {
+              result.autoPublished++;
+              // Rail 1, per record: publishing to the public is one audited
+              // event per document — the same rule bulk publish follows.
+              await repo.appendAdminEvent({
+                id: deps.genId(),
+                agencyId: input.agencyId,
+                kind: "document_published",
+                actorLabel: attestation.byName,
+                summary: `Auto-published "${titleFor(dataset, period)}" under the standing attestation for "${dataset}" (${source.name})`,
+                payload: {
+                  documentId: document.id,
+                  sourceId: source.id,
+                  dataset,
+                  period,
+                  attestedBy: attestation.byUserId,
+                  attestedAt: attestation.at,
+                  automated: true,
+                },
+                createdAt: deps.now(),
+              });
+            } else if (verdict.quarantined) {
+              result.quarantined.push({ dataset, period, why: verdict.quarantined });
+            }
           } else {
             result.updated++;
           }
@@ -281,13 +546,50 @@ export async function syncConnectedSource(
       }
     }
 
+    // Rail 3, persisted: a drifted dataset loses its attestation until a
+    // human looks at the new shape and re-attests.
+    if (driftedDatasets.size > 0) {
+      const current = readSourceConfig(source);
+      const kept = Object.fromEntries(
+        Object.entries(current.attestations).filter(([d]) => !driftedDatasets.has(d)),
+      );
+      await repo.updateSource(input.agencyId, source.id, {
+        mappingConfig: { ...current, attestations: kept },
+      });
+      result.driftRevoked = [...driftedDatasets];
+      for (const dataset of driftedDatasets) {
+        await repo.appendAdminEvent({
+          id: deps.genId(),
+          agencyId: input.agencyId,
+          kind: "connected_dataset_attestation_revoked",
+          actorLabel: "Scheduled sync",
+          summary: `Standing publication OFF for "${dataset}" (${source.name}) — the source's columns changed since it was attested. New slices are waiting for review.`,
+          payload: {
+            sourceId: source.id,
+            dataset,
+            reason: "schema_drift",
+            attestedColumns: current.attestations[dataset]?.columns ?? [],
+          },
+          createdAt: deps.now(),
+        });
+      }
+    }
+
+    const notes = [
+      result.refused.length > 0
+        ? `${result.refused.length} slice(s) refused: ${result.refused[0]!.reason}`
+        : null,
+      result.quarantined.length > 0
+        ? `${result.quarantined.length} slice(s) held for review (${[...new Set(result.quarantined.map((q) => q.why))].join(", ")})`
+        : null,
+      result.driftRevoked.length > 0
+        ? `standing publication revoked for ${result.driftRevoked.join(", ")} (columns changed)`
+        : null,
+    ].filter(Boolean);
     await repo.updateSource(input.agencyId, source.id, {
       lastSyncAt: deps.now(),
       lastSyncStatus: "ok",
-      lastSyncError:
-        result.refused.length > 0
-          ? `${result.refused.length} slice(s) refused: ${result.refused[0]!.reason}`
-          : null,
+      lastSyncError: notes.length > 0 ? notes.join(" · ") : null,
     });
   } catch (e) {
     await repo.updateSource(input.agencyId, source.id, {
@@ -301,6 +603,10 @@ export async function syncConnectedSource(
   // One event per sync that changed anything (a quiet nightly no-op sync
   // would otherwise write 365 identical rows a year into the admin log).
   if (result.created + result.updated + result.refused.length > 0) {
+    const tail =
+      result.autoPublished > 0
+        ? `${result.autoPublished} auto-published under standing attestation, ${result.created - result.autoPublished} awaiting review`
+        : "new records await review";
     await repo.appendAdminEvent({
       id: deps.genId(),
       agencyId: input.agencyId,
@@ -308,12 +614,15 @@ export async function syncConnectedSource(
       actorLabel: input.actorLabel ?? "Scheduled sync",
       summary: `Synced "${source.name}": ${result.created} new, ${result.updated} updated, ${result.unchanged} unchanged${
         result.refused.length ? `, ${result.refused.length} refused` : ""
-      } — new records await review`,
+      } — ${tail}`,
       payload: {
         sourceId: source.id,
         created: result.created,
         updated: result.updated,
         unchanged: result.unchanged,
+        autoPublished: result.autoPublished,
+        quarantined: result.quarantined,
+        driftRevoked: result.driftRevoked,
         datasets: result.datasets,
         refused: result.refused.slice(0, 20),
       },

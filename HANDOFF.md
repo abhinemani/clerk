@@ -7,10 +7,48 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**755 tests pass, typecheck clean** (as of the 2026-08-13 phase-4
-entry below).
+**787 tests pass, typecheck clean** (as of the 2026-08-14
+connected-sources-phase-2 entry below).
 
-**NEWEST (2026-08-13 late night): RAG'D TRIAGE + ROUTING (ANSWER-FIRST
+**NEWEST (2026-08-14): CONNECTED SOURCES PHASE 2 — HTTP + SOCRATA
+CONNECTORS AND STANDING PUBLICATION.** Owner-directed. Verified in a real
+browser against a **live city open-data portal**, which turned out not to
+need a laptop at all (Socrata is public and this environment has outbound
+network — worth remembering for future "needs a machine" assumptions).
+- **Connectors**: `dataset_http` (one https URL of CSV **or** JSON, sliced
+  client-side by a date column) and `dataset_socrata` (SoQL `$where` window
+  + `$limit`/`$offset` paging, so a million-row portal still costs one
+  month per request). Both share `rowsToSlices`; all four connector kinds
+  now run through ONE parameterized conformance suite.
+  LIVE PROOF: Chicago `ygr5-vcbg` → 4 monthly datasets discovered from a
+  min/max aggregate, July slice = 2,520 rows, zero rows outside the window.
+- **Secrets**: a private feed names an ENV VAR (`tokenEnv`), never a pasted
+  token — `validateConnectorConfig` rejects anything that isn't
+  UPPER_SNAKE_CASE, and https-only, Socrata-4×4, slug-dataset rules are
+  enforced at write time. Tenant admins type these fields, so nothing they
+  submit is trusted.
+- **Standing publication**, opt-in per dataset, with all four rails and one
+  rule the build added: **future slices only.** An attestation makes NEW
+  slices be born public; nothing ever flips an EXISTING internal doc to
+  public (that direction is what invariant 9 forbids). Slices already
+  landed still need a per-slice publish, and the UI says so at the click.
+  - Rail 1: one `document_published` admin event per auto-published record,
+    naming the attesting human, plus a `publicationDecision` on the doc.
+  - Rail 2: any PII finding quarantines the slice, attestation or not.
+  - Rail 3: schema drift quarantines AND revokes the attestation (with an
+    audited event) — an attestation covers the shape a human read.
+  - Rail 4/invariant: `classifyNewSlice()` is the entire publicness
+    decision as one pure function; the tests point at it.
+- **Admin surface**: per-dataset rows (slices/public/held-for-review,
+  newest period, attestation state) with an attest confirmation that spells
+  out the consequences in plain language.
+- Browser-verified sequence: register live Socrata → sync 4 real slices →
+  attest → new period auto-publishes (1 new, 1 auto-published) → resident
+  archive shows it → drifted columns quarantine + revoke → SSN-bearing
+  slice quarantines → neither reaches the archive.
+787 tests (33 new), typecheck clean. No migration (mappingConfig again).
+
+**PREVIOUS (2026-08-13 late night): RAG'D TRIAGE + ROUTING (ANSWER-FIRST
 PHASE 4) + LAPTOP DOC MOBILE CHECKLIST.**
 Owner-directed. The last unbuilt piece of docs/answer-first.md is live —
 see that doc's phase-4 section for the full design; the short version:
@@ -907,11 +945,9 @@ and appeal-defense packet builder first). Bucket A is fully wired.
   the intake dedup in `[agency]/actions.ts` still re-embeds the whole
   request corpus per filing via findDuplicates — it should read the same
   stored vectors the precedent path uses. Small perf win, any session.
-- Connected data sources: **phase 1 SHIPPED** (see the newest entry).
-  Phase 2 = HTTP/Socrata connectors + standing-publication mode with its
-  four rails (attestation cited per publish, PII always quarantines,
-  schema-drift drops to reviewed, invariant test on revocation) — all
-  specced in `docs/connected-sources.md`. A Playwright e2e for the
-  register→sync→publish→flagged-answer loop is also still owed.
+- Connected data sources: **phases 1 AND 2 SHIPPED** (see the newest
+  entry). Phase 3 (structured row store + tabular answers) stays gated on
+  real usage. Still owed: a Playwright e2e for the
+  register→sync→publish→flagged-answer loop (verified by hand twice now).
 - The favicon hardcodes brand values inside `src/app/icon.svg` (a favicon
   can't read page tokens) — if the palette ever moves, move it too.
