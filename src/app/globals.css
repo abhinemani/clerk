@@ -38,9 +38,13 @@
   --maroon-btn: #9c4a2c;
   --maroon-tint: #f7efeb;
   --accent: #9c4a2c;
-  /* Gold is ORNAMENT — marks, rules, flourishes, and text on dark grounds
-     only. It is 1.5:1 on paper: never body text in light mode. */
-  --gold: #f5c75e;
+  /* Gold is ORNAMENT — marks, rules, flourishes. The board's #f5c75e reads
+     as gold on near-black, but on paper it is pale yellow at 1.5:1: the same
+     pigment that looks metallic against dark looks like a highlighter against
+     white. Light grounds therefore take the hue deeper — #b8860b is 3.0:1,
+     clearing the graphics threshold and reading as actual gold rather than
+     yellow. Dark keeps the board value verbatim. */
+  --gold: #b8860b;
   /* Plum: deep surface accent (the board's app icon ground). White on it is
      12.2:1, so it is safe as a solid fill in either mode. */
   --plum: #4b2a45;
@@ -52,7 +56,7 @@
      paper and would vanish, so the hue is held and lightness taken to 3.6:1,
      clearing the 3:1 minimum for a graphic. This is the one place the
      implementation departs from the render, and it departs on purpose. */
-  --mark-beam: #a9791f;
+  --mark-beam: #b8860b;
   --mark-ray: #c46a4a;
   --mark-structure: #1c2a45;
   /** Legacy alias — kept so nothing that still reads it breaks. */
@@ -61,7 +65,7 @@
      The tagline is gold in both, but gold is 1.5:1 on paper and this is small
      text needing 4.5:1 — so light takes the same hue down to 5.2:1. */
   --wordmark: #1c2a45;
-  --wordmark-sub: #8a6015;
+  --wordmark-sub: #96690d;
 
   /* AI surfaces — a calm teal. NOT on the brand board: status colors
      (overdue/due/ok) and the AI hue are FUNCTIONAL, not brand, and the board
@@ -1648,4 +1652,26 @@ label.lbl {
   font-style: normal;
   font-size: 0.8rem;
   color: #8fa0ba;
+}
+
+/* =========================================================================
+   GROUND-PINNED TOKENS
+
+   These sections are dark in BOTH themes — the hero, the dark bands, the
+   government footer and banner all paint their own near-black ground. A token
+   that follows the THEME is wrong inside them: in the light theme the deeper
+   paper-gold would land on near-black and go muddy.
+
+   Same lesson as the footer lockup: pin to the GROUND, not the theme.
+   ========================================================================= */
+.mk-hero,
+.mk-band-dark,
+.gov-footer,
+.gov-banner {
+  --gold: #f5c75e;
+  --mark-beam: #f5c75e;
+  --mark-ray: #c8d2e2;
+  --mark-structure: #f5c75e;
+  --wordmark: #f7f7f5;
+  --wordmark-sub: #f5c75e;
 }
