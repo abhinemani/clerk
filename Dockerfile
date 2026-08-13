@@ -1,4 +1,4 @@
-# Clerk — self-contained single-container deploy.
+# Holmes — self-contained single-container deploy.
 #
 # No external services required: the embedded PGlite database and local blob
 # store live on ONE mounted volume (/data). Optional upgrades (managed

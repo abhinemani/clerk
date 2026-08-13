@@ -49,7 +49,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Compliance report · 2026</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <DownloadButton filename="clerk-compliance-2026.csv" content={csv} label="Download CSV" />
+          <DownloadButton filename="holmes-compliance-2026.csv" content={csv} label="Download CSV" />
           {agency.id && (
             <a href={`/${slug}/app/reports/annual-report.pdf`} className="btn btn-sm">
               Download PDF

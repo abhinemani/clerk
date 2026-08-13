@@ -1,8 +1,8 @@
 {
-  "name": "clerk",
+  "name": "holmes",
   "version": "0.1.0",
   "private": true,
-  "description": "Clerk — an AI-native public records request platform",
+  "description": "Holmes — an AI-native public records request platform",
   "type": "module",
   "scripts": {
     "dev": "next dev",

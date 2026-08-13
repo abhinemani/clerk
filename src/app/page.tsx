@@ -3,7 +3,7 @@ import { branding } from "@/config/branding";
 import { Seal, SparkIcon } from "./_components/ui";
 
 /**
- * The marketing site — Clerk the product, pitched to governments. Distinct
+ * The marketing site — Holmes the product, pitched to governments. Distinct
  * from the tenant portals it links to: /riverton is the living demo.
  */
 export default function MarketingHome() {
@@ -218,7 +218,7 @@ export default function MarketingHome() {
               © {new Date().getFullYear()} {branding.productName}. {branding.tagline}.
             </span>
             <span>
-              <a href="mailto:hello@clerk.example">hello@clerk.example</a>
+              <a href="mailto:hello@holmes.example">hello@holmes.example</a>
             </span>
           </div>
         </div>

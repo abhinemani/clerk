@@ -1,4 +1,4 @@
-# Clerk
+# Holmes
 
 An AI-native public records (FOIA) request platform. See the root spec (`foia.md`)
 for the full product vision.
@@ -178,14 +178,14 @@ The embedded database (PGlite) migrates itself on boot — no Postgres needed.
 To use a managed Postgres instead (needs the `pgvector` extension):
 
 ```bash
-createdb clerk
-export DATABASE_URL=postgres://localhost:5432/clerk
+createdb holmes
+export DATABASE_URL=postgres://localhost:5432/holmes
 npm run db:migrate
 ```
 
 ## Deploy it yourself — self-contained, no accounts
 
-Clerk is built to run on a machine you already own: one container, one
+Holmes is built to run on a machine you already own: one container, one
 volume, zero external services. The embedded database, blob store, and
 outbox-mailbox mean nothing else is required; AI, email delivery, and real
 embeddings are opt-in env vars (see `.env.example`) that upgrade the same
@@ -208,7 +208,7 @@ you back up).
 ```
 src/
   app/                 three surfaces: portal (/), staff (/app), responder (/task)
-  config/branding.ts   single place to rename "Clerk" (§1)
+  config/branding.ts   single place to rename the product (§1)
   db/
     schema.ts          §5 data model — 21 tables
     index.ts           Drizzle client

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { LocalBlobStore, blobKey, checksumOf } from "./blobStore";
 
-const root = mkdtempSync(join(tmpdir(), "clerk-blobs-"));
+const root = mkdtempSync(join(tmpdir(), "holmes-blobs-"));
 const store = new LocalBlobStore(root);
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));

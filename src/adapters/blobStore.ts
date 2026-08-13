@@ -80,7 +80,7 @@ export class LocalBlobStore implements BlobStore {
 }
 
 interface BlobGlobal {
-  __clerkBlobStore?: BlobStore;
+  __holmesBlobStore?: BlobStore;
 }
 const g = globalThis as BlobGlobal;
 
@@ -90,15 +90,15 @@ const g = globalThis as BlobGlobal;
  * filesystem otherwise (self-contained first).
  */
 export function getBlobStore(): BlobStore {
-  if (!g.__clerkBlobStore) {
+  if (!g.__holmesBlobStore) {
     const s3 = s3ConfigFromEnv();
     if (s3) {
-      g.__clerkBlobStore = new S3BlobStore(s3);
+      g.__holmesBlobStore = new S3BlobStore(s3);
       console.log(`[blobs] using S3-compatible store at ${s3.endpoint}/${s3.bucket}`);
     } else {
       const root = process.env.BLOB_PATH ?? join(process.cwd(), ".blobdata");
-      g.__clerkBlobStore = new LocalBlobStore(root);
+      g.__holmesBlobStore = new LocalBlobStore(root);
     }
   }
-  return g.__clerkBlobStore;
+  return g.__holmesBlobStore;
 }

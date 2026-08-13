@@ -19,6 +19,11 @@ interface SavedFilter {
 }
 
 function storageKey(agencySlug: string, userId: string) {
+  return `holmes:savedFilters:${agencySlug}:${userId}`;
+}
+
+/** Pre-rename key (Clerk → Holmes). Read once so nobody loses saved filters. */
+function legacyStorageKey(agencySlug: string, userId: string) {
   return `clerk:savedFilters:${agencySlug}:${userId}`;
 }
 
@@ -44,7 +49,17 @@ export function QueueFilterBar({
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(storageKey(agencySlug, userId));
+      const key = storageKey(agencySlug, userId);
+      let raw = localStorage.getItem(key);
+      if (!raw) {
+        // One-time migration off the pre-rename key.
+        const legacy = localStorage.getItem(legacyStorageKey(agencySlug, userId));
+        if (legacy) {
+          localStorage.setItem(key, legacy);
+          localStorage.removeItem(legacyStorageKey(agencySlug, userId));
+          raw = legacy;
+        }
+      }
       if (raw) setSaved(JSON.parse(raw));
     } catch {
       // Corrupt or blocked storage — saved filters just don't load; nothing to do.

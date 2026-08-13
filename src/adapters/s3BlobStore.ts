@@ -6,7 +6,7 @@
  *
  * Opt-in via env (self-contained first — LocalBlobStore stays the default):
  *   S3_ENDPOINT=http://localhost:9000   (MinIO; or https://s3.us-east-1.amazonaws.com)
- *   S3_BUCKET=clerk-blobs
+ *   S3_BUCKET=holmes-blobs
  *   S3_ACCESS_KEY_ID=…  S3_SECRET_ACCESS_KEY=…
  *   S3_REGION=us-east-1                 (optional)
  * Path-style addressing ({endpoint}/{bucket}/{key}) — works everywhere,

@@ -14,19 +14,19 @@ import { getDb } from "@/db/createRepository";
 import { instanceMeta } from "@/db/schema";
 
 interface InstanceGlobal {
-  __clerkInstanceId?: Promise<string>;
+  __holmesInstanceId?: Promise<string>;
 }
 const g = globalThis as InstanceGlobal;
 
 export function getInstanceId(): Promise<string> {
-  if (!g.__clerkInstanceId) {
-    g.__clerkInstanceId = resolveInstanceId().catch((err) => {
+  if (!g.__holmesInstanceId) {
+    g.__holmesInstanceId = resolveInstanceId().catch((err) => {
       // Don't cache a failure — next call retries.
-      g.__clerkInstanceId = undefined;
+      g.__holmesInstanceId = undefined;
       throw err;
     });
   }
-  return g.__clerkInstanceId;
+  return g.__holmesInstanceId;
 }
 
 async function resolveInstanceId(): Promise<string> {

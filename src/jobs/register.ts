@@ -11,16 +11,16 @@ import { getJobQueue } from "./queue";
 import { runIntakeTriageJob } from "./triageJob";
 
 interface RegisterGlobal {
-  __clerkJobsRegistered?: boolean;
-  __clerkSweepTimer?: ReturnType<typeof setInterval>;
+  __holmesJobsRegistered?: boolean;
+  __holmesSweepTimer?: ReturnType<typeof setInterval>;
 }
 const g = globalThis as RegisterGlobal;
 
 const SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export function registerJobs(): void {
-  if (g.__clerkJobsRegistered) return;
-  g.__clerkJobsRegistered = true;
+  if (g.__holmesJobsRegistered) return;
+  g.__holmesJobsRegistered = true;
 
   const queue = getJobQueue();
   queue.register("intake_triage", runIntakeTriageJob);
@@ -96,8 +96,8 @@ export function registerJobs(): void {
     }
   };
 
-  if (!g.__clerkSweepTimer) {
-    g.__clerkSweepTimer = setInterval(sweep, SWEEP_INTERVAL_MS);
+  if (!g.__holmesSweepTimer) {
+    g.__holmesSweepTimer = setInterval(sweep, SWEEP_INTERVAL_MS);
     // Also run shortly after boot so a restarted server has a fresh digest.
     setTimeout(sweep, 15_000);
   }

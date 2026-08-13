@@ -152,16 +152,16 @@ export class DurableQueue implements JobQueue {
 }
 
 interface QueueGlobal {
-  __clerkJobQueue?: DurableQueue;
+  __holmesJobQueue?: DurableQueue;
 }
 const g = globalThis as QueueGlobal;
 
 export function getJobQueue(): DurableQueue {
-  if (!g.__clerkJobQueue) {
-    g.__clerkJobQueue = new DurableQueue(async () => {
+  if (!g.__holmesJobQueue) {
+    g.__holmesJobQueue = new DurableQueue(async () => {
       const { getRepository } = await import("@/db/createRepository");
       return getRepository();
     });
   }
-  return g.__clerkJobQueue;
+  return g.__holmesJobQueue;
 }

@@ -213,7 +213,7 @@ describe("composeReferralLetter", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Phase 3 — cross-tenant forwarding. Same Clerk deployment, two tenants; the
+// Phase 3 — cross-tenant forwarding. Same Holmes deployment, two tenants; the
 // forward is the ONLY sanctioned crossing, and these tests pin its allow-list.
 // ---------------------------------------------------------------------------
 

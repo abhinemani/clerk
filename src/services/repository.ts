@@ -149,7 +149,7 @@ export interface DirectoryEntry {
   portalUrl: string | null;
   recordTypes: string[];
   notes: string | null;
-  /** Set when this target is another Clerk tenant (enables forwarding). */
+  /** Set when this target is another Holmes tenant (enables forwarding). */
   peerAgencyId: string | null;
 }
 

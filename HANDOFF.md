@@ -8,7 +8,22 @@ verified working in that window unless marked otherwise.
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
 **506 tests pass, typecheck clean** (as of `f454a17`, 2026-08-04 late night).
 
-**NEWEST (2026-08-06 later): EMAIL INGESTION SHIPPED** — "most responsive
+**NEWEST (2026-08-13): NAMING SWEPT TO HOLMES.** The 2026-08-05 rename only
+moved the eight hard-coded strings; this finishes it across code, comments,
+docs, identifiers, and the package name. Two deliberate exceptions, both
+pinned in CLAUDE.md — **"clerk" as a job title stays** (City Clerk,
+Clerk-Recorder, "the records clerk", `clerk@yourcity.gov`) and the
+**`clerk-data` Docker volume keeps its name** (renaming it mounts a fresh
+empty volume and every existing deployment looks wiped; comment in
+docker-compose.yml says so). Compose SERVICE is now `holmes` (safe — data
+lives in the named volume). **Demo/platform credentials changed:
+`admin@holmes.example` / `holmes-admin-dev`** (was admin@clerk.example /
+clerk-admin-dev); the saved-filters localStorage key moved with a one-time
+migration off the old key. Still `clerk`, outside the codebase's reach: the
+GitHub repo, the clone directory, `.claude/launch.json`. 667 tests pass,
+typecheck clean.
+
+**PREVIOUS (2026-08-06 later): EMAIL INGESTION SHIPPED** — "most responsive
 records ARE emails." Request detail gains "Import a mailbox export"
 (coordinator-facing, open requests): .mbox / single .eml / ZIP-of-.eml →
 preview (count, date range, subjects; same parser as import) → every
@@ -28,7 +43,7 @@ Follow-ups: threading view (messages carry emailFrom/To/Date metadata,
 grouping is a UI exercise), PST support (needs a real parser — punt until
 demanded; IT can export mbox/eml), dedupe on Message-ID.
 
-**PREVIOUS (2026-08-06): VISUAL REDACTION SHIPPED** — the functional gap for
+**EARLIER (2026-08-06): VISUAL REDACTION SHIPPED** — the functional gap for
 scans/photos/PDFs without a text layer (the docs the text studio could only
 withhold). `/app/requests/[id]/redact-visual`: staff draw boxes on rendered
 pages; finalize BURNS the pixels server-side (decode → black rects →
@@ -143,7 +158,7 @@ below). The next priorities, in order (owner-reviewed 2026-08-04):
 
 ## What this is
 
-Clerk — a multi-tenant, AI-native public records (FOIA) platform. One
+Holmes — a multi-tenant, AI-native public records (FOIA) platform. One
 deployment serves many governments; each gets its own portal, staff
 workspace, statute profile, and data. Root spec: `~/Desktop/foia.md`
 (+ `~/Desktop/agentic.md` for §16); repo docs in `docs/` — **read
@@ -384,7 +399,7 @@ Also complete:
   pinned by an invariant test in referralService.test.ts). Migration 0008
   adds `forwarded_from`/`forwarded_to` jsonb (denormalized snapshots — no
   cross-tenant reads at render, deliberately no FK). Peer links are
-  platform-operator scope (/admin/[slug]); staff see "⚡ on Clerk" and the
+  platform-operator scope (/admin/[slug]); staff see "⚡ on Holmes" and the
   button becomes "Refer & forward"; requester tracker deep-links to the
   new request's tracker. Riverton seeds a peer-linked Bellmar entry.
   Verified live: forward created Bellmar's PR-2026-00002, anonymous (no
@@ -420,8 +435,8 @@ Demo credentials (seed prints them): Riverton staff `dana@riverton.gov` /
 responder `sam@riverton.gov` / `riverton-demo3` (Public Works only — lands
 on /app/tasks, blocked from coordinator surfaces) ·
 resident `jordan@rivertonledger.com` / `riverton-resident` · Bellmar staff
-`amara@bellmar.gov` / `bellmar-demo` · platform `admin@clerk.example` /
-`clerk-admin-dev`.
+`amara@bellmar.gov` / `bellmar-demo` · platform `admin@holmes.example` /
+`holmes-admin-dev`.
 
 Seeded demo moments: Wei's request = full closed cycle with real PDF
 download; Jordan's = clarification round-trip (reply as Jordan, or via the
@@ -430,7 +445,7 @@ real PII-laden bytes.
 
 **Platform operator login on THIS machine:** `.env` overrides the seeded
 default — use the `PLATFORM_ADMIN_EMAIL` / `PLATFORM_ADMIN_PASSWORD` values
-in `.env`, not `admin@clerk.example` (we hit this).
+in `.env`, not `admin@holmes.example` (we hit this).
 
 **Port layout during the build window** (multiple things run in this repo):
 `:3000` another session's dev server on `./.pgdata` · `:3100` this window's

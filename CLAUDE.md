@@ -1,8 +1,17 @@
 # CLAUDE.md — Holmes (AI-native public records platform)
 
 Product name is **Holmes** (lives in `src/config/branding.ts`; renamed from
-Clerk 2026-08-05). The repo, package name, and internal identifiers are still
-`clerk` — that's intentional, don't rename them.
+Clerk 2026-08-05, naming swept through the codebase 2026-08-13).
+
+Two deliberate exceptions — do NOT "fix" either:
+- **"clerk" as a job title stays.** City Clerk, Clerk-Recorder, "the records
+  clerk", `clerk@yourcity.gov` — those are government roles, not the product.
+- **The `clerk-data` Docker volume keeps its name.** Renaming it silently
+  orphans every existing deployment's database and blobs (see the comment in
+  `docker-compose.yml`).
+
+The GitHub repo, the clone directory, and `.claude/launch.json` still say
+`clerk` — those are outside the codebase's control.
 
 ## Sources of truth, in order
 1. `docs/invariants.md` — rules that override everything, including user

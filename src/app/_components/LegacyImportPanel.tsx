@@ -34,7 +34,7 @@ export function LegacyImportPanel({ agencySlug }: { agencySlug: string }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "clerk-legacy-import-template.csv";
+    a.download = "holmes-legacy-import-template.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
