@@ -220,9 +220,8 @@ Also complete:
   anyone; public-release artifact → anyone; private-release artifact →
   owning requester; else staff only) · `/api/v1/{agency}/records` ingestion
   · `/api/v1/email/inbound` email-in webhook.
-- **Data**: `src/db/schema.ts` (Drizzle; migrations 0000–0004, append-only —
-  new schema = new file via `npm run db:generate`; nothing this window
-  needed one). `getRepository()` → managed Postgres via `DATABASE_URL`,
+- **Data**: `src/db/schema.ts` (Drizzle; migrations 0000–0011, append-only —
+  new schema = new file via `npm run db:generate`). `getRepository()` → managed Postgres via `DATABASE_URL`,
   else embedded PGlite at `PGLITE_PATH` / `./.pgdata`. Repository port +
   InMemory (tests) + Drizzle adapters: `src/services/repository.ts`,
   `src/db/repository/drizzleRepository.ts`.
@@ -467,7 +466,7 @@ One volume (`clerk-data` → `/data`) holds DB + blobs. Optional env:
 3. **Reseeding invalidates staff sessions** (new user ids) — expected.
 4. **Remount-key pattern**: interactive panels remount via a server-state
    fingerprint `key` after router.refresh() — keep it for new panels.
-5. **Migrations are append-only** (0000–0004 applied).
+5. **Migrations are append-only** (0000–0011 applied).
 6. **Browser-automation logins race hydration** — wait ~4–5s after load
    before dispatching forms; clicks before hydration submit a native GET.
 7. **The container doesn't auto-update** — rebuild (`docker compose up -d
@@ -578,7 +577,3 @@ and appeal-defense packet builder first). Bucket A is fully wired.
 - Copilot task/extension proposals point at panels but don't prefill them.
 - Demo-fixture archive (unseeded `/riverton`) has no downloadable bytes —
   by design; seed for the real thing.
-- The §6.7 requester agent (multi-turn answer→narrow→file) is built and
-  tested but not wired into the portal answer box.
-- The in-process job queue loses queued jobs on restart (fine for drafts —
-  everything user-visible is persisted first).
