@@ -1382,13 +1382,15 @@ label.lbl {
   .mk-topnav .nav-links .btn {
     margin-left: 0 !important;
   }
-  /* Collapse to the mark. At 390px the wordmark plus the CTA is wider than
-     the viewport no matter how far the lockup shrinks — clamping the size
-     just makes an illegible wordmark instead of an overflowing one. The
-     link keeps its aria-label, so the product name is still announced. */
-  .mk-topnav .brand-wordmark,
-  .mk-topnav .brand-tagline {
+  /* Collapse to the mark-only crop. At 390px the full lockup plus the CTA
+     is wider than the viewport no matter how far it shrinks — clamping the
+     size just makes an illegible wordmark instead of an overflowing one.
+     The link keeps its aria-label, so the product name is still announced. */
+  .mk-topnav .brand-lockup-full {
     display: none;
+  }
+  .mk-topnav .brand-lockup-mark {
+    display: block;
   }
 }
 /* The lockup is down to the mark alone at this width, and a sticky bar costs
@@ -1401,8 +1403,12 @@ label.lbl {
   }
 }
 
-/* svg is display:block globally, so text-align can't center the seal */
+/* svg is display:block globally, so text-align can't center the seal —
+   same for the raster mark's img */
 .mk-head-center > svg {
+  margin-inline: auto;
+}
+.mk-head-center > .brand-raster img {
   margin-inline: auto;
 }
 
@@ -1616,13 +1622,11 @@ label.lbl {
 }
 
 /* =========================================================================
-   BRAND LOCKUP — mark + wordmark + tagline, per the 2026-08-13 board.
-
-   The board's wordmark is a light geometric sans at very wide tracking. We
-   approximate it with Public Sans at 300 and 0.22em rather than adding a
-   webfont: the product self-hosts its type and stays offline-capable, and a
-   new face would be the first external font dependency in the stack. If the
-   real face is licensed, swapping it is one --font-brand declaration.
+   BRAND LOCKUP — the owner's raster renders, verbatim (directive
+   2026-08-13). Mark, wordmark, and tagline are pixels of one image per
+   theme; nothing here is typeset, so there is no brand font to approximate
+   and no wordmark CSS. Light/dark revisions swap on the visitor's theme;
+   dark-in-both-themes grounds (marketing footer) pin the dark revision.
    ========================================================================= */
 .brand-lockup {
   --lockup: 26px;
@@ -1638,51 +1642,20 @@ label.lbl {
   display: block;
   line-height: 0;
 }
-/* One number sizes the whole lockup: the mark's height and the wordmark
-   scale together off --lockup, so the header can grow without anything
-   drifting out of proportion. Both revisions are cropped to the same canvas
-   (252x124), so the box does not resize when <picture> swaps them at the
-   theme boundary. */
-.brand-lockup > svg,
+/* One number sizes the whole lockup. The image is the owner's full render
+   (mark + wordmark + tagline in one raster), so --lockup scales the whole
+   thing together. 1.6× because the render's wordmark occupies ~30% of the
+   image's height: at nav size (36) that puts the letterforms around 17px of
+   cap height — legible — where 1× left an unreadable 11px smear. */
 .brand-lockup > .brand-raster img {
-  height: var(--lockup);
+  height: calc(var(--lockup) * 1.6);
   width: auto;
 }
-/* With a tagline the text block is two lines, so the mark grows to span
-   both — otherwise it sits short against the name and reads misaligned. */
-.brand-lockup:has(.brand-tagline) > svg,
-.brand-lockup:has(.brand-tagline) > .brand-raster img {
-  height: calc(var(--lockup) * 1.22);
-}
-.brand-wordmark {
-  display: block;
-  font-size: 0.68em;
-  font-weight: 300;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  line-height: 1;
-  color: var(--wordmark);
-  /* the tracking adds a trailing gap; pull it back so the lockup optically centers */
-  margin-right: -0.22em;
-}
-.brand-tagline {
-  display: block;
-  /* Sized off --lockup like the wordmark, at roughly the 0.38 ratio the
-     board draws. It was 0.62em of the WRAPPER, which resolved to nearly the
-     wordmark's own size — a tagline as big as the name. */
-  margin-top: 0.14em;
-  margin-right: -0.18em;
-  font-size: 0.26em;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  line-height: 1;
-  color: var(--wordmark-sub);
-}
-.brand-lockup-stack {
-  flex-direction: column;
-  gap: 18px;
-  text-align: center;
+/* The mark-only crop exists for the phone collapse; hidden until then.
+   One class only: the ≤640px `.mk-topnav .brand-lockup-mark` override is
+   two, so it wins regardless of where this block sits in the sheet. */
+.brand-lockup-mark {
+  display: none;
 }
 
 /* Hero panel: the automation chain above the drafted response. The point of

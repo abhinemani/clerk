@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { branding } from "@/config/branding";
-import { BrandLockup, BrandMark, SparkIcon } from "./_components/ui";
+import { BrandLockup, BrandMarkRaster, SparkIcon } from "./_components/ui";
 
 /**
  * The marketing site — Brandeis the product, pitched to governments. Distinct
@@ -300,7 +300,7 @@ export default function MarketingHome() {
         <section className="mk-band-tint">
           <div className="wrap mk-section">
             <div className="mk-head-center">
-              <BrandMark size={40} idPrefix="ten" />
+              <BrandMarkRaster size={40} />
               <h2 className="mk-h2" style={{ marginTop: 16 }}>
                 One platform. Every agency its own house.
               </h2>

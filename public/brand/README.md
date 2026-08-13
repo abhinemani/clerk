@@ -13,9 +13,15 @@ with a real alpha channel — no black plate to key off. They are still
 rasters: they do not scale past the source and cannot be recoloured, so they
 are used as images, not as the mark.
 
-**Use them large, and match the revision to the ground.** At 26px (nav
-height) the outlined letterforms and the record's data grid collapse into an
-illegible smear. These are hero lockups, ~120px and up.
+**Owner directive 2026-08-13: these renders ARE the logo, everywhere.** No
+re-typeset wordmark, no vector redraw. `<BrandLockup>` renders the full
+lockup image; the nav sizes it at 1.6×`--lockup` (≈58px tall at desktop nav
+size), which was verified legible in both themes — below roughly 40px of
+image height the letterforms do start to smear, which is why the ≤640px nav
+collapses to the mark crop instead of shrinking the lockup further.
+Match the revision to the ground: theme-swap on grounds that follow the
+visitor, pin the dark revision on grounds that are dark in both themes
+(marketing footer).
 
 ## Marks — header use
 
@@ -46,10 +52,12 @@ both, onto the same canvas.
 
 ## Which asset where
 
-Anything that needs to recolour from tokens, run at favicon size, or animate
-uses `<BrandMark>` in `src/app/_components/ui.tsx` — hand-authored SVG on
-brand tokens. Header chrome uses the raster, because it is the approved
-artwork and one mark everywhere beats two drawings of the same idea.
+The rasters, everywhere (owner directive 2026-08-13): `<BrandLockup>` for
+the full lockup, `<BrandMarkRaster>` for the mark alone. The hand-authored
+`<BrandMark>` SVG was REMOVED with that directive — do not redraw the mark
+in code. The one surviving hand-drawn derivative is `src/app/icon.svg` (a
+favicon cannot ship a 170KB raster); keep its colours in sync with the
+renders if they are ever regenerated.
 
 To replace the rasters with a true vector, export with text converted to
 outlines and shapes as paths (Illustrator: Save As → SVG, *Preserve

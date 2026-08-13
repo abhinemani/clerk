@@ -71,250 +71,41 @@ export function Seal({ size = 34, label }: { size?: number; label?: string }) {
 }
 
 /**
- * BRANDEIS PRODUCT MARK — the prism.
+ * The mark as ARTWORK — the prism cropped from the owner's lockup renders.
  *
- * A ray of sunlight enters from the left, strikes a prism, and refracts into
- * a stream of data that resolves into a document. "Sunlight becomes
- * understanding": the reason the product is named for the justice who wrote
- * that sunlight is the best disinfectant.
- *
- * Hand-authored SVG on brand tokens, so it inherits light/dark, scales from a
- * 24px favicon to a hero watermark without artifacts, and adds no binary
- * asset to the bundle. `idPrefix` keeps the gradient ids unique when more
- * than one mark is on a page.
- *
- * NOT the same thing as <Seal>. Seal stands in for a GOVERNMENT's own seal on
- * tenant portals; this stands for the product. Never swap one for the other.
+ * The mark and lockup are the OWNER'S RASTER RENDERS, verbatim (owner
+ * directive 2026-08-13: the images ARE the logo — no re-typeset wordmark, no
+ * vector redraw; the old hand-authored SVG mark was removed with that
+ * directive). Two revisions swapped by the visitor's theme; both carry a
+ * real alpha channel so they sit on any ground. Grounds that are dark in
+ * BOTH themes (the marketing footer) pin the dark revision instead — swap
+ * on the GROUND, not the theme. src/app/icon.svg is the one surviving
+ * hand-drawn derivative (a favicon cannot ship a 170KB raster) and is
+ * maintained separately.
  */
-export function BrandMark({
-  size = 34,
-  label,
-  idPrefix = "bm",
-  detail,
-}: {
-  size?: number;
-  label?: string;
-  idPrefix?: string;
-  detail?: "full" | "compact";
-}) {
-  /**
-   * Redrawn 2026-08-13 (rev 3) against all four of the owner's renders,
-   * taking what is consistent across them. Three things the earlier drafts
-   * got wrong, all visible once the renders are compared side by side:
-   *
-   *  - The record is NOT a closed rectangle. It is a bracket, OPEN on the
-   *    left, so the rays run into it and become its contents. Closing it
-   *    turned the mark into three separate objects.
-   *  - The prism is glass with THICKNESS: a back edge sits inside the right
-   *    face, and the lit top edge reads brighter than the body.
-   *  - The fan CHANGES COLOUR. Rays leave the prism cool/silver and turn
-   *    gold as they enter the record — light literally becoming data, which
-   *    is the whole idea of the mark.
-   *
-   * Detail is the point here, so `compact` is reserved for favicon scale.
-   */
-  const compact = (detail ?? (size < 26 ? "compact" : "full")) === "compact";
-  const wBeam = compact ? 3.4 : 2.3;
-  const wRay = compact ? 2.6 : 1.5;
-  const wStruct = compact ? 3.2 : 2.0;
-  const wData = compact ? 2.6 : 1.9;
-
-  const beam = `${idPrefix}-beam`;
-  const halo = `${idPrefix}-halo`;
-  const flare = `${idPrefix}-flare`;
-  const streak = `${idPrefix}-streak`;
-  const glass = `${idPrefix}-glass`;
-
-  /** Fan geometry: apex -> the bracket's open mouth. */
-  const APEX = { x: 42, y: 48 };
-  const MOUTH = 106;
-  const rays = compact
-    ? [36, 48, 60]
-    : [28, 33.5, 39, 44, 48, 52, 57, 62.5, 68];
-
-  /** Data rows inside the record, at the y values the rays arrive on. */
-  const rows: Array<[number, Array<[number, number]>]> = [
-    [31, [[112, 7], [122, 5]]],
-    [37, [[112, 12]]],
-    [43, [[112, 6], [121, 8]]],
-    [49, [[112, 15]]],
-    [55, [[112, 5], [120, 6], [129, 4]]],
-    [61, [[112, 11]]],
-    [67, [[112, 7], [122, 6]]],
-  ];
-
-  return (
-    <svg
-      width={size * (160 / 96)}
-      height={size}
-      viewBox="0 0 160 96"
-      fill="none"
-      role={label ? "img" : undefined}
-      aria-label={label}
-      aria-hidden={label ? undefined : true}
-      style={{ flex: "none", overflow: "visible" }}
-    >
-      <defs>
-        <linearGradient id={beam} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.35" />
-          <stop offset="0.45" stopColor="var(--mark-beam)" stopOpacity="0.85" />
-          <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="1" />
-        </linearGradient>
-        <linearGradient id={halo} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0" />
-          <stop offset="0.55" stopColor="var(--mark-beam)" stopOpacity="0.2" />
-          <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="0.4" />
-        </linearGradient>
-        <radialGradient id={flare}>
-          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.92" />
-          <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id={streak}>
-          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.7" />
-          <stop offset="0.5" stopColor="var(--mark-beam)" stopOpacity="0.14" />
-          <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="0" />
-        </radialGradient>
-        {/* Glass body: brighter along the lit top face, falling away below. */}
-        <linearGradient id={glass} x1="0.2" y1="0" x2="0.8" y2="1">
-          <stop offset="0" stopColor="var(--mark-ray)" stopOpacity="0.34" />
-          <stop offset="0.5" stopColor="var(--mark-ray)" stopOpacity="0.13" />
-          <stop offset="1" stopColor="var(--mark-ray)" stopOpacity="0.05" />
-        </linearGradient>
-      </defs>
-
-      {/* ---- the arriving ray ---- */}
-      <path d="M0 48H42" stroke={`url(#${halo})`} strokeWidth={wBeam * 2.4} strokeLinecap="round" />
-      <path d="M0 48H42" stroke={`url(#${beam})`} strokeWidth={wBeam} strokeLinecap="round" />
-      <ellipse cx="36" cy="48" rx="46" ry="5.5" fill={`url(#${streak})`} />
-
-      {/* ---- prism: glass body, back edge, lit top face ---- */}
-      <path d="M42 48 76 12 76 84Z" fill={`url(#${glass})`} />
-      {!compact && (
-        <path
-          d="M69 19.6V76.4"
-          stroke="var(--mark-structure)"
-          strokeWidth={wStruct * 0.6}
-          strokeOpacity="0.5"
-          strokeLinecap="round"
-        />
-      )}
-      <path
-        d="M42 48 76 12 76 84Z"
-        stroke="var(--mark-structure)"
-        strokeWidth={wStruct}
-        strokeLinejoin="round"
-      />
-      {!compact && (
-        <path
-          d="M42 48 76 12"
-          stroke="var(--mark-ray)"
-          strokeWidth={wStruct * 0.55}
-          strokeOpacity="0.75"
-          strokeLinecap="round"
-        />
-      )}
-
-      {/* ---- refracted fan: cool leaving the prism, warming into the record ---- */}
-      <g strokeWidth={wRay} strokeLinecap="round">
-        {rays.map((y, i) => {
-          const mid = i === Math.floor(rays.length / 2);
-          return (
-            <path
-              key={y}
-              d={`M${APEX.x + 1} ${APEX.y} ${MOUTH} ${y}`}
-              stroke={i % 3 === 2 ? "var(--mark-beam)" : "var(--mark-ray)"}
-              strokeOpacity={mid ? 1 : 0.82}
-              strokeDasharray={
-                compact || mid ? undefined : i % 2 === 0 ? "26 3 9 3 5 3" : "21 3 7 3 4 3"
-              }
-            />
-          );
-        })}
-      </g>
-
-      {/* flare core sits above the fan so the origin stays a point */}
-      <circle cx="42" cy="48" r={compact ? 13 : 11} fill={`url(#${flare})`} />
-      <circle cx="42" cy="48" r={compact ? 3.4 : 2.5} fill="var(--mark-beam)" />
-
-      {/* ---- the record: a bracket, OPEN on the left, corner turned ---- */}
-      <path
-        d="M104 24H134L144 34V72H104"
-        stroke="var(--mark-beam)"
-        strokeWidth={wStruct}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      {!compact && (
-        <path
-          d="M134 24V34H144"
-          stroke="var(--mark-beam)"
-          strokeWidth={wStruct * 0.7}
-          strokeOpacity="0.75"
-          strokeLinejoin="round"
-        />
-      )}
-
-      {/* ---- the fan, become data ---- */}
-      {!compact && (
-        <g strokeWidth={wData} strokeLinecap="round">
-          {rows.map(([y, segs], ri) =>
-            segs.map(([x, len], si) => (
-              <path
-                key={`${y}-${x}`}
-                d={`M${x} ${y}h${len}`}
-                stroke={(ri + si) % 3 === 1 ? "var(--mark-ray)" : "var(--mark-beam)"}
-                strokeOpacity={(ri + si) % 3 === 1 ? 0.7 : 0.95}
-              />
-            )),
-          )}
-          {/* a few solid blocks, as in the renders */}
-          <g fill="var(--mark-beam)" fillOpacity="0.85" stroke="none">
-            <rect x="126" y="35.2" width="3.6" height="3.6" rx="0.6" />
-            <rect x="132" y="47.2" width="3.6" height="3.6" rx="0.6" />
-            <rect x="126" y="59.2" width="3.6" height="3.6" rx="0.6" />
-          </g>
-        </g>
-      )}
-    </svg>
-  );
-}
-
-/**
- * The approved mark as ARTWORK, for headers.
- *
- * Two revisions swapped by theme, which is correct here because a nav's
- * ground follows the visitor — unlike the footer, whose ground is dark in
- * both themes and therefore pins one revision. Cropped from the owner's
- * lockups and downscaled to 132px tall, covering a 40px slot at 3x.
- *
- * Use this wherever the mark appears at header size: it is the approved
- * artwork, and one mark everywhere beats two drawings of the same idea.
- * <BrandMark> (SVG) stays for standalone/decorative placements, where it can
- * run larger and recolour from tokens.
- */
-export function BrandMarkRaster({ alt = "" }: { alt?: string }) {
+export function BrandMarkRaster({ alt = "", size }: { alt?: string; size?: number }) {
   return (
     <picture className="brand-raster">
       <source srcSet="/brand/mark-dark.png" media="(prefers-color-scheme: dark)" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/mark-light.png" alt={alt} />
+      <img
+        src="/brand/mark-light.png"
+        alt={alt}
+        style={size ? { height: size, width: "auto" } : undefined}
+      />
     </picture>
   );
 }
 
 /**
- * The full product lockup: prism + BRANDEIS + optional tagline. Horizontal by
- * default, stacked for hero use — the two arrangements the board specifies.
+ * The full product lockup — the owner's approved artwork VERBATIM (mark,
+ * wordmark, and tagline are pixels of one render; owner directive 2026-08-13:
+ * the raster lockups are the logo, nothing re-typeset, no vector redraw).
+ * Light/dark revisions swap on the visitor's theme; both ship a real alpha
+ * channel so they sit on any ground. On phone widths the marketing nav
+ * swaps to the mark-only crop via CSS — same artwork, tighter crop.
  */
-export function BrandLockup({
-  size = 30,
-  tagline = true,
-  stack = false,
-}: {
-  size?: number;
-  tagline?: boolean;
-  stack?: boolean;
-}) {
+export function BrandLockup({ size = 30 }: { size?: number }) {
   // Size drives a CSS custom property rather than fixed attributes, so the
   // whole lockup scales from one number — and it is a clamp(), so a narrow
   // viewport shrinks it automatically instead of overflowing the nav (which
@@ -322,17 +113,22 @@ export function BrandLockup({
   const style = {
     "--lockup": `clamp(${Math.round(size * 0.72)}px, 4.2vw, ${size}px)`,
   } as React.CSSProperties;
+  const alt = `${branding.productName} — ${branding.tagline}`;
   return (
-    <span className={`brand-lockup${stack ? " brand-lockup-stack" : ""}`} style={style}>
-      {/* The approved artwork, not a redraw of it. No idPrefix needed: a
-          raster has no gradient ids to collide when the lockup appears twice
-          on a page. <BrandMark> stays for placements that run large enough to
-          show the SVG's detail and want token recolouring. */}
-      <BrandMarkRaster />
-      <span>
-        <span className="brand-wordmark">Brandeis</span>
-        {tagline && <span className="brand-tagline">{branding.tagline}</span>}
-      </span>
+    <span className="brand-lockup" style={style}>
+      <picture className="brand-raster brand-lockup-full">
+        <source srcSet="/brand/brandeis-lockup-dark.png" media="(prefers-color-scheme: dark)" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/brandeis-lockup-light.png" alt={alt} />
+      </picture>
+      {/* Hidden until the ≤640px collapse — the alt lives on whichever
+          rendition is visible, and the nav link's aria-label still names
+          the product either way. */}
+      <picture className="brand-raster brand-lockup-mark">
+        <source srcSet="/brand/mark-dark.png" media="(prefers-color-scheme: dark)" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/mark-light.png" alt={alt} />
+      </picture>
     </span>
   );
 }

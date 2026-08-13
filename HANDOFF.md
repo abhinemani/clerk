@@ -7,8 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**789 tests pass, typecheck clean; all 4 e2e specs green** (as of the
-2026-08-14 e2e entry below).
+**811 tests pass, typecheck clean** (as of the newest 2026-08-13 entry);
+all 4 e2e specs were green as of the 2026-08-14 e2e entry, not re-run
+since the threading/logo work.
 
 ## START HERE (next session)
 
@@ -24,8 +25,8 @@ cloud sessions get keys per laptop-setup ⚡ steps.
 
 **Build candidates, roughly by staff-side value** (all offline,
 all sized for one window):
-1. Correspondence threading + Message-ID dedupe (messages already carry
-   From/To/Date metadata; the detail page renders them flat).
+1. ~~Correspondence threading + Message-ID dedupe~~ **DONE** (2026-08-13,
+   newest entry).
 2. Release-history import — link legacy-imported requests to imported
    documents as releases, so archive/dedup/precedents inherit history
    (tier-1 remainder, the onboarding lever).
@@ -44,7 +45,56 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, keyed session — appended after the 2026-08-14
+**NEWEST (2026-08-13, same keyed session, later): EMAIL THREADING +
+MESSAGE-ID DEDUPE (build candidate #1) + THE RASTER LOGOS ARE NOW THE
+LOGO.** Two pieces, both browser-verified end to end on the seeded dev
+server:
+- **Correspondence threading in the review set.** The mailbox parser now
+  extracts Message-ID / In-Reply-To / References (`parseMessageIds`,
+  brackets stripped, bare-id fallback); the import stamps them into
+  document metadata (now DECLARED in documentMeta, not passthrough-only);
+  and `src/domain/emailThread.ts` (pure, tested) groups messages
+  JWZ-style — union-find over id links, normalized-subject fallback ONLY
+  for id-less messages (ids win; two id-bearing threads sharing a subject
+  stay separate). ReviewRelease renders email docs as "✉ subject · N
+  messages" groups, oldest-first with From · date bylines, attachments
+  nested "↳" under the message they rode in on. Threading changes READING
+  ORDER only — every row keeps its own decision select (review
+  granularity untouched, invariant 4 unmoved). Non-email docs render flat
+  exactly as before.
+- **Message-ID dedupe on import** — overlapping re-exports are the normal
+  case, not an error. Scoped to THIS request (the same email on two
+  requests is two records reviewed in their own contexts): Message-ID
+  when present, raw-byte checksum otherwise, dedupe within one upload
+  too; skipped messages take their attachments with them. Counted in the
+  result, the panel copy ("N already on this request — skipped"), and the
+  audit event payload. THE TRAP: a message's mbox raw bytes used to
+  include the blank FRAMING line before the next envelope, so the same
+  message checksummed differently by position in the file — the parser
+  now strips trailing newlines to one (framing, not content) so the
+  checksum fallback actually holds.
+  Live proof: 3-message threaded mbox → "✉ Elm St inspection reports · 2
+  messages" + "✉ Permit ledger export · 1 message · 1 attachment(s)";
+  re-import of an overlapping v2 export → "✓ 1 message added … 2 already
+  on this request — skipped", and the new reply JOINED the existing
+  thread (3 messages).
+- **Logos (owner directive, mid-session): the raster renders are the
+  logo, everywhere.** `<BrandLockup>` now renders the full lockup PNG
+  verbatim (light/dark swapped on the visitor's theme), the ≤640px
+  marketing nav collapses to the mark-only crop, and the hand-authored
+  `<BrandMark>` SVG is DELETED — never redraw the mark in code
+  (`src/app/icon.svg` is the one surviving derivative). Nav sizes the
+  lockup at 1.6×--lockup (~58px) — verified legible both themes, desktop
+  + 390px, via the Playwright screenshot harness (gotcha 11/12; the
+  in-pane screenshot tool kept returning blanks mid-page). CSS trap worth
+  keeping: the base `display:none` on the mark crop must stay ONE class —
+  at equal specificity the later rule wins and the earlier ≤640px
+  `.mk-topnav` override silently loses (we hit this; the nav rendered no
+  logo at all).
+811 tests (11 new), typecheck clean. e2e not re-run this window —
+mailboxImport.spec exercises the import path; worth a run next session.
+
+**PREVIOUS (2026-08-13, keyed session — appended after the 2026-08-14
 entries; session clocks disagree, position is the order): EVAL DEBT
 CLEARED + RAG'D TRIAGE PROVEN LIVE.** First session with a real
 ANTHROPIC_API_KEY in `.env` (owner did laptop-setup Part A). Two halves:
@@ -318,12 +368,13 @@ the hero panel is real markup (never a screenshot — it can't go stale and
 stays sharp), showing a request that triaged, routed, gathered and drafted
 itself, with a named human still holding Send.
 THE LOGO, after many rounds: the owner's renders are **rasters** (supplied as
-`.svg` files that are one base64 `<image>` — zero `<path>`). So there are two
-implementations of one mark, and the split is deliberate: the **cropped
-raster is the chrome logo** (`<BrandMarkRaster>` / `<BrandLockup>`), and the
-hand-authored **`<BrandMark>` SVG** is for large/decorative/token-recolouring
-placements. Do not "unify" them onto the SVG — that was the state that read
-as rough, and it is what the owner asked to change.
+`.svg` files that are one base64 `<image>` — zero `<path>`). ~~So there are
+two implementations of one mark, and the split is deliberate~~ **SUPERSEDED
+2026-08-13 (owner directive, see the raster-logos entry above): the raster
+renders are the logo EVERYWHERE — full lockup image in `<BrandLockup>`, mark
+crop in `<BrandMarkRaster>`, and the hand-authored `<BrandMark>` SVG was
+deleted. Never redraw the mark in code; `src/app/icon.svg` is the one
+surviving hand-drawn derivative (favicons can't ship a 170KB raster).**
 Nav height is keyed on `.nav:has(.brand-lockup)`, not on a page class, so
 `/signup` picked up the taller bar for free and the console/portal (bare mark
 or agency seal) stayed at 66px. New gotchas 10–12 below are all from this
@@ -423,9 +474,9 @@ Service: mailboxImportService (importMailbox / parseMailboxUpload).
 Server-action body limit raised 25→100 MB (per-file caps stay 25 MB).
 E2E: e2e/mailboxImport.spec.ts. NOTE: playwright now runs workers:1 — the
 specs share one server+DB and parallel runs raced (we hit this).
-Follow-ups: threading view (messages carry emailFrom/To/Date metadata,
-grouping is a UI exercise), PST support (needs a real parser — punt until
-demanded; IT can export mbox/eml), dedupe on Message-ID.
+Follow-ups: ~~threading view~~ and ~~dedupe on Message-ID~~ both DONE
+(2026-08-13, newest entry); PST support (needs a real parser — punt until
+demanded; IT can export mbox/eml).
 
 **EARLIER (2026-08-06): VISUAL REDACTION SHIPPED** — the functional gap for
 scans/photos/PDFs without a text layer (the docs the text studio could only
