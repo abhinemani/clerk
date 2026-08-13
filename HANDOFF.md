@@ -8,7 +8,31 @@ verified working in that window unless marked otherwise.
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
 **506 tests pass, typecheck clean** (as of `f454a17`, 2026-08-04 late night).
 
-**NEWEST (2026-08-13): PRODUCT IS NOW BRANDEIS.** The name went Clerk →
+**NEWEST (2026-08-13): ANSWER-FIRST — date-aware search + the ask-alias
+loop.** Spec: `docs/answer-first.md` (phases 1–2 shipped, 3–4 specified).
+The flagship query "street cleanings for the last 3 months" is TWO questions
+— a subject and a window — and similarity search is blind to recency, so a
+vector match ranks a 2019 sweeping log level with last month's. Now:
+`src/domain/dateQuery.ts` (pure, `now` is an argument) lifts the window out,
+`searchArchiveDetailed` filters on the record's OWN date, and only the
+subject reaches the matchers. Undated records are KEPT — missing date means
+unknown, not old. The window is always stated in the UI, and an empty result
+under a window says "no record for X dated Y — try widening", because an
+invisible filter is indistinguishable from a corpus with gaps (we hit this
+live: "paving in 2019" read as "doesn't exist" when it exists outside the
+window). THE ASK-ALIAS LOOP: every fulfilled request is a named human
+asserting "this ask is answered by these records" — released docs now
+accumulate `metadata.askedAs[]` (deduped, capped 25), which joins the search
+haystack on both the requester and staff sides, so the archive learns the
+public's vocabulary instead of only the government's filing language.
+Withheld docs get NO alias. Writes are unconditional on classification —
+invariant 3 scopes exposure at the query layer, so a private release's
+aliases stay unreachable until a human publishes it — and best-effort, since
+a learning write must never fail a lawful release. Still NOT built: prior
+resolutions in the pre-filing path (needs `requests.embedding`, which exists
+and nothing writes), and RAG'd triage prompts. 687 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13): PRODUCT IS NOW BRANDEIS.** The name went Clerk →
 Holmes (2026-08-05, eight hard-coded strings only) → **Brandeis**, and this
 sweep carries it all the way through code, comments, docs, identifiers, and
 the package name. `branding.productName` is the one source of truth for

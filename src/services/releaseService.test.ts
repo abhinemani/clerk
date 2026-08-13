@@ -323,3 +323,54 @@ describe("denyRequest — the formal denial", () => {
     expect(delivered?.body).toContain("Custom letter text");
   });
 });
+
+// ---------------------------------------------------------------------------
+// The alias loop (docs/answer-first.md): a fulfilled request is a human
+// asserting "this plain-language ask is answered by these records". That pair
+// is what teaches the archive the public's vocabulary, so releasing has to
+// record it — and has to keep recording it without ever blocking a release.
+
+describe("ask aliases learned at release", () => {
+  it("writes the requester's own words onto every released document", async () => {
+    const deps = makeDeps();
+    const { request, docs } = await fulfilledSetup(deps);
+    for (const d of docs) {
+      await reviewDocument(deps, {
+        agencyId: AG, requestId: request.id, documentId: d.id,
+        decision: "release", actorUserId: APPROVER,
+      });
+    }
+    await releaseRequest(deps, {
+      agencyId: AG, requestId: request.id, actorUserId: APPROVER, visibility: "public",
+    });
+
+    const after = await deps.repo.listRequestDocuments(AG, request.id);
+    for (const d of after) {
+      expect((d.metadata as { askedAs?: string[] }).askedAs).toEqual(["janitorial contract"]);
+    }
+  });
+
+  it("does not write aliases onto withheld documents", async () => {
+    const deps = makeDeps();
+    const { request, docs } = await fulfilledSetup(deps);
+    await reviewDocument(deps, {
+      agencyId: AG, requestId: request.id, documentId: docs[0]!.id,
+      decision: "release", actorUserId: APPROVER,
+    });
+    await reviewDocument(deps, {
+      agencyId: AG, requestId: request.id, documentId: docs[1]!.id,
+      decision: "withhold", exemptionLabel: "Gov. Code § 6254(c)", actorUserId: APPROVER,
+    });
+    await releaseRequest(deps, {
+      agencyId: AG, requestId: request.id, actorUserId: APPROVER, visibility: "public",
+    });
+
+    const after = await deps.repo.listRequestDocuments(AG, request.id);
+    const released = after.find((d) => d.id === docs[0]!.id)!;
+    const withheld = after.find((d) => d.id === docs[1]!.id)!;
+    expect((released.metadata as { askedAs?: string[] }).askedAs).toEqual(["janitorial contract"]);
+    // A record the public never received must not advertise itself under the
+    // ask it did not answer.
+    expect((withheld.metadata as { askedAs?: string[] }).askedAs).toBeUndefined();
+  });
+});

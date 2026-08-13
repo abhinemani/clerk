@@ -25,6 +25,12 @@ interface AgentTurn {
 export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: string; aiEnabled?: boolean }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ArchiveItem[]>([]);
+  /** Set when the query named a time window — shown so the filter is visible.
+   *  An invisible filter is indistinguishable from a corpus with gaps. */
+  const [windowNote, setWindowNote] = useState<{ label: string; subject: string } | null>(null);
+  /** Records that surfaced because a PRIOR request taught the archive this
+   *  phrasing. Worth saying out loud: it is the loop paying off. */
+  const [askMatches, setAskMatches] = useState<Set<string>>(new Set());
   const [searching, setSearching] = useState(false);
   const [downloaded, setDownloaded] = useState<string | null>(null);
   const seq = useRef(0);
@@ -79,7 +85,11 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
     const t = setTimeout(async () => {
       try {
         const found = await searchArchiveAction(agencySlug, query);
-        if (seq.current === mine) setResults(found);
+        if (seq.current === mine) {
+          setResults(found.items);
+          setWindowNote(found.window);
+          setAskMatches(new Set(found.matchedByAsk));
+        }
       } finally {
         if (seq.current === mine) setSearching(false);
       }
@@ -242,6 +252,19 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
                 <SparkIcon />
                 Found {results.length} public record{results.length === 1 ? "" : "s"} that may answer this — no request needed.
               </div>
+              {windowNote && (
+                <div
+                  className="muted"
+                  style={{
+                    padding: "9px 16px",
+                    borderBottom: "1px solid var(--border)",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  Showing <strong>{windowNote.subject}</strong> dated {windowNote.label}. Undated
+                  records are included.
+                </div>
+              )}
               <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {results.map((r) => (
                   <li
@@ -263,6 +286,19 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
                       <div className="muted" style={{ fontSize: "0.9rem", marginTop: 3 }}>
                         {r.summary}
                       </div>
+                      {askMatches.has(r.id) && (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            fontSize: "0.82rem",
+                            color: "var(--ai)",
+                            fontWeight: 500,
+                          }}
+                        >
+                          Someone asked for this before — it was released in response to an earlier
+                          request.
+                        </div>
+                      )}
                       <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                         <span className="tag">Released {r.date}</span>
                         {r.tags.map((t) => (
@@ -302,11 +338,38 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
             </>
           ) : (
             <div style={{ padding: "20px 16px" }}>
-              <div style={{ fontWeight: 600 }}>No public record matches that yet.</div>
-              <p className="muted" style={{ fontSize: "0.92rem", marginTop: 4 }}>
-                That doesn&apos;t mean the record doesn&apos;t exist — it may not be published. File a
-                request and the records office will search their systems.
-              </p>
+              {/* A window that filtered everything out must SAY so. Otherwise
+                  "nothing matches" is indistinguishable from "nothing exists",
+                  and the resident files a request for a record we already
+                  publish — just outside the dates they happened to name. */}
+              {windowNote ? (
+                <>
+                  <div style={{ fontWeight: 600 }}>
+                    No public record for “{windowNote.subject}” dated {windowNote.label}.
+                  </div>
+                  <p className="muted" style={{ fontSize: "0.92rem", marginTop: 4 }}>
+                    There may be records outside those dates — try widening the range, or drop the
+                    dates to search everything. If it still isn&apos;t here, it may not be published
+                    yet.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ marginTop: 12, marginRight: 8 }}
+                    onClick={() => setQuery(windowNote.subject)}
+                  >
+                    Search “{windowNote.subject}” with no date limit
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 600 }}>No public record matches that yet.</div>
+                  <p className="muted" style={{ fontSize: "0.92rem", marginTop: 4 }}>
+                    That doesn&apos;t mean the record doesn&apos;t exist — it may not be published.
+                    File a request and the records office will search their systems.
+                  </p>
+                </>
+              )}
               <Link
                 href={`/${agencySlug}/request?q=${encodeURIComponent(query.trim())}`}
                 className="btn btn-primary"

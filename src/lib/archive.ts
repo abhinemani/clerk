@@ -7,6 +7,7 @@
 import { DEMO_AGENCY, DEMO_RELEASES, searchPublicReleases } from "@/lib/demo";
 import { getRepository } from "@/db/createRepository";
 import { readDocumentMeta } from "@/domain/documentMeta";
+import { parseDateQuery, withinRange, type DateRange } from "@/domain/dateQuery";
 import type { DocumentEntity, Repository } from "@/services/repository";
 
 export interface ArchiveItem {
@@ -23,6 +24,14 @@ export interface ArchiveItem {
    * bytes.
    */
   downloadUrl: string | null;
+  /** The record's OWN date (meeting/report date), not when it was released —
+   *  this is what a "last 3 months" window filters on. Falls back to the
+   *  release date when the record never carried one. */
+  recordDate: string;
+  /** Plain-language questions this record has already answered (§ ask
+   *  aliases, docs/answer-first.md). Searchable, and the reason the archive
+   *  can say "someone asked this in March". */
+  askedAs: string[];
 }
 
 function toArchiveItem(d: DocumentEntity, downloadUrl: string | null): ArchiveItem {
@@ -35,6 +44,8 @@ function toArchiveItem(d: DocumentEntity, downloadUrl: string | null): ArchiveIt
     tags: meta.tags ?? (d.recordType ? [d.recordType] : []),
     keywords: meta.keywords ?? [],
     downloadUrl,
+    recordDate: meta.recordDate ?? meta.releasedOn ?? d.createdAt.toISOString().slice(0, 10),
+    askedAs: meta.askedAs ?? [],
   };
 }
 
@@ -86,26 +97,70 @@ export async function listArchive(slug: string): Promise<ArchiveItem[]> {
  */
 const RRF_K = 60;
 
+export interface ArchiveSearchResult {
+  items: ArchiveItem[];
+  /** Set when the query named a time window, so the UI can say which one. */
+  range: DateRange | null;
+  /** The subject actually matched on, once the window was lifted out. */
+  subject: string;
+  /** Ids whose match came from an ask alias — "someone asked this before". */
+  matchedByAsk: string[];
+}
+
+/** Back-compatible shape: callers that just want the records. */
 export async function searchArchive(slug: string, query: string): Promise<ArchiveItem[]> {
-  const q = query.toLowerCase().trim();
-  if (q.length < 3) return [];
+  return (await searchArchiveDetailed(slug, query)).items;
+}
+
+export async function searchArchiveDetailed(
+  slug: string,
+  query: string,
+  now: Date = new Date(),
+): Promise<ArchiveSearchResult> {
+  // "Street cleanings for the last 3 months" is a subject AND a window.
+  // Similarity search is blind to recency, so the window becomes a filter and
+  // only the subject goes to the matchers.
+  const parsed = parseDateQuery(query, now);
+  const empty: ArchiveSearchResult = { items: [], range: parsed.range, subject: parsed.residual, matchedByAsk: [] };
+  const q = parsed.residual.toLowerCase().trim();
+  if (q.length < 3) return empty;
 
   const repo = await getRepository();
   const agency = await repo.getAgencyBySlug(slug);
   if (!agency) {
-    return slug === DEMO_AGENCY.slug ? searchPublicReleases(query).map(demoToItem) : [];
+    return slug === DEMO_AGENCY.slug
+      ? { ...empty, items: searchPublicReleases(parsed.residual).map(demoToItem) }
+      : empty;
   }
 
   const terms = q.split(/\s+/);
-  const docs = await repo.listPublicDocuments(agency.id);
-  const items = await toItems(repo, agency.id, slug, docs);
+  const allDocs = await repo.listPublicDocuments(agency.id);
+  const allItems = await toItems(repo, agency.id, slug, allDocs);
+
+  // The window filters BEFORE ranking. Undated records survive it (see
+  // withinRange) — "no date" means unknown, not old.
+  const keep = parsed.range
+    ? new Set(allItems.filter((it) => withinRange(it.recordDate, parsed.range!)).map((it) => it.id))
+    : null;
+  const docs = keep ? allDocs.filter((d) => keep.has(d.id)) : allDocs;
+  const items = keep ? allItems.filter((it) => keep.has(it.id)) : allItems;
   const itemById = new Map(items.map((it) => [it.id, it]));
 
+  const matchedByAsk = new Set<string>();
   const lexical = docs
     .map((d) => {
       const item = itemById.get(d.id)!;
-      const hay = [item.title, item.summary, ...item.tags, ...item.keywords].join(" ").toLowerCase();
-      const score = terms.reduce((s, t) => s + (hay.includes(t) ? 1 : 0), 0);
+      const base = [item.title, item.summary, ...item.tags, ...item.keywords].join(" ").toLowerCase();
+      // Ask aliases are part of the haystack: this is how a record becomes
+      // findable in the words residents actually use for it.
+      const asks = item.askedAs.join(" ").toLowerCase();
+      const score = terms.reduce(
+        (s, t) => s + (base.includes(t) ? 1 : 0) + (asks.includes(t) ? 1 : 0),
+        0,
+      );
+      if (score > 0 && terms.some((t) => asks.includes(t) && !base.includes(t))) {
+        matchedByAsk.add(d.id);
+      }
       return { id: d.id, score };
     })
     .filter((x) => x.score > 0)
@@ -136,16 +191,23 @@ export async function searchArchive(slug: string, query: string): Promise<Archiv
   lexical.forEach((x, rank) => rrf.set(x.id, (rrf.get(x.id) ?? 0) + 1 / (RRF_K + rank)));
   vector.forEach((x, rank) => rrf.set(x.id, (rrf.get(x.id) ?? 0) + 1 / (RRF_K + rank)));
 
-  return [...rrf.entries()]
+  const ranked = [...rrf.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([id]) => itemById.get(id)!)
     .filter(Boolean)
     .slice(0, 12);
+
+  return {
+    items: ranked,
+    range: parsed.range,
+    subject: parsed.residual,
+    matchedByAsk: ranked.filter((it) => matchedByAsk.has(it.id)).map((it) => it.id),
+  };
 }
 
 function demoToItem(r: (typeof DEMO_RELEASES)[number]): ArchiveItem {
   // The unseeded demo fixture has no real bytes to serve.
-  return { id: r.id, title: r.title, summary: r.summary, date: r.date, tags: r.tags, keywords: r.keywords, downloadUrl: null };
+  return { id: r.id, title: r.title, summary: r.summary, date: r.date, tags: r.tags, keywords: r.keywords, downloadUrl: null, recordDate: r.date, askedAs: [] };
 }
 
 // --- record permalinks ------------------------------------------------------

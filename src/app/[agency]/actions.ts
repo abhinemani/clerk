@@ -299,8 +299,16 @@ export async function replyToRequestAction(input: {
 // --- public archive + deflection (§6.7) ------------------------------------
 
 export async function searchArchiveAction(agencySlug: string, query: string) {
-  const { searchArchive } = await import("@/lib/archive");
-  return searchArchive(agencySlug, query);
+  const { searchArchiveDetailed } = await import("@/lib/archive");
+  const r = await searchArchiveDetailed(agencySlug, query);
+  const { describeRange } = await import("@/domain/dateQuery");
+  return {
+    items: r.items,
+    // Say out loud that a window was applied. A filter the user cannot see is
+    // indistinguishable from a corpus that is missing records.
+    window: r.range ? { label: describeRange(r.range), subject: r.subject } : null,
+    matchedByAsk: r.matchedByAsk,
+  };
 }
 
 export type AgentTurnResult =

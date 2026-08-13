@@ -65,6 +65,21 @@ export const documentMetaSchema = z
     sensitivity: z.record(z.number()).optional(),
     publicationDecision: publicationDecisionSchema.optional(),
     aiClassification: aiClassificationSchema.optional(),
+    /**
+     * ASK ALIASES — the plain-language questions this record has actually
+     * answered (docs/answer-first.md). Appended when a request that this
+     * document satisfied is fulfilled, so the archive slowly learns the
+     * public's vocabulary instead of only the government's filing language:
+     * a resident asks for "the police video from the parade", the agency
+     * filed it as "Axon Body 3 export, Incident 2025-0714-A".
+     *
+     * These are written for EVERY attached document, public or not. Exposure
+     * is not this field's job — requester-facing retrieval is hard-scoped to
+     * classification='public' at the query layer (invariant 3), so a private
+     * document's aliases are unreachable until a named human publishes it,
+     * and then its history comes with it.
+     */
+    askedAs: z.array(z.string()).optional(),
   })
   .passthrough();
 
@@ -110,4 +125,23 @@ export function sensitivitySummary(meta: DocumentMeta): string | null {
     .filter(([, count]) => count > 0)
     .map(([type, count]) => `${type.replace(/_/g, " ")} ×${count}`);
   return parts.length > 0 ? parts.join(", ") : null;
+}
+
+/** Alias cap per document — enough to teach the index, bounded so a hot
+ *  record can't grow an unbounded metadata blob. Oldest fall off first. */
+export const MAX_ASK_ALIASES = 25;
+
+/**
+ * Add a question this document answered, de-duplicated case-insensitively so
+ * ten residents asking the same thing leave one alias, not ten. Returns the
+ * new list, or null when there is nothing to add (empty/too short/duplicate)
+ * so callers can skip the write entirely.
+ */
+export function addAskAlias(meta: DocumentMeta, ask: string): string[] | null {
+  const clean = ask.replace(/\s+/g, " ").trim();
+  if (clean.length < 8) return null; // "records" teaches nothing
+  const existing = meta.askedAs ?? [];
+  const seen = new Set(existing.map((a) => a.toLowerCase()));
+  if (seen.has(clean.toLowerCase())) return null;
+  return [...existing, clean].slice(-MAX_ASK_ALIASES);
 }

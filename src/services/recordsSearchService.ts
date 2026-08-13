@@ -31,7 +31,10 @@ export interface RecordsSearchHit {
 
 function toCorpusDoc(d: DocumentEntity): CorpusDoc {
   const meta = d.metadata ?? {};
-  const metaText = ["title", "summary", "tags", "keywords"]
+  // askedAs = the plain-language questions this record has answered. Staff
+  // search gets them too: a coordinator hunting for records often phrases it
+  // the way the requester did, not the way the file was named.
+  const metaText = ["title", "summary", "tags", "keywords", "askedAs"]
     .map((k) => {
       const v = (meta as Record<string, unknown>)[k];
       return Array.isArray(v) ? v.join(" ") : typeof v === "string" ? v : "";

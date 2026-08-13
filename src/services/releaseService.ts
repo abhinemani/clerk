@@ -210,6 +210,33 @@ export async function releaseRequest(
     closedAt: now,
   });
 
+  // ---- The alias loop (docs/answer-first.md) -------------------------------
+  // A fulfilled request is a named human asserting "this plain-language ask is
+  // answered by these records". That pair is the only thing in the system that
+  // teaches the archive the PUBLIC's vocabulary rather than the government's
+  // filing language, and the workflow produces it for free — so record it.
+  //
+  // Written for every RELEASED document, public or not. Invariant 3 scopes
+  // requester-facing retrieval at the query layer, so a private document's
+  // aliases stay unreachable until a named human publishes it — and then the
+  // history comes with it. Best-effort: a learning write must never be the
+  // reason a lawful release fails.
+  try {
+    const ask = (request.interpretedScope ?? request.rawText ?? "").trim();
+    if (ask) {
+      const { readDocumentMeta, addAskAlias } = await import("@/domain/documentMeta");
+      for (const d of releasable) {
+        const next = addAskAlias(readDocumentMeta(d), ask);
+        if (!next) continue;
+        await repo.updateDocument(input.agencyId, d.id, {
+          metadata: { ...(d.metadata ?? {}), askedAs: next },
+        });
+      }
+    }
+  } catch (e) {
+    console.error("ask-alias write failed", e);
+  }
+
   await repo.appendEvent({
     id: deps.genId(),
     agencyId: input.agencyId,
