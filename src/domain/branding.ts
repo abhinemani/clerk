@@ -63,6 +63,134 @@ export function checkAccentColor(input: string): AccentCheck {
   return { ok: true, normalized };
 }
 
+/** Contrast ratio between two hex colors (order-independent). */
+export function contrastBetween(hexA: string, hexB: string): number | null {
+  const a = parseHex(hexA);
+  const b = parseHex(hexB);
+  if (!a || !b) return null;
+  const la = luminance(a);
+  const lb = luminance(b);
+  const [hi, lo] = la >= lb ? [la, lb] : [lb, la];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/* ---- dark-theme accent derivation ----------------------------------------
+ *
+ * The tenant accent replaces --primary, which the DARK theme uses as accent
+ * TEXT on near-black paper and as a button fill carrying near-black ink
+ * (--primary-ink is #0f141a in dark). An accent that passed the white-ink
+ * guard is necessarily dark, so used raw in the dark theme it fails both
+ * roles. The brand solved this exact problem for terracotta by holding the
+ * hue and moving ONLY lightness (#9c4a2c light / #c46a4a dark) — never
+ * saturation, which is what turns colors pastel. This derivation applies the
+ * same lever mechanically: raise HSL lightness, hue and saturation held,
+ * until the color clears AA (4.5:1) against the dark paper. That single
+ * floor covers both roles, because the dark button ink IS the dark paper
+ * color.
+ */
+
+/** The dark theme's --paper (globals.css). Both derived floors key off it. */
+const DARK_PAPER = "#0f141a";
+
+function rgbToHsl([r, g, b]: [number, number, number]): [number, number, number] {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h: number;
+  if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+  else if (max === gn) h = ((bn - rn) / d + 2) / 6;
+  else h = ((rn - gn) / d + 4) / 6;
+  return [h, s, l];
+}
+
+function hslToHex([h, s, l]: [number, number, number]): string {
+  const hue = (p: number, q: number, t: number) => {
+    let tt = t;
+    if (tt < 0) tt += 1;
+    if (tt > 1) tt -= 1;
+    if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+    if (tt < 1 / 2) return q;
+    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+    return p;
+  };
+  let rgb: [number, number, number];
+  if (s === 0) {
+    const v = Math.round(l * 255);
+    rgb = [v, v, v];
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    rgb = [
+      Math.round(hue(p, q, h + 1 / 3) * 255),
+      Math.round(hue(p, q, h) * 255),
+      Math.round(hue(p, q, h - 1 / 3) * 255),
+    ];
+  }
+  return `#${rgb.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * The accent, adjusted for the dark theme: same hue, same saturation,
+ * lightness raised just far enough to clear 4.5:1 against the dark paper.
+ * A color that already clears comes back unchanged (so a tenant that picks
+ * the brand's own dark-safe terracotta keeps it verbatim).
+ */
+export function accentForDarkTheme(input: string): string | null {
+  const rgb = parseHex(input);
+  if (!rgb) return null;
+  const start = `#${rgb.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  if (contrastBetween(start, DARK_PAPER)! >= 4.5) return start;
+  const [h, s, l] = rgbToHsl(rgb);
+  // Walk lightness up in small steps; white is 15.7:1 on the dark paper, so
+  // the loop always terminates well before l reaches 1.
+  for (let lift = l; lift <= 1; lift += 0.01) {
+    const candidate = hslToHex([h, s, lift]);
+    if (contrastBetween(candidate, DARK_PAPER)! >= 4.5) return candidate;
+  }
+  return "#ffffff";
+}
+
+/**
+ * CSS for a tenant accent, correct in BOTH themes. Light theme takes the
+ * stored accent verbatim (white-ink-guarded at save). Dark theme swaps
+ * --primary/--primary-hover for the lightness-adjusted variant; --primary-deep
+ * keeps the stored accent in both themes, because it is only ever a GROUND
+ * under white ink — the very thing checkAccentColor guarantees. The dark
+ * block is screen-only so printing gets the light values, matching how
+ * globals.css scopes its own dark theme.
+ *
+ * Returns null for anything that is not a valid stored accent — the caller
+ * renders no style tag at all rather than an unvetted string (this is the
+ * one place tenant data reaches a <style> element).
+ */
+export function tenantAccentCss(input: string): string | null {
+  const check = checkAccentColor(input);
+  if (!check.ok) return null;
+  const accent = check.normalized;
+  const dark = accentForDarkTheme(accent)!;
+  const darkHover = accentForDarkTheme(hslLift(dark, 0.07))!;
+  return (
+    `.tenant-accent{--primary:${accent};--primary-deep:${accent};--primary-hover:${accent};}` +
+    `@media screen and (prefers-color-scheme:dark){` +
+    `.tenant-accent{--primary:${dark};--primary-hover:${darkHover};--primary-deep:${accent};}` +
+    `}`
+  );
+}
+
+/** Same hue/saturation, lightness nudged up by `amount` (clamped). */
+function hslLift(hex: string, amount: number): string {
+  const rgb = parseHex(hex);
+  if (!rgb) return hex;
+  const [h, s, l] = rgbToHsl(rgb);
+  return hslToHex([h, s, Math.min(1, l + amount)]);
+}
+
 export interface EffectiveBranding {
   officeName: string;
   /** null = don't render a contact block at all (never invent one). */

@@ -1,6 +1,13 @@
 /** Branding rules — the accent contrast guard is the load-bearing part. */
 import { describe, expect, it } from "vitest";
-import { checkAccentColor, contrastOnWhiteInk, effectiveBranding } from "./branding";
+import {
+  accentForDarkTheme,
+  checkAccentColor,
+  contrastBetween,
+  contrastOnWhiteInk,
+  effectiveBranding,
+  tenantAccentCss,
+} from "./branding";
 
 describe("checkAccentColor", () => {
   it("accepts dark civic colors and normalizes them", () => {
@@ -24,6 +31,54 @@ describe("checkAccentColor", () => {
   it("contrast math is sane: black is 21:1, white is 1:1 against white ink", () => {
     expect(contrastOnWhiteInk("#000000")).toBeCloseTo(21, 0);
     expect(contrastOnWhiteInk("#ffffff")).toBeCloseTo(1, 1);
+  });
+});
+
+describe("accentForDarkTheme", () => {
+  const DARK_PAPER = "#0f141a";
+
+  it("returns an already-dark-safe accent unchanged (the brand's own dark terracotta)", () => {
+    expect(accentForDarkTheme("#c46a4a")).toBe("#c46a4a");
+  });
+
+  it("lifts every white-ink-passing civic color to AA text on the dark paper", () => {
+    // Colors a clerk actually picks: navies, forest green, deep red, plum.
+    for (const accent of ["#1e3a5f", "#003366", "#1e5c2f", "#990000", "#4b2a45", "#9c4a2c"]) {
+      expect(checkAccentColor(accent).ok).toBe(true); // sanity: valid accents
+      const dark = accentForDarkTheme(accent)!;
+      expect(contrastBetween(dark, DARK_PAPER)!).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("holds the hue — lightness is the only lever (the anti-salmon rule)", () => {
+    // Forest green must stay green: dominant channel unchanged.
+    const dark = accentForDarkTheme("#1e5c2f")!;
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(dark.slice(i, i + 2), 16));
+    expect(g).toBeGreaterThan(r!);
+    expect(g).toBeGreaterThan(b!);
+  });
+
+  it("rejects garbage", () => {
+    expect(accentForDarkTheme("blue")).toBeNull();
+  });
+});
+
+describe("tenantAccentCss", () => {
+  it("emits light values verbatim and a screen-scoped dark override", () => {
+    const css = tenantAccentCss("#1e3a5f")!;
+    expect(css).toContain(".tenant-accent{--primary:#1e3a5f;--primary-deep:#1e3a5f;--primary-hover:#1e3a5f;}");
+    expect(css).toContain("@media screen and (prefers-color-scheme:dark)");
+    const dark = accentForDarkTheme("#1e3a5f")!;
+    expect(css).toContain(`--primary:${dark}`);
+    // --primary-deep stays the stored accent in dark too: it is only ever a
+    // ground under white ink, which checkAccentColor guarantees.
+    expect(css.split("@media")[1]).toContain("--primary-deep:#1e3a5f");
+  });
+
+  it("returns null for anything checkAccentColor would refuse — nothing unvetted reaches a <style> tag", () => {
+    for (const bad of ["", "blue", "#7fd4ff", "#fff;}body{display:none"]) {
+      expect(tenantAccentCss(bad)).toBeNull();
+    }
   });
 });
 

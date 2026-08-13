@@ -7,9 +7,58 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**706 tests pass, typecheck clean** (as of `1942a41`, 2026-08-13).
+**712 tests pass, typecheck clean** (as of the 2026-08-13 share/print
+entry below).
 
-**NEWEST (2026-08-13): BRAND ADOPTED + MARKETING SITE REBUILT.** The owner's
+**NEWEST (2026-08-13 latest): SHARE/PRINT GAPS CLOSED + TWO NEW DOCS.**
+Owner-directed ("do 2 and 3" off the priorities assessment). Five fixes on
+the polish tier, all verified in a real browser (both themes + print
+emulation + measured computed styles, per gotcha 11):
+- **Favicon exists**: `src/app/icon.svg` — the compact `<BrandMark>` branch
+  as a static SVG, square-cropped, theme-aware via its own
+  prefers-color-scheme style (a favicon can't read page tokens, so brand
+  values are hardcoded there; keep them in sync with globals.css if the
+  palette ever moves). `favicon.ico` fallback uses a both-grounds palette
+  (gold structure + terracotta fan) since .ico can't switch on theme;
+  `apple-icon.png` is the mark on the board's plum app-icon ground.
+- **OG image exists**: `src/app/opengraph-image.png` (1200×630, dark lockup
+  on the dark paper — ground-pinned by construction, an OG card's ground
+  doesn't follow anyone's theme) + alt text. Next's file conventions wire
+  the meta tags; verified in the served head.
+- **Printing works from a dark OS**: the dark-theme token block and the
+  scroll-reveal are now scoped `screen and (...)`, so paper always gets the
+  light palette with every section at rest (gotcha 12's "real bug" half is
+  fixed — print-emulated computed opacity on .mk-reveal is 1, was 0). A
+  print block keeps ground-pinned surfaces' dark grounds via
+  print-color-adjust: exact — without it printers strip backgrounds and the
+  pinned white-on-dark ink lands on white paper.
+- **Tenant accent is now theme-correct** (the checkAccentColor gap): the
+  accent used to be inline vars, theme-blind — dark theme uses --primary as
+  accent TEXT on near-black, where any white-ink-safe accent fails AA.
+  `tenantAccentCss()` (src/domain/branding.ts) emits per-theme values: the
+  stored accent in light; in dark, `accentForDarkTheme()` holds hue AND
+  saturation and raises only lightness to 4.5:1 on the dark paper — the
+  terracotta lever, mechanized (verified live: Bellmar #1e5c2f renders
+  #30924b in dark). --primary-deep keeps the stored accent in both themes
+  (only ever a ground under white ink, which the save-time guard already
+  guarantees). tenantAccentCss re-validates before emitting — it is the one
+  place tenant data reaches a <style> tag, and returns null for anything
+  checkAccentColor refuses.
+- **`docs/connected-sources.md`** — the never-written spec is written:
+  v1 rides the existing document pipeline (connector adapter → sync job →
+  publication queue → archive → answer box), file-drop connector first,
+  flagged automated answers. Owner decision points marked ⚑ inside —
+  notably standing-publication mode (auto-publish per dataset), which is
+  NOT to be built without an explicit yes.
+- **`docs/laptop-setup.md`** — owner's fresh-machine checklist: zero-key
+  baseline, every key worth obtaining + what it unlocks + how to verify,
+  and the verification-debt list (eval for request_match, MinIO round-trip,
+  live ES). Keep it current when env vars land.
+Also reconciled the stale tier list below (legacy import, saved filters +
+bulk actions, and compliance PDFs had shipped but were still marked open).
+712 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13): BRAND ADOPTED + MARKETING SITE REBUILT.** The owner's
 board is now the identity — see CLAUDE.md for the rules layer; this entry is
 what happened and what bit. Six colors, `#990000` retired (the Design bullet
 below is rewritten accordingly), terracotta accent, gold as ornament only.
@@ -29,9 +78,9 @@ Nav height is keyed on `.nav:has(.brand-lockup)`, not on a page class, so
 `/signup` picked up the taller bar for free and the console/portal (bare mark
 or agency seal) stayed at 66px. New gotchas 10–12 below are all from this
 work; gotcha 11 in particular cost the most time.
-**Still open on this surface:** no `@media print` anywhere (a dark-OS visitor
-prints a near-black page), no favicon, no OG image, and `checkAccentColor`
-guards white-on-accent but not accent-as-text-on-dark.
+**Still open on this surface:** ~~no `@media print`, no favicon, no OG
+image, accent-as-text-on-dark unguarded~~ — all four closed in the entry
+above (2026-08-13 latest).
 
 **PREVIOUS (2026-08-13): ANSWER-FIRST phase 3 — the learning QUERY LAYER.**
 Retrieve-then-rerank in `priorAnswerService.findPriorAnswers()`. (1) SCOPE
@@ -636,12 +685,14 @@ records office runs Tuesday on this." Tiered by adoption impact.
    "no OCR configured" / plain no-text. Not covered: CCITT/JBIG2-encoded
    PDFs (uncommon; degrade honestly) and OCR for requester-reply email
    attachments (correspondence, not review-set).
-2. **Legacy import / migration path.** No office starts empty. A CSV/
-   spreadsheet importer for open + historical requests (and release
-   history), mapped to real statuses/dates, collapses the switching cost
-   from NextRequest/GovQA/spreadsheets — and instantly seeds duplicate
-   detection and the archive/answer box with years of signal. Run imports
-   through the service layer so history is audited as imported.
+2. ~~**Legacy import / migration path.**~~ **DONE** (2026-08-04, see
+   inventory: `legacyImportService`, admin-only `/app/admin/import`, CSV →
+   real requests with historical statuses/dates, one named-importer event
+   per row). Still open from the original framing: importing RELEASE
+   history (closed requests' released documents) so the archive/answer box
+   inherit years of signal — records-import covers documents, legacy import
+   covers requests, but nothing yet links imported docs to imported
+   requests as releases.
 3. ~~**Milestone notifications + tracker transparency.**~~ **DONE.**
    Template-only requester emails on "received" (tracking number + statutory
    deadline + track link) and "work started" (→ in_progress transition),
@@ -673,14 +724,12 @@ to write)**
    (linkRequestDocument + named-actor event + exemption_pass re-enqueue).
    Still open: per-chunk embeddings at ingest (chunk 1+) to make this
    hybrid — the service signature is ready for it.
-5. **Queue ergonomics at volume.** Partially done: per-coordinator
-   assignment (auto + manual, evented) and Mine/Unassigned filters shipped
-   with the workflow-automation work. Still open: saved filters and bulk
-   actions.
-6. **Compliance exports.** The §11 reporting module computes the numbers;
-   ship the artifacts counsel actually asks for: annual-report packet
-   (CSV/PDF) and a per-request defensibility bundle (timeline + letters +
-   exemption log + deadline bases). The audit log was built for this.
+5. ~~**Queue ergonomics at volume.**~~ **DONE** (2026-08-04, see inventory:
+   QueueFilterBar saved filters + QueueTable bulk assign, each row still
+   individually audited).
+6. **Compliance exports.** Mostly done (2026-08-04): per-request
+   defensibility-report.pdf and annual-report.pdf ship. Still open: a CSV
+   companion to the annual report for states whose AG wants a spreadsheet.
 7. **Statute breadth + counsel sign-off.** 5 starter state profiles exist;
    each real deployment needs its state present and reviewed. Add profiles
    as demand appears, plus a "reviewed by counsel on DATE" field surfaced
@@ -715,20 +764,17 @@ and appeal-defense packet builder first). Bucket A is fully wired.
 - Copilot task/extension proposals point at panels but don't prefill them.
 - Demo-fixture archive (unseeded `/riverton`) has no downloadable bytes —
   by design; seed for the real thing.
-- **No `@media print` anywhere.** A visitor on a dark OS printing any page
-  gets near-black. Compounds with gotcha 12: scroll-revealed sections are at
-  opacity 0 until an observer fires, and print never fires it.
-- **No favicon and no OG image.** Both absent entirely, not merely stale —
-  the marketing page shares as a blank card.
-- `checkAccentColor` guards white-ink-on-accent only, not accent-as-text on
-  a dark ground (see the per-tenant branding bullet).
 - `npm run eval` has NOT been run for the `request_match` prompt — no
   `ANTHROPIC_API_KEY` in the build environment. Standing CLAUDE.md
-  obligation; run it before relying on that pipeline.
-- The Elasticsearch adapter has never been exercised against a live cluster.
+  obligation; run it before relying on that pipeline. (Now step one of the
+  verification-debt list in `docs/laptop-setup.md`.)
+- The Elasticsearch adapter has never been exercised against a live
+  cluster; the S3/MinIO adapter has never round-tripped against live MinIO.
+  (Both on the laptop-setup verification-debt list.)
 - `requests.embedding` exists and nothing writes it (answer-first phase 3
   remainder); phase 4 (RAG'd triage prompts) is specified, not built.
-- Connected data sources — letting an agency register a data store so
-  requests auto-answer from it, flagged to the resident as an automated
-  answer from public data — was discussed with the owner as a likely next
-  build and never specced. No `docs/connected-sources.md` yet.
+- Connected data sources: **specced** (`docs/connected-sources.md`,
+  2026-08-13) with owner decision points marked ⚑ — build phase 1
+  (file-drop connector, reviewed mode) when the owner green-lights.
+- The favicon hardcodes brand values inside `src/app/icon.svg` (a favicon
+  can't read page tokens) — if the palette ever moves, move it too.

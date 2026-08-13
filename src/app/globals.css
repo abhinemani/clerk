@@ -106,7 +106,12 @@
   --wrap: 1120px;
 }
 
-@media (prefers-color-scheme: dark) {
+/* SCREEN-scoped on purpose: print always takes the light palette. A visitor
+   on a dark OS printing any page used to get near-black grounds with pale
+   ink — ink-burning and illegible on paper. Ground-pinned surfaces (hero,
+   gov footer/banner) are exempt by design: they paint their own dark ground
+   in both themes and stay self-consistent in print. */
+@media screen and (prefers-color-scheme: dark) {
   :root {
     /* The board is a dark-first identity: these ARE its colors, undiluted. */
     --paper: #0f141a;
@@ -1585,7 +1590,12 @@ label.lbl {
     transform: none;
   }
 }
-@media (prefers-reduced-motion: no-preference) {
+/* SCREEN-scoped: `animation: both` + a view() timeline holds off-viewport
+   sections at opacity 0 until they scroll in — and print never scrolls, so
+   everything below the fold printed BLANK (HANDOFF gotcha 12). Print (and
+   any context without scrolling) must get the content at rest. Browsers
+   without animation-timeline are already safe via the @supports gate. */
+@media screen and (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
     .mk-reveal {
       animation: mk-rise linear both;
@@ -1756,4 +1766,38 @@ label.lbl {
 .nav .brand > .brand-raster img {
   height: 34px;
   width: auto;
+}
+
+/* =========================================================================
+   PRINT
+   The heavy lifting is done by scoping — the dark-theme token block and the
+   scroll-reveal are both `screen`-only above, so paper always gets the light
+   palette with every section visible. What remains here is chrome that only
+   makes sense on a screen. Ground-pinned dark surfaces (hero, gov footer,
+   banner) are left dark on purpose: they are self-consistent compositions,
+   and flattening them to white would put their pinned light-on-dark tokens
+   (white wordmark, pale gold) on a white ground — the exact bug class the
+   GROUND-PINNED block exists to prevent.
+   ========================================================================= */
+@media print {
+  .nav {
+    /* A sticky translucent blur bar is meaningless on paper; print it once,
+       opaque, in flow. */
+    position: static;
+    background: var(--paper);
+    backdrop-filter: none;
+  }
+  .skip-link {
+    display: none;
+  }
+  /* Printers strip CSS backgrounds by default — which would put these
+     surfaces' PINNED light-on-dark ink (white wordmark, pale gold) on bare
+     white paper. Their dark ground is load-bearing, so ask for it exactly. */
+  .mk-hero,
+  .mk-band-dark,
+  .gov-footer,
+  .gov-banner {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

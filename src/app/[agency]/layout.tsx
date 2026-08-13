@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { branding } from "@/config/branding";
-import { effectiveBranding } from "@/domain/branding";
+import { effectiveBranding, tenantAccentCss } from "@/domain/branding";
 import { getAgencyForSlug } from "@/lib/live";
 import { sessionUser } from "@/auth/guards";
 import { Nav } from "../_components/Nav";
@@ -42,16 +42,21 @@ export default async function AgencyLayout({
       ? { kind: user.kind, name: user.name ?? user.email ?? "Account" }
       : null;
 
-  // Tenant identity: uploaded seal, contrast-guarded accent (overrides the
-  // portal navy via CSS variables on this wrapper), office details below.
+  // Tenant identity: uploaded seal, contrast-guarded accent, office details
+  // below. The accent used to be inline CSS variables, which are theme-blind
+  // — the dark theme uses --primary as accent TEXT on near-black, where a
+  // white-ink-safe (dark) accent fails AA. tenantAccentCss emits per-theme
+  // values instead: stored accent in light, lightness-lifted variant in dark
+  // (hue held — the same lever the brand uses for terracotta). It re-runs
+  // checkAccentColor and returns null for anything invalid, so no unvetted
+  // tenant string ever reaches the style element.
   const b = effectiveBranding(agency.branding);
   const sealUrl = b.hasCustomSeal ? `/${agency.slug}/seal` : null;
-  const accentVars = b.accentColor
-    ? ({ "--primary": b.accentColor, "--primary-deep": b.accentColor, "--primary-hover": b.accentColor } as React.CSSProperties)
-    : undefined;
+  const accentCss = b.accentColor ? tenantAccentCss(b.accentColor) : null;
 
   return (
-    <div style={accentVars}>
+    <div className={accentCss ? "tenant-accent" : undefined}>
+      {accentCss && <style>{accentCss}</style>}
       <a href="#main" className="skip-link">
         Skip to content
       </a>
