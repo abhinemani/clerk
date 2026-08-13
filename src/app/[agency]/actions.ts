@@ -558,8 +558,13 @@ export async function resetPasswordAction(input: {
   password: string;
 }): Promise<AuthResult> {
   try {
+    // Scope redemption to the agency whose reset page this is — a link minted
+    // by one tenant must not be redeemable through another tenant's page.
+    const agencyId = await resolveAgencyId(input.agencySlug);
+    if (!agencyId) return { ok: false, error: "That link is invalid or expired — request a new one." };
     const { completePasswordReset } = await import("@/services/accountService");
     const ok = await completePasswordReset(defaultDeps(await getRepository()), {
+      agencyId,
       rawToken: input.token,
       kind: input.kind,
       password: input.password,

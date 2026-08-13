@@ -7,9 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**848 tests pass (+4 skipped), typecheck clean** (as of the newest
-2026-08-13 top-3 entry); build + 4/4 e2e were green in the env-hygiene
-entry the same day, not re-run since.
+**852 tests pass (+4 skipped), typecheck clean** (as of the newest
+2026-08-13 auth-tenancy entry); build + 4/4 e2e were green in the
+env-hygiene entry the same day, not re-run since.
 
 ## START HERE (next session)
 
@@ -45,7 +45,34 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session): THREE MORE BANDS — filled in the long
+**NEWEST (2026-08-13, cloud session): AUTH MULTI-TENANCY HARDENING — the
+follow-up the owner asked for after the previous session's read-only
+auth/signup scan.** That session reported findings and changed nothing;
+owner said fix them, so this session re-ran the audit and fixed the two
+real ones. (1) **The platform-operator dev credentials could work in
+production.** `PLATFORM_ADMIN_EMAIL/PASSWORD` fell back to the printed
+demo pair with no production guard — and that principal is the ONE
+cross-tenant login. Now `resolvePlatformAdmin()`
+(`src/auth/platformAdmin.ts`, unit-tested) mirrors `resolveAuthSecret`'s
+posture: in production, unset (or half-set) env creds disable platform
+sign-in outright; dev/test keep the seeded defaults. `.env.example` +
+laptop-setup Part D¾ (new) tell the owner exactly what to paste into a
+real deployment's variables — until then, `/admin` sign-in is simply off
+in production, which is the safe state. (2) **One-time token redemption
+was not tenant-scoped.** A verify/reset/invite link minted by agency A
+redeemed fine through agency B's `/verify` or `/reset` pages — the write
+still landed on A (the token carries its agencyId), so no cross-tenant
+data ever moved, but the tenancy boundary wasn't enforced at redemption
+and B's branding confirmed an action it didn't own. `consumeToken` now
+requires the expected agencyId and rejects mismatches WITHOUT burning the
+token (the link keeps working where it belongs);
+`verifyRequesterEmail`/`completePasswordReset` take the page's agency,
+and both portal callers resolve it from the URL slug. Cross-tenant
+redemption tests added on both flows. The rest of the audited surface
+(guards, roster actions, signup/provisioning, throttle) checked out
+clean. 852 tests, typecheck clean. No schema change.
+
+**PREVIOUS (2026-08-13, cloud session): THREE MORE BANDS — filled in the long
 flat stretch of plain page ground the copy pass exposed.** Between "the
 problem" (tinted) and "tenancy" (tinted), three sections — "how we help",
 "what it costs", and "how the tech works" — sat directly on `.mk-page`'s

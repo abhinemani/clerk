@@ -17,6 +17,7 @@ import { getRepository } from "@/db/createRepository";
 import { defaultDeps } from "@/services/deps";
 import { authenticateRequester, authenticateStaff } from "@/services/accountService";
 import type { StaffRole } from "@/services/repository";
+import { resolvePlatformAdmin } from "./platformAdmin";
 import { clearFailures, isLockedOut, recordFailure } from "./throttle";
 
 export type PrincipalKind = "staff" | "requester" | "platform";
@@ -42,16 +43,6 @@ declare module "next-auth" {
     role?: StaffRole;
   }
 }
-
-/**
- * The platform operator (Brandeis's own admin — manages every tenant). A single
- * account from the environment, not a tenant row: set PLATFORM_ADMIN_EMAIL and
- * PLATFORM_ADMIN_PASSWORD in production. Dev falls back to a printed default.
- */
-export const PLATFORM_ADMIN = {
-  email: process.env.PLATFORM_ADMIN_EMAIL ?? "admin@brandeis.example",
-  password: process.env.PLATFORM_ADMIN_PASSWORD ?? "brandeis-admin-dev",
-};
 
 /** Length-independent constant-time string comparison (hash both sides). */
 function constantTimeEquals(a: string, b: string): boolean {
@@ -106,11 +97,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
 
         // Platform operator — env credentials, cross-tenant, no agency scope.
+        // resolvePlatformAdmin returns null in production without env creds:
+        // the public dev defaults must never open the cross-tenant console.
         if (kind === "platform") {
-          const emailOk = email.trim().toLowerCase() === PLATFORM_ADMIN.email.toLowerCase();
-          if (!emailOk || !constantTimeEquals(password, PLATFORM_ADMIN.password)) return failed();
+          const platform = resolvePlatformAdmin();
+          if (!platform) return failed();
+          const emailOk = email.trim().toLowerCase() === platform.email.toLowerCase();
+          if (!emailOk || !constantTimeEquals(password, platform.password)) return failed();
           clearFailures(kind, agencySlug, email);
-          return { id: "platform-admin", email: PLATFORM_ADMIN.email, name: "Platform admin", kind: "platform" };
+          return { id: "platform-admin", email: platform.email, name: "Platform admin", kind: "platform" };
         }
 
         if (!agencySlug || (kind !== "staff" && kind !== "requester")) return null;

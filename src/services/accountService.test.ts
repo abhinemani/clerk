@@ -86,11 +86,14 @@ describe("requester accounts", () => {
     // The verification link went out; burning it unlocks the history.
     const mail = deps.notifier.sent.find((m) => m.kind === "account_verify");
     expect(mail?.to).toBe("wei@example.com");
-    const verified = await verifyRequesterEmail(deps, tokenFromBody(mail!.body));
+    // Another tenant's portal cannot redeem it — and doesn't burn it.
+    expect(await verifyRequesterEmail(deps, AG2, tokenFromBody(mail!.body))).toBeNull();
+
+    const verified = await verifyRequesterEmail(deps, AG1, tokenFromBody(mail!.body));
     expect(verified?.emailVerifiedAt).not.toBeNull();
 
     // Tokens are single-use.
-    expect(await verifyRequesterEmail(deps, tokenFromBody(mail!.body))).toBeNull();
+    expect(await verifyRequesterEmail(deps, AG1, tokenFromBody(mail!.body))).toBeNull();
 
     const mine = await deps.repo.listRequestsByRequester(AG1, account.id);
     expect(mine.map((r) => r.id)).toContain(filed.id);
@@ -205,7 +208,18 @@ describe("staff accounts", () => {
       resetLinkBase: "http://x/riverton/reset",
     });
     const mail = deps.notifier.sent.find((m) => m.kind === "password_reset")!;
+    // A reset link is bound to the tenant that minted it: another agency's
+    // reset page rejects it without burning it.
+    expect(
+      await completePasswordReset(deps, {
+        agencyId: AG2,
+        rawToken: tokenFromBody(mail.body),
+        kind: "reset_staff",
+        password: "brand-new-pass1",
+      }),
+    ).toBe(false);
     const ok = await completePasswordReset(deps, {
+      agencyId: AG1,
       rawToken: tokenFromBody(mail.body),
       kind: "reset_staff",
       password: "brand-new-pass1",
@@ -231,6 +245,7 @@ describe("staff accounts", () => {
 
     const mail = deps.notifier.sent.find((m) => m.kind === "staff_invite")!;
     const ok = await completePasswordReset(deps, {
+      agencyId: AG1,
       rawToken: tokenFromBody(mail.body),
       kind: "staff_invite",
       password: "my-own-pass-1",

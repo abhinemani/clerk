@@ -19,9 +19,12 @@ export default async function VerifyPage({
   const agency = await getAgencyForSlug(slug);
   if (!agency) notFound();
 
-  const requester = token
-    ? await verifyRequesterEmail(defaultDeps(await getRepository()), token)
-    : null;
+  // Redemption is scoped to THIS portal's agency; an unbootstrapped demo
+  // agency (id: null) can't have minted a token, so there's nothing to burn.
+  const requester =
+    token && agency.id
+      ? await verifyRequesterEmail(defaultDeps(await getRepository()), agency.id, token)
+      : null;
 
   return (
     <div className="wrap" style={{ maxWidth: 520, paddingBlock: "56px" }}>

@@ -111,13 +111,18 @@ export async function registerRequester(
   return requester;
 }
 
-/** Burn a verification token and unlock the claimed request history. */
+/**
+ * Burn a verification token and unlock the claimed request history. The
+ * agencyId is the tenant whose portal the link was opened on — a token minted
+ * by another agency is rejected there (and left unburned).
+ */
 export async function verifyRequesterEmail(
   deps: ServiceDeps,
+  agencyId: string,
   rawToken: string,
 ): Promise<Requester | null> {
   const { consumeToken } = await import("@/auth/tokens");
-  const token = await consumeToken(deps, rawToken, "verify_email");
+  const token = await consumeToken(deps, rawToken, "verify_email", agencyId);
   if (!token) return null;
   const requester = await deps.repo.updateRequester(token.agencyId, token.subjectId, {
     emailVerifiedAt: deps.now(),
@@ -267,16 +272,24 @@ export async function requestPasswordReset(
   });
 }
 
-/** Burn a reset/invite token and set the new password. */
+/**
+ * Burn a reset/invite token and set the new password. agencyId is the tenant
+ * whose reset page was used; a token from another agency is rejected there.
+ */
 export async function completePasswordReset(
   deps: ServiceDeps,
-  input: { rawToken: string; kind: "reset_requester" | "reset_staff" | "staff_invite"; password: string },
+  input: {
+    agencyId: string;
+    rawToken: string;
+    kind: "reset_requester" | "reset_staff" | "staff_invite";
+    password: string;
+  },
 ): Promise<boolean> {
   const policyError = passwordPolicyError(input.password);
   if (policyError) throw new AccountError(policyError);
 
   const { consumeToken } = await import("@/auth/tokens");
-  const token = await consumeToken(deps, input.rawToken, input.kind);
+  const token = await consumeToken(deps, input.rawToken, input.kind, input.agencyId);
   if (!token) return false;
 
   const passwordHash = hashPassword(input.password);
