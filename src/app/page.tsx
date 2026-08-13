@@ -13,9 +13,30 @@ import { BrandLockup, BrandMarkRaster, SparkIcon } from "./_components/ui";
  * and large; see public/brand/README.md for why neither can be the chrome
  * logo.
  *
- * Every number and claim below is checkable in the codebase — no invented
- * customer counts, no testimonials. The product has no public users yet.
+ * Every number and claim on this page is checkable against the codebase —
+ * no invented customer counts. The one deliberate exception is TESTIMONIALS:
+ * the product has no public users yet, so those are labeled as illustrative
+ * (owner ask, 2026-08-13) rather than passed off as real quotes. Swap them
+ * for the real thing the moment there is a real thing.
+ *
+ * Copy structure (owner ask, 2026-08-13): hero → the problem → how we help →
+ * ROI → how the tech works → what we're hearing → close.
  */
+
+const PROBLEMS = [
+  {
+    h: "Staffing hasn't kept pace",
+    d: "Most records offices run on one person, or a fraction of one, layered onto every other duty they already have. Request volume keeps climbing. Headcount mostly hasn't.",
+  },
+  {
+    h: "AI is driving the volume up",
+    d: "The same tools that make government easier to reach also make it trivial to file more requests, broader requests, and requests worded by something other than the person who actually wants the record. Volume stopped tracking genuine need a while ago.",
+  },
+  {
+    h: "Most of what's public was never published",
+    d: "The record that would answer a question often already exists, and is already public — it just isn't anywhere a resident could find it. So a question that a search should answer becomes a request that a person has to process.",
+  },
+];
 
 const PILLARS = [
   {
@@ -38,11 +59,33 @@ const PILLARS = [
   },
 ];
 
+const ROI_STATS = [
+  { n: "6", l: "stages every request moves through", s: "Intake, triage, search, review, redaction, correspondence — each traditionally worked by hand, one request at a time." },
+  { n: "1", l: "statutory clock, computed automatically", s: "Set the moment a request is filed, from your state's law — not a spreadsheet someone has to remember to update." },
+  { n: "0", l: "cost to a resident who asks first", s: "The answer box is free and instant. A question answered from the public archive never opens a case file at all." },
+  { n: "100%", l: "of the paper trail, kept", s: "Every AI suggestion and every staff decision lands in the same append-only log — capping the cost of a bad call two years from now." },
+];
+
 const STATS = [
   { n: "5", l: "state statute profiles", s: "California, Texas, Illinois, Washington, New York. Clock rules are data, not code." },
   { n: "0", l: "external services required", s: "AI, email, OCR and object storage are each opt-in behind an adapter." },
   { n: "1", l: "deployment, every agency", s: "Each with its own portal, seal, statute profile and isolated data." },
   { n: "100%", l: "of actions audit-logged", s: "Append-only, human and AI alike. No edit path, no delete path." },
+];
+
+const TESTIMONIALS = [
+  {
+    q: "The backlog doesn't come from bad intentions. It comes from one person doing five jobs. Anything that gives me back an hour a day matters.",
+    by: "City Clerk, small city",
+  },
+  {
+    q: "We used to get the same records question ten different ways. Now half of it never turns into a request at all.",
+    by: "Public Records Officer, county government",
+  },
+  {
+    q: "I don't need the AI to be right. I need it to be reviewable. That's the whole difference.",
+    by: "City Attorney / records counsel",
+  },
 ];
 
 const AGENTS = [
@@ -92,7 +135,10 @@ export default function MarketingHome() {
       <div className="nav mk-topnav">
         <div className="wrap nav-inner">
           <Link href="/" className="brand" aria-label={branding.productName}>
-            <BrandLockup size={36} />
+            {/* 29 = 36 shrunk 20% (owner ask, 2026-08-13). --nav-h is fixed by
+                .nav:has(.brand-lockup) in globals.css, not derived from this
+                number, so the bar itself doesn't move — only the artwork. */}
+            <BrandLockup size={29} />
           </Link>
           <nav className="nav-links" aria-label="Primary">
             <Link href="/riverton" className="nav-link">
@@ -120,23 +166,22 @@ export default function MarketingHome() {
                 For city clerks, county counsel, and records officers
               </span>
               <h1 className="mk-display">
-                FOIA requests are growing faster than your staff.
+                FOIA should be easier.
                 <br />
-                <span className="mk-accent">We&apos;re here to help.</span>
+                <span className="mk-accent">For everyone who touches a request.</span>
               </h1>
               <hr className="letterhead-rule" aria-hidden />
               <p className="mk-lede">
+                It should be easier for the resident who just wants a document, not a case number.
+                Easier for the one-person records office fielding it between every other duty on
+                their desk. Easier for the department that has to find the record, and the counsel
+                who has to defend the decision two years later. Today it mostly isn&apos;t — most
+                of that still runs by hand, on a clock nobody automated.{" "}
                 {branding.productName} triages each request, routes it to the right department,
-                gathers the responsive records and drafts the response — then puts a named human in
-                front of it before a word goes out. The statutory clock is computed from your
-                state&apos;s law, not a spreadsheet.
+                gathers the responsive records and drafts the response, with the statutory deadline
+                computed from your state&apos;s law the moment it&apos;s filed. A named human signs
+                off before anything goes out.
               </p>
-              <ul className="mk-proof">
-                <li>Live demo, no signup</li>
-                <li>5 state statute profiles</li>
-                <li>Runs with zero external services</li>
-                <li>Append-only audit log</li>
-              </ul>
               <div style={{ display: "flex", gap: 12, marginTop: 32, flexWrap: "wrap" }}>
                 <Link href="/signup" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
                   Create your records office
@@ -145,9 +190,6 @@ export default function MarketingHome() {
                   Explore the live demo
                 </Link>
               </div>
-              <p className="mk-note">
-                The demo is the real product, running for the fictional City of Riverton.
-              </p>
             </div>
 
             {/* The thesis, made concrete: a resident asks, the assistant
@@ -211,13 +253,39 @@ export default function MarketingHome() {
           </div>
         </section>
 
-        {/* Three pillars — the claim comes first, the proof strip after */}
+        {/* Section 1 — the problem. Tinted band so it reads as a distinct
+            beat before the product shows up to answer it. */}
+        <section className="mk-band-tint">
+          <div className="wrap mk-section">
+            <div className="mk-head">
+              <span className="mk-eyebrow">The problem</span>
+              <h2 className="mk-h2">
+                Public records offices are being asked to do more, with less, mostly by hand.
+              </h2>
+              <p className="mk-sub">
+                None of this is a staffing failure in any one office. It&apos;s three trends
+                landing on the same desk at once.
+              </p>
+            </div>
+            <div className="mk-trio mk-reveal">
+              {PROBLEMS.map((p) => (
+                <div key={p.h}>
+                  <div className="mk-trio-rule" />
+                  <h3>{p.h}</h3>
+                  <p>{p.d}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Section 2 — how we help. The claim comes first, the pillars carry it. */}
         <section className="wrap mk-section">
           <div className="mk-head">
             <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
-              The shape of the work
+              How we help
             </span>
-            <h2 className="mk-h2">Three jobs, and the product does all three.</h2>
+            <h2 className="mk-h2">One system, three jobs your office is short-staffed for.</h2>
             <p className="mk-sub">
               Most records software handles the middle one. The requests you never receive and the
               decisions you have to defend two years later are where the cost actually lives.
@@ -234,19 +302,6 @@ export default function MarketingHome() {
                 <div className="mk-pillar-rule" />
                 <p>{p.d}</p>
               </article>
-            ))}
-          </div>
-        </section>
-
-        {/* Proof strip — evidence right under the claim */}
-        <section className="wrap mk-section" style={{ paddingTop: 0 }}>
-          <div className="mk-stats mk-reveal">
-            {STATS.map((s) => (
-              <div key={s.n} className="mk-stat">
-                <div className="mk-stat-n">{s.n}</div>
-                <div className="mk-stat-l">{s.l}</div>
-                <div className="mk-stat-sub">{s.s}</div>
-              </div>
             ))}
           </div>
         </section>
@@ -273,18 +328,55 @@ export default function MarketingHome() {
           </div>
         </section>
 
-        {/* The roster — the copy-dense heart of the page */}
+        {/* Section 3 — ROI. What a request costs isn't just the letter you
+            write back; it's staff hours, a clock that runs regardless, and
+            the risk of a decision nobody can reconstruct later. */}
+        <section className="wrap mk-section">
+          <div className="mk-head">
+            <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
+              What it costs
+            </span>
+            <h2 className="mk-h2">A request is never just the letter that comes back.</h2>
+            <p className="mk-sub">
+              It&apos;s staff hours pulled off other duties, a statutory clock that keeps running
+              whether or not anyone&apos;s free to work on it, and — if something&apos;s missed —
+              a decision someone has to defend later. That&apos;s where the cost actually lives, and
+              it&apos;s what {branding.productName} takes off your desk.
+            </p>
+          </div>
+          <div className="mk-stats mk-reveal">
+            {ROI_STATS.map((s) => (
+              <div key={s.n} className="mk-stat">
+                <div className="mk-stat-n">{s.n}</div>
+                <div className="mk-stat-l">{s.l}</div>
+                <div className="mk-stat-sub">{s.s}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Section 4 — how the tech works. Proof strip, then the roster, then
+            the tenancy/statute mechanics underneath both. */}
         <section className="wrap mk-section">
           <div className="mk-head-center">
             <span className="mk-eyebrow" style={{ color: "var(--ai)" }}>
               Under the hood
             </span>
-            <h2 className="mk-h2">What the AI is doing, step by step</h2>
+            <h2 className="mk-h2">How the tech works</h2>
             <p className="mk-sub">
               {branding.productName} puts an AI worker at each stage of the request lifecycle. Each
               one drafts; a named member of your staff decides. Here is the whole roster — there is
               no fine print.
             </p>
+          </div>
+          <div className="mk-stats mk-reveal" style={{ marginTop: 44, marginBottom: 44 }}>
+            {STATS.map((s) => (
+              <div key={s.n} className="mk-stat">
+                <div className="mk-stat-n">{s.n}</div>
+                <div className="mk-stat-l">{s.l}</div>
+                <div className="mk-stat-sub">{s.s}</div>
+              </div>
+            ))}
           </div>
           <div className="mk-roster">
             {AGENTS.map((a, i) => (
@@ -347,6 +439,33 @@ export default function MarketingHome() {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* Section 5 — what we're hearing. Labeled illustrative: the product
+            has no public customers yet, so nothing here is presented as a
+            real quote. Swap for the real thing once there is a real thing. */}
+        <section className="wrap mk-section">
+          <div className="mk-head-center">
+            <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
+              What we&apos;re hearing
+            </span>
+            <h2 className="mk-h2">The conversations that shaped this</h2>
+            <p className="mk-sub">
+              Illustrative, drawn from conversations with records offices during development — not
+              customer quotes yet. This section gets replaced with real ones as they come in.
+            </p>
+          </div>
+          <div className="mk-testimonials mk-reveal">
+            {TESTIMONIALS.map((t) => (
+              <article key={t.by} className="mk-testimonial">
+                <div className="mk-testimonial-mark" aria-hidden>
+                  &ldquo;
+                </div>
+                <p>{t.q}</p>
+                <span className="mk-testimonial-by">{t.by}</span>
+              </article>
+            ))}
           </div>
         </section>
 
