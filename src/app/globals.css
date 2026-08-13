@@ -490,6 +490,31 @@ h3 {
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.16s ease;
 }
+/* TEXTURED DARK, APP-WIDE (owner, 2026-08-13 — "the divs had more
+   texture/gradients; this is just dark and dark"). The styled dark is not
+   only the marketing page: every surface gets it. Screen-scoped so PRINT
+   keeps the flat light card above. Kept subtler than the marketing slabs —
+   these are work surfaces; the texture must read as material, not noise. */
+@media screen {
+  body {
+    /* one quiet bloom at the top of every page, fixed so it doesn't swim */
+    background:
+      radial-gradient(ellipse 90% 42% at 50% -12%, color-mix(in srgb, var(--primary-tint) 60%, transparent), transparent 62%),
+      var(--paper);
+    background-attachment: fixed;
+  }
+  .card {
+    background: linear-gradient(180deg, rgba(42, 49, 60, 0.5), rgba(23, 29, 38, 0.92));
+    border-color: rgba(255, 255, 255, 0.09);
+  }
+  .stat {
+    background: linear-gradient(180deg, rgba(30, 37, 47, 0.96), rgba(19, 24, 31, 0.96));
+  }
+  .stat-row {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.09);
+  }
+}
 .card-pad {
   padding: 22px;
 }
@@ -945,7 +970,7 @@ label.lbl {
   /* Fine engraver's hatch — the texture on banknotes and certificates. */
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.032) 0 1px,
+    rgba(255, 255, 255, 0.05) 0 1px,
     transparent 1px 9px
   );
 }
@@ -966,7 +991,7 @@ label.lbl {
   color: var(--ink);
   border-bottom: 3px solid var(--gold);
   background:
-    radial-gradient(ellipse 66% 54% at 14% -12%, color-mix(in srgb, var(--gold) 24%, transparent), transparent 62%),
+    radial-gradient(ellipse 66% 54% at 14% -12%, color-mix(in srgb, var(--gold) 30%, transparent), transparent 62%),
     radial-gradient(ellipse 58% 52% at 88% 6%, color-mix(in srgb, var(--plum) 78%, transparent), transparent 64%),
     linear-gradient(158deg, #0b0f14 0%, var(--paper) 46%, #202834 100%);
 }
@@ -978,7 +1003,7 @@ label.lbl {
   z-index: -1;
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.032) 0 1px,
+    rgba(255, 255, 255, 0.05) 0 1px,
     transparent 1px 9px
   );
   pointer-events: none;

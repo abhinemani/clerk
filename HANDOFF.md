@@ -45,7 +45,22 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, after the lock): THE TEXTURED DARK
+**NEWEST (2026-08-13, cloud session, correction): TEXTURED DARK GOES
+APP-WIDE — the owner rightly called out that the previous entry only
+textured the MARKETING page while the actual product (portal, workspace,
+admin — everything built from `.card`/`.stat`) stayed flat dark.** Now in
+globals.css next to the `.card` base, one `@media screen` block:
+- `body` gets a fixed primary-tint bloom at the top of every page;
+- `.card` becomes the glass gradient + white-alpha hairline;
+- `.stat` tiles and `.stat-row` seams get the same treatment;
+- marketing hero hatch/aurora intensities raised (0.032→0.05 alpha,
+  gold 24→30%) since the subtle values read as invisible.
+Screen-scoped so PRINT keeps the flat light card. Proof screenshots
+(marketing, portal, workspace) were delivered in-chat. LESSON, on the
+record: "browser-verified" must mean the surfaces the OWNER looks at,
+not just the ones the diff touched. 848 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, cloud session, after the lock): THE TEXTURED DARK
 RESTORED (owner: "just dark and dark isn't visually interesting").** The
 dark-lock had flattened the marketing surfaces — the styled dark lives in
 gradients/hatch/auroras, which the light-hero rework had stripped.
