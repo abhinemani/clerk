@@ -1418,7 +1418,8 @@ label.lbl {
 /* ---- responsive ---- */
 @media (max-width: 900px) {
   .mk-pillars,
-  .mk-roster {
+  .mk-roster,
+  .mk-testimonials {
     grid-template-columns: 1fr;
   }
   .mk-stats {
@@ -1472,6 +1473,43 @@ label.lbl {
     grid-template-columns: 1fr;
     gap: 22px;
   }
+}
+
+/* ---- testimonials ("what we're hearing") ----
+   Same card grammar as .mk-pillar, quieter: a serif mark, the line, a named
+   role. No photos, no company logos — the product has no public customers
+   yet, so these are illustrative and say so above the grid. */
+.mk-testimonials {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 44px;
+}
+.mk-testimonial {
+  background: linear-gradient(180deg, rgba(42, 49, 60, 0.45), rgba(23, 29, 38, 0.85));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--r-lg);
+  padding: 26px 24px 22px;
+}
+.mk-testimonial-mark {
+  font-family: var(--font-serif);
+  font-size: 2.1rem;
+  line-height: 1;
+  color: var(--gold);
+}
+.mk-testimonial p {
+  margin-top: 6px;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.mk-testimonial-by {
+  display: block;
+  margin-top: 16px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
 }
 
 /* footer columns on the marketing page */
