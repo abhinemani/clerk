@@ -129,6 +129,79 @@ describe("importMailbox", () => {
     expect(note.summary).toContain("2 message(s), 1 attachment(s)");
   });
 
+  it("skips messages the request already holds — Message-ID first, checksum fallback", async () => {
+    const s = await setup();
+    const withId = (id: string, subject: string, body: string) =>
+      [`Message-ID: <${id}>`, message(subject, body)].join(CRLF);
+
+    const first = await importMailbox(s.deps, {
+      agencyId: "ag-1",
+      requestId: s.request.id,
+      actorUserId: "u-dana",
+      filename: "export-jan.mbox",
+      bytes: mboxOf(withId("m1@riverton.gov", "Paving schedule", "v1"), message("No id here", "same bytes")),
+    });
+    expect(first).toMatchObject({ messages: 2, duplicates: 0 });
+
+    // Overlapping re-export: m1 has the same Message-ID but DIFFERENT bytes
+    // (mailers rewrap); the id-less message reappears byte-identical; one
+    // genuinely new message rides along.
+    const second = await importMailbox(s.deps, {
+      agencyId: "ag-1",
+      requestId: s.request.id,
+      actorUserId: "u-dana",
+      filename: "export-jan-feb.mbox",
+      bytes: mboxOf(
+        withId("m1@riverton.gov", "Paving schedule", "v1 rewrapped by the export tool"),
+        message("No id here", "same bytes"),
+        withId("m2@riverton.gov", "Re: Paving schedule", "new reply"),
+      ),
+    });
+    expect(second).toMatchObject({ messages: 1, duplicates: 2 });
+
+    const docs = await s.repo.listRequestDocuments("ag-1", s.request.id);
+    expect(docs.filter((d) => d.mimeType === "message/rfc822")).toHaveLength(3);
+
+    // Within one upload too: the same Message-ID twice imports once.
+    const third = await importMailbox(s.deps, {
+      agencyId: "ag-1",
+      requestId: s.request.id,
+      actorUserId: "u-dana",
+      filename: "dupes-inside.mbox",
+      bytes: mboxOf(withId("m3@riverton.gov", "Fresh", "a"), withId("m3@riverton.gov", "Fresh", "b")),
+    });
+    expect(third).toMatchObject({ messages: 1, duplicates: 1 });
+
+    // The audit event reports the skip count.
+    const events = await s.repo.listEvents("ag-1", s.request.id);
+    const notes = events.filter((e) => e.payload?.source === "mailbox_import");
+    expect(notes.at(-2)?.payload?.duplicates).toBe(2);
+    expect(notes.at(-2)?.summary).toContain("2 already on this request, skipped");
+  });
+
+  it("stamps threading headers into message metadata", async () => {
+    const s = await setup();
+    const reply = [
+      "Message-ID: <r1@riverton.gov>",
+      "In-Reply-To: <m1@riverton.gov>",
+      "References: <m1@riverton.gov>",
+      message("Re: Paving", "ack"),
+    ].join(CRLF);
+    await importMailbox(s.deps, {
+      agencyId: "ag-1",
+      requestId: s.request.id,
+      actorUserId: "u-dana",
+      filename: "one.eml",
+      bytes: Buffer.from(reply),
+    });
+    const [doc] = await s.repo.listRequestDocuments("ag-1", s.request.id);
+    expect(doc!.metadata).toMatchObject({
+      emailMessageId: "r1@riverton.gov",
+      emailInReplyTo: "m1@riverton.gov",
+      emailReferences: ["m1@riverton.gov"],
+    });
+  });
+
   it("imports a ZIP of .eml files", async () => {
     const s = await setup();
     // Build a minimal stored (uncompressed) zip with two .eml members.

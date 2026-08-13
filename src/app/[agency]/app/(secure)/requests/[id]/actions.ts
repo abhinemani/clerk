@@ -695,7 +695,7 @@ export async function runMailboxImportAction(
   input: { agencySlug: string; requestId: string },
   formData: FormData,
 ): Promise<
-  | { ok: true; messages: number; attachments: number; refused: string[]; unparseable: number }
+  | { ok: true; messages: number; attachments: number; refused: string[]; unparseable: number; duplicates: number }
   | { ok: false; error: string }
 > {
   try {
@@ -740,6 +740,7 @@ export async function runMailboxImportAction(
       attachments: result.attachments,
       refused: result.refused,
       unparseable: result.unparseable.length,
+      duplicates: result.duplicates,
     };
   } catch (e) {
     console.error("runMailboxImport failed", e);

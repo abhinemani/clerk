@@ -169,12 +169,15 @@ export default async function RequestDetail({
       atLabel: dateShort(m.sentAt),
     }));
     const reviewByDoc = new Map(reviews.map((rv) => [rv.documentId, rv]));
+    const { readDocumentMeta } = await import("@/domain/documentMeta");
     reviewDocs = docs
       .filter((d) => d.classification === "internal") // the review set, not archive entries
       .map((d) => {
         const aiClass = (d.metadata as {
           aiClassification?: { recordType?: string; sensitivityNote?: string | null };
         } | null)?.aiClassification;
+        const meta = readDocumentMeta(d);
+        const isEmail = d.provenance === "email_ingest" && d.mimeType === "message/rfc822";
         return {
           documentId: d.id,
           filename: d.filename ?? d.id,
@@ -184,6 +187,20 @@ export default async function RequestDetail({
           exemptionLabel: reviewByDoc.get(d.id)?.exemptionLabel ?? null,
           aiRecordType: aiClass?.recordType ?? null,
           aiSensitivityNote: aiClass?.sensitivityNote ?? null,
+          // Email-ingest docs thread in the review panel; everything else
+          // renders flat exactly as before.
+          email: isEmail
+            ? {
+                messageId: meta.emailMessageId ?? null,
+                inReplyTo: meta.emailInReplyTo ?? null,
+                references: meta.emailReferences ?? [],
+                subject: meta.emailSubject ?? meta.title ?? null,
+                from: meta.emailFrom ?? null,
+                dateIso: meta.recordDate ?? null,
+              }
+            : undefined,
+          attachmentOfDocumentId:
+            d.provenance === "email_ingest" ? meta.attachmentOfDocumentId ?? null : null,
         };
       });
     {

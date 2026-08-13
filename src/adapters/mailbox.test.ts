@@ -5,6 +5,7 @@ import {
   looksLikeMailbox,
   messageTextRendition,
   parseMailbox,
+  parseMessageIds,
 } from "./mailbox";
 
 const CRLF = "\r\n";
@@ -80,6 +81,33 @@ describe("parseMailbox", () => {
     expect(messages[0]!.bodyText).toBe("one");
   });
 
+  it("extracts Message-ID, In-Reply-To, and References for threading", () => {
+    const reply = [
+      "From: dana@riverton.gov",
+      "To: mbell@riverton.gov",
+      "Date: Wed, 15 Jan 2025 11:00:00 -0800",
+      "Subject: Re: Elm St inspections",
+      "Message-ID: <reply-1@riverton.gov>",
+      "In-Reply-To: <origin-1@riverton.gov>",
+      "References: <thread-root@riverton.gov>",
+      " <origin-1@riverton.gov>",
+      "Content-Type: text/plain",
+      "",
+      "Received, thanks.",
+    ].join(CRLF);
+    const { messages } = parseMailbox(Buffer.from(reply));
+    expect(messages[0]!.messageId).toBe("reply-1@riverton.gov");
+    expect(messages[0]!.inReplyTo).toBe("origin-1@riverton.gov");
+    expect(messages[0]!.references).toEqual(["thread-root@riverton.gov", "origin-1@riverton.gov"]);
+  });
+
+  it("threading headers are null/empty when absent", () => {
+    const { messages } = parseMailbox(Buffer.from(simpleMessage("Solo", "body")));
+    expect(messages[0]!.messageId).toBeNull();
+    expect(messages[0]!.inReplyTo).toBeNull();
+    expect(messages[0]!.references).toEqual([]);
+  });
+
   it("parses a single .eml (not mbox-framed)", () => {
     const { messages, isMbox } = parseMailbox(Buffer.from(simpleMessage("Solo", "body text")));
     expect(isMbox).toBe(false);
@@ -128,6 +156,13 @@ describe("parseMailbox", () => {
 });
 
 describe("helpers", () => {
+  it("parseMessageIds: bracketed lists, bare ids, junk", () => {
+    expect(parseMessageIds("<a@x> <b@y>")).toEqual(["a@x", "b@y"]);
+    expect(parseMessageIds("bare-id@host")).toEqual(["bare-id@host"]);
+    expect(parseMessageIds("not a message id")).toEqual([]);
+    expect(parseMessageIds(null)).toEqual([]);
+  });
+
   it("decodeHeaderWords handles B and Q encodings", () => {
     expect(decodeHeaderWords("=?utf-8?Q?Caf=C3=A9_notes?=")).toBe("Café notes");
     expect(decodeHeaderWords("=?UTF-8?B?Q2Fmw6k=?= plain tail")).toBe("Café plain tail");

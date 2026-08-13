@@ -89,6 +89,20 @@ export const documentMetaSchema = z
     redactionMode: z.enum(["text", "visual"]).optional(),
     /** Deterministic PII pre-scan tallies: { ssn: 2, phone: 5, … } (§6.5). */
     sensitivity: z.record(z.number()).optional(),
+    // Email-ingest stamps (mailbox import). Threading + dedupe read these;
+    // they were previously passthrough-only, declared once a reader appeared.
+    emailFrom: z.string().nullable().optional(),
+    emailTo: z.string().nullable().optional(),
+    emailCc: z.string().nullable().optional(),
+    emailSubject: z.string().nullable().optional(),
+    /** Message-ID (brackets stripped) — the re-import dedupe key. */
+    emailMessageId: z.string().optional(),
+    emailInReplyTo: z.string().optional(),
+    emailReferences: z.array(z.string()).optional(),
+    attachmentCount: z.number().optional(),
+    /** Attachments: the message document they arrived on. */
+    attachmentOfDocumentId: z.string().optional(),
+    mailboxImportOf: z.string().optional(),
     publicationDecision: publicationDecisionSchema.optional(),
     aiClassification: aiClassificationSchema.optional(),
     /** Present exactly on connected-source dataset slices. */

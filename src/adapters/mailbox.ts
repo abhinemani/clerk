@@ -25,6 +25,12 @@ export interface ParsedEmailMessage {
   subject: string | null;
   /** Parsed Date header, or null when missing/unparseable. */
   date: Date | null;
+  /** Message-ID header, angle brackets stripped — the dedupe/threading key. */
+  messageId: string | null;
+  /** In-Reply-To header (first id when several), brackets stripped. */
+  inReplyTo: string | null;
+  /** References header ids, oldest first, brackets stripped. */
+  references: string[];
   /** Plain-text body (text/plain part, or tag-stripped text/html). */
   bodyText: string;
   attachments: ParsedAttachment[];
@@ -69,7 +75,10 @@ export function parseMailbox(bytes: Buffer, opts: { maxMessages?: number } = {})
     const parts = raw.split(/^From [^\n]*\n/m);
     for (const part of parts) {
       if (part.trim().length === 0) continue;
-      rawMessages.push(part);
+      // The blank line before the next envelope is mbox FRAMING, not message
+      // content — strip it so the same message has the same bytes (and the
+      // same checksum) wherever it sits in an export.
+      rawMessages.push(part.replace(/\n+$/, "\n"));
       if (rawMessages.length >= max) break;
     }
   } else {
@@ -117,6 +126,7 @@ function parseRfc822(raw: string, index: number): ParsedEmailMessage | null {
 
   const dateRaw = headers.get("date");
   const date = dateRaw ? new Date(dateRaw) : null;
+  const references = parseMessageIds(headers.get("references") ?? null);
 
   return {
     index,
@@ -124,11 +134,27 @@ function parseRfc822(raw: string, index: number): ParsedEmailMessage | null {
     to: decodeHeaderWords(headers.get("to") ?? null),
     cc: decodeHeaderWords(headers.get("cc") ?? null),
     subject: decodeHeaderWords(headers.get("subject") ?? null),
+    messageId: parseMessageIds(headers.get("message-id") ?? null)[0] ?? null,
+    inReplyTo: parseMessageIds(headers.get("in-reply-to") ?? null)[0] ?? null,
+    references,
     date: date && !Number.isNaN(date.getTime()) ? date : null,
     bodyText: bodyText.trim(),
     attachments,
     raw: Buffer.from(raw, "latin1"),
   };
+}
+
+/**
+ * `<id@host>` tokens from a Message-ID / In-Reply-To / References header,
+ * brackets stripped. Some clients omit the brackets on Message-ID; a bare
+ * non-empty value is accepted as one id in that case.
+ */
+export function parseMessageIds(value: string | null): string[] {
+  if (!value) return [];
+  const bracketed = [...value.matchAll(/<([^<>\s]+)>/g)].map((m) => m[1]!);
+  if (bracketed.length > 0) return bracketed;
+  const bare = value.trim();
+  return bare && !/\s/.test(bare) ? [bare] : [];
 }
 
 /** Header block → folded-line-aware map (last value wins per name). */

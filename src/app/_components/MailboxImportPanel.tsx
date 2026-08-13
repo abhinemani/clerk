@@ -16,7 +16,7 @@ import {
 
 type Result =
   | { kind: "preview"; data: MailboxPreview }
-  | { kind: "imported"; messages: number; attachments: number; refused: string[]; unparseable: number }
+  | { kind: "imported"; messages: number; attachments: number; refused: string[]; unparseable: number; duplicates: number }
   | { kind: "error"; message: string };
 
 export function MailboxImportPanel({ agencySlug, requestId }: { agencySlug: string; requestId: string }) {
@@ -119,6 +119,12 @@ export function MailboxImportPanel({ agencySlug, requestId }: { agencySlug: stri
           <p style={{ fontSize: "0.9rem", margin: 0, fontWeight: 600 }}>
             ✓ {result.messages} message{result.messages === 1 ? "" : "s"} and {result.attachments}{" "}
             attachment{result.attachments === 1 ? "" : "s"} added to the review set.
+            {result.duplicates > 0 && (
+              <span className="muted" style={{ fontWeight: 400 }}>
+                {" "}
+                {result.duplicates} already on this request — skipped, not re-imported.
+              </span>
+            )}
           </p>
           {result.refused.length > 0 && (
             <ul style={{ color: "var(--overdue)", fontSize: "0.82rem", margin: "8px 0 0", paddingLeft: 18 }}>

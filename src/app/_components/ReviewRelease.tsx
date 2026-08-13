@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { threadMessages } from "@/domain/emailThread";
 import {
   denyRequestAction,
   draftDenialAction,
@@ -20,6 +21,17 @@ export interface ReviewDocVM {
   /** §6.5 auto-classification suggestions (advisory only). */
   aiRecordType?: string | null;
   aiSensitivityNote?: string | null;
+  /** Present on mailbox-imported messages — threads them in the panel. */
+  email?: {
+    messageId: string | null;
+    inReplyTo: string | null;
+    references: string[];
+    subject: string | null;
+    from: string | null;
+    dateIso: string | null;
+  };
+  /** Present on mailbox-imported attachments: the message doc they rode in on. */
+  attachmentOfDocumentId?: string | null;
 }
 
 export interface ReleaseVM {
@@ -266,6 +278,96 @@ export function ReviewRelease({
   // The §6.5 pre-release PII refusal — overridable only explicitly.
   const residualRefusal = error?.includes("Possible PII in document") ?? false;
 
+  // Mailbox-imported messages render as conversation threads; their
+  // attachments nest under the message they rode in on. Everything else
+  // renders flat, exactly as before. Every row keeps its own decision —
+  // threading changes reading order, never review granularity.
+  const docById = new Map(docs.map((d) => [d.documentId, d]));
+  const attachmentsByMessage = new Map<string, ReviewDocVM[]>();
+  for (const d of docs) {
+    const parent = d.attachmentOfDocumentId;
+    if (parent && docById.get(parent)?.email) {
+      const list = attachmentsByMessage.get(parent) ?? [];
+      list.push(d);
+      attachmentsByMessage.set(parent, list);
+    }
+  }
+  const emailDocs = docs.filter((d) => d.email);
+  const nested = new Set([
+    ...emailDocs.map((d) => d.documentId),
+    ...[...attachmentsByMessage.values()].flat().map((d) => d.documentId),
+  ]);
+  const flatDocs = docs.filter((d) => !nested.has(d.documentId));
+  const threads = threadMessages(
+    emailDocs.map((d) => ({ documentId: d.documentId, ...d.email! })),
+  );
+
+  function docRow(d: ReviewDocVM, opts: { indent?: boolean } = {}) {
+    return (
+      <li
+        key={d.documentId}
+        style={{
+          border: "1px solid var(--border)",
+          borderRadius: "var(--r-sm)",
+          padding: "10px 12px",
+          display: "grid",
+          gap: 8,
+          ...(opts.indent ? { marginLeft: 22 } : {}),
+        }}
+      >
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <span className="mono" style={{ fontSize: "0.85rem", flex: 1, minWidth: 160 }}>
+            {opts.indent && <span className="muted" title="Email attachment">↳ </span>}
+            {d.hasBlob ? (
+              <a href={`/${agencySlug}/files/${d.documentId}`} title="Download for review">
+                {d.filename}
+              </a>
+            ) : (
+              d.filename
+            )}
+            {d.pages ? <span className="muted"> · {d.pages}p</span> : null}
+          </span>
+          <select
+            className="field"
+            style={{ width: "auto", paddingBlock: 6 }}
+            value={d.decision ?? ""}
+            disabled={pending}
+            aria-label={`Decision for ${d.filename}`}
+            onChange={(e) => decide(d.documentId, e.target.value as ReviewDocVM["decision"])}
+          >
+            <option value="" disabled>
+              Decide…
+            </option>
+            {DECISIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {d.email && (d.email.from || d.email.dateIso) && (
+          <div className="muted" style={{ fontSize: "0.78rem" }}>
+            {d.email.from ?? "Unknown sender"}
+            {d.email.dateIso ? ` · ${d.email.dateIso}` : ""}
+          </div>
+        )}
+        {(d.aiRecordType || d.aiSensitivityNote) && (
+          <div className="muted" style={{ fontSize: "0.78rem", display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {d.aiRecordType && <span className="tag">{d.aiRecordType}</span>}
+            {d.aiSensitivityNote && <span>⚠ {d.aiSensitivityNote}</span>}
+          </div>
+        )}
+        <input
+          className="field"
+          style={{ paddingBlock: 7, fontSize: "0.85rem" }}
+          placeholder="Exemption reason (required unless releasing in full), e.g. Personnel privacy"
+          value={exemptions[d.documentId] ?? ""}
+          onChange={(e) => setExemptions((p) => ({ ...p, [d.documentId]: e.target.value }))}
+        />
+      </li>
+    );
+  }
+
   return (
     <div className="card card-pad stack" style={{ gap: 14 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -280,59 +382,38 @@ export function ReviewRelease({
       )}
 
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}>
-        {docs.map((d) => (
+        {flatDocs.map((d) => docRow(d))}
+        {threads.map((t) => (
           <li
-            key={d.documentId}
+            key={`thread-${t.messages[0]!.documentId}`}
             style={{
               border: "1px solid var(--border)",
               borderRadius: "var(--r-sm)",
               padding: "10px 12px",
               display: "grid",
-              gap: 8,
+              gap: 10,
             }}
           >
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <span className="mono" style={{ fontSize: "0.85rem", flex: 1, minWidth: 160 }}>
-                {d.hasBlob ? (
-                  <a href={`/${agencySlug}/files/${d.documentId}`} title="Download for review">
-                    {d.filename}
-                  </a>
-                ) : (
-                  d.filename
-                )}
-                {d.pages ? <span className="muted"> · {d.pages}p</span> : null}
+            <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>✉ {t.subject}</span>
+              <span className="muted" style={{ fontSize: "0.78rem" }}>
+                {t.messages.length} message{t.messages.length === 1 ? "" : "s"}
+                {t.messages.reduce((n, m) => n + (attachmentsByMessage.get(m.documentId)?.length ?? 0), 0) > 0 &&
+                  ` · ${t.messages.reduce((n, m) => n + (attachmentsByMessage.get(m.documentId)?.length ?? 0), 0)} attachment(s)`}
               </span>
-              <select
-                className="field"
-                style={{ width: "auto", paddingBlock: 6 }}
-                value={d.decision ?? ""}
-                disabled={pending}
-                aria-label={`Decision for ${d.filename}`}
-                onChange={(e) => decide(d.documentId, e.target.value as ReviewDocVM["decision"])}
-              >
-                <option value="" disabled>
-                  Decide…
-                </option>
-                {DECISIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
             </div>
-            {(d.aiRecordType || d.aiSensitivityNote) && (
-              <div className="muted" style={{ fontSize: "0.78rem", display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {d.aiRecordType && <span className="tag">{d.aiRecordType}</span>}
-                {d.aiSensitivityNote && <span>⚠ {d.aiSensitivityNote}</span>}
-              </div>
-            )}
-            <input
-              className="field"
-              style={{ paddingBlock: 7, fontSize: "0.85rem" }}
-              placeholder="Exemption reason (required unless releasing in full), e.g. Personnel privacy"
-              value={exemptions[d.documentId] ?? ""}
-              onChange={(e) => setExemptions((p) => ({ ...p, [d.documentId]: e.target.value }))}
-            />
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+              {t.messages.map((m) => {
+                const d = docById.get(m.documentId);
+                if (!d) return null;
+                return (
+                  <Fragment key={d.documentId}>
+                    {docRow(d)}
+                    {(attachmentsByMessage.get(d.documentId) ?? []).map((a) => docRow(a, { indent: true }))}
+                  </Fragment>
+                );
+              })}
+            </ul>
           </li>
         ))}
       </ul>

@@ -34,6 +34,10 @@ export interface MailboxImportResult {
   unparseable: number[];
   /** Any imported attachment with no text layer (OCR candidates). */
   textlessAttachments: number;
+  /** Messages skipped because this request already holds them (Message-ID,
+   *  or byte checksum when the id is absent) — overlapping exports are the
+   *  normal case, not an error. */
+  duplicates: number;
 }
 
 /**
@@ -92,10 +96,34 @@ export async function importMailbox(
   let importedMessages = 0;
   let attachmentCount = 0;
   let textlessAttachments = 0;
+  let duplicates = 0;
   const now = deps.now();
+
+  // Message-ID dedupe: IT re-exports overlap (same custodian, widened date
+  // range) and a coordinator may import both. A message this request already
+  // holds is skipped — with its attachments, which arrived with the original.
+  // Message-ID when present, raw-byte checksum otherwise; both scoped to THIS
+  // request (the same email on two different requests is two records, each
+  // reviewed in its own request's context).
+  const existingDocs = await repo.listRequestDocuments(input.agencyId, input.requestId);
+  const seenMessageIds = new Set<string>();
+  const seenChecksums = new Set<string>();
+  for (const doc of existingDocs) {
+    if (doc.provenance !== "email_ingest") continue;
+    const id = (doc.metadata as Record<string, unknown> | null)?.emailMessageId;
+    if (typeof id === "string" && id) seenMessageIds.add(id);
+    if (doc.checksum) seenChecksums.add(doc.checksum);
+  }
 
   for (const message of parsed.messages) {
     const label = message.subject ?? `message ${message.index}`;
+    const checksum = checksumOf(message.raw);
+    if (message.messageId ? seenMessageIds.has(message.messageId) : seenChecksums.has(checksum)) {
+      duplicates++;
+      continue;
+    }
+    if (message.messageId) seenMessageIds.add(message.messageId);
+    seenChecksums.add(checksum);
     // Nothing enters the blob store unscanned — same rule as every upload.
     const scan = await assertUploadable(virusScanner, message.raw, `${label}.eml`);
     if (!scan.ok) {
@@ -124,6 +152,9 @@ export async function importMailbox(
         emailFrom: message.from,
         emailTo: message.to,
         ...(message.cc ? { emailCc: message.cc } : {}),
+        ...(message.messageId ? { emailMessageId: message.messageId } : {}),
+        ...(message.inReplyTo ? { emailInReplyTo: message.inReplyTo } : {}),
+        ...(message.references.length ? { emailReferences: message.references } : {}),
         ...(message.date ? { recordDate: message.date.toISOString().slice(0, 10) } : {}),
         attachmentCount: message.attachments.length,
         mailboxImportOf: input.filename,
@@ -132,7 +163,7 @@ export async function importMailbox(
       blobRef: key,
       byteSize: message.raw.length,
       mimeType: "message/rfc822",
-      checksum: checksumOf(message.raw),
+      checksum,
       extractedText: rendition,
       pageCount: 1,
       createdAt: now,
@@ -191,12 +222,15 @@ export async function importMailbox(
     requestId: input.requestId,
     kind: "note",
     actorUserId: input.actorUserId,
-    summary: `Mailbox export imported by ${actor.name ?? actor.email} — ${importedMessages} message(s), ${attachmentCount} attachment(s) from ${input.filename}`,
+    summary:
+      `Mailbox export imported by ${actor.name ?? actor.email} — ${importedMessages} message(s), ${attachmentCount} attachment(s) from ${input.filename}` +
+      (duplicates > 0 ? ` (${duplicates} already on this request, skipped)` : ""),
     payload: {
       source: "mailbox_import",
       filename: input.filename,
       messages: importedMessages,
       attachments: attachmentCount,
+      duplicates,
       refused,
       unparseable: parsed.unparseable,
     },
@@ -209,6 +243,7 @@ export async function importMailbox(
     refused,
     unparseable: parsed.unparseable,
     textlessAttachments,
+    duplicates,
   };
 }
 
