@@ -34,30 +34,38 @@ that permanently.
 
     dash.voyageai.com → sign in → API keys → Create key → Copy
 
-**3. CLICK + PASTE — put both where cloud sessions read them:**
+**3. CLICK + PASTE — put both where cloud sessions read them** (this is
+   NOT under Settings — it lives on the environment selector):
 
-    claude.ai → Settings → Code → [your Brandeis environment] → Environment variables → Add
+    claude.ai/code → click the cloud icon / environment name above the message box
+    → hover your environment → gear icon (or "Add cloud environment" if none)
+    → "Environment variables" box
 
-   Two entries. Names exactly as below; values from steps 1–2:
+   Two lines, `.env` style, values from steps 1–2:
 
 ```
-ANTHROPIC_API_KEY
-```
-```
-VOYAGE_API_KEY
+ANTHROPIC_API_KEY=sk-ant-PASTE-YOURS
+VOYAGE_API_KEY=pa-PASTE-YOURS
 ```
 
-**4. CLICK — check the environment's network policy** (same settings page):
-   it must allow `api.anthropic.com` and `api.voyageai.com`. On "trusted"
-   or broader you're done; on a custom allowlist, add those two hosts.
+   ⚠ Cloud environments have no dedicated secrets store — values are
+   readable by anyone who can use the environment. Fine for a personal
+   dev key; never put production credentials here.
+
+**4. CLICK — network access** (same dialog): `api.anthropic.com` is in
+   the default "Trusted" list already. For Voyage, set the Network access
+   dropdown to "Custom", add `api.voyageai.com` one domain per line, and
+   tick "Also include default list of common package managers".
 
 **5. ~~PASTE — hand the standing debt to a fresh session~~ DONE
    2026-08-13** (keyed laptop session: eval 27/27 recorded in HANDOFF,
    precedent citations proven live). If you ever bump a prompt again, the
    equivalent hand-off message is in Part B below.
 
-That's it. New sessions (not already-open ones) see the keys. After this,
-only Part C (Docker) and Part D (email + DNS) ever need you at a machine.
+That's it. New sessions see the keys — only sessions started AFTER saving
+pick up variables; already-open ones keep the config they booted with.
+After this, only Part C (Docker) and Part D (email + DNS) ever need you
+at a machine.
 
 ---
 
