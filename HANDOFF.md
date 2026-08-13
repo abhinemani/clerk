@@ -7,9 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**811 tests pass, typecheck clean** (as of the newest 2026-08-13 entry);
-all 4 e2e specs were green as of the 2026-08-14 e2e entry, not re-run
-since the threading/logo work.
+**801 tests pass (+4 skipped), typecheck clean, build clean, 4/4 e2e**
+(all re-verified in the newest 2026-08-13 entry — the e2e debt from the
+threading/logo window is paid).
 
 ## START HERE (next session)
 
@@ -45,7 +45,38 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, same keyed session, latest): PINNED DARK NAV
+**NEWEST (2026-08-13, cloud session): REAL KEYS CAN NO LONGER LEAK INTO
+`npm test` OR THE E2E SMOKE — the offline suite now strips them first.**
+Found by running the suite in a cloud container that carries a real
+`VOYAGE_API_KEY` (owner put it in the claude.ai env settings per
+laptop-setup ⚡ — every future cloud session will have it): two unit tests
+went red because `getEmbeddingProvider()` reads `process.env` at call
+time, so the "offline + deterministic" suite was silently sending
+unit-test embeddings to live Voyage. Here the calls died at the proxy and
+the best-effort paths swallowed the error into empty vectors; on a
+machine where they SUCCEED it's worse — spent credits and nondeterministic
+vectors that happen to pass. Nothing was wrong with the tested code.
+- `vitest.setup.ts` (new, wired via `setupFiles`): strips every
+  behavior-selecting env var (AI keys, ES, DATABASE_URL, S3, clamd, OCR,
+  email, auth/deploy toggles — the list is in the file) before any test
+  loads. No-op under `RUN_LIVE_EVALS`, so `npm run eval` still reaches the
+  live API on purpose. Tests that set env vars themselves are unaffected —
+  only inherited shell values are removed.
+- Same hole existed on the e2e side: playwright.config's webServer env
+  MERGES into the shell's, so the smoke's dev server would boot onto live
+  providers too. The config now blanks the service keys explicitly (empty
+  string reads as unset at every factory).
+- e2e in this container: the preinstalled Chromium (build 1194) predates
+  what npm-resolved Playwright 1.62 expects (1234) — fixed session-locally
+  with symlink shims under /opt/pw-browsers, no repo change. If a future
+  cloud session hits "Executable doesn't exist", that's the shape of it.
+Full re-verify after: 801 tests (+4 skipped), typecheck clean,
+`npm run build` clean, **4/4 e2e green** (paying the "worth a run next
+session" debt from the threading/logo entry — mailboxImport included).
+No owner-facing change (no new env var, no service): laptop-setup.md
+deliberately untouched.
+
+**PREVIOUS (2026-08-13, same keyed session, latest): PINNED DARK NAV
 CHROME (owner directive).** The nav's ground is dark in BOTH themes on
 every page; content below keeps theme-swapping. Implementation is a
 token re-declaration scoped to `.nav` (the dark palette's values,
