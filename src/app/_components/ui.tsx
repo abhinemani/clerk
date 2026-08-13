@@ -114,10 +114,18 @@ export function BrandMark({
    * hero render is the full variant; the nav gets an honest reduction of it,
    * not a different mark.
    */
-  const compact = (detail ?? (size < 56 ? "compact" : "full")) === "compact";
-  const wBeam = compact ? 3.2 : 1.7;
-  const wRay = compact ? 2.6 : 1.25;
-  const wStruct = compact ? 3.0 : 1.9;
+  // Threshold is 30, not 56. The header runs at 40px and the console at 36,
+  // and at those sizes the detail DOES survive — the previous 56 meant every
+  // real placement silently got the reduction, so the dashed fan and the
+  // record's data rows never appeared anywhere on the site. Compact is now
+  // reserved for genuinely tiny marks (favicon scale).
+  const compact = (detail ?? (size < 30 ? "compact" : "full")) === "compact";
+  // Widths are in viewBox units against a 72-tall box, so at the 40px header
+  // the full set lands at ~0.9-1.3 CSS px — thin on purpose, but above the
+  // sub-pixel floor that erased the mark the first time.
+  const wBeam = compact ? 3.2 : 2.4;
+  const wRay = compact ? 2.6 : 1.7;
+  const wStruct = compact ? 3.0 : 2.2;
 
   const beam = `${idPrefix}-beam`;
   const flare = `${idPrefix}-flare`;
@@ -167,10 +175,17 @@ export function BrandMark({
         strokeLinejoin="round"
       />
 
-      {/* refracted fan — crosses the prism and runs on into the record */}
+      {/* Refracted fan. In the renders the rays leave the prism solid and
+          BREAK INTO SEGMENTS as they approach the record — light becoming
+          data. That dash pattern is the mark's whole idea, so only the
+          central ray stays continuous; the rest dash progressively. */}
       <g stroke="var(--mark-ray)" strokeWidth={wRay} strokeLinecap="round">
-        {fan.map((y) => (
-          <path key={y} d={`M47 36 100 ${y}`} />
+        {fan.map((y, i) => (
+          <path
+            key={y}
+            d={`M47 36 100 ${y}`}
+            strokeDasharray={compact || y === 36 ? undefined : i % 2 === 0 ? "20 3 8 3 5 3" : "16 3 6 3 4 3"}
+          />
         ))}
       </g>
 
@@ -193,7 +208,7 @@ export function BrandMark({
 
       {/* the fan becoming data — same rows the rays arrive on */}
       {!compact && (
-        <g stroke="var(--mark-structure)" strokeWidth="1.6" strokeLinecap="round">
+        <g stroke="var(--mark-structure)" strokeWidth="1.9" strokeLinecap="round">
           <path d="M105 20h6M114 20h4" />
           <path d="M105 25.5h10" />
           <path d="M105 31h5M112 31h7" />
