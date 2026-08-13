@@ -6,9 +6,10 @@
  * statute engine; this panel only collects the human's decision — and the
  * notice letter goes out through the same thread as everything else.
  */
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { extendRequestAction } from "../[agency]/app/(secure)/requests/[id]/actions";
+import { PREFILL_EXTENSION_EVENT, type PrefillExtensionDetail } from "./prefillEvents";
 
 export interface ExtensionTakenVM {
   days: number;
@@ -34,6 +35,24 @@ export function ExtensionPanel(props: {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Copilot prefill: a propose_extension card opens this panel with the
+  // proposed basis in the note. The DECISION stays here — days, statute
+  // reason, and the Take button are untouched; only text was carried over.
+  useEffect(() => {
+    if (!props.available || props.taken) return;
+    const onPrefill = (e: Event) => {
+      const { note: proposed } = (e as CustomEvent<PrefillExtensionDetail>).detail;
+      setOpen(true);
+      setNote(proposed);
+      requestAnimationFrame(() =>
+        panelRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }),
+      );
+    };
+    window.addEventListener(PREFILL_EXTENSION_EVENT, onPrefill);
+    return () => window.removeEventListener(PREFILL_EXTENSION_EVENT, onPrefill);
+  }, [props.available, props.taken]);
 
   function take() {
     setError(null);
@@ -55,7 +74,7 @@ export function ExtensionPanel(props: {
   }
 
   return (
-    <div className="card card-pad">
+    <div className="card card-pad" ref={panelRef}>
       <div className="panel-title">Statutory deadline</div>
       <div style={{ fontWeight: 600, marginTop: 8 }}>{props.dueLabel}</div>
 

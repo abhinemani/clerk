@@ -15,12 +15,19 @@ import {
   sendMessageAction,
   type CopilotActionVM,
 } from "../[agency]/app/(secure)/requests/[id]/actions";
+import { firePrefillDispatch, firePrefillExtension } from "./prefillEvents";
 import { AiPill } from "./ui";
 
 interface Turn {
   role: "coordinator" | "copilot";
   text: string;
-  actions?: (CopilotActionVM & { draft?: string; sent?: boolean; dismissed?: boolean })[];
+  actions?: (CopilotActionVM & {
+    draft?: string;
+    sent?: boolean;
+    dismissed?: boolean;
+    /** Proposal handed to its panel, prefilled — awaiting the human there. */
+    handed?: boolean;
+  })[];
   aiMeta?: { promptVersion: string; model: string };
 }
 
@@ -181,18 +188,38 @@ export function CopilotChat({
                         <p style={{ fontSize: "0.82rem", margin: "6px 0 0", whiteSpace: "pre-wrap" }}>
                           {a.detail}
                         </p>
-                        <p className="muted" style={{ fontSize: "0.75rem", margin: "6px 0 0" }}>
-                          {a.type === "propose_extension"
-                            ? "Use the Statutory deadline panel to take it — the statute engine validates and notices."
-                            : "Use the routing cards to dispatch it — the task carries its own audit trail."}
-                        </p>
-                        <button
-                          className="btn btn-sm btn-ghost"
-                          style={{ marginTop: 6 }}
-                          onClick={() => updateAction(ti, ai, { dismissed: true })}
-                        >
-                          Dismiss
-                        </button>
+                        {a.handed ? (
+                          <div className="pill band-on_track" style={{ marginTop: 6 }}>
+                            ✓ Prefilled — review it in the{" "}
+                            {a.type === "propose_extension" ? "Statutory deadline panel" : "dispatch form"}
+                          </div>
+                        ) : (
+                          <>
+                            <p className="muted" style={{ fontSize: "0.75rem", margin: "6px 0 0" }}>
+                              {a.type === "propose_extension"
+                                ? "Prefills the Statutory deadline panel — the statute engine validates, you decide."
+                                : "Prefills the dispatch form — you pick the department and send."}
+                            </p>
+                            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                              <button
+                                className="btn btn-sm btn-primary"
+                                onClick={() => {
+                                  if (a.type === "propose_extension") firePrefillExtension({ note: a.detail });
+                                  else firePrefillDispatch({ scope: a.detail });
+                                  updateAction(ti, ai, { handed: true });
+                                }}
+                              >
+                                {a.type === "propose_extension" ? "Prefill the extension panel" : "Prefill a dispatch"}
+                              </button>
+                              <button
+                                className="btn btn-sm btn-ghost"
+                                onClick={() => updateAction(ti, ai, { dismissed: true })}
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </>
                     )}
                   </div>

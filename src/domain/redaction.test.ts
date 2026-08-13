@@ -10,6 +10,7 @@ import {
   redactedValues,
   spansFromDragRect,
   suggestRedactionsFromPii,
+  wordMatches,
   wordSpanAt,
 } from "./redaction";
 
@@ -163,5 +164,56 @@ describe("wordSpanAt — double-click-to-redact geometry", () => {
     const released = applyRedactions(lines, [span]);
     expect(released[0]).not.toContain("Jane");
     expect(released[0]).toContain("Doe"); // only the clicked word burns
+  });
+});
+
+describe("wordMatches — redact-this-word-everywhere geometry", () => {
+  const doc = [
+    "Officer Reyes interviewed Ann Walsh at the scene.",
+    "ann walsh stated that Reyes arrived first.",
+    "The Walsh statement (Walsh, p.2) is attached.",
+    "",
+    "SSN 123-45-6789 appears twice: 123-45-6789.",
+  ];
+
+  it("finds every occurrence, case-insensitively, through adjacent punctuation", () => {
+    const hits = wordMatches(doc, "Walsh");
+    expect(hits).toEqual([
+      { line: 0, startCol: 30, endCol: 35 },
+      { line: 1, startCol: 4, endCol: 9 },
+      { line: 2, startCol: 4, endCol: 9 },
+      { line: 2, startCol: 21, endCol: 26 }, // "(Walsh," — punctuation is a boundary
+    ]);
+  });
+
+  it("respects word boundaries — no substring over-redaction", () => {
+    const hits = wordMatches(["Ann met Anna at the Anniversary."], "Ann");
+    expect(hits).toEqual([{ line: 0, startCol: 0, endCol: 3 }]);
+  });
+
+  it("punctuation-joined needles (SSNs) match everywhere they appear", () => {
+    const hits = wordMatches(doc, "123-45-6789");
+    expect(hits).toEqual([
+      { line: 4, startCol: 4, endCol: 15 },
+      { line: 4, startCol: 31, endCol: 42 }, // "123-45-6789." — the period is a boundary
+    ]);
+  });
+
+  it("agrees with wordSpanAt: the double-clicked word is one of its own matches", () => {
+    const span = wordSpanAt(doc, { line: 1, col: 6 })!; // "walsh"
+    const word = doc[1]!.slice(span.startCol, span.endCol);
+    expect(wordMatches(doc, word)).toContainEqual(span);
+  });
+
+  it("burns clean everywhere — no occurrence survives the release", () => {
+    const hits = wordMatches(doc, "Walsh");
+    const released = applyRedactions([...doc], hits);
+    expect(findLeaks(released, redactedValues(doc, hits))).toEqual([]);
+    expect(released.join("\n")).not.toMatch(/Walsh/i);
+  });
+
+  it("rejects empty and multi-word needles", () => {
+    expect(wordMatches(doc, "")).toEqual([]);
+    expect(wordMatches(doc, "Ann Walsh")).toEqual([]);
   });
 });

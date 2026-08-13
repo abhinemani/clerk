@@ -570,6 +570,7 @@ export default async function RequestDetail({
           }}
           initialTasks={tasks}
           initialSuggestions={suggestions}
+          departments={departments.map((d) => ({ id: d.id, name: d.name }))}
           agencySlug={slug}
         />
       </div>

@@ -7,10 +7,49 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**739 tests pass, typecheck clean** (as of the 2026-08-13 connected-sources
+**745 tests pass, typecheck clean** (as of the 2026-08-13 studio-round-2
 entry below).
 
-**NEWEST (2026-08-13 evening): CONNECTED DATA SOURCES PHASE 1 SHIPPED.**
+**NEWEST (2026-08-13 night): REDACTION STUDIO ROUND 2 + COPILOT PREFILL.**
+The tier-1.5 "likely next asks" plus the copilot-prefill gap, all
+browser-verified through the real spine (resident files → task upload →
+studio):
+- **Redo stack**: Shift+Cmd/Ctrl+Z (or Ctrl+Y) replays what undo removed;
+  a NEW act clears the redo branch (history forks, the dead branch dies).
+  Redo state is captured OUTSIDE the setState updater — strict mode
+  double-invokes updaters, which would double-push.
+- **Click a bar → its log card**: bars stay pointer-events:none (drags must
+  glide over them); onDown hit-tests the grid point against redactions
+  instead. Hit = flash the bar + scroll the exemption-log card into view
+  (accent ring). Double-click on a bar re-selects, never re-burns.
+- **Redact this word everywhere**: `wordMatches()` in domain/redaction.ts —
+  word-BOUNDARY matching, not token equality, deliberately: "(Walsh," and
+  "Walsh." must burn too or the finalize leak check flags them (the test
+  suite encodes this reasoning). Double-click redacts the word and offers
+  "appears N more times → Redact all N" (one act, one undo);
+  shift+double-click takes them all immediately.
+- **Copilot prefill** (`prefillEvents.ts`): propose_task / propose_extension
+  cards now hand their text to the panels via window CustomEvents — no
+  pipeline/prompt change, so no eval obligation triggered. propose_task
+  prefills a NEW manual "Dispatch a task" form in RequestWorkspace (which
+  also closes a real gap: dispatch previously existed only via AI routing
+  suggestions), with the department best-guessed from the proposal text;
+  propose_extension opens the Statutory-deadline panel with the basis in
+  the note. The named-human act stays in the receiving panel, untouched.
+- **docs/laptop-setup.md rewritten** around the real workflow: cloud
+  sessions (phone-started) build; laptop sessions exist to produce
+  committed/configured artifacts — Part A (put ANTHROPIC_API_KEY into the
+  claude.ai environment settings so CLOUD sessions can run the eval) is
+  the highest-value 15 minutes available.
+- Gotcha 8 expanded: dev-bundler chunk corruption after long runs throws
+  MODULE_NOT_FOUND on real modules and breaks hydration; `rm -rf .next`
+  before suspecting code. It silently killed auto-dispatch during this
+  window's verification.
+745 tests (6 new: wordMatches geometry + leak-check interplay), typecheck
+clean. Copilot's buttons fire events verified end-to-end; the buttons
+themselves render only with a live API key — untested pixels, known.
+
+**PREVIOUS (2026-08-13 evening): CONNECTED DATA SOURCES PHASE 1 SHIPPED.**
 Owner said "do it" on `docs/connected-sources.md`; phase 1 is live and
 browser-verified end to end (register → sync → queue → named publish →
 flagged answer → download through the file gate). What landed:
@@ -335,8 +374,9 @@ below). The next priorities, in order (owner-reviewed 2026-08-04):
    Riverton seeds ON.
 4. Small knock-offs: responder email notification on dispatch to their
    department (they have logins now; only the dept inbox gets the token
-   link) · copilot prefill of task/extension panels · redaction redo stack,
-   click-a-bar-to-jump, "redact this word everywhere".
+   link) · ~~copilot prefill of task/extension panels · redaction redo
+   stack, click-a-bar-to-jump, "redact this word everywhere"~~ (all four
+   DONE 2026-08-13 night, see newest entry).
 5. Phase 5 agents stay gated until real-user proof (docs/agentic-horizon.md).
 
 ## What this is
@@ -680,7 +720,16 @@ One volume (`clerk-data` → `/data`) holds DB + blobs. Optional env:
    --build`) after code changes, or :3200 shows stale UI (we hit this with
    the pink fix).
 8. **tsc noise from `.next/types`** after concurrent build+dev corruption:
-   `rm -rf .next/types` and let the dev server regenerate.
+   `rm -rf .next/types` and let the dev server regenerate. The BIGGER
+   version of the same disease (hit 2026-08-13 evening): after a long dev
+   run with many recompiles, the dev bundler's chunk state corrupts —
+   dynamic imports start throwing `MODULE_NOT_FOUND` for modules that
+   plainly exist (`await import("@/services/taskService")` in fileRequest
+   died this way, which silently killed auto-dispatch because that path
+   deliberately catch-and-logs), and client chunks 404 so pages serve but
+   never hydrate. If hydration hangs or a dynamic import "can't find" a
+   real module: `rm -rf .next`, restart the dev server, and re-test before
+   suspecting your code.
 9. **Structured outputs reject `min`/`max` on numbers** — a Zod
    `.min(0).max(1)` puts bounds in the JSON schema and the API 400s the
    call. Because pipeline riders catch-and-log, this fails SILENTLY (the
@@ -810,7 +859,11 @@ and appeal-defense packet builder first). Bucket A is fully wired.
 
 ## Known small gaps (fair game any session)
 
-- Copilot task/extension proposals point at panels but don't prefill them.
+- ~~Copilot task/extension proposals point at panels but don't prefill
+  them.~~ DONE (2026-08-13 night): prefill via window CustomEvents +
+  a manual dispatch form. The prefill BUTTONS render only when a live API
+  key produces proposals — the events are e2e-verified, the buttons' pixels
+  are not; worth one click when a key exists.
 - Demo-fixture archive (unseeded `/riverton`) has no downloadable bytes —
   by design; seed for the real thing.
 - `npm run eval` has NOT been run for the `request_match` prompt — no

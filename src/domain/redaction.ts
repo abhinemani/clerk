@@ -85,6 +85,37 @@ export function wordSpanAt(lines: readonly string[], point: GridPoint): Redactio
   return { line: point.line, startCol: start, endCol: end };
 }
 
+/**
+ * Every occurrence of a WORD across the document — the geometry behind
+ * "redact this word everywhere". Word-BOUNDARY matching, case-insensitive:
+ * an occurrence counts when the characters on both sides are not letters or
+ * digits (punctuation, whitespace, or the line edge). So redacting "Walsh"
+ * everywhere also catches "(Walsh," and "Walsh." — exactly the residuals the
+ * finalize leak check would otherwise flag — while "Anniversary" never
+ * matches "Ann". Token-equality was considered and rejected for precisely
+ * that leak-check interaction.
+ */
+export function wordMatches(lines: readonly string[], word: string): RedactionSpan[] {
+  const needle = word.trim().toLowerCase();
+  if (!needle || /\s/.test(needle)) return [];
+  const isWordChar = (ch: string | undefined) => ch != null && /[a-z0-9]/i.test(ch);
+  const out: RedactionSpan[] = [];
+  lines.forEach((text, line) => {
+    const hay = text.toLowerCase();
+    let from = 0;
+    for (;;) {
+      const at = hay.indexOf(needle, from);
+      if (at < 0) break;
+      const end = at + needle.length;
+      if (!isWordChar(text[at - 1]) && !isWordChar(text[end])) {
+        out.push({ line, startCol: at, endCol: end });
+      }
+      from = end;
+    }
+  });
+  return out;
+}
+
 function clampSpan(len: number, s: RedactionSpan): { start: number; end: number } {
   const start = Math.max(0, Math.min(s.startCol, len));
   const end = Math.max(start, Math.min(s.endCol, len));

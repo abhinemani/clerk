@@ -8,6 +8,7 @@ import {
   redactedValues,
   spansFromDragRect,
   suggestRedactionsFromPii,
+  wordMatches,
   wordSpanAt,
   type GridPoint,
   type RedactionSpan,
@@ -150,6 +151,15 @@ export function RedactionStudio({
   const [defaultReason, setDefaultReason] = useState(exemptions[0]!);
   /** Each entry is the ids added by one act — what Cmd/Ctrl+Z takes back. */
   const undoStack = useRef<string[][]>([]);
+  /** Undone acts, whole objects — what Shift+Cmd/Ctrl+Z puts back. A NEW act
+      clears this: redo only ever replays what undo just removed, never
+      resurrects work from before an intervening edit. */
+  const redoStack = useRef<Redaction[][]>([]);
+  /** "Also redact N more occurrences of «word»" — offered after a
+      double-click when the same word appears elsewhere in the document. */
+  const [wordOffer, setWordOffer] = useState<{ word: string; spans: RedactionSpan[] } | null>(null);
+  /** Log-card DOM nodes, so clicking a bar can scroll its card into view. */
+  const cardRefs = useRef(new Map<string, HTMLLIElement>());
 
   function finalize(acceptResidualRisk = false) {
     if (!live) {
@@ -208,6 +218,7 @@ export function RedactionStudio({
     if (spans.length === 0) return;
     const ids = spans.map((_, i) => `staff-${groupKey}-${i}`);
     undoStack.current.push(ids);
+    redoStack.current = []; // a new act forks history; the redo branch dies
     setRedactions((prev) => [
       ...prev.filter((r) => !ids.includes(r.id)), // re-running an act replaces it
       ...spans.map((s, i) => ({
@@ -226,7 +237,18 @@ export function RedactionStudio({
   const undoLastAct = useCallback(() => {
     const ids = undoStack.current.pop();
     if (!ids) return;
+    // Capture the act's objects OUTSIDE the state updater (updaters must be
+    // pure — strict mode double-invokes them, which would double-push redo).
+    const removed = redactions.filter((r) => ids.includes(r.id));
+    if (removed.length > 0) redoStack.current.push(removed);
     setRedactions((prev) => prev.filter((r) => !ids.includes(r.id)));
+  }, [redactions]);
+
+  const redoLastAct = useCallback(() => {
+    const act = redoStack.current.pop();
+    if (!act || act.length === 0) return;
+    undoStack.current.push(act.map((r) => r.id));
+    setRedactions((prev) => [...prev.filter((r) => !act.some((a) => a.id === r.id)), ...act]);
   }, []);
 
   /** Turn the current selection into redactions — one span per covered line. */
@@ -239,9 +261,34 @@ export function RedactionStudio({
     [addAct, defaultReason, lineLengths],
   );
 
+  /** The redaction (accepted wins over suggested) covering a grid point. */
+  const redactionAt = useCallback(
+    (point: GridPoint): Redaction | null => {
+      const covering = redactions.filter(
+        (r) => r.line === point.line && point.col >= r.startCol && point.col < r.endCol,
+      );
+      return covering.find((r) => r.status === "accepted") ?? covering[0] ?? null;
+    },
+    [redactions],
+  );
+
+  /** Clicking a bar selects its act: flash the bar, scroll its log card into
+      view. The bars themselves stay pointer-events:none so drags glide over
+      them — this is a hit-test on the DOCUMENT's mousedown instead. */
+  function jumpToCard(r: Redaction) {
+    setFocusedId(r.id);
+    cardRefs.current.get(r.id)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
   function onDown(e: React.MouseEvent) {
     if (finalized) return;
     const point = locate(e.clientX, e.clientY);
+    const hit = redactionAt(point);
+    if (hit) {
+      // Selecting an existing redaction, not starting a new one.
+      jumpToCard(hit);
+      return;
+    }
     draggingRef.current = true;
     setSelection({ anchor: point, focus: point });
     setCaret(point);
@@ -261,12 +308,39 @@ export function RedactionStudio({
     });
   }
   /** Double-click blacks out the word under the cursor — the one-gesture path
-      for the spans the PII scan can't see (names, above all). */
+      for the spans the PII scan can't see (names, above all). When the same
+      word appears elsewhere, offer to redact every occurrence (or take them
+      all at once with shift held). */
   function onDoubleClick(e: React.MouseEvent) {
     if (finalized) return;
     const point = locate(e.clientX, e.clientY);
+    if (redactionAt(point)) return; // double-clicking a bar re-selects, never re-burns
     const span = wordSpanAt(lines, point);
-    if (span) addAct([span], `w-${span.line}-${span.startCol}-${span.endCol}`, defaultReason);
+    if (!span) return;
+    const word = lines[span.line]!.slice(span.startCol, span.endCol);
+    // Other occurrences: everywhere the word appears that isn't the clicked
+    // span and isn't already fully covered by an existing redaction.
+    const others = wordMatches(lines, word).filter(
+      (m) =>
+        !(m.line === span.line && m.startCol === span.startCol && m.endCol === span.endCol) &&
+        !redactions.some(
+          (r) => r.line === m.line && r.startCol <= m.startCol && r.endCol >= m.endCol,
+        ),
+    );
+    if (e.shiftKey && others.length > 0) {
+      // One act, one undo: the clicked word and every other occurrence.
+      addAct([span, ...others], `we-${word.toLowerCase()}`, defaultReason);
+      setWordOffer(null);
+      return;
+    }
+    addAct([span], `w-${span.line}-${span.startCol}-${span.endCol}`, defaultReason);
+    setWordOffer(others.length > 0 ? { word, spans: others } : null);
+  }
+
+  function redactWordEverywhere() {
+    if (!wordOffer) return;
+    addAct(wordOffer.spans, `we-${wordOffer.word.toLowerCase()}`, defaultReason);
+    setWordOffer(null);
   }
 
   /**
@@ -411,23 +485,28 @@ export function RedactionStudio({
   useEffect(() => {
     if (!finalized) return;
     setSelection(null);
+    setWordOffer(null);
   }, [finalized]);
 
-  // Undo works from anywhere in the studio, not just with the document
+  // Undo/redo work from anywhere in the studio, not just with the document
   // focused — a mis-drag shouldn't cost a trip to the log's Remove button.
-  // Form fields keep their native undo.
+  // Form fields keep their native undo. Redo rides the platform idioms:
+  // Shift+Cmd/Ctrl+Z, or Ctrl+Y.
   useEffect(() => {
     if (finalized) return;
     const onWindowKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key !== "z" && key !== "y") return;
       const t = e.target as HTMLElement | null;
       if (t && ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
       e.preventDefault();
-      undoLastAct();
+      if (key === "y" || (key === "z" && e.shiftKey)) redoLastAct();
+      else undoLastAct();
     };
     window.addEventListener("keydown", onWindowKey);
     return () => window.removeEventListener("keydown", onWindowKey);
-  }, [finalized, undoLastAct]);
+  }, [finalized, undoLastAct, redoLastAct]);
 
   return (
     <div className="redact-grid">
@@ -496,9 +575,31 @@ export function RedactionStudio({
               </select>
             </label>
             <span className="muted" style={{ fontSize: "0.8rem", flexBasis: "100%" }}>
-              Drag across text or double-click a word to black it out · arrow keys + shift select,
-              Enter commits · ⌘/Ctrl+Z undoes
+              Drag across text or double-click a word to black it out (⇧-double-click: every
+              occurrence) · click a bar to find it in the log · arrow keys + shift select, Enter
+              commits · ⌘/Ctrl+Z undoes, ⇧⌘/Ctrl+Y redoes
             </span>
+          </div>
+        )}
+
+        {/* Redact-everywhere offer: the follow-through on a double-click when
+            the word recurs. One act, one undo; declining costs one click. */}
+        {!finalized && wordOffer && (
+          <div
+            className="card"
+            role="status"
+            style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", marginBottom: 10, flexWrap: "wrap" }}
+          >
+            <span style={{ fontSize: "0.85rem" }}>
+              “{wordOffer.word}” appears {wordOffer.spans.length} more time
+              {wordOffer.spans.length === 1 ? "" : "s"}.
+            </span>
+            <button className="btn btn-sm btn-primary" onClick={redactWordEverywhere}>
+              Redact all {wordOffer.spans.length}
+            </button>
+            <button className="btn btn-sm btn-ghost" onClick={() => setWordOffer(null)}>
+              Just this one
+            </button>
           </div>
         )}
 
@@ -666,7 +767,19 @@ export function RedactionStudio({
               </li>
             )}
             {redactions.map((r) => (
-              <li key={r.id} className="card" style={{ padding: 12 }}>
+              <li
+                key={r.id}
+                className="card"
+                ref={(el) => {
+                  if (el) cardRefs.current.set(r.id, el);
+                  else cardRefs.current.delete(r.id);
+                }}
+                style={{
+                  padding: 12,
+                  // The card lights up when its bar is clicked in the document.
+                  ...(focusedId === r.id ? { boxShadow: "0 0 0 2px var(--accent)" } : {}),
+                }}
+              >
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {/* Covered text is masked by default and revealed on hover:
                       reviewing WHAT you are hiding shouldn't require unhiding it

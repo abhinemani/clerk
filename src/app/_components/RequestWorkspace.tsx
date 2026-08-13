@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -17,6 +17,7 @@ import {
   reassignTaskAction,
   sendBackAction,
 } from "../[agency]/app/(secure)/requests/[id]/actions";
+import { PREFILL_DISPATCH_EVENT, type PrefillDispatchDetail } from "./prefillEvents";
 import { AiPill, Avatar, SparkIcon } from "./ui";
 
 export interface TaskVM {
@@ -65,6 +66,8 @@ export function RequestWorkspace(props: {
   triage: TriageVM;
   initialTasks: TaskVM[];
   initialSuggestions: SuggestionVM[];
+  /** Full roster for the manual dispatch form (suggestions carry only their own). */
+  departments: { id: string; name: string }[];
   agencySlug: string;
 }) {
   const router = useRouter();
@@ -147,6 +150,59 @@ export function RequestWorkspace(props: {
     );
   }
 
+  /* Manual dispatch — for the task the AI didn't suggest, and the landing
+     panel for the copilot's propose_task prefill. Same server action, same
+     audit trail; only the origin of the text differs. */
+  const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [dispatchDeptId, setDispatchDeptId] = useState(props.departments[0]?.id ?? "");
+  const [dispatchScope, setDispatchScope] = useState("");
+  const dispatchFormRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (props.closed) return;
+    const onPrefill = (e: Event) => {
+      const { scope } = (e as CustomEvent<PrefillDispatchDetail>).detail;
+      setDispatchOpen(true);
+      setDispatchScope(scope);
+      // Best-guess the department from the proposal text; the human confirms.
+      const named = props.departments.find((d) => scope.toLowerCase().includes(d.name.toLowerCase()));
+      if (named) setDispatchDeptId(named.id);
+      // After the form renders open, bring it into view.
+      requestAnimationFrame(() =>
+        dispatchFormRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }),
+      );
+    };
+    window.addEventListener(PREFILL_DISPATCH_EVENT, onPrefill);
+    return () => window.removeEventListener(PREFILL_DISPATCH_EVENT, onPrefill);
+  }, [props.closed, props.departments]);
+
+  function dispatchManual() {
+    const dept = props.departments.find((d) => d.id === dispatchDeptId);
+    const scope = dispatchScope.trim();
+    if (!dept || !scope) return;
+    persist(
+      () => {
+        setTasks((prev) => [
+          ...prev,
+          {
+            id: `manual-${dept.id}-${prev.length}`,
+            token: "",
+            deptName: dept.name,
+            deptLead: dept.name,
+            deptEmail: "",
+            scope,
+            status: "assigned",
+            dueLabel: "internal due in 3 days",
+            uploads: [],
+          },
+        ]);
+        setDispatchOpen(false);
+        setDispatchScope("");
+      },
+      () => dispatchTaskAction({ ...base, departmentId: dept.id, scopeText: scope }),
+    );
+  }
+
   return (
     <div className="ws-grid">
       {/* Center — the working area: department tasks */}
@@ -171,7 +227,60 @@ export function RequestWorkspace(props: {
 
         {tasks.length === 0 && (
           <div className="card card-pad muted" style={{ fontSize: "0.92rem" }}>
-            No tasks dispatched yet. Accept a routing suggestion to send the first one.
+            No tasks dispatched yet. Accept a routing suggestion — or dispatch one yourself below.
+          </div>
+        )}
+
+        {/* Manual dispatch form (also the copilot prefill target). */}
+        {!props.closed && props.departments.length > 0 && (
+          <div ref={dispatchFormRef}>
+            {!dispatchOpen ? (
+              <button className="btn btn-sm" onClick={() => setDispatchOpen(true)}>
+                Dispatch a task…
+              </button>
+            ) : (
+              <div className="card card-pad stack" style={{ gap: 8 }}>
+                <div className="panel-title">Dispatch a task</div>
+                <label className="lbl" htmlFor="dispatch-dept">
+                  Department
+                </label>
+                <select
+                  id="dispatch-dept"
+                  className="field"
+                  value={dispatchDeptId}
+                  onChange={(e) => setDispatchDeptId(e.target.value)}
+                >
+                  {props.departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+                <label className="lbl" htmlFor="dispatch-scope">
+                  What should they pull?
+                </label>
+                <textarea
+                  id="dispatch-scope"
+                  className="field"
+                  rows={3}
+                  value={dispatchScope}
+                  onChange={(e) => setDispatchScope(e.target.value)}
+                  placeholder="Scope the ask — records, date range, custodian…"
+                />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    disabled={pending || !dispatchScope.trim()}
+                    onClick={dispatchManual}
+                  >
+                    Dispatch
+                  </button>
+                  <button className="btn btn-sm btn-ghost" onClick={() => setDispatchOpen(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
