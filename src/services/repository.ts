@@ -221,9 +221,11 @@ export interface DeflectionEntity {
   id: string;
   agencyId: string;
   /** "download" (satisfied without filing), "scope_down" (narrowed a request),
-      or "answered_by_link" (a FILED request closed by citing already-public
-      records — production avoided, not filing). */
-  kind: "download" | "scope_down" | "answered_by_link";
+      "answered_by_link" (a FILED request closed by citing already-public
+      records — production avoided, not filing), or "archive_miss" (searched,
+      found nothing, filed anyway — unmet demand, 0 hours avoided; the
+      disclosure librarian's raw signal, not an ROI event). */
+  kind: "download" | "scope_down" | "answered_by_link" | "archive_miss";
   query: string | null;
   documentId: string | null;
   estimatedStaffHoursAvoided: number;

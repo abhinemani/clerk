@@ -7,9 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**852 tests pass (+4 skipped), typecheck clean** (as of the newest
-2026-08-13 auth-tenancy entry); build + 4/4 e2e were green in the
-env-hygiene entry the same day, not re-run since.
+**861 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-13 Phase-5 B1 entry — e2e re-run that session).
 
 ## START HERE (next session)
 
@@ -36,16 +35,62 @@ all sized for one window):
    responder email on dispatch~~ ALL DONE (2026-08-13, newest entry;
    responder email had already shipped 2026-08-05 — the bullet was stale).
 
-**Gated — do not build without the owner**: connected-sources phase 3
-(row store / tabular answers; needs real usage), Phase 5 agents
-(docs/agentic-horizon.md; needs real-user proof).
+**GATES RELEASED (owner, 2026-08-13, this session):** connected-sources
+phase 3 AND Phase 5 agents (docs/agentic-horizon.md Bucket B) are now
+buildable. B1 (proactive-disclosure librarian) shipped the same day — see
+the newest entry. Next per the spec's suggested order: B3 (appeal-defense
+packet builder), then B4 (third-party notice steward); connected-sources
+phase 3 (row store / tabular answers) deserves its own full window.
+Guardrails unchanged: tiers enforced in code, invariant 9 untouched —
+agents propose, a named human publishes.
 
 **Before every push** (full contract in CLAUDE.md): offline suite green,
 HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session): AUTH MULTI-TENANCY HARDENING — the
+**NEWEST (2026-08-13, cloud session): PHASE 5 OPENS — B1, THE
+PROACTIVE-DISCLOSURE LIBRARIAN, IS LIVE.** The owner released both
+standing gates this session ("I am happy to release the gates"):
+agentic-horizon Bucket B and connected-sources phase 3. CLAUDE.md's
+Current-phase block and the Gated line above were rewritten to match.
+First build per the spec's own order: **B1**, as a configuration over the
+dormant §16.1 framework — exactly as designed, no new architecture.
+- **`src/domain/demandPatterns.ts`** (pure, tested): token-overlap
+  clustering of demand signals — resolved-request texts, deflection-log
+  queries, and the new archive-miss signal — into `DemandPattern`s
+  (topic, keywords, counts by kind, request refs). Deterministic, no
+  model, `now` injected (computeDueDate rules).
+- **`archive_miss`**: new deflection kind logged when a resident searches
+  the archive, finds nothing, and files anyway (AnswerBox's
+  `loggedFileLink`, else-branch). 0 hours avoided, and EXCLUDED from every
+  ROI number (deflectionSummary, command-center stat, annual-report count)
+  — it is demand signal, not a deflection. Plain-text kind column: no
+  migration.
+- **`src/agents/disclosureLibrarianAgent.ts`**: `runDisclosureSweep` runs
+  the plan (read_demand_signals → one `propose_publication_candidate` per
+  pattern → status_memo) through the REAL run harness — allowlist → tier →
+  budget → append-only audit event per step. New agent definition
+  `disclosure_librarian` (new read tool `read_demand_signals`); its whole
+  plan is Tier 1 because it only proposes: no publish, no sends, no
+  reclassification — invariant 9 is the design. Tests assert the tier and
+  the allowlist hole where publish_release would be.
+- **Nightly**: register.ts sweep gained a disclosure pass (deadline-sweep
+  pattern) — appends ONE `disclosure_sweep` admin_event per agency, only
+  when patterns exist.
+- **Command center**: "Proactive disclosure opportunities" card (retention-
+  card pattern, same computation as the sweep): topic, signal counts,
+  request refs, and a "Find the records" link into `/app/search?q=` with
+  the cluster's keywords prefilled. Copy says out loud that publishing is
+  the human's per-record call.
+No laptop-setup change (offline, no keys, no owner steps). 861 tests,
+typecheck clean, 4/4 e2e (e2e needed a container-side chromium shim,
+noted for cloud sessions: symlink the pinned headless-shell path to
+/opt/pw-browsers' installed build — container state, not repo state).
+**Next per spec order: B3 (appeal-defense packet builder), then B4;
+connected-sources phase 3 wants its own full window.**
+
+**PREVIOUS (2026-08-13, cloud session): AUTH MULTI-TENANCY HARDENING — the
 follow-up the owner asked for after the previous session's read-only
 auth/signup scan.** That session reported findings and changed nothing;
 owner said fix them, so this session re-ran the audit and fixed the two

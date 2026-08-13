@@ -5,9 +5,10 @@ import { isKnownCapability } from "./tools";
 import { FORBIDDEN_ACTIONS } from "./actionTiers";
 
 describe("agent definitions", () => {
-  it("defines all five agents (§16.1)", () => {
+  it("defines the five §16.1 agents plus the Phase-5 librarian (B1)", () => {
     expect(Object.keys(AGENT_DEFINITIONS).sort()).toEqual([
       "deadline",
+      "disclosure_librarian",
       "fulfillment",
       "ingest_steward",
       "release_prep",
@@ -48,9 +49,17 @@ describe("agent definitions", () => {
   });
 
   it("staff-side agents use the full corpus", () => {
-    for (const t of ["fulfillment", "deadline", "release_prep", "ingest_steward"] as const) {
+    for (const t of ["fulfillment", "deadline", "release_prep", "ingest_steward", "disclosure_librarian"] as const) {
       expect(getAgentDefinition(t).corpusScope).toBe("full");
     }
+  });
+
+  it("the librarian can only propose — no publish, no sends, no reclassification (invariant 9)", () => {
+    const caps = getAgentDefinition("disclosure_librarian").allowedCapabilities;
+    expect(caps.has("propose_publication_candidate")).toBe(true);
+    expect(caps.has("publish_release")).toBe(false);
+    expect(caps.has("send_requester_message")).toBe(false);
+    expect(caps.has("reclassify_internal_to_public" as never)).toBe(false);
   });
 
   it("deadline agent stays near its spec allowlist ('nothing else')", () => {

@@ -4,6 +4,7 @@ import { getRepository } from "@/db/createRepository";
 import { decisionsFor, getWorkspace, outstandingTasks, workloadFor } from "@/lib/live";
 import { deadlineRisk, byRiskDesc } from "@/domain/deadlineRisk";
 import { documentsAtRetentionRisk, type RetentionStatus } from "@/domain/retention";
+import { mineDemandPatterns, type DemandPattern } from "@/domain/demandPatterns";
 import { isAssignableRole } from "@/domain/workflow";
 import { matchesQueueFilters, parseQueueFilters, hasActiveFilters } from "@/domain/queueFilters";
 import { runDeadlineSweep } from "@/agents/deadlineAgent";
@@ -114,6 +115,9 @@ export default async function Queue({
   // Agency-wide retention warnings (same computation as the nightly sweep) —
   // a record destroyed on schedule while requested is the unrecoverable one.
   let retentionRisk: { filename: string; status: RetentionStatus }[] = [];
+  // Repeated-demand patterns (same computation as the librarian's nightly
+  // sweep) — proposals only; publishing stays a named human's act.
+  let demandPatterns: DemandPattern[] = [];
   if (ws.source === "live" && ws.agencyId) {
     const repo = await getRepository();
     retentionRisk = documentsAtRetentionRisk(
@@ -122,7 +126,30 @@ export default async function Queue({
     ).map(({ doc, status }) => ({ filename: doc.filename ?? doc.id, status }));
     const deflections = await repo.listDeflections(ws.agencyId);
     const monthStart = new Date(ws.now.getFullYear(), ws.now.getMonth(), 1);
-    deflectionsLabel = String(deflections.filter((d) => d.createdAt >= monthStart).length);
+    // archive_miss rows are demand signal, not deflections — never ROI.
+    deflectionsLabel = String(
+      deflections.filter((d) => d.kind !== "archive_miss" && d.createdAt >= monthStart).length,
+    );
+
+    const allRequests = await repo.listRequests(ws.agencyId);
+    demandPatterns = mineDemandPatterns(
+      [
+        ...allRequests.map((r) => ({
+          kind: "request" as const,
+          text: r.interpretedScope ?? r.rawText,
+          at: r.receivedAt ?? r.createdAt,
+          ref: r.publicId,
+        })),
+        ...deflections
+          .filter((d) => (d.query ?? "").trim().length >= 3)
+          .map((d) => ({
+            kind: d.kind === "archive_miss" ? ("archive_miss" as const) : ("deflection_query" as const),
+            text: d.query!,
+            at: d.createdAt,
+          })),
+      ].sort((a, b) => a.at.getTime() - b.at.getTime()),
+      { now: ws.now },
+    );
 
     const closedRequests = ws.requests.filter((r) => r.closedAt != null);
     onTimeLabel = closedRequests.length
@@ -227,6 +254,42 @@ export default async function Queue({
             If any of these are responsive to an open request, place a legal hold from that
             request&apos;s page before the schedule runs out. Documents already under a hold are not
             listed — a hold is the protection working.
+          </p>
+        </div>
+      )}
+
+      {/* Disclosure librarian (Phase 5 B1): repeated demand the archive isn't
+          answering. Proposals only — publishing a record is, and stays, a
+          named human's act (invariant 9). */}
+      {demandPatterns.length > 0 && (
+        <div className="card card-pad" style={{ marginTop: 20, borderColor: "var(--ai-border, var(--border))" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="panel-title">Proactive disclosure opportunities</div>
+            <span className="pill">{demandPatterns.length}</span>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0", display: "grid", gap: 8 }}>
+            {demandPatterns.map((p, i) => (
+              <li key={i} style={{ fontSize: "0.88rem", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 600 }}>{p.topic}</span>
+                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                  {p.requests > 0 ? `${p.requests} request${p.requests === 1 ? "" : "s"}` : null}
+                  {p.queries > 0 ? ` · ${p.queries} search${p.queries === 1 ? "" : "es"}` : null}
+                  {p.misses > 0 ? ` · ${p.misses} unanswered` : null}
+                  {p.refs.length > 0 ? ` · ${p.refs.slice(0, 3).join(", ")}` : null}
+                </span>
+                <Link
+                  href={`/${slug}/app/search?q=${encodeURIComponent(p.keywords.join(" "))}`}
+                  className="btn btn-sm"
+                >
+                  Find the records
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="muted" style={{ fontSize: "0.8rem", marginTop: 8 }}>
+            Repeated asks the public archive isn&apos;t answering (from requests, searches, and
+            misses over the last 90 days). Publishing anything is your call, made per record —
+            the librarian only points at the demand.
           </p>
         </div>
       )}

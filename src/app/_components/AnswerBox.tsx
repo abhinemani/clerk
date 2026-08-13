@@ -122,8 +122,12 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
 
   function loggedFileLink() {
     // Filing after seeing partial answers = a narrower request (scope_down).
+    // Filing after seeing NOTHING = an archive miss — unmet demand the
+    // disclosure librarian mines (0 hours avoided; never counted as ROI).
     if (results.length > 0) {
       void logDeflectionAction({ agencySlug, kind: "scope_down", query: query.trim() });
+    } else if (query.trim().length >= 3) {
+      void logDeflectionAction({ agencySlug, kind: "archive_miss", query: query.trim() });
     }
   }
 

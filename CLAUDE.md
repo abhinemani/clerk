@@ -98,12 +98,16 @@ correspondence drafting, hybrid answer box, and the portal requester agent.
 phase 2: file-drop/HTTP/Socrata connectors, reviewed mode, and per-dataset
 standing publication; phase 3 (row store, tabular answers) is gated on real
 usage.
-`docs/agentic-horizon.md` is **Phase 5 — autonomous agents. Do not build or
-wire Bucket B**; the §16.1 agent framework in `src/agents/` (definitions,
-action tiers, budgets, harness) is built and tested but stays dormant until
-real-user proof, per the owner. Keep new work compatible: log agent-replayable
-events to request_events, and gate externally-visible actions at the action
-layer so tiers can bolt on later.
+**The gates are RELEASED (owner, 2026-08-13): Phase 5 (agentic-horizon
+Bucket B) and connected-sources phase 3 are both buildable.** The §16.1
+agent framework in `src/agents/` (definitions, action tiers, budgets,
+harness) is the substrate — Bucket B agents are configurations over it
+(allowlists + budgets), not new architecture. The guardrails are NOT
+relaxed: action tiers stay enforced in code (Tier 3 can never be
+configured autonomous, the forbidden set stands), every agent action lands
+in the append-only log, and invariant 9 still means no agent flips
+internal→public — agents propose, a named human publishes. Build order per
+the spec: B1 → B3, then B4; connected-sources phase 3 as its own window.
 
 ## Stack (do not substitute without asking)
 Next.js App Router + TypeScript (strict), Drizzle on **embedded PGlite by

@@ -120,6 +120,66 @@ export function registerJobs(): void {
       console.error("[jobs] retention sweep failed", err);
     }
 
+    // Proactive-disclosure librarian (agentic-horizon B1, Phase 5 — gate
+    // released 2026-08-13): mine resolved demand for publication candidates.
+    // Proposals only — the classification flip stays a named human's act
+    // (invariant 9); the sweep is quiet unless a pattern is found.
+    try {
+      const [{ getRepository }, { runDisclosureSweep }] = await Promise.all([
+        import("@/db/createRepository"),
+        import("@/agents/disclosureLibrarianAgent"),
+      ]);
+      const repo = await getRepository();
+      for (const agency of await repo.listAgencies()) {
+        const [requests, deflections] = await Promise.all([
+          repo.listRequests(agency.id),
+          repo.listDeflections(agency.id),
+        ]);
+        const signals = [
+          ...requests.map((r) => ({
+            kind: "request" as const,
+            text: r.interpretedScope ?? r.rawText,
+            at: r.receivedAt ?? r.createdAt,
+            ref: r.publicId,
+          })),
+          ...deflections
+            .filter((d) => (d.query ?? "").trim().length >= 3)
+            .map((d) => ({
+              kind: d.kind === "archive_miss" ? ("archive_miss" as const) : ("deflection_query" as const),
+              text: d.query!,
+              at: d.createdAt,
+            })),
+        ].sort((a, b) => a.at.getTime() - b.at.getTime());
+        if (signals.length === 0) continue;
+        const result = await runDisclosureSweep({ signals, now: new Date(), agencyId: agency.id });
+        if (result.patterns.length === 0) continue;
+        await repo.appendAdminEvent({
+          id: crypto.randomUUID(),
+          agencyId: agency.id,
+          kind: "disclosure_sweep",
+          actorLabel: "disclosure librarian",
+          summary: `${result.patterns.length} proactive-disclosure candidate(s) found`,
+          payload: {
+            digest: result.digest,
+            outcome: result.outcome,
+            patterns: result.patterns.map((p) => ({
+              topic: p.topic,
+              keywords: p.keywords,
+              total: p.total,
+              requests: p.requests,
+              queries: p.queries,
+              misses: p.misses,
+              refs: p.refs,
+              lastAt: p.lastAt.toISOString(),
+            })),
+          },
+          createdAt: new Date(),
+        });
+      }
+    } catch (err) {
+      console.error("[jobs] disclosure sweep failed", err);
+    }
+
     // Connected data sources (docs/connected-sources.md): the nightly pull.
     // Paused sources (syncSchedule null) are skipped; each sync is a durable
     // job so a failure lands on the /admin Health surface, not in a log.

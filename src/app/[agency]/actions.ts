@@ -450,7 +450,7 @@ export async function checkAlreadyReleasedAction(agencySlug: string, text: strin
  */
 export async function logDeflectionAction(input: {
   agencySlug: string;
-  kind: "download" | "scope_down";
+  kind: "download" | "scope_down" | "archive_miss";
   query?: string;
   documentId?: string;
 }): Promise<void> {

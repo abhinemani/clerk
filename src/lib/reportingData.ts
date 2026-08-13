@@ -77,6 +77,8 @@ export async function liveComplianceDataset(
         denialCitationsByRequest.get(r.id),
       ),
     })),
-    deflections: deflections.length,
+    // archive_miss rows are demand signal for the disclosure librarian, not
+    // deflections — they never count toward the annual report's ROI number.
+    deflections: deflections.filter((d) => d.kind !== "archive_miss").length,
   };
 }
