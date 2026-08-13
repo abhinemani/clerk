@@ -222,13 +222,18 @@ export function BrandLockup({
   stack?: boolean;
   idPrefix?: string;
 }) {
+  // Size drives a CSS custom property rather than fixed attributes, so the
+  // whole lockup scales from one number — and it is a clamp(), so a narrow
+  // viewport shrinks it automatically instead of overflowing the nav (which
+  // is exactly how the header broke at 390px once already).
+  const style = {
+    "--lockup": `clamp(${Math.round(size * 0.72)}px, 4.2vw, ${size}px)`,
+  } as React.CSSProperties;
   return (
-    <span className={`brand-lockup${stack ? " brand-lockup-stack" : ""}`}>
+    <span className={`brand-lockup${stack ? " brand-lockup-stack" : ""}`} style={style}>
       <BrandMark size={size} idPrefix={idPrefix} />
       <span>
-        <span className="brand-wordmark" style={{ fontSize: size * 0.72 }}>
-          Brandeis
-        </span>
+        <span className="brand-wordmark">Brandeis</span>
         {tagline && <span className="brand-tagline">AI for public records</span>}
       </span>
     </span>

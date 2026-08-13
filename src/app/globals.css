@@ -1349,6 +1349,13 @@ label.lbl {
   .mk-topnav .nav-links .btn {
     margin-left: 0 !important;
   }
+  /* Collapse to the mark. At 390px the wordmark plus the CTA is wider than
+     the viewport no matter how far the lockup shrinks — clamping the size
+     just makes an illegible wordmark instead of an overflowing one. The
+     link keeps its aria-label, so the product name is still announced. */
+  .mk-topnav .brand-wordmark {
+    display: none;
+  }
 }
 
 /* svg is display:block globally, so text-align can't center the seal */
@@ -1569,12 +1576,22 @@ label.lbl {
    real face is licensed, swapping it is one --font-brand declaration.
    ========================================================================= */
 .brand-lockup {
+  --lockup: 26px;
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 0.38em;
+  font-size: var(--lockup);
+}
+/* One number sizes the whole lockup: the mark's height and the wordmark
+   scale together off --lockup, so the header can grow without anything
+   drifting out of proportion. */
+.brand-lockup > svg {
+  height: var(--lockup);
+  width: auto;
 }
 .brand-wordmark {
   display: block;
+  font-size: 0.68em;
   font-weight: 300;
   letter-spacing: 0.22em;
   text-transform: uppercase;

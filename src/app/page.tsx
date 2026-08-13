@@ -92,7 +92,7 @@ export default function MarketingHome() {
       <div className="nav mk-topnav">
         <div className="wrap nav-inner">
           <Link href="/" className="brand" aria-label={branding.productName}>
-            <BrandLockup size={26} tagline={false} idPrefix="nav" />
+            <BrandLockup size={40} tagline={false} idPrefix="nav" />
           </Link>
           <nav className="nav-links" aria-label="Primary">
             <Link href="/riverton" className="nav-link">

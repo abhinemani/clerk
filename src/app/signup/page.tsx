@@ -27,7 +27,7 @@ export default function SignupPage() {
       <div className="nav" style={{ position: "static" }}>
         <div className="wrap nav-inner">
           <Link href="/" className="brand" aria-label={branding.productName}>
-            <BrandLockup size={26} tagline={false} idPrefix="su" />
+            <BrandLockup size={40} tagline={false} idPrefix="su" />
           </Link>
           <nav className="nav-links" aria-label="Primary">
             <Link href="/riverton" className="nav-link">

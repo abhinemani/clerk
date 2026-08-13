@@ -23,7 +23,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className="nav">
         <div className="wrap nav-inner">
           <Link href="/admin" className="brand" aria-label={`${branding.productName} platform console`}>
-            <BrandMark size={26} idPrefix="adm" />
+            <BrandMark size={36} idPrefix="adm" />
             <span className="brand-name">
               <span className="brand-agency">{branding.productName}</span>
               <span className="brand-dept">All agencies</span>
