@@ -45,7 +45,27 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, correction): TEXTURED DARK GOES
+**NEWEST (2026-08-13, cloud session, second correction): THE BOLD PASS —
+the owner looked again and called the pages "so flat"; the timid alphas
+were the problem, plus a push race meant origin/main didn't even carry
+the first app-wide attempt yet (a parallel session's homepage copy
+rewrite landed mid-push; merged cleanly — the file now carries an OLD
+navy-era `.mk-hero` block at ~line 716 that the later textured block
+overrides; left in place, cascade wins).** What the app-wide block does
+now, at visible strength:
+- `body`: dual aurora (primary-tint bloom top + plum ember at the right
+  shoulder) AND the engraver's hatch in the background stack — under the
+  content, never an overlay, `background-attachment: fixed`.
+- `.card`: stronger glass gradient + **inset lit top edge** (the inset
+  highlight is what makes a dark card read as material) + deep shadow.
+- `.stat` tiles ditto; `.nav` bottom seam picks up 28% gold; the
+  `.portal-hero` aurora went from 9% gold to 20% + plum.
+Proof screenshots (portal, workspace, marketing) delivered in-chat
+AGAIN — the owner had also been viewing an instance without the
+unpushed work, so: after any design change, confirm origin/main HAS it
+before discussing what it looks like. 848 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, cloud session, correction): TEXTURED DARK GOES
 APP-WIDE — the owner rightly called out that the previous entry only
 textured the MARKETING page while the actual product (portal, workspace,
 admin — everything built from `.card`/`.stat`) stayed flat dark.** Now in

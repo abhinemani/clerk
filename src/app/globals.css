@@ -497,22 +497,45 @@ h3 {
    these are work surfaces; the texture must read as material, not noise. */
 @media screen {
   body {
-    /* one quiet bloom at the top of every page, fixed so it doesn't swim */
+    /* The room the product sits in: a cool bloom from above, a plum ember
+       at the right shoulder, and the engraver's hatch across the whole
+       ground — all UNDER the content (background stack, not an overlay),
+       fixed so it doesn't swim on scroll. */
     background:
-      radial-gradient(ellipse 90% 42% at 50% -12%, color-mix(in srgb, var(--primary-tint) 60%, transparent), transparent 62%),
+      radial-gradient(ellipse 90% 46% at 50% -12%, color-mix(in srgb, var(--primary-tint) 90%, transparent), transparent 64%),
+      radial-gradient(ellipse 52% 38% at 108% -4%, color-mix(in srgb, var(--plum) 42%, transparent), transparent 62%),
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 9px),
       var(--paper);
     background-attachment: fixed;
   }
   .card {
-    background: linear-gradient(180deg, rgba(42, 49, 60, 0.5), rgba(23, 29, 38, 0.92));
-    border-color: rgba(255, 255, 255, 0.09);
+    /* Glass slab with a LIT top edge — the inset highlight is what makes a
+       dark card read as material instead of a flatter shade of dark. */
+    background: linear-gradient(180deg, rgba(50, 58, 72, 0.62), rgba(20, 26, 34, 0.95));
+    border-color: rgba(255, 255, 255, 0.11);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 14px 34px -18px rgba(0, 0, 0, 0.65);
   }
   .stat {
-    background: linear-gradient(180deg, rgba(30, 37, 47, 0.96), rgba(19, 24, 31, 0.96));
+    background: linear-gradient(180deg, rgba(34, 41, 52, 0.97), rgba(19, 24, 31, 0.97));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
   .stat-row {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(255, 255, 255, 0.09);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  /* The nav's seam picks up a breath of gold — the chrome's signature. */
+  .nav {
+    border-bottom-color: color-mix(in srgb, var(--gold) 28%, var(--border));
+  }
+  /* Portal hero: the marketing hero's aurora language, tuned for a page
+     with a search box in it. */
+  .portal-hero {
+    background:
+      radial-gradient(ellipse 62% 46% at 50% 0%, color-mix(in srgb, var(--gold) 20%, transparent), transparent 72%),
+      radial-gradient(ellipse 50% 36% at 92% 4%, color-mix(in srgb, var(--plum) 55%, transparent), transparent 64%),
+      radial-gradient(ellipse 55% 40% at 50% 6%, var(--primary-tint), transparent 72%);
   }
 }
 .card-pad {
