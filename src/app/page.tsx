@@ -37,10 +37,10 @@ const PILLARS = [
 ];
 
 const STATS = [
-  { n: "5", l: "state statute profiles in the box — California, Texas, Illinois, Washington, New York. Clock rules are data, not code." },
-  { n: "0", l: "external services required to run. AI, email, OCR and object storage are each opt-in behind an adapter." },
-  { n: "1", l: "deployment serves every agency, each with its own portal, seal, statute profile and isolated data." },
-  { n: "100%", l: "of actions — human and AI alike — recorded in an append-only log that cannot be edited or deleted." },
+  { n: "5", l: "state statute profiles", s: "California, Texas, Illinois, Washington, New York. Clock rules are data, not code." },
+  { n: "0", l: "external services required", s: "AI, email, OCR and object storage are each opt-in behind an adapter." },
+  { n: "1", l: "deployment, every agency", s: "Each with its own portal, seal, statute profile and isolated data." },
+  { n: "100%", l: "of actions audit-logged", s: "Append-only, human and AI alike. No edit path, no delete path." },
 ];
 
 const AGENTS = [
@@ -116,6 +116,7 @@ export default function MarketingHome() {
             <Seal size={520} />
           </div>
           <div className="wrap">
+            <div className="mk-hero-grid">
             <div className="mk-hero-inner">
               <span className="mk-eyebrow">
                 For city clerks, county counsel, and records officers
@@ -150,16 +151,59 @@ export default function MarketingHome() {
                 The demo is the real product, running for the fictional City of Riverton.
               </p>
             </div>
+
+            {/* The thesis, made concrete. role=img with a description: the
+                buttons are an illustration, not real controls, so assistive
+                tech gets the summary instead of unfocusable fake widgets. */}
+            <div>
+              <div
+                className="mk-panel"
+                role="img"
+                aria-label="Illustration: on request PR-2026-00184, the AI suggests a redaction citing Government Code section 6254(c) for personal privacy. A staff member can Accept, Edit or Dismiss it, and the decision is written to the append-only audit log."
+              >
+                <div className="mk-panel-head">
+                  <span className="mk-panel-id">PR-2026-00184</span>
+                  <span className="mk-panel-sub">Public Works</span>
+                  <span className="mk-panel-due">Due in 3 days</span>
+                </div>
+                <div className="mk-panel-body">
+                  <span className="mk-panel-kicker">
+                    <SparkIcon />
+                    Exemption suggested
+                  </span>
+                  <div className="mk-panel-cite">Gov. Code § 6254(c) — personal privacy</div>
+                  <div className="mk-panel-quote">
+                    Complainant <span className="mk-redact">Marisol Vance</span> reported the
+                    obstruction at <span className="mk-redact">418 Cedar Street</span> shortly after
+                    7:00 a.m. on March 4.
+                  </div>
+                  <div className="mk-panel-acts">
+                    <span className="mk-act mk-act-primary">Accept</span>
+                    <span className="mk-act">Edit</span>
+                    <span className="mk-act">Dismiss</span>
+                  </div>
+                </div>
+                <div className="mk-panel-foot">
+                  Written to <strong>request_events</strong> · decided by{" "}
+                  <strong>dana@riverton.gov</strong>
+                </div>
+              </div>
+              <p className="mk-panel-note">
+                Nothing is redacted, released or sent until a named person decides.
+              </p>
+            </div>
+            </div>
           </div>
         </section>
 
         {/* Proof strip */}
         <section className="wrap mk-section">
-          <div className="mk-stats">
+          <div className="mk-stats mk-reveal">
             {STATS.map((s) => (
               <div key={s.n} className="mk-stat">
                 <div className="mk-stat-n">{s.n}</div>
                 <div className="mk-stat-l">{s.l}</div>
+                <div className="mk-stat-sub">{s.s}</div>
               </div>
             ))}
           </div>
@@ -179,7 +223,7 @@ export default function MarketingHome() {
           </div>
           <div className="mk-pillars">
             {PILLARS.map((p) => (
-              <article key={p.t} className="mk-pillar">
+              <article key={p.t} className="mk-pillar mk-reveal">
                 <span className="mk-pillar-n">{p.n}</span>
                 <span className="smallcaps" style={{ color: "var(--accent)", marginLeft: 10, fontSize: "0.85rem" }}>
                   {p.t}
@@ -195,7 +239,7 @@ export default function MarketingHome() {
         {/* The operating principle — the load-bearing promise, given its own ground */}
         <section className="mk-band-dark">
           <div className="wrap mk-section">
-            <div className="mk-quote">
+            <div className="mk-quote mk-reveal">
               <div className="mk-quote-mark" aria-hidden>
                 &ldquo;
               </div>
@@ -225,8 +269,11 @@ export default function MarketingHome() {
             </p>
           </div>
           <div className="mk-roster">
-            {AGENTS.map((a) => (
-              <article key={a.name} className="mk-agent">
+            {AGENTS.map((a, i) => (
+              <article key={a.name} className="mk-agent mk-reveal">
+                <span className="mk-agent-num" aria-hidden>
+                  {String(i + 1).padStart(2, "0")}
+                </span>
                 <span className="mk-agent-stage">{a.stage}</span>
                 <h3>
                   <SparkIcon />
@@ -260,7 +307,7 @@ export default function MarketingHome() {
                 coded.
               </p>
             </div>
-            <div className="mk-trio">
+            <div className="mk-trio mk-reveal">
               {[
                 {
                   h: "Its own address",

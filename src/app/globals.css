@@ -949,8 +949,11 @@ body:has(.mk-page),
 .mk-display {
   margin: 0;
   margin-top: 18px;
-  font-size: clamp(2.6rem, 6.2vw, 4.7rem);
-  line-height: 1.02;
+  /* Sized for the hero's LEFT COLUMN (~600px at desktop), not full width.
+     Raising this re-wraps the headline to five lines and pushes the CTAs
+     below the fold — check the two-column hero before changing it. */
+  font-size: clamp(2.1rem, 3.4vw, 3.2rem);
+  line-height: 1.06;
   letter-spacing: -0.025em;
   font-weight: 650;
   color: #ffffff;
@@ -1344,4 +1347,207 @@ body:has(.mk-page),
 /* svg is display:block globally, so text-align can't center the seal */
 .mk-head-center > svg {
   margin-inline: auto;
+}
+
+/* =========================================================================
+   MARKETING — product panel, hero stage, motion.
+
+   The panel is REAL MARKUP, not a screenshot: it stays sharp at any
+   resolution, inherits the dark tokens, and can never go stale against a
+   redesign the way a captured PNG does. It shows the Accept / Edit /
+   Dismiss grammar because that grammar IS the product's thesis — the
+   abstract promise ("AI proposes, staff disposes") made concrete.
+   ========================================================================= */
+
+.mk-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.8fr);
+  gap: clamp(28px, 5vw, 64px);
+  align-items: center;
+}
+
+.mk-panel {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, rgba(28, 36, 50, 0.92), rgba(18, 24, 35, 0.94));
+  box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+}
+.mk-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.82rem;
+  color: #b9c5d8;
+}
+.mk-panel-id {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: #dbe3ef;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.mk-panel-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.mk-panel-due {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #f5b855;
+  white-space: nowrap;
+  background: rgba(245, 184, 85, 0.13);
+  border: 1px solid rgba(245, 184, 85, 0.3);
+}
+.mk-panel-body {
+  padding: 18px 18px 16px;
+}
+.mk-panel-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ai);
+}
+.mk-panel-cite {
+  margin-top: 10px;
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  line-height: 1.35;
+  color: #ffffff;
+}
+.mk-panel-quote {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #c8d2e2;
+}
+/* the burn — this product's signature gesture */
+.mk-redact {
+  display: inline-block;
+  border-radius: 2px;
+  background: #05070a;
+  color: transparent;
+  user-select: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.mk-panel-acts {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.mk-act {
+  padding: 7px 14px;
+  border-radius: var(--r-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #dbe3ef;
+  background: rgba(255, 255, 255, 0.05);
+}
+.mk-act-primary {
+  background: var(--ai);
+  border-color: var(--ai);
+  color: #06222b;
+}
+.mk-panel-foot {
+  /* plain text flow, NOT flex — flex makes each text node its own item and
+     the line jumbles as soon as it wraps (it does at 390px) */
+  padding: 11px 16px;
+  line-height: 1.5;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.78rem;
+  color: #93a3b9;
+}
+.mk-panel-foot strong {
+  color: #c8d2e2;
+  font-weight: 600;
+}
+.mk-panel-note {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #8fa0ba;
+}
+
+/* stat strip — short label, quiet sub */
+.mk-stat-sub {
+  margin-top: 5px;
+  font-size: 0.83rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.mk-stat-l {
+  margin-top: 10px;
+  font-size: 0.97rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+/* roster stage numerals */
+.mk-agent {
+  position: relative;
+}
+.mk-agent-num {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--border-strong);
+}
+
+/* ---- motion: zero-JS scroll reveal, off by default for reduced motion ---- */
+@keyframes mk-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .mk-reveal {
+      animation: mk-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 46%;
+    }
+  }
+}
+
+@media (max-width: 1000px) {
+  .mk-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  .mk-hero-inner {
+    max-width: none;
+  }
 }
