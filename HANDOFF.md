@@ -7,8 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**876 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-13 checkpoint-surface entry — e2e re-run that session).
+**880 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-13 Data & files entry — e2e re-run that session).
 
 ## START HERE (next session)
 
@@ -50,7 +50,38 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, same window as B1/B3): THE CHECKPOINT
+**NEWEST (2026-08-13, cloud session, same window as B1/B3/checkpoints):
+DATA & FILES — the consolidated ingestion hub, plus the missing ad-hoc
+upload.** Owner ask: one interface for adding data feeds (Socrata etc.)
+and uploading/managing files. Finding: the pieces all existed but were
+split across three pages — connected feeds at admin/sources, CSV+ZIP
+import + source policy at admin/records-import, decisions at /records —
+and there was NO way to just upload files without preparing a CSV first.
+- **`/app/admin/data`** — one page, four sections in pipeline order:
+  Quick upload (new), Bulk import (moved), Connected data feeds (moved;
+  file drop / HTTP / Socrata registration + sync + standing publication),
+  Source policy (moved; trust + key rotation). The records queue stays
+  its own page — reviewing what landed is a different task from adding
+  more. Old URLs (admin/sources, admin/records-import) are redirects, so
+  bookmarks and the connectedSources e2e (which navigates the old path)
+  keep working untouched.
+- **Quick upload** (`QuickUploadPanel` + `quickUploadAction`): drag-and-
+  drop or pick up to 40 files / 25 MB, no spreadsheet. One synthesized
+  row per file (`rowFromUploadedFile` — title derived from the filename
+  by `titleFromFilename`, both unit-tested) rides the SAME importRecords
+  pipeline as CSV+ZIP: virus scan fail-closed, text extraction, PII
+  pre-scan, internal-only landing, classify_documents +
+  embed_document_chunks enqueued. A thinner front door onto proven code,
+  not a second import path.
+- Links repointed: admin dashboard ("Data & files" button replaces two),
+  records-queue header, setup checklist. Browser-verified via a fresh
+  seeded server (screenshot to the owner: all four sections render, the
+  seeded Riverton portal shows live sync state + Socrata option in the
+  connect form).
+No migration, no new env vars (no laptop-setup change). 880 tests,
+typecheck clean, 4/4 e2e.
+
+**PREVIOUS (2026-08-13, cloud session, same window as B1/B3): THE CHECKPOINT
 / STEERING SURFACE — the prerequisite for a live fulfillment agent, and
 the first time a parked run can be approved and resumed from the UI.**
 Owner asked "biggest/hardest thing?"; answer: the model-driven fulfillment

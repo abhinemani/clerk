@@ -112,11 +112,8 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
           <Link href={`/${slug}/app/admin/directory`} className="btn btn-sm">
             Referral directory
           </Link>
-          <Link href={`/${slug}/app/admin/records-import`} className="btn btn-sm">
-            Import records
-          </Link>
-          <Link href={`/${slug}/app/admin/sources`} className="btn btn-sm">
-            Connected data sources
+          <Link href={`/${slug}/app/admin/data`} className="btn btn-sm">
+            Data &amp; files
           </Link>
           <Link href={`/${slug}/app/admin/import`} className="btn btn-sm">
             Import legacy requests

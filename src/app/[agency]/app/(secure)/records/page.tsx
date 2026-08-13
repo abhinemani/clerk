@@ -147,8 +147,8 @@ export default async function RecordsQueuePage({
             only). Every decision is recorded under your name.
           </p>
         </div>
-        <Link href={`/${slug}/app/admin/records-import`} className="btn btn-sm">
-          Import records
+        <Link href={`/${slug}/app/admin/data`} className="btn btn-sm">
+          Data &amp; files
         </Link>
       </div>
 
