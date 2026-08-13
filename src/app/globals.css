@@ -1609,3 +1609,57 @@ body:has(.mk-page),
   gap: 18px;
   text-align: center;
 }
+
+/* Hero panel: the automation chain above the drafted response. The point of
+   the hero is that the response WROTE ITSELF and a person still sends it, so
+   the completed steps are quiet and the draft is the loud part. */
+.mk-panel-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 18px 0;
+}
+.mk-panel-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: var(--r-pill);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #9fb0a8;
+  background: rgba(107, 220, 160, 0.09);
+  border: 1px solid rgba(107, 220, 160, 0.22);
+}
+.mk-panel-step::before {
+  content: "✓";
+  color: var(--ok);
+  font-size: 0.8rem;
+}
+.mk-panel-ask {
+  margin-top: 14px;
+  padding-left: 11px;
+  border-left: 2px solid var(--border-strong);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: #93a3b9;
+}
+.mk-panel-letter {
+  margin-top: 12px;
+  padding: 13px 15px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(0, 0, 0, 0.26);
+  font-family: var(--font-serif);
+  font-size: 0.93rem;
+  line-height: 1.62;
+  color: #dbe3ef;
+}
+.mk-panel-letter em {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-size: 0.8rem;
+  color: #8fa0ba;
+}

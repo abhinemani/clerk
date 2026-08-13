@@ -116,16 +116,16 @@ export default function MarketingHome() {
                 For city clerks, county counsel, and records officers
               </span>
               <h1 className="mk-display">
-                Answer residents before they file.
+                Every response drafted for you.
                 <br />
-                <span className="mk-gold">Defend every decision</span> after.
+                <span className="mk-gold">Every decision still yours.</span>
               </h1>
               <hr className="letterhead-rule" aria-hidden />
               <p className="mk-lede">
-                {branding.productName} puts an AI worker at every stage of the request lifecycle —
-                triage, routing, exemptions, redaction, correspondence — and a named human in front
-                of every one of them. The statutory clock is computed from your state&apos;s law, not
-                a spreadsheet.
+                {branding.productName} triages each request, routes it to the right department,
+                gathers the responsive records and drafts the response — then puts a named human in
+                front of it before a word goes out. The statutory clock is computed from your
+                state&apos;s law, not a spreadsheet.
               </p>
               <ul className="mk-proof">
                 <li>Live demo, no signup</li>
@@ -153,37 +153,46 @@ export default function MarketingHome() {
               <div
                 className="mk-panel"
                 role="img"
-                aria-label="Illustration: on request PR-2026-00184, the AI suggests a redaction citing Government Code section 6254(c) for personal privacy. A staff member can Accept, Edit or Dismiss it, and the decision is written to the append-only audit log."
+                aria-label="Illustration: request PR-2026-00184 has been triaged, routed to Public Works and matched to 34 records automatically, and a response letter has been drafted for a staff member to send, edit or discard. The decision is written to the append-only audit log."
               >
                 <div className="mk-panel-head">
                   <span className="mk-panel-id">PR-2026-00184</span>
                   <span className="mk-panel-sub">Public Works</span>
                   <span className="mk-panel-due">Due in 3 days</span>
                 </div>
+                <div className="mk-panel-steps">
+                  <span className="mk-panel-step">Triaged</span>
+                  <span className="mk-panel-step">Routed to Public Works</span>
+                  <span className="mk-panel-step">34 records gathered</span>
+                </div>
                 <div className="mk-panel-body">
-                  <span className="mk-panel-kicker">
+                  <p className="mk-panel-ask">
+                    &ldquo;Emails between the Public Works director and Acme Paving about the Main
+                    Street resurfacing contract, January through March.&rdquo;
+                  </p>
+                  <span className="mk-panel-kicker" style={{ marginTop: 16, display: "inline-flex" }}>
                     <SparkIcon />
-                    Exemption suggested
+                    Response drafted
                   </span>
-                  <div className="mk-panel-cite">Gov. Code § 6254(c) — personal privacy</div>
-                  <div className="mk-panel-quote">
-                    Complainant <span className="mk-redact">Marisol Vance</span> reported the
-                    obstruction at <span className="mk-redact">418 Cedar Street</span> shortly after
-                    7:00 a.m. on March 4.
+                  <div className="mk-panel-letter">
+                    Dear Ms. Alvarez — we identified 34 records responsive to your request. 31 are
+                    released in full and attached. 3 are withheld under Gov. Code § 6254(c), with
+                    the basis for each itemized below.
+                    <em>Due 14 March · computed from Cal. Gov. Code § 7922.535</em>
                   </div>
                   <div className="mk-panel-acts">
-                    <span className="mk-act mk-act-primary">Accept</span>
+                    <span className="mk-act mk-act-primary">Send as Dana</span>
                     <span className="mk-act">Edit</span>
-                    <span className="mk-act">Dismiss</span>
+                    <span className="mk-act">Discard</span>
                   </div>
                 </div>
                 <div className="mk-panel-foot">
-                  Written to <strong>request_events</strong> · decided by{" "}
+                  Written to <strong>request_events</strong> · sent by{" "}
                   <strong>dana@riverton.gov</strong>
                 </div>
               </div>
               <p className="mk-panel-note">
-                Nothing is redacted, released or sent until a named person decides.
+                The response writes itself. It does not send itself.
               </p>
             </div>
             </div>
