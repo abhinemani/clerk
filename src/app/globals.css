@@ -808,11 +808,68 @@ label.lbl {
    watermark) so the marketing page ships ZERO binary assets — same
    self-contained rule as the rest of the product.
 
-   CONTRAST TRAP: --ink, --muted and --maroon all flip in dark mode. The
-   always-dark bands below hardcode their ink, because #990000 is 2.0:1 on
-   navy and var(--ink) would go near-black on it. Never swap these for
-   tokens.
+   DARK-LOCKED (owner call): the marketing page is dark for everyone, not
+   only for visitors whose OS asks for it. The block below pins the design
+   system's OWN dark values rather than inventing a second palette — those
+   values already carry the contrast work, including the rule that the red
+   lightens to #ff4d4d at full saturation and is never desaturated toward
+   pink. Tokens are set on both the body (so the page ground and overscroll
+   follow, via :has) and the wrapper (so the page still renders correctly if
+   :has is unavailable).
+
+   Rhythm therefore runs dark-on-dark: page ground → lifted card surfaces →
+   navy gradient bands. Do not reintroduce a paper-colored section here.
+
+   CONTRAST TRAP: the always-dark bands further down hardcode their ink,
+   because #990000 is 2.0:1 on navy and var(--ink) would go near-black on
+   it. Never swap those for tokens.
    ========================================================================= */
+
+body:has(.mk-page),
+.mk-page {
+  color-scheme: dark;
+
+  --paper: #15171b;
+  --surface: #1c1f25;
+  --surface-2: #23272e;
+  --surface-3: #2a2f38;
+  --border: #2d323b;
+  --border-strong: #3a4049;
+
+  --ink: #eceef1;
+  --ink-2: #b7bcc4;
+  --muted: #8a909a;
+
+  --primary: #4d80c4;
+  --primary-deep: #101c2e;
+  --primary-hover: #6295d6;
+  --primary-ink: #0f1319;
+  --primary-tint: #1f2a3a;
+
+  --maroon: #ff4d4d;
+  --maroon-btn: #990000;
+  --maroon-tint: #2c1a1e;
+  --accent: #ff4d4d;
+  --gold: #d8b13c;
+
+  --ai: #3fb6d3;
+  --ai-tint: #14262c;
+
+  --overdue: #f65a4c;
+  --due: #f5b855;
+  --ok: #6bdca0;
+
+  --focus: #7aa6dc;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px -6px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 16px 40px -10px rgba(0, 0, 0, 0.6);
+}
+.mk-page {
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+}
 
 .mk-hatch {
   /* Fine engraver's hatch — the texture on banknotes and certificates. */
@@ -1274,9 +1331,6 @@ label.lbl {
     padding: 0 9px;
     font-size: 0.88rem;
   }
-  .mk-topnav .brand-dept {
-    display: none;
-  }
 }
 @media (max-width: 640px) {
   .mk-topnav .nav-link {
@@ -1285,4 +1339,9 @@ label.lbl {
   .mk-topnav .nav-links .btn {
     margin-left: 0 !important;
   }
+}
+
+/* svg is display:block globally, so text-align can't center the seal */
+.mk-head-center > svg {
+  margin-inline: auto;
 }

@@ -84,15 +84,15 @@ const AGENTS = [
 
 export default function MarketingHome() {
   return (
-    <>
-      {/* Product header — sticky glass, same .nav as the portals */}
+    <div className="mk-page">
+      {/* Product header — sticky glass, same .nav as the portals.
+          Wordmark is the seal + name only: no tagline lockup (owner call). */}
       <div className="nav mk-topnav">
         <div className="wrap nav-inner">
           <Link href="/" className="brand">
             <Seal size={30} />
             <span className="brand-name">
               <span className="brand-agency">{branding.productName}</span>
-              <span className="brand-dept">Public records, handled</span>
             </span>
           </Link>
           <nav className="nav-links" aria-label="Primary">
@@ -343,6 +343,6 @@ export default function MarketingHome() {
           </div>
         </div>
       </footer>
-    </>
+    </div>
   );
 }
