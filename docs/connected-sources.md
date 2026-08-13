@@ -1,9 +1,11 @@
 # Connected data sources — auto-answering from the city's own public data
 
-Status: **specced 2026-08-13, not built.** Discussed with the owner as the
-likely next substantial build; this document turns that conversation into a
-buildable shape. Decision points for the owner are marked ⚑ — per CLAUDE.md,
-anything that changes what a requester can see gets asked, not guessed.
+Status: **specced 2026-08-13, not built. All decision points resolved** —
+they were marked ⚑ for the owner per CLAUDE.md (anything that changes what
+a requester can see gets asked, not guessed); the owner delegated them the
+same day ("do what you think is best"), and each ⚑ below now records the
+decision and its reasoning instead of an open question. Ready to build
+phase 1.
 
 ## The user story
 
@@ -76,9 +78,12 @@ Implementations, in build order:
 3. **Socrata / ArcGIS open-data** (fetch-only, opt-in): the big-city path.
    These portals are already public, which makes the publicness conversation
    easy. Phase 2 — the protocol adds paging/quirks worth isolating.
-4. ⚑ **Read-only SQL DSN**: deliberately NOT in this spec's scope. A live
-   database credential is a different risk class (injection, accidental
-   reach into non-public tables). If demanded, it gets its own design pass.
+4. ⚑ **Read-only SQL DSN** — *decided (2026-08-13, owner-delegated): stays
+   out.* A live database credential is a different risk class (injection,
+   accidental reach into non-public tables), and connectors 1–3 cover the
+   realistic cases: any system that can't speak HTTP can schedule a CSV
+   export into the file drop. Revisit only when a real deployment demands
+   it, as its own design pass — not as a config option quietly added here.
 
 ### Sync job (`sync_connected_source`)
 
@@ -103,19 +108,37 @@ honest ways to run a connected source, and the difference is one toggle:
 - **Reviewed mode (default):** every synced slice waits in the publication
   queue for a named human publish. Safe, and for monthly slices the burden
   is one click a month per dataset.
-- ⚑ **Standing-publication mode (owner decision needed):** at registration,
-  a named admin attests "this source is public data; publish future slices
-  of THIS dataset automatically," and that attestation is the human act —
-  recorded, audited, revocable per dataset. Every auto-published slice's
-  event cites it. This reads as compatible with invariant 9's *spirit* (a
-  named human made the classification decision; the machine only repeats it
-  for new periods of the same data), but it is a genuine widening of the
-  letter, it changes what a requester can see with zero per-slice review,
-  and a source that starts leaking PII would leak it straight to the
-  archive. Mitigation if adopted: rows failing the deterministic PII scan
-  are ALWAYS quarantined to Undecided regardless of mode, with the standing
-  attestation shown next to the quarantine so the clerk sees what almost
-  happened. **Not building this without an explicit owner yes.**
+- ⚑ **Standing-publication mode** — *decided (2026-08-13, owner-delegated):
+  ADOPTED, opt-in per dataset, phase 2, with the rails below as
+  non-negotiable parts of the feature.* At registration (or later), a named
+  admin attests "this dataset is public data; publish future slices
+  automatically," and that attestation is the human act — recorded as an
+  audited admin event, revocable per dataset in one click.
+
+  Why adopted rather than reviewed-only: the feature's value is answers
+  appearing without a clerk in the loop, and a recurring manual click rots
+  — clerks stop clicking, slices pile up Undecided, and residents get
+  stale answers, which is its own harm. The product already runs on this
+  exact shape: a release auto-publishes to the archive under a standing
+  rule, because the named human decision happened upstream. Invariant 9's
+  target is *automated judgment* (AI may propose public, never set it);
+  here nothing judges — a deterministic sync repeats a named human's
+  recorded decision for new periods of the same data.
+
+  The rails, which are what make the above true:
+  - Every auto-published slice's event cites the attestation (who, when,
+    which dataset) — the audit trail always reaches a named human.
+  - Slices failing the deterministic PII scan ALWAYS quarantine to
+    Undecided regardless of mode, with the standing attestation shown next
+    to the quarantine so the clerk sees what almost happened.
+  - Schema drift quarantines too: if the dataset's columns change from
+    what was attested, the mode drops back to reviewed until a human
+    re-attests. An attestation covers the data shape the human looked at,
+    not whatever the source starts sending later.
+  - An invariant-9 test pins the whole path: nothing in sync code can set
+    `classification='public'` except via a live attestation by a named
+    admin or a per-slice human publish, and revoking the attestation stops
+    publication on the very next sync.
 
 ### Answering (requester side)
 
@@ -153,7 +176,8 @@ nothing about a *filed* request is ever answered automatically.
 One new table (migration 0012, append-only as ever): `connected_sources` —
 agency_id, kind (file_drop | http | socrata), config jsonb (no secrets in
 plaintext — same key-hash treatment as ingest keys), per-dataset settings
-(schedule, date field, ⚑ publication mode), enabled, last_sync status.
+(schedule, date field, publication mode + attestation ref), enabled,
+last_sync status.
 Synced documents are ordinary `documents` rows: provenance points at the
 source, `metadata.connectedSource` carries {sourceId, dataset, period,
 checksum}. New repository port methods go into the conformance suite,
@@ -161,8 +185,10 @@ per the hard convention.
 
 ### Admin surface
 
-`/app/admin/sources` (or a section on the existing records-import page —
-implementer's choice): register a source, probe it, see per-dataset sync
+`/app/admin/sources` — its own page, not a bolt-on to records-import
+(*decided:* a source is an ongoing relationship with sync state and
+attestations; an import is a one-off act — different furniture): register
+a source, probe it, see per-dataset sync
 status and last slice, pause/resume, and delete (which never deletes
 already-published documents — unpublishing stays the existing audited
 emergency-unpublish path). Registration, config changes, mode changes, and
@@ -182,9 +208,11 @@ deletions are all named-actor admin events.
 
 - Connector conformance suite (like the repository one): each connector
   implementation passes identical listDatasets/fetchSlice/probe assertions.
-- Invariant tests: synced slices are born unclassified; nothing in the sync
-  path can set `classification='public'` (grep-level + runtime, mirroring
-  invariant 9's existing test shape); PII-flagged slices always quarantine.
+- Invariant tests: synced slices are born unclassified; the sync path can
+  set `classification='public'` ONLY under a live standing attestation by a
+  named admin (every publish event cites it; revocation stops publication
+  on the next sync; schema drift drops to reviewed); PII-flagged slices
+  always quarantine, in either mode.
 - Date behavior: golden tests that a synced June slice with
   `recordDate=2026-06-30` surfaces under "last 3 months" in August and
   drops out in October.
@@ -196,6 +224,7 @@ deletions are all named-actor admin events.
 1. **File-drop connector + reviewed mode + flagged answer card.** Zero
    services, every invariant untouched, demoable with Riverton's sweeping
    log. This is the build-next slice.
-2. **HTTP + Socrata connectors, scheduled sync, admin surface polish.**
+2. **HTTP + Socrata connectors, scheduled sync, standing-publication mode
+   (with all four rails), admin surface polish.**
 3. **Structured row store + tabular slice answers**, only if real usage
    shows document-granularity answers falling short.

@@ -773,8 +773,11 @@ and appeal-defense packet builder first). Bucket A is fully wired.
   (Both on the laptop-setup verification-debt list.)
 - `requests.embedding` exists and nothing writes it (answer-first phase 3
   remainder); phase 4 (RAG'd triage prompts) is specified, not built.
-- Connected data sources: **specced** (`docs/connected-sources.md`,
-  2026-08-13) with owner decision points marked ⚑ — build phase 1
-  (file-drop connector, reviewed mode) when the owner green-lights.
+- Connected data sources: **specced and decision-complete**
+  (`docs/connected-sources.md`, 2026-08-13; the owner delegated the ⚑
+  decisions same day and each one records its resolution in place —
+  standing-publication adopted for phase 2 with four hard rails, SQL DSN
+  kept out, sources get their own admin page). Phase 1 (file-drop
+  connector, reviewed mode) is ready to build any session.
 - The favicon hardcodes brand values inside `src/app/icon.svg` (a favicon
   can't read page tokens) — if the palette ever moves, move it too.
