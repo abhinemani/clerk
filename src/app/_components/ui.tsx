@@ -310,12 +310,10 @@ export function BrandLockup({
   size = 30,
   tagline = true,
   stack = false,
-  idPrefix = "lk",
 }: {
   size?: number;
   tagline?: boolean;
   stack?: boolean;
-  idPrefix?: string;
 }) {
   // Size drives a CSS custom property rather than fixed attributes, so the
   // whole lockup scales from one number — and it is a clamp(), so a narrow
@@ -326,7 +324,11 @@ export function BrandLockup({
   } as React.CSSProperties;
   return (
     <span className={`brand-lockup${stack ? " brand-lockup-stack" : ""}`} style={style}>
-      <BrandMark size={size} idPrefix={idPrefix} />
+      {/* The approved artwork, not a redraw of it. No idPrefix needed: a
+          raster has no gradient ids to collide when the lockup appears twice
+          on a page. <BrandMark> stays for placements that run large enough to
+          show the SVG's detail and want token recolouring. */}
+      <BrandMarkRaster />
       <span>
         <span className="brand-wordmark">Brandeis</span>
         {tagline && <span className="brand-tagline">{branding.tagline}</span>}

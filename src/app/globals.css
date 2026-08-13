@@ -1593,9 +1593,18 @@ label.lbl {
   gap: 0.38em;
   font-size: var(--lockup);
 }
+/* <picture> is inline by default, so it sits on the text baseline and drags
+   a descender's worth of whitespace into the flex row. Take it out of the
+   inline formatting context entirely. */
+.brand-raster {
+  display: block;
+  line-height: 0;
+}
 /* One number sizes the whole lockup: the mark's height and the wordmark
    scale together off --lockup, so the header can grow without anything
-   drifting out of proportion. */
+   drifting out of proportion. Both revisions are cropped to the same canvas
+   (252x124), so the box does not resize when <picture> swaps them at the
+   theme boundary. */
 .brand-lockup > svg,
 .brand-lockup > .brand-raster img {
   height: var(--lockup);
