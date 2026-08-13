@@ -110,6 +110,17 @@ export default async function RequestDetail({
   // holds by construction — the corpus is public).
   let archiveMatches: { id: string; title: string; dateLabel: string; downloadUrl: string | null; syncedFrom: string | null }[] = [];
   let requesterHasEmail = false;
+  // Learned precedent (docs/learning-loop.md): how the office resolved
+  // similar past requests — consulted live so nightly rebuilds keep it fresh.
+  let playbookVM: {
+    topic: string;
+    episodes: number;
+    medianDays: number | null;
+    extensionPct: number;
+    topRoute: string | null;
+    exemptions: string[];
+    samples: string[];
+  } | null = null;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -126,6 +137,27 @@ export default async function RequestDetail({
       repo.listEvents(staff.agencyId, r.id),
       repo.getRequest(staff.agencyId, r.id),
     ]);
+    if (rawRequest) {
+      const { consultPlaybooks } = await import("@/services/learningService");
+      const { defaultDeps } = await import("@/services/deps");
+      const match = await consultPlaybooks(defaultDeps(repo), {
+        agencyId: staff.agencyId,
+        text: rawRequest.interpretedScope ?? rawRequest.rawText,
+      });
+      if (match) {
+        const { stats } = match.playbook;
+        playbookVM = {
+          topic: match.playbook.topic,
+          episodes: match.playbook.episodeCount,
+          medianDays: stats.medianDaysToClose,
+          extensionPct: Math.round(stats.extensionRate * 100),
+          topRoute: stats.routes[0] ? `${stats.routes[0].department} (${Math.round(stats.routes[0].share * 100)}%)` : null,
+          exemptions: stats.exemptions.slice(0, 3).map((e) => e.label),
+          samples: stats.samplePublicIds.filter((p) => p !== r.publicId).slice(0, 3),
+        };
+      }
+    }
+
     const extConfig = profile?.responseClock.extension;
     if (extConfig) {
       const taken = rawRequest?.extensionHistory?.[0] ?? null;
@@ -566,6 +598,32 @@ export default async function RequestDetail({
               Immutable — the exact words the requester wrote.
             </div>
           </div>
+
+          {/* Learned precedent (docs/learning-loop.md): the office's own
+              resolved history for this kind of ask — deterministic stats, no
+              model. Advisory: routing/decisions stay named-human acts. */}
+          {playbookVM && (
+            <div className="card card-pad">
+              <div className="panel-title">Similar past requests</div>
+              <p style={{ fontSize: "0.88rem", margin: "8px 0 0" }}>
+                {playbookVM.episodes} resolved request(s) about{" "}
+                <span style={{ fontWeight: 600 }}>{playbookVM.topic}</span>
+                {playbookVM.topRoute ? <> — mostly fulfilled by {playbookVM.topRoute}</> : null}.
+              </p>
+              <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+                {playbookVM.medianDays != null ? `Median ${playbookVM.medianDays} days to close. ` : ""}
+                {playbookVM.extensionPct > 0 ? `${playbookVM.extensionPct}% took an extension. ` : ""}
+                {playbookVM.exemptions.length > 0
+                  ? `Exemptions cited before: ${playbookVM.exemptions.join(", ")}.`
+                  : "No exemptions cited in past cases."}
+              </div>
+              {playbookVM.samples.length > 0 && (
+                <div className="mono muted" style={{ fontSize: "0.76rem", marginTop: 6 }}>
+                  Precedents: {playbookVM.samples.join(" · ")}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="card card-pad">
             <div className="panel-title">

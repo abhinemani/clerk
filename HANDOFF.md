@@ -7,8 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**880 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-13 Data & files entry — e2e re-run that session).
+**894 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-13 learning-loop entry — e2e re-run that session, on a
+fresh DB proving migration 0012 applies at boot).
 
 ## START HERE (next session)
 
@@ -50,7 +51,41 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, same window as B1/B3/checkpoints):
+**NEWEST (2026-08-13, cloud session): THE LEARNING LOOP — resolved
+requests now make the platform structurally smarter (docs/learning-loop.md,
+new spec).** Owner ask: learning from the types of questions and answers,
+beyond RAG. Shipped v1:
+- **`request_playbooks` (migration 0012 — first since 0011)**: a
+  materialized aggregate, rebuilt WHOLESALE per agency by the nightly
+  sweep from 4 agency-wide queries (requests + tasks + reviews +
+  departments; no N+1). Full-replace semantics on purpose: it can never
+  drift from the append-only record it summarizes. Port:
+  `replaceAgencyPlaybooks`/`listPlaybooks`, conformance-tested.
+- **`src/domain/caseLearning.ts`** (pure, tested): distillEpisode (closed
+  request + done tasks + reviews → episode), buildPlaybooks (term-overlap
+  clustering, same family as demandPatterns; min 2 episodes — one case is
+  an anecdote), matchPlaybook, routingSuggestionFrom. **Confidence is
+  earned and capped**: route share × min(1, episodes/5), hard cap 0.9 —
+  explicit rules own 1.0, and the rationale states the numbers ("83% of
+  12 similar requests…").
+- **Intake wiring** (`learningService.applyPlaybookRouting`, called from
+  fileRequest AFTER routing rules — explicit policy outranks learned
+  history): one `playbook_routing` proposal-card event with the precedent
+  stats, and the suggestion goes through the SAME autoDispatchSuggestions
+  gate (its tasks-already-exist guard keeps the learned pass advisory
+  when a rule fired). Deterministic, zero API keys.
+- **Request page**: "Similar past requests" card (left rail, above the
+  timeline) — episode count, top route, median days, extension rate,
+  exemptions cited before, precedent publicIds. Consulted LIVE against
+  the playbooks table, so nightly rebuilds keep old requests fresh.
+- No seed change: the demo's boot sweep builds playbooks organically as
+  closed history accrues. No laptop-setup change (no env vars; the
+  migration applies itself).
+v2 candidates recorded in the spec: playbook stats as structured prompt
+context (eval required), embedding-based matching over stored ask
+vectors, letter scaffolds, accept/dismiss feedback tuning.
+
+**PREVIOUS (2026-08-13, cloud session, same window as B1/B3/checkpoints):
 DATA & FILES — the consolidated ingestion hub, plus the missing ad-hoc
 upload.** Owner ask: one interface for adding data feeds (Socrata etc.)
 and uploading/managing files. Finding: the pieces all existed but were

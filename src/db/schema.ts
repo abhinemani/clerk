@@ -1057,9 +1057,54 @@ export const agentRuns = pgTable(
   ],
 );
 
+/**
+ * request_playbooks — the learning loop's distilled knowledge (docs/
+ * learning-loop.md). Each row is one learned cluster of demand ("towing
+ * contracts", "bodycam footage") with the statistics of how the office
+ * actually resolved it: routes, exemptions, timing, outcomes. Rebuilt
+ * NIGHTLY as a full materialized aggregate of the append-only record —
+ * never incrementally mutated, so it can't drift from the truth it
+ * summarizes. Consulted deterministically at intake; its route confidence
+ * feeds the existing auto-dispatch gate (never at 1.0 — explicit rules own
+ * that).
+ */
+export const requestPlaybooks = pgTable(
+  "request_playbooks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    /** Human label built from the cluster's strongest terms. */
+    topic: text("topic").notNull(),
+    /** Term profile the intake matcher compares new asks against. */
+    keywords: jsonb("keywords").$type<string[]>().notNull(),
+    stats: jsonb("stats").$type<PlaybookStats>().notNull(),
+    episodeCount: integer("episode_count").notNull(),
+    rebuiltAt: timestamp("rebuilt_at", { withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (t) => [index("request_playbooks_agency_idx").on(t.agencyId)],
+);
+
 // ---------------------------------------------------------------------------
 // Shared JSONB payload types (kept here so schema is the single source of truth)
 // ---------------------------------------------------------------------------
+
+/** Aggregated resolution knowledge for one learned demand cluster. */
+export interface PlaybookStats {
+  /** Departments that actually produced the records, by share (desc). */
+  routes: { departmentId: string | null; department: string; share: number }[];
+  /** Exemption labels cited in reviews, by count (desc). */
+  exemptions: { label: string; count: number }[];
+  /** Terminal statuses → counts (fulfilled, partially_fulfilled, denied, …). */
+  outcomes: Record<string, number>;
+  medianDaysToClose: number | null;
+  /** Share of episodes that took a statutory extension. */
+  extensionRate: number;
+  /** Precedent request publicIds, newest first (display + prompt context). */
+  samplePublicIds: string[];
+}
 
 export interface AgentBudgetLimits {
   maxToolCalls: number;
@@ -1232,6 +1277,7 @@ export const allTables = {
   authTokens,
   agentRuns,
   publicIdCounters,
+  requestPlaybooks,
   jobs,
   publicationDecisions,
   instanceMeta,

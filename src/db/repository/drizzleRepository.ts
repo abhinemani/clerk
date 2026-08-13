@@ -25,6 +25,7 @@ import {
   publicationDecisions,
   publicIdCounters,
   releases,
+  requestPlaybooks,
   requestDocuments,
   requestEvents,
   requesters,
@@ -51,6 +52,7 @@ import {
   type JobRecord,
   type JobStatus,
   type MessageEntity,
+  type PlaybookEntity,
   type PublicationDecisionRow,
   type PublicationState,
   type ReleaseEntity,
@@ -1514,6 +1516,44 @@ export class DrizzleRepository implements Repository {
       documentId: d.documentId,
       estimatedStaffHoursAvoided: d.estimatedStaffHoursAvoided ?? 0,
       createdAt: d.createdAt,
+    }));
+  }
+
+  // --- learning loop (docs/learning-loop.md) -------------------------------
+
+  async replaceAgencyPlaybooks(agencyId: string, rows: PlaybookEntity[]): Promise<void> {
+    await this.db.delete(requestPlaybooks).where(eq(requestPlaybooks.agencyId, agencyId));
+    const mine = rows.filter((p) => p.agencyId === agencyId);
+    if (mine.length === 0) return;
+    await this.db.insert(requestPlaybooks).values(
+      mine.map((p) => ({
+        id: p.id,
+        agencyId: p.agencyId,
+        topic: p.topic,
+        keywords: p.keywords,
+        stats: p.stats,
+        episodeCount: p.episodeCount,
+        rebuiltAt: p.rebuiltAt,
+        createdAt: p.createdAt,
+      })),
+    );
+  }
+
+  async listPlaybooks(agencyId: string): Promise<PlaybookEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(requestPlaybooks)
+      .where(eq(requestPlaybooks.agencyId, agencyId))
+      .orderBy(desc(requestPlaybooks.episodeCount));
+    return rows.map((p: typeof requestPlaybooks.$inferSelect) => ({
+      id: p.id,
+      agencyId: p.agencyId,
+      topic: p.topic,
+      keywords: p.keywords ?? [],
+      stats: p.stats,
+      episodeCount: p.episodeCount,
+      rebuiltAt: p.rebuiltAt,
+      createdAt: p.createdAt,
     }));
   }
 

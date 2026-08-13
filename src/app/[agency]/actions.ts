@@ -73,6 +73,18 @@ export async function fileRequest(input: {
       console.error("routing rules failed", e);
     }
 
+    // Learned routing second (docs/learning-loop.md): the agency's own
+    // resolved history as a playbook match — precedent stats as a card, and
+    // an earned-confidence route into the same auto-dispatch gate (whose
+    // tasks-already-exist guard keeps this advisory when a rule fired).
+    // Deterministic, no model; advisory failure only.
+    try {
+      const { applyPlaybookRouting } = await import("@/services/learningService");
+      await applyPlaybookRouting(deps, { agencyId, requestId: request.id, rawText });
+    } catch (e) {
+      console.error("playbook routing failed", e);
+    }
+
     // AI proposes off the request path: queue intake triage (§6.1). The job
     // no-ops without ANTHROPIC_API_KEY.
     const { getJobQueue } = await import("@/jobs/queue");

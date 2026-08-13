@@ -456,6 +456,41 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect((await repo.listDeflections(AG2)).some((x) => x.id === d.id)).toBe(false);
     });
 
+    it("playbooks: full-replace per agency, tenant-scoped list", async () => {
+      const mk = (agencyId: string, topic: string, episodes: number) => ({
+        id: uid(),
+        agencyId,
+        topic,
+        keywords: topic.split(" "),
+        stats: {
+          routes: [{ departmentId: null, department: "Public Works", share: 1 }],
+          exemptions: [],
+          outcomes: { fulfilled: episodes },
+          medianDaysToClose: 7,
+          extensionRate: 0,
+          samplePublicIds: ["PR-1"],
+        },
+        episodeCount: episodes,
+        rebuiltAt: new Date(),
+        createdAt: new Date(),
+      });
+
+      await repo.replaceAgencyPlaybooks(AG1, [mk(AG1, "towing contracts", 4), mk(AG1, "budget salaries", 2)]);
+      await repo.replaceAgencyPlaybooks(AG2, [mk(AG2, "bodycam footage", 3)]);
+
+      const ag1 = await repo.listPlaybooks(AG1);
+      expect(ag1.map((p) => p.topic)).toEqual(["towing contracts", "budget salaries"]); // episodeCount desc
+      expect(ag1[0]!.stats.routes[0]!.department).toBe("Public Works");
+      // Tenant isolation both ways (invariant 2).
+      expect((await repo.listPlaybooks(AG2)).map((p) => p.topic)).toEqual(["bodycam footage"]);
+
+      // Full replace: a rebuild with one row leaves exactly one row — and
+      // never touches the other agency's playbooks.
+      await repo.replaceAgencyPlaybooks(AG1, [mk(AG1, "towing contracts", 5)]);
+      expect((await repo.listPlaybooks(AG1)).map((p) => p.episodeCount)).toEqual([5]);
+      expect((await repo.listPlaybooks(AG2)).length).toBe(1);
+    });
+
     it("agent runs: create + get + update + list, all tenant-scoped (§16.2)", async () => {
       const run = await repo.createAgentRun({
         id: uid(),

@@ -176,6 +176,23 @@ export function registerJobs(): void {
       console.error("[jobs] retention sweep failed", err);
     }
 
+    // Learning loop (docs/learning-loop.md): re-distill every closed request
+    // into playbooks. Full rebuild nightly — a materialized aggregate of the
+    // append-only record, so it can never drift from what actually happened.
+    try {
+      const [{ getRepository }, { rebuildAgencyPlaybooks }, { defaultDeps }] = await Promise.all([
+        import("@/db/createRepository"),
+        import("@/services/learningService"),
+        import("@/services/deps"),
+      ]);
+      const repo = await getRepository();
+      for (const agency of await repo.listAgencies()) {
+        await rebuildAgencyPlaybooks(defaultDeps(repo), agency.id);
+      }
+    } catch (err) {
+      console.error("[jobs] playbook rebuild failed", err);
+    }
+
     // Proactive-disclosure librarian (agentic-horizon B1, Phase 5 — gate
     // released 2026-08-13): mine resolved demand for publication candidates.
     // Proposals only — the classification flip stays a named human's act
