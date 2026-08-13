@@ -45,7 +45,24 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, third correction): THE HERO WAS STILL
+**NEWEST (2026-08-13, cloud session): HOMEPAGE COPY PASS — sharper, punchier,
+same structure.** Owner ask: tighten the marketing homepage copy, same
+sections and claims, shorter sentences, less exposition. Every paragraph in
+`src/app/page.tsx` got a pass — hero lede, the three PROBLEMS, the three
+PILLARS, both ROI/tech STATS blocks' sub-copy, the "AI proposes, staff
+disposes" quote body, all six AGENTS roster entries, the tenancy trio, and
+the closing CTA sub. No claims changed, no numbers changed, no sections
+added or removed — same six-beat structure (hero → problem → how we help →
+ROI → how the tech works → what we're hearing → close) from the 2026-08-13
+copy rewrite. The TESTIMONIALS quotes and their "illustrative, not real
+customers yet" framing were left as-is (already tight, and that disclaimer's
+wording matters). Verified in the running app, reduced-motion screenshot
+(the `.mk-reveal` scroll-timeline animation leaves off-viewport sections at
+opacity 0 in a single full-page screenshot otherwise — HANDOFF gotcha 12,
+not a regression, just a proofreading trap). 848 tests, typecheck clean,
+copy-only change.
+
+**PREVIOUS (2026-08-13, cloud session, third correction): THE HERO WAS STILL
 FLAT — the owner: "the first div/hero needs more gradients/texture/lighting,
 like the other sections but better."** Root cause: the ACTIVE `.mk-hero`
 rule (globals.css ~line 1010 — the later of the two `.mk-hero` blocks; see
