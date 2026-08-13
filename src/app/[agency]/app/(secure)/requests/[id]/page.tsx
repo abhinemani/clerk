@@ -374,6 +374,15 @@ export default async function RequestDetail({
               Defensibility report
             </a>
           )}
+          {detail.source === "live" && (
+            <a
+              href={`/${slug}/app/requests/${r.id}/appeal-packet.pdf`}
+              className="btn btn-sm"
+              title="Counsel dossier: deadline bases, exemption citations, letters, checksummed releases, drafted cover memo"
+            >
+              Appeal packet
+            </a>
+          )}
         </div>
       </div>
 

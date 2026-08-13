@@ -5,8 +5,9 @@ import { isKnownCapability } from "./tools";
 import { FORBIDDEN_ACTIONS } from "./actionTiers";
 
 describe("agent definitions", () => {
-  it("defines the five §16.1 agents plus the Phase-5 librarian (B1)", () => {
+  it("defines the five §16.1 agents plus the Phase-5 pair (B1 librarian, B3 appeal packet)", () => {
     expect(Object.keys(AGENT_DEFINITIONS).sort()).toEqual([
+      "appeal_packet",
       "deadline",
       "disclosure_librarian",
       "fulfillment",
@@ -49,9 +50,18 @@ describe("agent definitions", () => {
   });
 
   it("staff-side agents use the full corpus", () => {
-    for (const t of ["fulfillment", "deadline", "release_prep", "ingest_steward", "disclosure_librarian"] as const) {
+    for (const t of ["fulfillment", "deadline", "release_prep", "ingest_steward", "disclosure_librarian", "appeal_packet"] as const) {
       expect(getAgentDefinition(t).corpusScope).toBe("full");
     }
+  });
+
+  it("the appeal-packet builder compiles and drafts but cannot send or release", () => {
+    const caps = getAgentDefinition("appeal_packet").allowedCapabilities;
+    expect(caps.has("compile_exemption_log")).toBe(true);
+    expect(caps.has("checksum_packet")).toBe(true);
+    expect(caps.has("publish_release")).toBe(false);
+    expect(caps.has("send_requester_message")).toBe(false);
+    expect(caps.has("send_denial")).toBe(false);
   });
 
   it("the librarian can only propose — no publish, no sends, no reclassification (invariant 9)", () => {

@@ -7,8 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**861 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-13 Phase-5 B1 entry — e2e re-run that session).
+**869 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-13 Phase-5 B3 entry — e2e re-run that session).
 
 ## START HERE (next session)
 
@@ -37,19 +37,52 @@ all sized for one window):
 
 **GATES RELEASED (owner, 2026-08-13, this session):** connected-sources
 phase 3 AND Phase 5 agents (docs/agentic-horizon.md Bucket B) are now
-buildable. B1 (proactive-disclosure librarian) shipped the same day — see
-the newest entry. Next per the spec's suggested order: B3 (appeal-defense
-packet builder), then B4 (third-party notice steward); connected-sources
-phase 3 (row store / tabular answers) deserves its own full window.
-Guardrails unchanged: tiers enforced in code, invariant 9 untouched —
-agents propose, a named human publishes.
+buildable. B1 (proactive-disclosure librarian) AND B3 (appeal-defense
+packet builder) shipped the same day — see the two newest entries. Next
+candidates: B2 (consistency auditor — cheap, read-only) or B4
+(third-party notice steward — the differentiator, needs notice rules in
+state profiles); connected-sources phase 3 (row store / tabular answers)
+deserves its own full window. Guardrails unchanged: tiers enforced in
+code, invariant 9 untouched — agents propose, a named human publishes.
 
 **Before every push** (full contract in CLAUDE.md): offline suite green,
 HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session): PHASE 5 OPENS — B1, THE
+**NEWEST (2026-08-13, cloud session, same window as B1): B3 — THE
+APPEAL-DEFENSE PACKET BUILDER.** Second Phase-5 agent, per the spec's
+order. "The audit log was built for exactly this moment; this agent is
+its reader."
+- **`src/reporting/appealPacket.ts`** (pure, tested): assembles the
+  counsel dossier from what the platform already keeps — the deadline
+  story with every basis and named human (invariant 7), the per-document
+  exemption log with deciders (§5 reviews), correspondence (internal
+  notes excluded), checksummed releases (invariant 8), and the full §10
+  audit report as the evidentiary spine. The cover memo is COMPOSED from
+  the record (template, no model) and stamped "DRAFT — for counsel's
+  review"; an AI-drafted memo can layer on later behind the same draft
+  framing.
+- **`src/agents/appealPacketAgent.ts`**: `runAppealPacketAssembly` runs
+  read_request → read_events → compile_exemption_log → draft_message →
+  assemble_packet → checksum_packet → status_memo through the real
+  harness. New definition `appeal_packet` (per_request). ALL Tier 1 — it
+  compiles and drafts, never sends; the spec's "one Tier-2 send" (mail
+  the packet to counsel) is future wiring, deliberately not built.
+- **Route + button**: `/app/requests/[id]/appeal-packet.pdf` (mirrors the
+  defensibility route, requireStaff) with an "Appeal packet" button next
+  to "Defensibility report" on the request page. Each download IS an
+  agent run and appends one `agent_action` request event carrying the
+  packet text's sha-256 — a packet handed to counsel is provable later.
+  The kind was already in the EventKind union (the Phase-5-compat
+  groundwork paying off).
+No migration, no laptop-setup change (offline, no keys). 869 tests,
+typecheck clean, 4/4 e2e. **Next: B2 consistency auditor (cheap,
+read-only, same defensibility theme) or B4 third-party notice steward
+(bigger; needs notice rules in state profiles); connected-sources
+phase 3 still wants its own window.**
+
+**PREVIOUS (2026-08-13, cloud session): PHASE 5 OPENS — B1, THE
 PROACTIVE-DISCLOSURE LIBRARIAN, IS LIVE.** The owner released both
 standing gates this session ("I am happy to release the gates"):
 agentic-horizon Bucket B and connected-sources phase 3. CLAUDE.md's
