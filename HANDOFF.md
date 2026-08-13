@@ -8,8 +8,32 @@ verified working in that window unless marked otherwise.
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
 **506 tests pass, typecheck clean** (as of `f454a17`, 2026-08-04 late night).
 
-**NEWEST (2026-08-13): ANSWER-FIRST — date-aware search + the ask-alias
-loop.** Spec: `docs/answer-first.md` (phases 1–2 shipped, 3–4 specified).
+**NEWEST (2026-08-13): ANSWER-FIRST phase 3 — the learning QUERY LAYER.**
+Retrieve-then-rerank in `priorAnswerService.findPriorAnswers()`. (1) SCOPE
+first: for a requester, privately-released prior requests never become
+candidates, so they are not in the corpus, the prompt, or the model context —
+filtering AFTER the model would leave private scopes sitting in a prompt, and
+invariant 3 is about what the query layer can REACH. Two gates: release was
+public AND the doc is still classified public (honours audited unpublish).
+(2) RETRIEVE via a new `SearchIndex` adapter (`src/adapters/searchIndex.ts`):
+built-in is now REAL BM25 with ask-alias boosting — the old scoring was "+1
+per term appearing anywhere", no weighting/normalisation/saturation, so a
+long doc mentioning "contract" 9× beat a short doc ABOUT the contract.
+Elasticsearch/OpenSearch is opt-in behind `ELASTICSEARCH_URL` (fetch-only, no
+SDK), FALLS BACK to built-in on any error, and can never WIDEN the set — ids
+outside the scoped corpus are dropped so a stale cluster index can't become a
+disclosure path. NOT yet run against a live cluster. (3) JUDGE with the new
+`request_match` GenAI pipeline, written for PRECISION (retrieval already has
+recall; a false positive means a resident never files the request they
+needed). Floors differ by audience: requester 0.72, staff 0.45; invented
+publicIds are discarded. Runs only when the archive comes up empty — the
+moment before filing, not per keystroke. Degrades: no ES → BM25; no API key →
+retrieval-only marked *unjudged*; model error → no matches, filing proceeds.
+**`npm run eval` NOT run for the new prompt — no ANTHROPIC_API_KEY in the
+build environment. Run it before relying on request_match.** 706 tests.
+
+**PREVIOUS (2026-08-13): ANSWER-FIRST phases 1–2 — date-aware search + the
+ask-alias loop.** Spec: `docs/answer-first.md`.
 The flagship query "street cleanings for the last 3 months" is TWO questions
 — a subject and a window — and similarity search is blind to recency, so a
 vector match ranks a 2019 sweeping log level with last month's. Now:

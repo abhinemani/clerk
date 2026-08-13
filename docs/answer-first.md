@@ -1,7 +1,8 @@
 # Answer-first search, and the loop that makes it compound
 
-Status: **partially shipped 2026-08-13.** Phase 1 (date-aware retrieval) and
-phase 2 (the ask-alias loop) are in. Phases 3–4 are specified, not built.
+Status: **phases 1–3 shipped 2026-08-13.** Date-aware retrieval, the
+ask-alias loop, and the GenAI matcher over a pluggable search index. Phase 4
+(RAG'd triage prompts) is specified, not built.
 
 ## The user story
 
@@ -95,31 +96,66 @@ second place and create a way for the two to disagree.
 **Why it is best-effort.** The alias write is wrapped and logged. A learning
 write must never be the reason a lawful release fails.
 
+### Phase 3 — the query layer: retrieve, then judge
+
+Three stages, in `src/services/priorAnswerService.ts`:
+
+**1. Scope.** Build the candidate set this audience may see — and do it
+FIRST. For a requester, prior requests whose records were released privately
+never enter the candidate list, so they are not in the retrieval corpus, not
+in the prompt, and not in the model's context. Filtering after the model
+would leave private scopes sitting in a prompt, which is a disclosure risk
+even when the output is thrown away: invariant 3 governs what the query layer
+can *reach*, not only what it returns. Two independent gates — the release
+must have been public AND the document must still be classified public today,
+so an audited unpublish is honoured rather than remembered wrongly.
+
+**2. Retrieve** via the `SearchIndex` adapter (`src/adapters/searchIndex.ts`),
+narrowing to eight candidates.
+
+- **Built-in: real BM25**, with ask aliases scored as a separate boosted
+  field. This replaces "+1 per query term appearing anywhere", which had no
+  term weighting, no length normalisation and no saturation — a long document
+  mentioning "contract" nine times beat a short one that was *about* the
+  contract. Zero services; this is the default.
+- **Elasticsearch / OpenSearch**, opt-in via `ELASTICSEARCH_URL`, fetch-only
+  (no SDK, same rule the email providers follow). It **falls back** to
+  built-in on any error, because search is a read path and a cluster being
+  down must not stop a resident finding a record we already publish. It also
+  can never *widen* the result set: anything it returns that is not in the
+  caller's scoped corpus is dropped, so a stale or over-broad cluster index
+  cannot become a disclosure path. **Not yet run against a live cluster** —
+  treat the query shape as a starting point, not a tuned configuration.
+
+**3. Judge** with `request_match` (`src/ai/pipelines/requestMatch.ts`) — the
+GenAI half. The prompt is written for precision, not recall: cheap retrieval
+already has the recall, and the model's job is to reject candidates that
+merely *look* similar. A false positive tells a resident "here is your
+answer" and hands them the wrong records, and they may never file the request
+they actually needed. Returns `full` / `partial` coverage with a confidence
+and a rationale a resident can read.
+
+Two floors, because the cost of being wrong differs by audience:
+`REQUESTER_MATCH_FLOOR = 0.72` and `STAFF_MATCH_FLOOR = 0.45`. A match naming
+a `publicId` that was not offered is discarded — an invented id must never
+reach a resident as a real record.
+
+Runs at the moment the archive comes up empty, which is the moment before
+filing. Not on every keystroke: the judge costs a model call, and that is the
+one point where its answer changes what the person does next.
+
+**Degradation, all the way down.** No Elasticsearch → BM25. No
+`ANTHROPIC_API_KEY` → retrieval-only, returning the single best hit marked
+*unjudged* rather than implying a precision it did not earn. Model error →
+no matches and filing proceeds. A matcher must never be the reason a request
+cannot be filed.
+
+**Still open:** `requests.embedding` is still unwritten. BM25 plus alias
+boosting plus the GenAI rerank covers the flagship cases, but pure semantic
+retrieval ("sweepers" ↔ "cleaning" with no shared token and no alias yet)
+still depends on the alias loop having seen that phrasing once.
+
 ## What is specified and NOT built
-
-### Phase 3 — resolved requests in the pre-filing path
-
-Today `findDuplicates` runs *after* filing, compares **lexically** (Jaccard,
-though it accepts an embedding provider), and writes a staff-facing
-`ai_action` event. It flags "possible duplicate of PR-104" but never retrieves
-what PR-104 was answered *with*, and the requester never sees it.
-
-Two changes:
-
-1. **Persist `requests.embedding`.** The column exists on the schema and
-   nothing writes it. Populate it at intake so similarity is semantic and
-   accumulates, rather than being recomputed lexically against a live scan.
-2. **Answer from prior resolutions before filing.** When a new ask is near a
-   *resolved* request whose documents are public, offer those documents
-   directly. Phase 2 already makes this partly emergent — the prior request's
-   words are in the index — but an explicit path can say "PR-104 asked this
-   in March; here is what was released", including when the phrasing has
-   drifted too far for token overlap.
-
-**The disclosure fork is the hard part.** Many releases go to one requester
-privately. Public resolutions may feed the requester-facing path; private
-ones may only inform staff-side triage and routing. If that fork is not
-explicit from the start, this feature becomes a disclosure bug.
 
 ### Phase 4 — retrieval-augmented triage and routing
 

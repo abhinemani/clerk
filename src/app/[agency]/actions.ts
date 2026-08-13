@@ -311,6 +311,54 @@ export async function searchArchiveAction(agencySlug: string, query: string) {
   };
 }
 
+/**
+ * "Has someone asked this before?" — runs at the moment the archive comes up
+ * empty, which is exactly the moment before a resident files. Deliberately
+ * NOT on every keystroke: the judge costs a model call, and this is the one
+ * point where its answer changes what the person does next.
+ *
+ * Audience is "requester", so private releases are never even candidates.
+ */
+export async function findPriorAnswersAction(agencySlug: string, ask: string) {
+  const [{ getRepository }, { findPriorAnswers }] = await Promise.all([
+    import("@/db/createRepository"),
+    import("@/services/priorAnswerService"),
+  ]);
+  const repo = await getRepository();
+  const agency = await repo.getAgencyBySlug(agencySlug);
+  if (!agency) return { matches: [] as PriorAnswerCard[], judged: false };
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  let modelClient;
+  if (apiKey) {
+    const { AnthropicModelClient } = await import("@/ai/modelClient");
+    modelClient = new AnthropicModelClient(apiKey);
+  }
+
+  const r = await findPriorAnswers({ repo }, {
+    agencyId: agency.id,
+    ask,
+    audience: "requester",
+    modelClient,
+  });
+  return {
+    judged: r.judged,
+    matches: r.matches.map((m) => ({
+      publicId: m.publicId,
+      coverage: m.coverage,
+      rationale: m.rationale,
+      documents: m.documents,
+    })) satisfies PriorAnswerCard[],
+  };
+}
+
+export interface PriorAnswerCard {
+  publicId: string;
+  coverage: "full" | "partial";
+  rationale: string;
+  documents: Array<{ id: string; title: string }>;
+}
+
 export type AgentTurnResult =
   | { enabled: false }
   | {

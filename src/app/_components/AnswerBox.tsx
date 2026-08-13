@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import type { ArchiveItem } from "@/lib/archive";
-import { askRecordsAgentAction, logDeflectionAction, searchArchiveAction } from "../[agency]/actions";
+import {
+  askRecordsAgentAction,
+  findPriorAnswersAction,
+  logDeflectionAction,
+  searchArchiveAction,
+  type PriorAnswerCard,
+} from "../[agency]/actions";
 import { SparkIcon } from "./ui";
 
 interface AgentTurn {
@@ -31,6 +37,9 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
   /** Records that surfaced because a PRIOR request taught the archive this
    *  phrasing. Worth saying out loud: it is the loop paying off. */
   const [askMatches, setAskMatches] = useState<Set<string>>(new Set());
+  /** Prior requests whose released records may already answer this. Fetched
+   *  only when the archive comes up empty — the moment before filing. */
+  const [priorAnswers, setPriorAnswers] = useState<PriorAnswerCard[]>([]);
   const [searching, setSearching] = useState(false);
   const [downloaded, setDownloaded] = useState<string | null>(null);
   const seq = useRef(0);
@@ -85,10 +94,17 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
     const t = setTimeout(async () => {
       try {
         const found = await searchArchiveAction(agencySlug, query);
-        if (seq.current === mine) {
-          setResults(found.items);
-          setWindowNote(found.window);
-          setAskMatches(new Set(found.matchedByAsk));
+        if (seq.current !== mine) return;
+        setResults(found.items);
+        setWindowNote(found.window);
+        setAskMatches(new Set(found.matchedByAsk));
+        // Nothing published matches. Before offering a form, check whether an
+        // earlier request already produced the answer.
+        if (found.items.length === 0) {
+          const prior = await findPriorAnswersAction(agencySlug, query.trim());
+          if (seq.current === mine) setPriorAnswers(prior.matches);
+        } else {
+          setPriorAnswers([]);
         }
       } finally {
         if (seq.current === mine) setSearching(false);
@@ -338,6 +354,37 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
             </>
           ) : (
             <div style={{ padding: "20px 16px" }}>
+              {priorAnswers.length > 0 && (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+                    <SparkIcon />
+                    Someone asked for this before.
+                  </div>
+                  {priorAnswers.map((m) => (
+                    <div
+                      key={m.publicId}
+                      className="card card-pad"
+                      style={{ marginTop: 10, padding: 14 }}
+                    >
+                      <div className="muted" style={{ fontSize: "0.82rem" }}>
+                        Request {m.publicId} · {m.coverage === "full" ? "answers this" : "answers part of this"}
+                      </div>
+                      <div style={{ fontSize: "0.93rem", marginTop: 4 }}>{m.rationale}</div>
+                      <ul style={{ margin: "10px 0 0", paddingLeft: 18, fontSize: "0.92rem" }}>
+                        {m.documents.map((d) => (
+                          <li key={d.id} style={{ marginBottom: 3 }}>
+                            <Link href={`/${agencySlug}/archive/${d.id}`}>{d.title}</Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                  <p className="muted" style={{ fontSize: "0.85rem", marginTop: 10 }}>
+                    Not what you needed? File a request below — this is a suggestion, not an answer
+                    on the record.
+                  </p>
+                </div>
+              )}
               {/* A window that filtered everything out must SAY so. Otherwise
                   "nothing matches" is indistinguishable from "nothing exists",
                   and the resident files a request for a record we already
