@@ -100,8 +100,12 @@ a cloud session — do it yourself only if you're already at the laptop.
 
 CLAUDE.md requires an eval run + scorecard diff whenever a prompt changes.
 The `request_match` prompt (answer-first phase 3) shipped 2026-08-13 with
-**no eval ever run** — the build environment had no key. This is the oldest
-open debt in HANDOFF.
+**no eval ever run** — the build environment had no key — and the intake
+triage + routing prompts were bumped to 2026-08-13.1 the same day (RAG'd
+precedents), also unevaled. One run clears all three: the golden set
+already carries the RAG cases, including a contamination guard asserting
+precedent vocabulary never leaks into the interpreted scope. This is the
+oldest open debt in HANDOFF.
 
 ```bash
 cd clerk
@@ -212,6 +216,25 @@ to move.
 `.env.example` (names and comments only, never values) and note the
 verification in HANDOFF.
 
+### D½. Private connected-source feeds (only if you register one)
+
+Connected data sources (docs/connected-sources.md) pull open-data portals
+and HTTP exports. Public feeds — most city portals — need nothing here.
+If you register a PRIVATE feed, the admin form asks for the **name** of an
+environment variable (e.g. `CITY_PORTAL_TOKEN`), never the token itself;
+you then set that variable wherever syncs run:
+
+```
+CITY_PORTAL_TOKEN=<the bearer token from the portal operator>
+```
+
+— in `.env` on a laptop, and in the claude.ai environment settings if
+cloud sessions should be able to sync it. Also relevant, both documented
+in `.env.example`: `CONNECTED_DROP_PATH` moves the per-agency file-drop
+directory (mount a volume in production; each agency gets its own
+subdirectory and the admin page displays the exact path to hand your IT
+department).
+
 ---
 
 ## Part E — fresh-laptop baseline (~10 min, zero accounts)
@@ -222,7 +245,7 @@ The reference sequence for a machine with nothing on it:
 brew install node git          # Homebrew node may need: export PATH="/opt/homebrew/bin:$PATH"
 git clone https://github.com/abhinemani/clerk.git && cd clerk   # repo name is legacy; product is Brandeis
 npm install
-npm test                       # 745+ tests, offline — must pass before anything else
+npm test                       # 789+ tests, offline — must pass before anything else
 cp .env.example .env
 echo "AUTH_SECRET=$(openssl rand -base64 32)" >> .env
 npm run seed                   # City of Riverton + Bellmar demo (prints all credentials)
