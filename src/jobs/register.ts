@@ -102,6 +102,22 @@ export function registerJobs(): void {
       console.error("[jobs] deadline sweep failed", err);
     }
 
+    // Retention warnings (src/domain/retention.ts): flag documents near or
+    // past scheduled destruction in each agency's admin log — the proactive
+    // agency-wide net; the request page covers only its own review set.
+    try {
+      const [{ getRepository }, { runRetentionSweep }] = await Promise.all([
+        import("@/db/createRepository"),
+        import("./retentionSweep"),
+      ]);
+      const repo = await getRepository();
+      for (const agency of await repo.listAgencies()) {
+        await runRetentionSweep(repo, agency.id, new Date());
+      }
+    } catch (err) {
+      console.error("[jobs] retention sweep failed", err);
+    }
+
     // Connected data sources (docs/connected-sources.md): the nightly pull.
     // Paused sources (syncSchedule null) are skipped; each sync is a durable
     // job so a failure lands on the /admin Health surface, not in a log.

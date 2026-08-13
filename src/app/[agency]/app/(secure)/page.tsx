@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getRepository } from "@/db/createRepository";
 import { decisionsFor, getWorkspace, outstandingTasks, workloadFor } from "@/lib/live";
 import { deadlineRisk, byRiskDesc } from "@/domain/deadlineRisk";
+import { documentsAtRetentionRisk, type RetentionStatus } from "@/domain/retention";
 import { isAssignableRole } from "@/domain/workflow";
 import { matchesQueueFilters, parseQueueFilters, hasActiveFilters } from "@/domain/queueFilters";
 import { runDeadlineSweep } from "@/agents/deadlineAgent";
@@ -110,8 +111,15 @@ export default async function Queue({
   // when we're showing the unseeded demo. "—" beats a made-up percentage.
   let onTimeLabel = "94%";
   let deflectionsLabel = "41";
+  // Agency-wide retention warnings (same computation as the nightly sweep) —
+  // a record destroyed on schedule while requested is the unrecoverable one.
+  let retentionRisk: { filename: string; status: RetentionStatus }[] = [];
   if (ws.source === "live" && ws.agencyId) {
     const repo = await getRepository();
+    retentionRisk = documentsAtRetentionRisk(
+      await repo.listDocumentsUnderRetention(ws.agencyId),
+      ws.now,
+    ).map(({ doc, status }) => ({ filename: doc.filename ?? doc.id, status }));
     const deflections = await repo.listDeflections(ws.agencyId);
     const monthStart = new Date(ws.now.getFullYear(), ws.now.getMonth(), 1);
     deflectionsLabel = String(deflections.filter((d) => d.createdAt >= monthStart).length);
@@ -194,6 +202,34 @@ export default async function Queue({
           <div className="stat-label">Deflections this month</div>
         </div>
       </div>
+
+      {/* Retention warnings — surfaced before anything is destroyed on
+          schedule, because that mistake has no undo. Display only: placing a
+          hold stays a named human's act on the request page. */}
+      {retentionRisk.length > 0 && (
+        <div className="card card-pad" style={{ marginTop: 20, borderColor: "var(--due)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="panel-title">⚠ Records nearing scheduled destruction</div>
+            <span className="pill band-due_soon">{retentionRisk.length}</span>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0", display: "grid", gap: 6 }}>
+            {retentionRisk.slice(0, 6).map((d, i) => (
+              <li key={i} style={{ fontSize: "0.88rem", display: "flex", gap: 8, alignItems: "baseline" }}>
+                <span className="mono" style={{ fontSize: "0.8rem" }}>{d.filename}</span>
+                <span className="muted" style={{ fontSize: "0.8rem" }}>{d.status.label}</span>
+              </li>
+            ))}
+            {retentionRisk.length > 6 && (
+              <li className="muted" style={{ fontSize: "0.8rem" }}>…and {retentionRisk.length - 6} more</li>
+            )}
+          </ul>
+          <p className="muted" style={{ fontSize: "0.8rem", marginTop: 8 }}>
+            If any of these are responsive to an open request, place a legal hold from that
+            request&apos;s page before the schedule runs out. Documents already under a hold are not
+            listed — a hold is the protection working.
+          </p>
+        </div>
+      )}
 
       {/* Two-up: what needs a leader's decision today + department workload */}
       <div className="cc-grid" style={{ marginTop: 20 }}>

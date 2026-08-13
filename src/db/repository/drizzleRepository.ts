@@ -7,7 +7,7 @@
  * Tenant isolation is enforced in every read: queries AND `agency_id` in, and a
  * row from another agency is invisible.
  */
-import { and, asc, desc, eq, isNull, lt, lte, ne, notExists, notLike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lt, lte, ne, notExists, notLike, or, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import {
   adminEvents,
@@ -732,6 +732,21 @@ export class DrizzleRepository implements Repository {
     return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
   }
 
+  async listDocumentsUnderRetention(agencyId: string): Promise<DocumentEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .where(
+        tenantWhere(
+          documents.agencyId,
+          agencyId,
+          or(isNotNull(documents.retentionUntil), isNotNull(documents.legalHoldReason)),
+        ),
+      )
+      .orderBy(desc(documents.createdAt));
+    return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
+  }
+
   // --- durable job queue ---------------------------------------------------
 
   async createJob(j: JobRecord): Promise<JobRecord> {
@@ -1398,6 +1413,22 @@ export class DrizzleRepository implements Repository {
       .select()
       .from(reviews)
       .where(tenantWhere(reviews.agencyId, agencyId, eq(reviews.requestId, requestId)));
+    return rows.map((r: typeof reviews.$inferSelect) => ({
+      id: r.id,
+      agencyId: r.agencyId,
+      requestId: r.requestId,
+      documentId: r.documentId,
+      decision: r.decision,
+      exemptionLabel: r.exemptionLabel,
+      decidedByUserId: r.decidedByUserId ?? "",
+      createdAt: r.createdAt,
+    }));
+  }
+  async listAgencyReviews(agencyId: string): Promise<ReviewEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(reviews)
+      .where(tenantWhere(reviews.agencyId, agencyId));
     return rows.map((r: typeof reviews.$inferSelect) => ({
       id: r.id,
       agencyId: r.agencyId,

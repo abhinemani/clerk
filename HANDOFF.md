@@ -7,9 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**801 tests pass (+4 skipped), typecheck clean, build clean, 4/4 e2e**
-(all re-verified in the newest 2026-08-13 entry — the e2e debt from the
-threading/logo window is paid).
+**824 tests pass (+4 skipped), typecheck clean** (as of the newest
+2026-08-13 small-items entry); build + 4/4 e2e were green in the
+env-hygiene entry the same day, not re-run since.
 
 ## START HERE (next session)
 
@@ -32,9 +32,10 @@ all sized for one window):
    (tier-1 remainder, the onboarding lever).
 3. Intake dedup should reuse stored request vectors instead of re-embedding
    the whole corpus per filing (`[agency]/actions.ts` findDuplicates call).
-4. Small: annual-report CSV companion · proactive retention-destruction
+4. ~~Small: annual-report CSV companion · proactive retention-destruction
    warnings · "reviewed by counsel on DATE" field on statute profiles ·
-   responder email on dispatch.
+   responder email on dispatch~~ ALL DONE (2026-08-13, newest entry;
+   responder email had already shipped 2026-08-05 — the bullet was stale).
 
 **Gated — do not build without the owner**: connected-sources phase 3
 (row store / tabular answers; needs real usage), Phase 5 agents
@@ -45,7 +46,54 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session): REAL KEYS CAN NO LONGER LEAK INTO
+**NEWEST (2026-08-13, cloud session, later): THE SMALL-ITEMS BASKET —
+build-candidate #4, all four, browser-verified both themes.** One of the
+four turned out to be stale (already shipped); its replacement was a real
+bug found while checking. What landed:
+- **Annual-report CSV companion**: `/app/reports/annual-report.csv` route
+  (staff-guarded, same shape as the PDF route) serving
+  `complianceReportCsv()` — section/metric/value rows covering every PDF
+  section, decimals not percent-strings. The reports page's CSV button now
+  points at the route for live agencies (demo fixture keeps the client
+  blob, same builder). AND THE DATA IS REAL NOW: `liveComplianceDataset`
+  had `extended: false` / `exemptionsCited: []` HARDCODED — the annual
+  report has been claiming 0% extensions and zero exemptions on live data
+  since it shipped. Extensions now read `extensionHistory`; exemptions
+  merge per-document review labels (new port method `listAgencyReviews`,
+  conformance-tested) with denial citations from the status_change event,
+  deduped PER REQUEST (a 40-page withholding under one citation is one use).
+- **Retention-destruction warnings, proactive at last**: the domain logic
+  existed but nothing time-driven ran it. Now (1) nightly
+  `retention_sweep` block in register.ts → `runRetentionSweep()`
+  (src/jobs/retentionSweep.ts, tested) appends a `retention_sweep` admin
+  event per agency listing at-risk docs — quiet agencies stay quiet, held
+  docs never alarm; (2) command-center warning card (same computation,
+  live) via new port method `listDocumentsUnderRetention`; (3) the
+  request-page risk card FINALLY has its act: a "Place hold" button →
+  `placeLegalHoldAction` → `setLegalHold` (which had NO caller before —
+  audited, named actor, verified live: card flips to "held", trail shows
+  "Dana Okafor placed a legal hold"). Seed: Morgan's incident report now
+  carries retentionUntil 21 days out, so the demo shows the whole loop.
+- **Counsel-review recency**: `src/domain/statuteReview.ts` (pure) —
+  a sign-off older than 365 days flips the compliance pill to amber
+  "re-review due" and re-opens the record form ("Re-record counsel
+  sign-off…"). The review status also prints on the annual report now:
+  narrative line in the PDF + `statute_reviewed_by_counsel` row in the
+  CSV — "not yet reviewed" when absent, on purpose.
+- **Responder email on dispatch was ALREADY SHIPPED** (2026-08-05,
+  task_responder_notice; the START-HERE bullet was stale — struck). The
+  real gap found instead: a notifier throw in dispatchTask escaped AFTER
+  the task row + assignment event were written, unwinding the action
+  mid-flight. Both send blocks are now best-effort: dept-email failure →
+  audited failed-delivery event ("resend from the task panel"), per-
+  responder failures → skipped-and-counted in the aggregate event
+  (`failed: [...]`), dispatch always returns the task. Tests pin both.
+824 tests (23 new), typecheck clean. Verified in a real browser (gotcha
+11), light AND dark: retention card, hold click-through, compliance pill,
+CSV/PDF routes. No prompt changes (no eval obligation), no owner-facing
+env/service changes (laptop-setup untouched, checked deliberately).
+
+**PREVIOUS (2026-08-13, cloud session): REAL KEYS CAN NO LONGER LEAK INTO
 `npm test` OR THE E2E SMOKE — the offline suite now strips them first.**
 Found by running the suite in a cloud container that carries a real
 `VOYAGE_API_KEY` (owner put it in the claude.ai env settings per
@@ -636,11 +684,11 @@ below). The next priorities, in order (owner-reviewed 2026-08-04):
    is staff-curated interpretedScope ONLY (raw filing text never published;
    pre-triage rows say "Awaiting review"). Footer link when enabled.
    Riverton seeds ON.
-4. Small knock-offs: responder email notification on dispatch to their
-   department (they have logins now; only the dept inbox gets the token
-   link) · ~~copilot prefill of task/extension panels · redaction redo
-   stack, click-a-bar-to-jump, "redact this word everywhere"~~ (all four
-   DONE 2026-08-13 night, see newest entry).
+4. Small knock-offs: ~~responder email notification on dispatch to their
+   department~~ (had ALREADY shipped 2026-08-05 as task_responder_notice —
+   this bullet was stale; failure-hardened 2026-08-13) · ~~copilot prefill
+   of task/extension panels · redaction redo stack, click-a-bar-to-jump,
+   "redact this word everywhere"~~ (all four DONE 2026-08-13 night).
 5. Phase 5 agents stay gated until real-user proof (docs/agentic-horizon.md).
 
 ## What this is
@@ -1089,13 +1137,15 @@ to write)**
 5. ~~**Queue ergonomics at volume.**~~ **DONE** (2026-08-04, see inventory:
    QueueFilterBar saved filters + QueueTable bulk assign, each row still
    individually audited).
-6. **Compliance exports.** Mostly done (2026-08-04): per-request
-   defensibility-report.pdf and annual-report.pdf ship. Still open: a CSV
-   companion to the annual report for states whose AG wants a spreadsheet.
+6. ~~**Compliance exports.**~~ **DONE** (2026-08-04 + 2026-08-13):
+   per-request defensibility-report.pdf, annual-report.pdf, and the
+   annual-report.csv route (small-items entry — full section/metric/value
+   spreadsheet from the same dataset).
 7. **Statute breadth + counsel sign-off.** 5 starter state profiles exist;
    each real deployment needs its state present and reviewed. Add profiles
-   as demand appears, plus a "reviewed by counsel on DATE" field surfaced
-   in the workspace so review status is honest.
+   as demand appears. ~~"reviewed by counsel on DATE" surfaced~~ DONE
+   (2026-08-05 field + 2026-08-13 staleness pill, re-record flow, and the
+   review line on the annual report PDF/CSV).
 
 **Tier 3 — durability & scale**
 8. ~~**Department-scoped accounts**~~ **DONE** (2026-08-04 late): responder
@@ -1110,9 +1160,10 @@ to write)**
    per-responder department checkboxes; seed adds sam@riverton.gov /
    riverton-demo3 (Public Works). Coordinators also see /app/tasks as an
    all-departments workload view.
-9. **Retention awareness / legal holds** — flag requested records nearing
-   scheduled destruction (small new data model; prevents the catastrophic
-   failure mode).
+9. ~~**Retention awareness / legal holds**~~ **DONE** (domain+auto-holds
+   earlier; proactive warnings 2026-08-13: nightly retention_sweep admin
+   event, command-center warning card, and a Place-hold button on the
+   request page — no new data model needed, the fields existed).
 10. **S3/MinIO + pg-boss adapters, backup/restore runbook** — both ports
     are ready; only needed past one machine. Plus copilot depth (prefill
     task/extension proposals into their panels).

@@ -878,3 +878,38 @@ export async function fulfillByReferenceAction(input: {
     return fail("fulfillByReference", e);
   }
 }
+
+/** Form-friendly wrapper — a <form action> must return void. */
+export async function placeLegalHoldFormAction(input: {
+  agencySlug: string;
+  requestId: string;
+  documentId: string;
+}): Promise<void> {
+  await placeLegalHoldAction(input);
+}
+
+export async function placeLegalHoldAction(input: {
+  agencySlug: string;
+  requestId: string;
+  documentId: string;
+}): Promise<WorkspaceResult> {
+  try {
+    const { staff, repo, deps } = await ctx(input.agencySlug);
+    const request = await repo.getRequest(staff.agencyId, input.requestId);
+    if (!request) return { ok: false, error: "Request not found." };
+    const { setLegalHold } = await import("@/services/retentionService");
+    const { autoHoldReason } = await import("@/domain/retention");
+    await setLegalHold(deps, {
+      agencyId: staff.agencyId,
+      documentId: input.documentId,
+      reason: autoHoldReason(request.publicId),
+      actorUserId: staff.userId,
+      requestId: input.requestId,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    revalidatePath(`/${input.agencySlug}/app`);
+    return { ok: true };
+  } catch (e) {
+    return fail("placeLegalHold", e);
+  }
+}

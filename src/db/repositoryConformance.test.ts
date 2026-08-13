@@ -411,6 +411,34 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect(reviews[0]?.id).toBe(first.id);
     });
 
+    it("documents: listDocumentsUnderRetention returns only scheduled or held docs, tenant-scoped", async () => {
+      const scheduled = await repo.createDocument(docOf({ retentionUntil: new Date("2026-09-01T00:00:00Z") }));
+      const held = await repo.createDocument(docOf({ legalHoldReason: "Litigation hold" }));
+      const plain = await repo.createDocument(docOf());
+      const under = await repo.listDocumentsUnderRetention(AG1);
+      const ids = under.map((d) => d.id);
+      expect(ids).toContain(scheduled.id);
+      expect(ids).toContain(held.id);
+      expect(ids).not.toContain(plain.id);
+      const other = await repo.listDocumentsUnderRetention(AG2);
+      expect(other.some((d) => d.id === scheduled.id || d.id === held.id)).toBe(false);
+    });
+
+    it("reviews: listAgencyReviews spans requests, tenant-scoped", async () => {
+      const r1 = await repo.createRequest(requestOf());
+      const r2 = await repo.createRequest(requestOf());
+      const d1 = await repo.createDocument(docOf());
+      const d2 = await repo.createDocument(docOf());
+      await repo.upsertReview({ id: uid(), agencyId: AG1, requestId: r1.id, documentId: d1.id, decision: "withhold", exemptionLabel: "Personnel privacy", decidedByUserId: USER1, createdAt: new Date() });
+      await repo.upsertReview({ id: uid(), agencyId: AG1, requestId: r2.id, documentId: d2.id, decision: "release_redacted", exemptionLabel: "PII", decidedByUserId: USER1, createdAt: new Date() });
+      // The suite shares one repo per adapter — assert containment, not equality.
+      const all = await repo.listAgencyReviews(AG1);
+      const mine = all.filter((x) => x.requestId === r1.id || x.requestId === r2.id);
+      expect(mine.map((x) => x.exemptionLabel).sort()).toEqual(["PII", "Personnel privacy"]);
+      const other = await repo.listAgencyReviews(AG2);
+      expect(other.some((x) => x.requestId === r1.id || x.requestId === r2.id)).toBe(false);
+    });
+
     it("releases: lookup by id and by contained document, tenant-scoped", async () => {
       const r = await repo.createRequest(requestOf());
       const artifactDocId = uid();

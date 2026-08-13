@@ -4,7 +4,7 @@ import { getAgencyForSlug } from "@/lib/live";
 import { liveComplianceDataset } from "@/lib/reportingData";
 import { DEFLECTIONS_YTD, reportingDataset } from "@/lib/reportingDemo";
 import { complianceReport } from "@/reporting/metrics";
-import { metricsCsv } from "@/reporting/csv";
+import { complianceReportCsv } from "@/reporting/csv";
 import { DownloadButton } from "../../../../_components/DownloadButton";
 
 export const dynamic = "force-dynamic";
@@ -25,18 +25,11 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
   const types = Object.entries(report.volumeByRequesterType).sort(([, a], [, b]) => b - a);
   const maxType = Math.max(...types.map(([, c]) => c), 1);
 
-  const csv = metricsCsv([
-    ["reporting_period", "2026 YTD"],
-    ["total_requests", report.total],
-    ["closed", report.closed],
-    ["open", report.open],
-    ["on_time_rate", report.onTimeRate.toFixed(3)],
-    ["median_days_to_close", report.daysToClose.median],
-    ["p90_days_to_close", report.daysToClose.p90],
-    ["extension_usage_rate", report.extensionUsageRate.toFixed(3)],
-    ["deflections", report.deflections],
-    ...report.exemptionFrequency.map((e) => [`exemption:${e.label}`, e.count] as [string, number]),
-  ]);
+  // Demo fixture only — live agencies download from the annual-report.csv
+  // route so the artifact always reflects the database at click time.
+  const demoCsv = agency.id
+    ? null
+    : complianceReportCsv(report, { agencyName: agency.name, periodLabel: "2026 YTD" });
 
   return (
     <div className="wrap" style={{ paddingBlock: "36px" }}>
@@ -49,7 +42,13 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Compliance report · 2026</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <DownloadButton filename="brandeis-compliance-2026.csv" content={csv} label="Download CSV" />
+          {agency.id ? (
+            <a href={`/${slug}/app/reports/annual-report.csv`} className="btn btn-sm">
+              Download CSV
+            </a>
+          ) : (
+            demoCsv && <DownloadButton filename="brandeis-compliance-2026.csv" content={demoCsv} label="Download CSV" />
+          )}
           {agency.id && (
             <a href={`/${slug}/app/reports/annual-report.pdf`} className="btn btn-sm">
               Download PDF

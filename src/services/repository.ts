@@ -494,6 +494,8 @@ export interface Repository {
   listPublicDocuments(agencyId: string): Promise<DocumentEntity[]>;
   /** Every document in the agency corpus — STAFF surfaces only (§6.4). */
   listDocuments(agencyId: string): Promise<DocumentEntity[]>;
+  /** Documents with a retention schedule or a legal hold — the retention sweep's working set. */
+  listDocumentsUnderRetention(agencyId: string): Promise<DocumentEntity[]>;
   createDocument(doc: DocumentEntity): Promise<DocumentEntity>;
   getDocument(agencyId: string, id: string): Promise<DocumentEntity | null>;
   /**
@@ -550,6 +552,8 @@ export interface Repository {
   /** One decision per (request, document); re-deciding replaces. */
   upsertReview(r: ReviewEntity): Promise<ReviewEntity>;
   listReviews(agencyId: string, requestId: string): Promise<ReviewEntity[]>;
+  /** Every review decision in the agency — reporting counts exemption citations from here. */
+  listAgencyReviews(agencyId: string): Promise<ReviewEntity[]>;
 
   createRelease(r: ReleaseEntity): Promise<ReleaseEntity>;
   listReleases(agencyId: string, requestId: string): Promise<ReleaseEntity[]>;
@@ -951,6 +955,12 @@ export class InMemoryRepository implements Repository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  async listDocumentsUnderRetention(agencyId: string) {
+    return [...this.documents.values()]
+      .filter((d) => d.agencyId === agencyId && (d.retentionUntil != null || d.legalHoldReason != null))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
   private requestDocs: { agencyId: string; requestId: string; documentId: string }[] = [];
   private reviews = new Map<string, ReviewEntity>();
   private releases: ReleaseEntity[] = [];
@@ -1067,6 +1077,9 @@ export class InMemoryRepository implements Repository {
     return [...this.reviews.values()].filter(
       (r) => r.agencyId === agencyId && r.requestId === requestId,
     );
+  }
+  async listAgencyReviews(agencyId: string) {
+    return [...this.reviews.values()].filter((r) => r.agencyId === agencyId);
   }
 
   async createRelease(r: ReleaseEntity) {

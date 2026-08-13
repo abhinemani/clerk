@@ -32,6 +32,7 @@ import {
   type ReviewDocVM,
 } from "../../../../../_components/ReviewRelease";
 import { MailboxImportPanel } from "../../../../../_components/MailboxImportPanel";
+import { placeLegalHoldFormAction } from "./actions";
 import {
   RequestWorkspace,
   type SuggestionVM,
@@ -91,7 +92,7 @@ export default async function RequestDetail({
   let assigneeId: string | null = null;
   // Retention: documents in this review set at risk of destruction, and the
   // holds protecting the rest. Spoliation is the failure this surfaces.
-  let retentionRisk: { filename: string; label: string }[] = [];
+  let retentionRisk: { documentId: string; filename: string; label: string }[] = [];
   let heldCount = 0;
   // Referral: who we can point this requester at, and where it already went.
   let referTargets: ReferTargetVM[] = [];
@@ -207,6 +208,7 @@ export default async function RequestDetail({
       const { documentsAtRetentionRisk, retentionStatus } = await import("@/domain/retention");
       const reviewSet = docs.filter((d) => d.classification === "internal");
       retentionRisk = documentsAtRetentionRisk(reviewSet, now).map(({ doc, status }) => ({
+        documentId: doc.id,
         filename: doc.filename ?? doc.id,
         label: status.label,
       }));
@@ -478,11 +480,25 @@ export default async function RequestDetail({
                 for destruction and not under hold. Destroying a record responsive to an open request
                 is spoliation — place a hold before the schedule runs.
               </p>
-              <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "grid", gap: 4 }}>
+              <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "grid", gap: 6 }}>
                 {retentionRisk.map((d) => (
-                  <li key={d.filename} style={{ fontSize: "0.82rem" }}>
-                    <span className="mono">{d.filename}</span>{" "}
+                  <li key={d.documentId} style={{ fontSize: "0.82rem", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span className="mono">{d.filename}</span>
                     <span className="muted">— {d.label}</span>
+                    {/* The named-human act: this staff member places the hold,
+                        audited onto this request's trail. */}
+                    <form
+                      action={placeLegalHoldFormAction.bind(null, {
+                        agencySlug: slug,
+                        requestId: id,
+                        documentId: d.documentId,
+                      })}
+                      style={{ marginLeft: "auto" }}
+                    >
+                      <button className="btn btn-sm" type="submit">
+                        Place hold
+                      </button>
+                    </form>
                   </li>
                 ))}
               </ul>
