@@ -1183,6 +1183,14 @@ label.lbl {
 }
 
 /* ---- pull quote (the operating principle) ---- */
+/* The operating principle as a LETTERHEAD moment: serif on the page's own
+   paper, gold kept to ornament (the outsize quote glyph + the rule). The
+   near-black treatment moved out 2026-08-13 — the closing CTA is the page's
+   one dark moment now. */
+.mk-quote-band {
+  background: linear-gradient(180deg, var(--surface-2), var(--paper));
+  border-block: 1px solid var(--border);
+}
 .mk-quote {
   max-width: 900px;
   margin-inline: auto;
@@ -1201,29 +1209,29 @@ label.lbl {
   line-height: 1.14;
   letter-spacing: -0.02em;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--ink);
 }
 .mk-quote-b {
   margin: 20px auto 0;
   max-width: 640px;
   font-size: 1.06rem;
   line-height: 1.62;
-  color: #c2cee1;
+  color: var(--ink-2);
 }
 
 /* ---- agent roster ---- */
 .mk-roster {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
-  margin-top: 42px;
+  gap: 14px;
+  margin-top: 32px;
 }
 .mk-agent {
   background: var(--surface);
   border: 1px solid var(--border);
   border-left: 3px solid var(--ai);
   border-radius: 0 var(--r-lg) var(--r-lg) 0;
-  padding: 24px 24px 22px;
+  padding: 18px 20px 16px;
   transition: box-shadow 0.18s ease;
 }
 .mk-agent:hover {
@@ -1240,8 +1248,8 @@ label.lbl {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 9px 0 0;
-  font-size: 1.14rem;
+  margin: 8px 0 0;
+  font-size: 1.05rem;
   letter-spacing: -0.01em;
 }
 .mk-agent h3 svg {
@@ -1249,18 +1257,18 @@ label.lbl {
   flex: none;
 }
 .mk-agent p {
-  margin-top: 10px;
-  font-size: 0.95rem;
-  line-height: 1.6;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  line-height: 1.55;
   color: var(--ink-2);
 }
 .mk-agent-human {
   display: flex;
   gap: 9px;
-  margin-top: 14px;
-  padding-top: 13px;
+  margin-top: 11px;
+  padding-top: 10px;
   border-top: 1px dashed var(--border-strong);
-  font-size: 0.89rem;
+  font-size: 0.84rem;
   line-height: 1.5;
   color: var(--ai);
   font-weight: 500;
@@ -1287,7 +1295,21 @@ label.lbl {
 .mk-note {
   margin-top: 16px;
   font-size: 0.86rem;
+  /* Theme token, not the old dark-hero grey — #8fa0ba was designed for a
+     near-black ground and fails AA on the light hero. */
+  color: var(--muted);
+}
+.mk-band-dark .mk-note {
   color: #8fa0ba;
+}
+.mk-band-dark .mk-note a {
+  color: #c8d2e2;
+  text-decoration: underline;
+}
+/* Eyebrows went accent (terracotta) for light grounds; on the dark band the
+   pinned gold is the readable choice. */
+.mk-band-dark .mk-eyebrow {
+  color: var(--gold);
 }
 
 /* ---- responsive ---- */

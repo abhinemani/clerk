@@ -45,7 +45,28 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, after the top-3 entry): NEW LOGO
+**NEWEST (2026-08-13, cloud session, after the logo): MARKETING PAGE
+RETHOUGHT (owner: "rethink and optimize, best judgment").** The light
+hero had left the below-fold reading heavier than the top; the page now
+keeps EXACTLY ONE dark moment (the closing CTA band) before the footer:
+- The "AI proposes. Staff disposes." quote moved off near-black onto a
+  light letterhead band (`.mk-quote-band`, surface-2→paper gradient,
+  serif ink headline, gold kept to ornament — the outsize quote glyph
+  and the rule).
+- Claim-then-evidence order: pillars now precede the stat strip.
+- The six-agent roster kept ALL six (completeness is the pitch) but each
+  `does` cut to its core sentence and the cards tightened (~20% less
+  vertical) — page went 5088→4893px even after adding a CTA line.
+- Closing band: "Explore the live demo" promoted to the second button
+  (the demo is the product's best salesperson); the mailto walkthrough
+  demoted to a text link. Contrast fixes that came with the move:
+  `.mk-note` was #8fa0ba (dark-hero grey, fails AA on light) → theme
+  muted with a dark-band override; dark-band eyebrows re-pinned to gold
+  (the global eyebrow went terracotta, which dies on near-black).
+Verified light + dark + 390px (zero overflow), full-page slices.
+848 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, cloud session, after the top-3 entry): NEW LOGO
 RENDER ADOPTED (owner supplied it in-chat: "replace the logo/header
 image, cropped as needed").** The drawing changed: gold data-dashes
 streaming into a document sheet — the prism triangle is retired. What
