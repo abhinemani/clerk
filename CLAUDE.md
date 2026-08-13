@@ -156,6 +156,15 @@ Types pass, tests pass (including any invariant tests you touched), migration
 included if schema changed, seed data updated if the demo should show it, and
 no TODOs that silently skip an invariant.
 
+**And the owner runbook stays true — REQUIRED on every push:** if the change
+adds/renames an env var, key, external service, account, or anything else
+that ever needs the OWNER's hands, `docs/laptop-setup.md` (and
+`.env.example`) must be updated in the same commit, in that file's format —
+every step a CLICK path or a PASTE block, never prose instructions to
+compose. No owner-facing change → no edit needed, but say so to yourself
+explicitly before pushing. If the owner says "laptop doc is stale," fixing
+it precedes your next push.
+
 ## Sessions & models (owner's workflow)
 Work happens in Claude Code cloud sessions started from the owner's phone,
 on whichever Claude model the session picks — HANDOFF.md is the context
@@ -164,8 +173,10 @@ long autonomous feature windows and anything touching invariants/release/
 redaction go to the strongest available model; well-scoped tasks are fine
 on a lighter one. Whatever the model: browser-verify UI work (HANDOFF
 gotcha 11), run the full offline suite before every commit, append a
-HANDOFF entry per build window, and push to main (standing permission,
-granted this repo's owner-of-one workflow). Report which model actually ran
+HANDOFF entry per build window, keep `docs/laptop-setup.md` true for any
+owner-facing change (see Definition of done — this is a push requirement,
+not a courtesy), and push to main (standing permission, granted this
+repo's owner-of-one workflow). Report which model actually ran
 if asked — never claim to be one you are not.
 
 ## When unsure

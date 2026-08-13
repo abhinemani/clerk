@@ -40,6 +40,11 @@ all sized for one window):
 (row store / tabular answers; needs real usage), Phase 5 agents
 (docs/agentic-horizon.md; needs real-user proof).
 
+**Before every push** (full contract in CLAUDE.md): offline suite green,
+HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
+commit if anything owner-facing changed (env vars, keys, services) — that
+file is copy/paste-only by design; keep it that way.
+
 **NEWEST (2026-08-14, later): CONNECTED-SOURCES E2E + A REAL GUARD IT
 SURFACED.** The twice-verified-by-hand loop is now `e2e/
 connectedSources.spec.ts`: sync → reviewed-mode hold → attest (consequence
