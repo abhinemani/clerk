@@ -63,9 +63,10 @@ happened and what to know:
 - Still OLD art, on purpose: `brandeis-lockup-light.png` (unreferenced —
   nav is pinned dark; README says regenerate before any light-ground use)
   and `favicon.ico` (ico needs a tool sharp lacks).
-- ⚠ FLAGGED TO OWNER: the render's tagline reads "AI FÓR PUBLIC RECÓRDS"
-  — stray accents baked into the artwork. Swap in a corrected render via
-  the README recipe when one exists.
+- ⚠ FLAGGED TO OWNER: the render's tagline carried stray accents. The
+  owner supplied a SECOND revision the same session (adopted, same
+  recipe): finer mark texture, lighter wordmark weight, "RECÓRDS" fixed —
+  "FÓR" still accented; swap in a corrected render when one exists.
 Browser-verified: marketing nav light+dark, 390px mark collapse, signup.
 848 tests, typecheck clean (no code paths changed beyond a comment).
 
