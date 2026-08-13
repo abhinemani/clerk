@@ -45,7 +45,38 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session): HOMEPAGE COPY PASS — sharper, punchier,
+**NEWEST (2026-08-13, cloud session): THREE MORE BANDS — filled in the long
+flat stretch of plain page ground the copy pass exposed.** Between "the
+problem" (tinted) and "tenancy" (tinted), three sections — "how we help",
+"what it costs", and "how the tech works" — sat directly on `.mk-page`'s
+bare `var(--paper)` with only the body's own very-subtle fixed aurora
+showing through; "what it costs" and "how the tech works" ran back-to-back
+with no divider at all. Owner: more visually interesting
+backgrounds/gradients. Added three new band classes in globals.css
+(`.mk-band-accent`, `.mk-band-plum`, `.mk-band-ai`), each tying its color to
+the section's own content instead of repeating one wash everywhere:
+- `.mk-band-accent` on "how we help" — terracotta, matching that section's
+  own accent-colored eyebrow.
+- `.mk-band-plum` on "what it costs" — plum again, on purpose: it continues
+  the "AI proposes, staff disposes" quote band directly above rather than
+  resetting the mood. Two radials (top-left + bottom-right) so the wash is
+  visible right at the section header, not just at the bottom edge — the
+  first pass only had the bottom one and read flatter than the other two
+  bands at a glance.
+- `.mk-band-ai` on "how the tech works" — the AI teal, same hue as the
+  roster cards' left rail and spark icon.
+- Testimonials picked up the existing `.mk-band-tint` (same treatment as
+  "the problem"/"tenancy") for a consistent structural pause rather than a
+  fourth new color.
+Each JSX section was restructured from a bare `<section className="wrap
+mk-section">` to the established band pattern — outer `<section
+className="mk-band-X">` wrapping an inner `<div className="wrap
+mk-section">` — matching how `.mk-band-tint`/`.mk-band-dark` already work.
+Verified in the running app (reduced-motion screenshot, per the copy-pass
+entry's gotcha-12 note). 848 tests, typecheck clean, CSS + JSX-structure
+only — no copy changed in this pass.
+
+**PREVIOUS (2026-08-13, cloud session): HOMEPAGE COPY PASS — sharper, punchier,
 same structure.** Owner ask: tighten the marketing homepage copy, same
 sections and claims, shorter sentences, less exposition. Every paragraph in
 `src/app/page.tsx` got a pass — hero lede, the three PROBLEMS, the three

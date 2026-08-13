@@ -277,29 +277,31 @@ export default function MarketingHome() {
         </section>
 
         {/* Section 2 — how we help. The claim comes first, the pillars carry it. */}
-        <section className="wrap mk-section">
-          <div className="mk-head">
-            <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
-              How we help
-            </span>
-            <h2 className="mk-h2">One system, three jobs your office is short-staffed for.</h2>
-            <p className="mk-sub">
-              Most records software only handles the middle job. The requests you never receive, and
-              the decisions you defend years later — that&apos;s where the real cost lives.
-            </p>
-          </div>
-          <div className="mk-pillars">
-            {PILLARS.map((p) => (
-              <article key={p.t} className="mk-pillar mk-reveal">
-                <span className="mk-pillar-n">{p.n}</span>
-                <span className="smallcaps" style={{ color: "var(--accent)", marginLeft: 10, fontSize: "0.85rem" }}>
-                  {p.t}
-                </span>
-                <h3>{p.h}</h3>
-                <div className="mk-pillar-rule" />
-                <p>{p.d}</p>
-              </article>
-            ))}
+        <section className="mk-band-accent">
+          <div className="wrap mk-section">
+            <div className="mk-head">
+              <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
+                How we help
+              </span>
+              <h2 className="mk-h2">One system, three jobs your office is short-staffed for.</h2>
+              <p className="mk-sub">
+                Most records software only handles the middle job. The requests you never receive, and
+                the decisions you defend years later — that&apos;s where the real cost lives.
+              </p>
+            </div>
+            <div className="mk-pillars">
+              {PILLARS.map((p) => (
+                <article key={p.t} className="mk-pillar mk-reveal">
+                  <span className="mk-pillar-n">{p.n}</span>
+                  <span className="smallcaps" style={{ color: "var(--accent)", marginLeft: 10, fontSize: "0.85rem" }}>
+                    {p.t}
+                  </span>
+                  <h3>{p.h}</h3>
+                  <div className="mk-pillar-rule" />
+                  <p>{p.d}</p>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -327,72 +329,76 @@ export default function MarketingHome() {
         {/* Section 3 — ROI. What a request costs isn't just the letter you
             write back; it's staff hours, a clock that runs regardless, and
             the risk of a decision nobody can reconstruct later. */}
-        <section className="wrap mk-section">
-          <div className="mk-head">
-            <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
-              What it costs
-            </span>
-            <h2 className="mk-h2">A request is never just the letter that comes back.</h2>
-            <p className="mk-sub">
-              It&apos;s staff hours pulled off other duties. A clock that runs whether or not
-              anyone&apos;s free to work on it. And if something&apos;s missed, a decision someone
-              has to defend later. That&apos;s what {branding.productName} takes off your desk.
-            </p>
-          </div>
-          <div className="mk-stats mk-reveal">
-            {ROI_STATS.map((s) => (
-              <div key={s.n} className="mk-stat">
-                <div className="mk-stat-n">{s.n}</div>
-                <div className="mk-stat-l">{s.l}</div>
-                <div className="mk-stat-sub">{s.s}</div>
-              </div>
-            ))}
+        <section className="mk-band-plum">
+          <div className="wrap mk-section">
+            <div className="mk-head">
+              <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
+                What it costs
+              </span>
+              <h2 className="mk-h2">A request is never just the letter that comes back.</h2>
+              <p className="mk-sub">
+                It&apos;s staff hours pulled off other duties. A clock that runs whether or not
+                anyone&apos;s free to work on it. And if something&apos;s missed, a decision someone
+                has to defend later. That&apos;s what {branding.productName} takes off your desk.
+              </p>
+            </div>
+            <div className="mk-stats mk-reveal">
+              {ROI_STATS.map((s) => (
+                <div key={s.n} className="mk-stat">
+                  <div className="mk-stat-n">{s.n}</div>
+                  <div className="mk-stat-l">{s.l}</div>
+                  <div className="mk-stat-sub">{s.s}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
         {/* Section 4 — how the tech works. Proof strip, then the roster, then
             the tenancy/statute mechanics underneath both. */}
-        <section className="wrap mk-section">
-          <div className="mk-head-center">
-            <span className="mk-eyebrow" style={{ color: "var(--ai)" }}>
-              Under the hood
-            </span>
-            <h2 className="mk-h2">How the tech works</h2>
-            <p className="mk-sub">
-              {branding.productName} puts an AI worker at each stage of the request lifecycle. Each
-              one drafts. A named staffer decides. Here&apos;s the whole roster — no fine print.
+        <section className="mk-band-ai">
+          <div className="wrap mk-section">
+            <div className="mk-head-center">
+              <span className="mk-eyebrow" style={{ color: "var(--ai)" }}>
+                Under the hood
+              </span>
+              <h2 className="mk-h2">How the tech works</h2>
+              <p className="mk-sub">
+                {branding.productName} puts an AI worker at each stage of the request lifecycle. Each
+                one drafts. A named staffer decides. Here&apos;s the whole roster — no fine print.
+              </p>
+            </div>
+            <div className="mk-stats mk-reveal" style={{ marginTop: 44, marginBottom: 44 }}>
+              {STATS.map((s) => (
+                <div key={s.n} className="mk-stat">
+                  <div className="mk-stat-n">{s.n}</div>
+                  <div className="mk-stat-l">{s.l}</div>
+                  <div className="mk-stat-sub">{s.s}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mk-roster">
+              {AGENTS.map((a, i) => (
+                <article key={a.name} className="mk-agent mk-reveal">
+                  <span className="mk-agent-num" aria-hidden>
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="mk-agent-stage">{a.stage}</span>
+                  <h3>
+                    <SparkIcon />
+                    {a.name}
+                  </h3>
+                  <p>{a.does}</p>
+                  <p className="mk-agent-human">{a.human}</p>
+                </article>
+              ))}
+            </div>
+            <p className="mk-sub" style={{ textAlign: "center", maxWidth: 680, marginInline: "auto", marginTop: 26 }}>
+              Every AI action logs to the same append-only record as human actions: model, prompt
+              version, outcome. No AI key configured? {branding.productName} still runs — the workers
+              stand down, the workflow doesn&apos;t.
             </p>
           </div>
-          <div className="mk-stats mk-reveal" style={{ marginTop: 44, marginBottom: 44 }}>
-            {STATS.map((s) => (
-              <div key={s.n} className="mk-stat">
-                <div className="mk-stat-n">{s.n}</div>
-                <div className="mk-stat-l">{s.l}</div>
-                <div className="mk-stat-sub">{s.s}</div>
-              </div>
-            ))}
-          </div>
-          <div className="mk-roster">
-            {AGENTS.map((a, i) => (
-              <article key={a.name} className="mk-agent mk-reveal">
-                <span className="mk-agent-num" aria-hidden>
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="mk-agent-stage">{a.stage}</span>
-                <h3>
-                  <SparkIcon />
-                  {a.name}
-                </h3>
-                <p>{a.does}</p>
-                <p className="mk-agent-human">{a.human}</p>
-              </article>
-            ))}
-          </div>
-          <p className="mk-sub" style={{ textAlign: "center", maxWidth: 680, marginInline: "auto", marginTop: 26 }}>
-            Every AI action logs to the same append-only record as human actions: model, prompt
-            version, outcome. No AI key configured? {branding.productName} still runs — the workers
-            stand down, the workflow doesn&apos;t.
-          </p>
         </section>
 
         {/* Multi-tenancy + statute */}
@@ -438,27 +444,29 @@ export default function MarketingHome() {
         {/* Section 5 — what we're hearing. Labeled illustrative: the product
             has no public customers yet, so nothing here is presented as a
             real quote. Swap for the real thing once there is a real thing. */}
-        <section className="wrap mk-section">
-          <div className="mk-head-center">
-            <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
-              What we&apos;re hearing
-            </span>
-            <h2 className="mk-h2">The conversations that shaped this</h2>
-            <p className="mk-sub">
-              Illustrative — drawn from conversations with records offices during development, not
-              customer quotes yet. Real ones replace these as they come in.
-            </p>
-          </div>
-          <div className="mk-testimonials mk-reveal">
-            {TESTIMONIALS.map((t) => (
-              <article key={t.by} className="mk-testimonial">
-                <div className="mk-testimonial-mark" aria-hidden>
-                  &ldquo;
-                </div>
-                <p>{t.q}</p>
-                <span className="mk-testimonial-by">{t.by}</span>
-              </article>
-            ))}
+        <section className="mk-band-tint">
+          <div className="wrap mk-section">
+            <div className="mk-head-center">
+              <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
+                What we&apos;re hearing
+              </span>
+              <h2 className="mk-h2">The conversations that shaped this</h2>
+              <p className="mk-sub">
+                Illustrative — drawn from conversations with records offices during development, not
+                customer quotes yet. Real ones replace these as they come in.
+              </p>
+            </div>
+            <div className="mk-testimonials mk-reveal">
+              {TESTIMONIALS.map((t) => (
+                <article key={t.by} className="mk-testimonial">
+                  <div className="mk-testimonial-mark" aria-hidden>
+                    &ldquo;
+                  </div>
+                  <p>{t.q}</p>
+                  <span className="mk-testimonial-by">{t.by}</span>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
 
