@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { branding } from "@/config/branding";
-import { Seal, SparkIcon } from "./_components/ui";
+import { BrandLockup, BrandMark, SparkIcon } from "./_components/ui";
 
 /**
  * The marketing site — Brandeis the product, pitched to governments. Distinct
@@ -89,11 +89,8 @@ export default function MarketingHome() {
           Wordmark is the seal + name only: no tagline lockup (owner call). */}
       <div className="nav mk-topnav">
         <div className="wrap nav-inner">
-          <Link href="/" className="brand">
-            <Seal size={30} />
-            <span className="brand-name">
-              <span className="brand-agency">{branding.productName}</span>
-            </span>
+          <Link href="/" className="brand" aria-label={branding.productName}>
+            <BrandLockup size={26} tagline={false} idPrefix="nav" />
           </Link>
           <nav className="nav-links" aria-label="Primary">
             <Link href="/riverton" className="nav-link">
@@ -112,9 +109,6 @@ export default function MarketingHome() {
       <main id="main">
         {/* Hero — the product wears the flag: deep navy, gold aurora, seal watermark */}
         <section className="mk-hero">
-          <div className="mk-hero-seal" aria-hidden>
-            <Seal size={520} />
-          </div>
           <div className="wrap">
             <div className="mk-hero-grid">
             <div className="mk-hero-inner">
@@ -295,7 +289,7 @@ export default function MarketingHome() {
         <section className="mk-band-tint">
           <div className="wrap mk-section">
             <div className="mk-head-center">
-              <Seal size={54} />
+              <BrandMark size={40} idPrefix="ten" />
               <h2 className="mk-h2" style={{ marginTop: 16 }}>
                 One platform. Every agency its own house.
               </h2>
@@ -349,7 +343,7 @@ export default function MarketingHome() {
                   Create your records office
                 </Link>
                 <a
-                  href={`mailto:hello@brandeis.example?subject=${encodeURIComponent(`${branding.productName} demo`)}`}
+                  href={`mailto:hello@brandeis.us?subject=${encodeURIComponent(`${branding.productName} demo`)}`}
                   className="btn btn-outline-light"
                   style={{ paddingInline: 24, paddingBlock: 12 }}
                 >
@@ -379,7 +373,7 @@ export default function MarketingHome() {
             </div>
             <div className="mk-foot-col">
               <h4>Contact</h4>
-              <a href="mailto:hello@brandeis.example">hello@brandeis.example</a>
+              <a href="mailto:hello@brandeis.us">hello@brandeis.us</a>
             </div>
           </div>
           <div className="gov-footer-bottom">

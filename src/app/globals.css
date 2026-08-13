@@ -5,36 +5,53 @@
    ========================================================================= */
 
 :root {
-  /* Warm-paper neutrals */
-  --paper: #fbfaf7;
+  /* BRAND PALETTE (2026-08-13 board). Six colors, and the neutral steps
+     between them are interpolations of the same two: 0F141A ink, 2A313C
+     slate, F5C75E gold, F7F7F5 paper, C46A4A terracotta, 4B2A45 plum.
+
+     This SUPERSEDES the #990000 civic red. That color was owner-specified on
+     2026-07-30 and pinned in CLAUDE.md; the board replaces it, and CLAUDE.md
+     has been updated to match. There is no red in the brand now. */
+  --paper: #f7f7f5;
   --surface: #ffffff;
-  --surface-2: #f4f1ea;
-  --surface-3: #ece7dc;
-  --border: #e6e1d6;
-  --border-strong: #d7d0c1;
+  --surface-2: #efefec;
+  --surface-3: #e5e5e1;
+  --border: #dededa;
+  --border-strong: #c7c7c1;
 
-  --ink: #1c1e21;
-  --ink-2: #4c5157;
-  --muted: #797f88;
+  --ink: #0f141a;
+  --ink-2: #2a313c;
+  --muted: #5f6672;
 
-  /* The civic triad: navy (structure), gold (ornament), maroon (accent). */
-  --primary: #1e3a5f;
-  --primary-deep: #142a45;
-  --primary-hover: #274b78;
+  /* Slate carries structure where navy used to. 12.2:1 on paper. */
+  --primary: #2a313c;
+  --primary-deep: #0f141a;
+  --primary-hover: #3d4653;
   --primary-ink: #ffffff;
-  --primary-tint: #eef2f8;
-  /* Civic red — #990000 is the owner-chosen brand red (2026-07-30).
-     --maroon is tuned for TEXT on the mode's background; --maroon-btn is the
-     fill for solid controls (white ink on it in both modes). #990000 passes
-     8.9:1 on light backgrounds and as a button fill under white ink. */
-  --maroon: #990000;
-  --maroon-btn: #990000;
-  --maroon-tint: #f9eceb;
-  --accent: #990000;
-  /* Decorative gold — seals, rules, flourishes only (never body text) */
-  --gold: #c9a227;
+  --primary-tint: #eaebee;
+  /* Terracotta is the accent that #990000 used to be. The board's C46A4A is
+     3.6:1 on paper — short of AA — so light mode uses the same hue darkened
+     to the floor: #9c4a2c is 5.7:1 as text and 6.1:1 under white ink as a
+     button fill. Hue is held constant across modes; lightness is the only
+     lever, exactly as the red rule worked. */
+  --maroon: #9c4a2c;
+  --maroon-btn: #9c4a2c;
+  --maroon-tint: #f7efeb;
+  --accent: #9c4a2c;
+  /* Gold is ORNAMENT — marks, rules, flourishes, and text on dark grounds
+     only. It is 1.5:1 on paper: never body text in light mode. */
+  --gold: #f5c75e;
+  /* Plum: deep surface accent (the board's app icon ground). White on it is
+     12.2:1, so it is safe as a solid fill in either mode. */
+  --plum: #4b2a45;
+  /* The mark's STRUCTURE (page outline, rule lines). Gold is 1.5:1 on paper,
+     so on light grounds the structure goes slate and only the light itself
+     stays gold. On dark it is gold throughout, as the board draws it. */
+  --mark-structure: #2a313c;
 
-  /* AI surfaces — a distinct calm teal, used sparingly */
+  /* AI surfaces — a calm teal. NOT on the brand board: status colors
+     (overdue/due/ok) and the AI hue are FUNCTIONAL, not brand, and the board
+     does not speak to them. They stay as tuned. */
   --ai: #0e6b84;
   --ai-tint: #e9f7fb;
 
@@ -73,34 +90,35 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #15171b;
-    --surface: #1c1f25;
-    --surface-2: #23272e;
-    --surface-3: #2a2f38;
-    --border: #2d323b;
-    --border-strong: #3a4049;
+    /* The board is a dark-first identity: these ARE its colors, undiluted. */
+    --paper: #0f141a;
+    --surface: #171d26;
+    --surface-2: #2a313c;
+    --surface-3: #353d4a;
+    --border: #2a313c;
+    --border-strong: #3e4754;
 
-    --ink: #eceef1;
-    --ink-2: #b7bcc4;
-    --muted: #8a909a;
+    --ink: #f7f7f5;
+    --ink-2: #c2c8d1;
+    --muted: #8a929e;
 
-    --primary: #4d80c4;
-    --primary-deep: #101c2e;
-    --primary-hover: #6295d6;
-    --primary-ink: #0f1319;
-    --primary-tint: #1f2a3a;
-    /* Dark-mode red: the brand red #990000 itself is 2.0:1 on dark paper —
-       unusable as text. Its faithful legible derivative keeps the EXACT hue
-       (0°) and full saturation, lightened only to the AA floor: #ff4d4d
-       (5.5:1 paper, 4.6:1 surface-2). Pink is what happens when a lightened
-       red loses saturation — never fix contrast by desaturating or
-       over-lightening. Buttons keep true #990000: white ink on it is 8.9:1
-       on any background. */
-    --maroon: #ff4d4d;
-    --maroon-btn: #990000;
-    --maroon-tint: #2c1a1e;
-    --accent: #ff4d4d;
-    --gold: #d8b13c;
+    --primary: #93a8c0;
+    --primary-deep: #0b0f14;
+    --primary-hover: #adbed2;
+    --primary-ink: #0f141a;
+    --primary-tint: #202834;
+    /* Dark mode gets the board's terracotta at full strength — C46A4A is
+       4.9:1 on 0F141A, already clear of AA, so it needs no lightening. Do
+       NOT lighten it further: this hue turns salmon the moment it loses
+       saturation, the same failure the old red had toward pink. The button
+       fill stays the darker #9c4a2c so white ink holds 6.1:1 anywhere. */
+    --maroon: #c46a4a;
+    --maroon-btn: #9c4a2c;
+    --maroon-tint: #2a1a14;
+    --accent: #c46a4a;
+    --gold: #f5c75e;
+    --plum: #4b2a45;
+    --mark-structure: #f5c75e;
 
     --ai: #3fb6d3;
     --ai-tint: #14262c;
@@ -829,31 +847,30 @@ body:has(.mk-page),
 .mk-page {
   color-scheme: dark;
 
-  --paper: #15171b;
-  --surface: #1c1f25;
-  --surface-2: #23272e;
-  --surface-3: #2a2f38;
-  --border: #2d323b;
-  --border-strong: #3a4049;
+  --paper: #0f141a;
+  --surface: #171d26;
+  --surface-2: #2a313c;
+  --surface-3: #353d4a;
+  --border: #2a313c;
+  --border-strong: #3e4754;
 
-  --ink: #eceef1;
-  --ink-2: #b7bcc4;
-  --muted: #8a909a;
+  --ink: #f7f7f5;
+  --ink-2: #c2c8d1;
+  --muted: #8a929e;
 
-  --primary: #4d80c4;
-  --primary-deep: #101c2e;
-  --primary-hover: #6295d6;
-  --primary-ink: #0f1319;
-  --primary-tint: #1f2a3a;
+  --primary: #93a8c0;
+  --primary-deep: #0b0f14;
+  --primary-hover: #adbed2;
+  --primary-ink: #0f141a;
+  --primary-tint: #202834;
 
-  --maroon: #ff4d4d;
-  --maroon-btn: #990000;
-  --maroon-tint: #2c1a1e;
-  --accent: #ff4d4d;
-  --gold: #d8b13c;
-
-  --ai: #3fb6d3;
-  --ai-tint: #14262c;
+  --maroon: #c46a4a;
+  --maroon-btn: #9c4a2c;
+  --maroon-tint: #2a1a14;
+  --accent: #c46a4a;
+  --gold: #f5c75e;
+  --plum: #4b2a45;
+  --mark-structure: #f5c75e;
 
   --overdue: #f65a4c;
   --due: #f5b855;
@@ -891,9 +908,9 @@ body:has(.mk-page),
   color: #e8ecf3;
   border-bottom: 3px solid var(--gold);
   background:
-    radial-gradient(ellipse 68% 56% at 16% -12%, color-mix(in srgb, var(--gold) 22%, transparent), transparent 62%),
-    radial-gradient(ellipse 58% 52% at 90% 8%, rgba(153, 0, 0, 0.34), transparent 62%),
-    linear-gradient(158deg, #0e2036 0%, var(--primary-deep) 44%, #1c3759 100%);
+    radial-gradient(ellipse 66% 54% at 14% -12%, color-mix(in srgb, var(--gold) 24%, transparent), transparent 62%),
+    radial-gradient(ellipse 58% 52% at 88% 6%, color-mix(in srgb, var(--plum) 78%, transparent), transparent 64%),
+    linear-gradient(158deg, #0b0f14 0%, var(--paper) 46%, #202834 100%);
 }
 .mk-hero::before {
   /* hatch layer, kept off the text */
@@ -916,9 +933,9 @@ body:has(.mk-page),
   z-index: -1;
   background: linear-gradient(
     100deg,
-    rgba(10, 22, 38, 0.86) 0%,
-    rgba(10, 22, 38, 0.58) 46%,
-    rgba(10, 22, 38, 0.12) 100%
+    rgba(11, 15, 20, 0.88) 0%,
+    rgba(11, 15, 20, 0.6) 46%,
+    rgba(11, 15, 20, 0.12) 100%
   );
   pointer-events: none;
 }
@@ -1014,8 +1031,8 @@ body:has(.mk-page),
   overflow: hidden;
   color: #e8ecf3;
   background:
-    radial-gradient(ellipse 60% 70% at 82% 20%, color-mix(in srgb, var(--gold) 13%, transparent), transparent 64%),
-    linear-gradient(160deg, var(--primary-deep) 0%, #1b3457 100%);
+    radial-gradient(ellipse 60% 70% at 82% 20%, color-mix(in srgb, var(--gold) 14%, transparent), transparent 64%),
+    linear-gradient(160deg, var(--primary-deep) 0%, #232b38 100%);
   border-block: 3px solid var(--gold);
 }
 .mk-band-dark::before {
@@ -1370,7 +1387,7 @@ body:has(.mk-page),
   position: relative;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--r-lg);
-  background: linear-gradient(180deg, rgba(28, 36, 50, 0.92), rgba(18, 24, 35, 0.94));
+  background: linear-gradient(180deg, rgba(42, 49, 60, 0.92), rgba(15, 20, 26, 0.94));
   box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(10px);
   overflow: hidden;
@@ -1550,4 +1567,45 @@ body:has(.mk-page),
   .mk-hero-inner {
     max-width: none;
   }
+}
+
+/* =========================================================================
+   BRAND LOCKUP — mark + wordmark + tagline, per the 2026-08-13 board.
+
+   The board's wordmark is a light geometric sans at very wide tracking. We
+   approximate it with Public Sans at 300 and 0.22em rather than adding a
+   webfont: the product self-hosts its type and stays offline-capable, and a
+   new face would be the first external font dependency in the stack. If the
+   real face is licensed, swapping it is one --font-brand declaration.
+   ========================================================================= */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.brand-wordmark {
+  display: block;
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: var(--ink);
+  /* the tracking adds a trailing gap; pull it back so the lockup optically centers */
+  margin-right: -0.22em;
+}
+.brand-tagline {
+  display: block;
+  margin-top: 7px;
+  margin-right: -0.18em;
+  font-size: 0.62em;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: var(--gold);
+}
+.brand-lockup-stack {
+  flex-direction: column;
+  gap: 18px;
+  text-align: center;
 }

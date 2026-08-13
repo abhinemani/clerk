@@ -5,8 +5,9 @@
  */
 export const branding = {
   productName: "Brandeis",
-  tagline: "An AI-native public records request platform",
-  supportEmail: "support@brandeis.example",
+  tagline: "AI for public records",
+  supportEmail: "support@brandeis.us",
+  domain: "brandeis.us",
 } as const;
 
 export type Branding = typeof branding;

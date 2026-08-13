@@ -4,6 +4,29 @@ Product name is **Brandeis** (lives in `src/config/branding.ts`). It was
 Clerk, briefly Holmes on 2026-08-05, and settled as Brandeis on 2026-08-13
 with the naming swept codebase-wide. Title case is deliberate.
 
+## Brand (owner board, 2026-08-13) — this is the identity
+Six colors, and every neutral step is an interpolation of them:
+`0F141A` ink · `2A313C` slate · `F5C75E` gold · `F7F7F5` paper ·
+`C46A4A` terracotta · `4B2A45` plum. Tokens live in `globals.css`.
+
+**The `#990000` civic red is retired.** It was owner-specified on 2026-07-30
+and this file used to pin it; the board replaces it and there is no red in
+the brand now. The accent is terracotta, held at one hue across modes and
+moved only in lightness — `#9c4a2c` on light (5.7:1 text, 6.1:1 under white),
+the board's `#c46a4a` on dark (4.9:1). Do not lighten the dark one further:
+this hue goes salmon when it loses saturation, the same way the old red went
+pink. Gold is **ornament** — marks, rules, and text on dark grounds only; it
+is 1.5:1 on paper.
+
+Status colors (overdue/due/ok) and the AI teal are **functional, not brand**.
+The board does not speak to them and they stay as tuned.
+
+The mark is the **prism** (`<BrandMark>`): a ray refracts into a document —
+sunlight becoming understanding. It is hand-authored SVG on brand tokens, no
+binary asset. `<Seal>` is a different thing and is NOT interchangeable: it
+stands in for a **government's own** seal on tenant portals. Never put the
+product mark where an agency's seal belongs.
+
 Two deliberate exceptions — do NOT "fix" either:
 - **"clerk" as a job title stays.** City Clerk, Clerk-Recorder, "the records
   clerk", `clerk@yourcity.gov` — those are government roles, not the product.

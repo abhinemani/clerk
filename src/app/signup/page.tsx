@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { branding } from "@/config/branding";
+import { BrandLockup } from "../_components/ui";
 import { stateProfiles } from "@/statute/profiles";
 import { SignupForm } from "../_components/SignupForm";
 
@@ -25,11 +26,8 @@ export default function SignupPage() {
     <>
       <div className="nav" style={{ position: "static" }}>
         <div className="wrap nav-inner">
-          <Link href="/" className="brand">
-            <span className="brand-name">
-              <span className="brand-agency">{branding.productName}</span>
-              <span className="brand-dept">Public records, handled</span>
-            </span>
+          <Link href="/" className="brand" aria-label={branding.productName}>
+            <BrandLockup size={26} tagline={false} idPrefix="su" />
           </Link>
           <nav className="nav-links" aria-label="Primary">
             <Link href="/riverton" className="nav-link">

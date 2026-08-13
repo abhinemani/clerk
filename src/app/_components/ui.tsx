@@ -69,6 +69,143 @@ export function Seal({ size = 34, label }: { size?: number; label?: string }) {
   );
 }
 
+/**
+ * BRANDEIS PRODUCT MARK — the prism.
+ *
+ * A ray of sunlight enters from the left, strikes a prism, and refracts into
+ * a stream of data that resolves into a document. "Sunlight becomes
+ * understanding": the reason the product is named for the justice who wrote
+ * that sunlight is the best disinfectant.
+ *
+ * Hand-authored SVG on brand tokens, so it inherits light/dark, scales from a
+ * 24px favicon to a hero watermark without artifacts, and adds no binary
+ * asset to the bundle. `idPrefix` keeps the gradient ids unique when more
+ * than one mark is on a page.
+ *
+ * NOT the same thing as <Seal>. Seal stands in for a GOVERNMENT's own seal on
+ * tenant portals; this stands for the product. Never swap one for the other.
+ */
+export function BrandMark({
+  size = 34,
+  label,
+  idPrefix = "bm",
+  detail,
+}: {
+  size?: number;
+  label?: string;
+  idPrefix?: string;
+  /** Defaults by size: the 7-ray fan and the page's rule lines turn to mush
+   *  below ~36px, so small marks drop them instead of shipping a smudge. */
+  detail?: "full" | "compact";
+}) {
+  const compact = (detail ?? (size < 36 ? "compact" : "full")) === "compact";
+  const beam = `${idPrefix}-beam`;
+  const glow = `${idPrefix}-glow`;
+  const fan = `${idPrefix}-fan`;
+  return (
+    <svg
+      width={size * (128 / 64)}
+      height={size}
+      viewBox="0 0 128 64"
+      fill="none"
+      role={label ? "img" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+      style={{ flex: "none", overflow: "visible" }}
+    >
+      <defs>
+        <linearGradient id={beam} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="var(--gold)" stopOpacity="0" />
+          <stop offset="0.55" stopColor="var(--gold)" stopOpacity="0.55" />
+          <stop offset="1" stopColor="var(--gold)" stopOpacity="1" />
+        </linearGradient>
+        <radialGradient id={glow}>
+          <stop offset="0" stopColor="var(--gold)" stopOpacity="0.95" />
+          <stop offset="1" stopColor="var(--gold)" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id={fan} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="var(--gold)" stopOpacity="0.95" />
+          <stop offset="1" stopColor="var(--gold)" stopOpacity="0.35" />
+        </linearGradient>
+      </defs>
+
+      {/* incoming ray */}
+      <path d="M0 32H30" stroke={`url(#${beam})`} strokeWidth="1.6" strokeLinecap="round" />
+      {/* the strike */}
+      <circle cx="30" cy="32" r="11" fill={`url(#${glow})`} />
+      <circle cx="30" cy="32" r="2.1" fill="var(--gold)" />
+
+      {/* the prism: apex at the point of incidence, base to the right */}
+      <path
+        d="M30 32 58 5 58 59Z"
+        stroke="var(--ink)"
+        strokeOpacity="0.55"
+        strokeWidth="1.15"
+        strokeLinejoin="round"
+      />
+
+      {/* refracted fan — solid at the prism, resolving into data further out */}
+      <g stroke={`url(#${fan})`} strokeWidth="1.15" strokeLinecap="round">
+        <path d="M33 32H92" />
+        <path d="M33 32 92 20" strokeDasharray="14 4 7 5" />
+        <path d="M33 32 92 44" strokeDasharray="14 4 7 5" />
+        {!compact && (
+          <>
+            <path d="M33 32 88 12" strokeDasharray="10 5 5 6" />
+            <path d="M33 32 88 52" strokeDasharray="10 5 5 6" />
+            <path d="M33 32 84 7" strokeDasharray="6 6 4 7" opacity="0.75" />
+            <path d="M33 32 84 57" strokeDasharray="6 6 4 7" opacity="0.75" />
+          </>
+        )}
+      </g>
+
+      {/* the record the light resolves into: a page with a turned corner */}
+      <path
+        d="M92 12h20l8 8v32H92z"
+        stroke="var(--mark-structure)"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path d="M112 12v8h8" stroke="var(--mark-structure)" strokeWidth="1.4" strokeLinejoin="round" />
+      {!compact && (
+        <g stroke="var(--mark-structure)" strokeWidth="1.3" strokeLinecap="round" opacity="0.85">
+          <path d="M98 30h11" />
+          <path d="M98 37h16" />
+          <path d="M98 44h8" />
+        </g>
+      )}
+    </svg>
+  );
+}
+
+/**
+ * The full product lockup: prism + BRANDEIS + optional tagline. Horizontal by
+ * default, stacked for hero use — the two arrangements the board specifies.
+ */
+export function BrandLockup({
+  size = 30,
+  tagline = true,
+  stack = false,
+  idPrefix = "lk",
+}: {
+  size?: number;
+  tagline?: boolean;
+  stack?: boolean;
+  idPrefix?: string;
+}) {
+  return (
+    <span className={`brand-lockup${stack ? " brand-lockup-stack" : ""}`}>
+      <BrandMark size={size} idPrefix={idPrefix} />
+      <span>
+        <span className="brand-wordmark" style={{ fontSize: size * 0.72 }}>
+          Brandeis
+        </span>
+        {tagline && <span className="brand-tagline">AI for public records</span>}
+      </span>
+    </span>
+  );
+}
+
 /** Small classical-building glyph for the official-website banner. */
 export function CivicIcon() {
   return (
