@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { branding } from "@/config/branding";
-import { BrandMark } from "../_components/ui";
+import { BrandMarkRaster } from "../_components/ui";
 
 export const metadata: Metadata = {
   title: `${branding.productName} · Platform console`,
@@ -23,7 +23,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className="nav">
         <div className="wrap nav-inner">
           <Link href="/admin" className="brand" aria-label={`${branding.productName} platform console`}>
-            <BrandMark size={36} idPrefix="adm" />
+            <BrandMarkRaster />
             <span className="brand-name">
               <span className="brand-agency">{branding.productName}</span>
               <span className="brand-dept">All agencies</span>

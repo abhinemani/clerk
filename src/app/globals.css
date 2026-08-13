@@ -217,13 +217,22 @@ select {
   border-radius: 4px;
 }
 
-/* Stately serif display — the official-document register (spec §8). */
+/* DISPLAY TYPE IS SANS.
+   The serif was chosen for the retired civic identity — navy, seal,
+   letterhead — and it now sits under a geometric techno wordmark, which reads
+   as two brands stacked. Public Sans carries display instead: it is the U.S.
+   government's own typeface (USWDS), so this is MORE standards-aligned than
+   the serif was, and it shares a register with the wordmark.
+
+   The serif is not gone, it is reserved: it now marks actual DOCUMENT
+   content — a rendered response letter, an agency's own name — where it
+   reads as an official record rather than as decoration. See `.serif`. */
 h1,
 h2 {
-  font-family: var(--font-serif);
-  line-height: 1.18;
-  letter-spacing: 0;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  line-height: 1.14;
+  letter-spacing: -0.022em;
+  font-weight: 650;
   text-wrap: balance;
 }
 h3 {
@@ -1086,7 +1095,7 @@ label.lbl {
   padding: 26px 22px;
 }
 .mk-stat-n {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: clamp(1.9rem, 3.4vw, 2.7rem);
   line-height: 1;
   font-weight: 600;
@@ -1121,7 +1130,7 @@ label.lbl {
   box-shadow: 0 22px 52px -20px rgba(30, 58, 95, 0.42);
 }
 .mk-pillar-n {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--gold);
@@ -1152,7 +1161,7 @@ label.lbl {
   text-align: center;
 }
 .mk-quote-mark {
-  font-family: var(--font-serif);
+  font-family: var(--font-serif); /* the quote glyph itself stays serif */
   font-size: 3.4rem;
   line-height: 1;
   color: var(--gold);
@@ -1441,7 +1450,8 @@ label.lbl {
 }
 .mk-panel-cite {
   margin-top: 10px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
   font-size: 1.1rem;
   line-height: 1.35;
   color: #ffffff;
@@ -1585,7 +1595,8 @@ label.lbl {
 /* One number sizes the whole lockup: the mark's height and the wordmark
    scale together off --lockup, so the header can grow without anything
    drifting out of proportion. */
-.brand-lockup > svg {
+.brand-lockup > svg,
+.brand-lockup > .brand-raster img {
   height: var(--lockup);
   width: auto;
 }
@@ -1691,4 +1702,11 @@ label.lbl {
   --mark-structure: #f5c75e;
   --wordmark: #f7f7f5;
   --wordmark-sub: #f5c75e;
+}
+
+/* The console header carries the artwork at a fixed height (it has no
+   --lockup wrapper). Same rule: header-size mark = the approved raster. */
+.nav .brand > .brand-raster img {
+  height: 34px;
+  width: auto;
 }

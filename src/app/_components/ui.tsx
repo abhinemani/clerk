@@ -252,6 +252,29 @@ export function BrandMark({
 }
 
 /**
+ * The approved mark as ARTWORK, for headers.
+ *
+ * Two revisions swapped by theme, which is correct here because a nav's
+ * ground follows the visitor — unlike the footer, whose ground is dark in
+ * both themes and therefore pins one revision. Cropped from the owner's
+ * lockups and downscaled to 132px tall, covering a 40px slot at 3x.
+ *
+ * Use this wherever the mark appears at header size: it is the approved
+ * artwork, and one mark everywhere beats two drawings of the same idea.
+ * <BrandMark> (SVG) stays for standalone/decorative placements, where it can
+ * run larger and recolour from tokens.
+ */
+export function BrandMarkRaster({ alt = "" }: { alt?: string }) {
+  return (
+    <picture className="brand-raster">
+      <source srcSet="/brand/mark-dark.png" media="(prefers-color-scheme: dark)" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/mark-light.png" alt={alt} />
+    </picture>
+  );
+}
+
+/**
  * The full product lockup: prism + BRANDEIS + optional tagline. Horizontal by
  * default, stacked for hero use — the two arrangements the board specifies.
  */
@@ -275,7 +298,7 @@ export function BrandLockup({
   } as React.CSSProperties;
   return (
     <span className={`brand-lockup${stack ? " brand-lockup-stack" : ""}`} style={style}>
-      <BrandMark size={size} idPrefix={idPrefix} />
+      <BrandMarkRaster />
       <span>
         <span className="brand-wordmark">Brandeis</span>
         {tagline && <span className="brand-tagline">AI for public records</span>}
