@@ -120,9 +120,9 @@ export default function MarketingHome() {
                 For city clerks, county counsel, and records officers
               </span>
               <h1 className="mk-display">
-                Every response drafted for you.
+                FOIA requests are growing faster than your staff.
                 <br />
-                <span className="mk-accent">Every decision still yours.</span>
+                <span className="mk-accent">We&apos;re here to help.</span>
               </h1>
               <hr className="letterhead-rule" aria-hidden />
               <p className="mk-lede">
