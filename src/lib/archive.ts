@@ -32,10 +32,18 @@ export interface ArchiveItem {
    *  aliases, docs/answer-first.md). Searchable, and the reason the archive
    *  can say "someone asked this in March". */
   askedAs: string[];
+  /**
+   * Present when the record is a connected-source dataset slice
+   * (docs/connected-sources.md): the requester-facing card states where the
+   * data comes from and how fresh it is, flagged as an automated answer
+   * from the city's public data — not a records determination.
+   */
+  connectedSource: { sourceName: string; dataset: string; period: string; syncedAt: string } | null;
 }
 
 function toArchiveItem(d: DocumentEntity, downloadUrl: string | null): ArchiveItem {
   const meta = readDocumentMeta(d);
+  const stamp = meta.connectedSource;
   return {
     id: d.id,
     title: meta.title ?? d.filename ?? "Released record",
@@ -46,6 +54,14 @@ function toArchiveItem(d: DocumentEntity, downloadUrl: string | null): ArchiveIt
     downloadUrl,
     recordDate: meta.recordDate ?? meta.releasedOn ?? d.createdAt.toISOString().slice(0, 10),
     askedAs: meta.askedAs ?? [],
+    connectedSource: stamp
+      ? {
+          sourceName: stamp.sourceName,
+          dataset: stamp.dataset,
+          period: stamp.period,
+          syncedAt: stamp.syncedAt,
+        }
+      : null,
   };
 }
 
@@ -207,7 +223,7 @@ export async function searchArchiveDetailed(
 
 function demoToItem(r: (typeof DEMO_RELEASES)[number]): ArchiveItem {
   // The unseeded demo fixture has no real bytes to serve.
-  return { id: r.id, title: r.title, summary: r.summary, date: r.date, tags: r.tags, keywords: r.keywords, downloadUrl: null, recordDate: r.date, askedAs: [] };
+  return { id: r.id, title: r.title, summary: r.summary, date: r.date, tags: r.tags, keywords: r.keywords, downloadUrl: null, recordDate: r.date, askedAs: [], connectedSource: null };
 }
 
 // --- record permalinks ------------------------------------------------------

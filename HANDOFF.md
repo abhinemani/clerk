@@ -7,10 +7,59 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**712 tests pass, typecheck clean** (as of the 2026-08-13 share/print
+**739 tests pass, typecheck clean** (as of the 2026-08-13 connected-sources
 entry below).
 
-**NEWEST (2026-08-13 latest): SHARE/PRINT GAPS CLOSED + TWO NEW DOCS.**
+**NEWEST (2026-08-13 evening): CONNECTED DATA SOURCES PHASE 1 SHIPPED.**
+Owner said "do it" on `docs/connected-sources.md`; phase 1 is live and
+browser-verified end to end (register → sync → queue → named publish →
+flagged answer → download through the file gate). What landed:
+- **No migration.** The spec assumed a new table; the existing `sources`
+  table already had connector_kind/sync_schedule/last_sync_*/mapping_config
+  from §9.1, unexposed at the port. SourceEntity + updateSource grew the
+  fields, `deleteSource` is new (documents survive, source detached — DB
+  has ON DELETE SET NULL), all conformance-tested on both adapters.
+- **Connector adapter** `src/adapters/dataSource.ts`: DataSourceConnector
+  (listDatasets/fetchSlice/probe) + file-drop and in-memory
+  implementations behind one conformance suite. Slice files are
+  `dataset.period.csv` (period = YYYY[-MM[-DD]]); recordDate = period END.
+  TENANCY RULE: the drop dir is derived ({CONNECTED_DROP_PATH}/{agencyId}),
+  displayed by the UI, never typed — a free-form path field would be a
+  cross-tenant/host filesystem hole on shared deployments.
+- **connectedSourceService**: register (reviewed mode pinned: trust
+  review_queue, born internal), pause/resume (syncSchedule null = paused),
+  delete, and syncConnectedSource. THE TRAP THAT SHAPED IT:
+  `upsertDocumentByExternalId` overwrites classification AND metadata on
+  update — a naive re-sync would silently UNPUBLISH published slices and
+  wipe publicationDecision/askedAs. The sync loop diffs by checksum and
+  carries the existing classification + MERGED metadata forward; a changed
+  published slice keeps serving fresher bytes under the same human
+  decision (same shape as a trusted re-push). Invariant tests pin: sync
+  can never set public; re-sync can never unpublish; PII slices carry
+  sensitivity into the queue; infected slices refuse item-granular.
+- **Job + sweep**: `sync_connected_source` durable job; the nightly sweep
+  enqueues every enabled connected source. Admin "Sync now" runs inline.
+  Both enqueue classify_documents (queue hints) + embed_document_chunks.
+- **Admin surface** `/app/admin/sources` (own page — a source is an
+  ongoing relationship, not a one-off import), linked from /app/admin.
+- **Requester-facing flag**: ArchiveItem carries `connectedSource`
+  provenance (from metadata.connectedSource, the one documentMeta schema);
+  answer box rows + archive cards show a "⟳ City data · period" tag, the
+  record permalink shows the full flag card (spec copy verbatim: automated
+  answer, not a records determination), and the staff "Already public?"
+  panel notes "synced data (source, last synced …)" so answer-by-link is
+  an informed act. Deflection logging unchanged.
+- **Seed**: Riverton registers "Riverton open data portal" through the
+  real service, syncs 3 monthly street-sweeping slices via the memory
+  connector, Dana publishes June+July, August waits Undecided. The
+  flagship query "street cleanings for the last 3 months" now demos with
+  the window stated and flags rendered.
+Still open, honest: no Playwright e2e spec for the loop yet (verified
+manually in-browser this window — worth adding to e2e/ next time the
+suite runs); phase 2 (HTTP/Socrata + standing-publication rails) unbuilt.
+739 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13 latest): SHARE/PRINT GAPS CLOSED + TWO NEW DOCS.**
 Owner-directed ("do 2 and 3" off the priorities assessment). Five fixes on
 the polish tier, all verified in a real browser (both themes + print
 emulation + measured computed styles, per gotcha 11):
@@ -773,11 +822,11 @@ and appeal-defense packet builder first). Bucket A is fully wired.
   (Both on the laptop-setup verification-debt list.)
 - `requests.embedding` exists and nothing writes it (answer-first phase 3
   remainder); phase 4 (RAG'd triage prompts) is specified, not built.
-- Connected data sources: **specced and decision-complete**
-  (`docs/connected-sources.md`, 2026-08-13; the owner delegated the ⚑
-  decisions same day and each one records its resolution in place —
-  standing-publication adopted for phase 2 with four hard rails, SQL DSN
-  kept out, sources get their own admin page). Phase 1 (file-drop
-  connector, reviewed mode) is ready to build any session.
+- Connected data sources: **phase 1 SHIPPED** (see the newest entry).
+  Phase 2 = HTTP/Socrata connectors + standing-publication mode with its
+  four rails (attestation cited per publish, PII always quarantines,
+  schema-drift drops to reviewed, invariant test on revocation) — all
+  specced in `docs/connected-sources.md`. A Playwright e2e for the
+  register→sync→publish→flagged-answer loop is also still owed.
 - The favicon hardcodes brand values inside `src/app/icon.svg` (a favicon
   can't read page tokens) — if the palette ever moves, move it too.

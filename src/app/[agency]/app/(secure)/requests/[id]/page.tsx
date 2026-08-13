@@ -107,7 +107,7 @@ export default async function RequestDetail({
   // answering this request, the fastest correct response is a link, not a
   // fresh production. This agency's own public archive only (invariant 3
   // holds by construction — the corpus is public).
-  let archiveMatches: { id: string; title: string; dateLabel: string; downloadUrl: string | null }[] = [];
+  let archiveMatches: { id: string; title: string; dateLabel: string; downloadUrl: string | null; syncedFrom: string | null }[] = [];
   let requesterHasEmail = false;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
@@ -224,7 +224,18 @@ export default async function RequestDetail({
           const { searchArchive } = await import("@/lib/archive");
           archiveMatches = (await searchArchive(slug, r.interpretedScope || r.rawText))
             .slice(0, 3)
-            .map((it) => ({ id: it.id, title: it.title, dateLabel: it.date, downloadUrl: it.downloadUrl }));
+            .map((it) => ({
+              id: it.id,
+              title: it.title,
+              dateLabel: it.date,
+              downloadUrl: it.downloadUrl,
+              // Connected-source provenance: the named human answering by
+              // link should know they are citing SYNCED data and how fresh
+              // it is (docs/connected-sources.md).
+              syncedFrom: it.connectedSource
+                ? `${it.connectedSource.sourceName}, last synced ${it.connectedSource.syncedAt.slice(0, 10)}`
+                : null,
+            }));
         } catch (e) {
           console.error("archive match for request detail failed", e);
         }
@@ -415,6 +426,11 @@ export default async function RequestDetail({
                       {m.title}
                     </Link>
                     <span className="muted" style={{ fontSize: "0.8rem" }}> · {m.dateLabel}</span>
+                    {m.syncedFrom && (
+                      <span style={{ fontSize: "0.8rem", color: "var(--ai)", marginLeft: 8 }}>
+                        ⟳ synced data ({m.syncedFrom})
+                      </span>
+                    )}
                     {m.downloadUrl && (
                       <a className="muted" href={m.downloadUrl} style={{ fontSize: "0.8rem", marginLeft: 8 }}>
                         download

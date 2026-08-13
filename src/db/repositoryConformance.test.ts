@@ -515,6 +515,47 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       await expect(repo.updateSource(AG2, s.id, { trust: "review_queue" })).rejects.toBeInstanceOf(NotFoundError);
     });
 
+    it("sources: connected-source fields round-trip; delete detaches documents, never removes them", async () => {
+      const s = await repo.createSource({
+        id: uid(),
+        agencyId: AG1,
+        name: "Open data",
+        type: "scheduled_pull",
+        apiKeyHash: null,
+        trust: "review_queue",
+        defaultClassification: "internal",
+        connectorKind: "dataset_file_drop",
+        syncSchedule: "nightly",
+        mappingConfig: { note: "conf" },
+        lastSyncStatus: "never",
+      });
+      const listed = (await repo.listSources(AG1)).find((x) => x.id === s.id);
+      expect(listed).toMatchObject({
+        connectorKind: "dataset_file_drop",
+        syncSchedule: "nightly",
+        mappingConfig: { note: "conf" },
+        lastSyncStatus: "never",
+      });
+
+      // Sync bookkeeping persists; pausing (syncSchedule: null) is a real write.
+      const at = new Date("2026-08-13T06:00:00Z");
+      await repo.updateSource(AG1, s.id, { lastSyncAt: at, lastSyncStatus: "ok", lastSyncError: null });
+      await repo.updateSource(AG1, s.id, { syncSchedule: null });
+      const after = (await repo.listSources(AG1)).find((x) => x.id === s.id);
+      expect(after?.lastSyncStatus).toBe("ok");
+      expect(after?.lastSyncAt?.getTime()).toBe(at.getTime());
+      expect(after?.syncSchedule).toBeNull();
+
+      // Delete: registration goes, the corpus stays (source_id detached).
+      const doc = await repo.createDocument(docOf({ sourceId: s.id, externalSystemId: `conf-cs-${adapterName}` }));
+      await expect(repo.deleteSource(AG2, s.id)).rejects.toBeInstanceOf(NotFoundError); // tenancy
+      await repo.deleteSource(AG1, s.id);
+      expect((await repo.listSources(AG1)).some((x) => x.id === s.id)).toBe(false);
+      const survivor = await repo.getDocument(AG1, doc.id);
+      expect(survivor).not.toBeNull();
+      expect(survivor?.sourceId).toBeNull();
+    });
+
     it("sources: key rotation replaces the credential atomically", async () => {
       const s = await repo.createSource({ id: uid(), agencyId: AG1, name: "Rotate", type: "api_push", apiKeyHash: "old-hash", trust: "auto_publish", defaultClassification: "public" });
       await repo.updateSource(AG1, s.id, { apiKeyHash: "new-hash" });

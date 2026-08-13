@@ -1,11 +1,21 @@
 # Connected data sources — auto-answering from the city's own public data
 
-Status: **specced 2026-08-13, not built. All decision points resolved** —
-they were marked ⚑ for the owner per CLAUDE.md (anything that changes what
-a requester can see gets asked, not guessed); the owner delegated them the
-same day ("do what you think is best"), and each ⚑ below now records the
-decision and its reasoning instead of an open question. Ready to build
-phase 1.
+Status: **phase 1 SHIPPED 2026-08-13** (file-drop connector, reviewed mode,
+flagged answers, admin surface, Riverton seed) — see the HANDOFF entry for
+what landed and what deviated. All decision points are resolved — they were
+marked ⚑ for the owner per CLAUDE.md (anything that changes what a requester
+can see gets asked, not guessed); the owner delegated them the same day
+("do what you think is best"), and each ⚑ below records the decision and its
+reasoning. Phase 2 (HTTP/Socrata connectors + standing-publication with its
+four rails) is next.
+
+**Build deviation worth knowing:** the spec called for a new
+`connected_sources` table (migration 0012). The build needed NO migration —
+the existing `sources` table already carried connector_kind, sync_schedule,
+last_sync_* and mapping_config columns from the §9.1 schema, unexposed at
+the repository port. Connected sources are `sources` rows with
+`connectorKind` set; the port and conformance suite gained the fields and
+`deleteSource`. One less table, one less migration, same shape.
 
 ## The user story
 

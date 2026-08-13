@@ -5,6 +5,7 @@
  * the archive never advertises what the /files gate wouldn't serve.
  */
 import { describe, expect, it } from "vitest";
+import { parseDateQuery, withinRange } from "@/domain/dateQuery";
 import { InMemoryRepository, type DocumentEntity } from "@/services/repository";
 import { buildArchiveRecord, resolveArchiveDownloadUrl } from "./archive";
 
@@ -87,6 +88,53 @@ describe("resolveArchiveDownloadUrl", () => {
     });
     const cross = doc({ id: "x", metadata: { releaseId: "rel-other" } });
     expect(await resolveArchiveDownloadUrl(repo, AG, "riverton", cross)).toBeNull();
+  });
+});
+
+describe("connected-source slices in the archive (docs/connected-sources.md)", () => {
+  const STAMP = {
+    sourceId: "src-1",
+    sourceName: "Riverton open data portal",
+    dataset: "street-sweeping",
+    period: "2026-06",
+    checksum: "abc",
+    syncedAt: "2026-08-13T06:00:00Z",
+  };
+
+  it("carries provenance + the record's OWN date onto the archive item", async () => {
+    const repo = new InMemoryRepository();
+    await repo.createDocument(
+      doc({
+        id: "slice-june",
+        blobRef: "ag-1/street-sweeping.2026-06.csv",
+        byteSize: 64,
+        extractedText: "date,route\n2026-06-03,Route 4",
+        metadata: { title: "Street Sweeping — 2026-06", recordDate: "2026-06-30", connectedSource: STAMP },
+      }),
+    );
+    const record = await buildArchiveRecord(repo, AG, "riverton", "slice-june");
+    expect(record?.recordDate).toBe("2026-06-30");
+    expect(record?.connectedSource).toMatchObject({
+      sourceName: "Riverton open data portal",
+      dataset: "street-sweeping",
+      period: "2026-06",
+      syncedAt: "2026-08-13T06:00:00Z",
+    });
+  });
+
+  it("GOLDEN DATES: a June slice answers 'last 3 months' in August and drops out by October", () => {
+    // The composed behavior the flagship query rides: the slice's recordDate
+    // is the period END (adapter), and the archive filters on the record's
+    // own date via withinRange (answer-first phase 1). Same seams
+    // searchArchiveDetailed composes, tested without the live singleton.
+    const august = parseDateQuery("street cleanings for the last 3 months", new Date("2026-08-13T12:00:00Z"));
+    const october = parseDateQuery("street cleanings for the last 3 months", new Date("2026-10-20T12:00:00Z"));
+    expect(august.range).not.toBeNull();
+    expect(withinRange("2026-06-30", august.range!)).toBe(true);
+    expect(withinRange("2026-06-30", october.range!)).toBe(false);
+    // The subject that reaches the matchers has the window lifted out.
+    expect(august.residual.toLowerCase()).toContain("street cleanings");
+    expect(august.residual.toLowerCase()).not.toContain("3 months");
   });
 });
 

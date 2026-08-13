@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getArchiveRecord } from "@/lib/archive";
 import { getAgencyForSlug } from "@/lib/live";
+import { ConnectedDataFlag } from "../../../_components/ConnectedDataBadge";
 import { DownloadRecordButton } from "../../../_components/DownloadRecordButton";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +63,8 @@ export default async function ArchiveRecordPage({
           ))}
         {record.pageCount != null && <span className="tag">{record.pageCount} page{record.pageCount === 1 ? "" : "s"}</span>}
       </div>
+
+      {record.connectedSource && <ConnectedDataFlag stamp={record.connectedSource} />}
 
       {record.summary && (
         <p style={{ fontSize: "1.05rem", marginTop: 16, maxWidth: 680 }}>{record.summary}</p>

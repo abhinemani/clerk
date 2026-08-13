@@ -363,6 +363,21 @@ export interface SourceEntity {
   apiKeyHash: string | null;
   trust: "auto_publish" | "review_queue";
   defaultClassification: "public" | "internal";
+  /**
+   * CONNECTED-SOURCE fields (docs/connected-sources.md), optional so the
+   * plain ingestion sources (API push, lazy file drop) keep their slim
+   * shape. connectorKind non-null marks a connected data source — e.g.
+   * "dataset_file_drop" — and distinguishes it from the records-import
+   * "File drop" source, which shares type "file_drop" but has no connector.
+   */
+  connectorKind?: string | null;
+  /** Human-readable cadence ("nightly"); null = paused. */
+  syncSchedule?: string | null;
+  /** Connector configuration (never secrets — same rule as credentialsRef). */
+  mappingConfig?: Record<string, unknown> | null;
+  lastSyncAt?: Date | null;
+  lastSyncStatus?: "never" | "ok" | "running" | "error";
+  lastSyncError?: string | null;
 }
 
 export type AuthTokenKind = "verify_email" | "reset_requester" | "reset_staff" | "staff_invite";
@@ -577,8 +592,28 @@ export interface Repository {
   updateSource(
     agencyId: string,
     id: string,
-    patch: Partial<Pick<SourceEntity, "trust" | "defaultClassification" | "apiKeyHash">>,
+    patch: Partial<
+      Pick<
+        SourceEntity,
+        | "name"
+        | "trust"
+        | "defaultClassification"
+        | "apiKeyHash"
+        | "syncSchedule"
+        | "mappingConfig"
+        | "lastSyncAt"
+        | "lastSyncStatus"
+        | "lastSyncError"
+      >
+    >,
   ): Promise<SourceEntity>;
+  /**
+   * Remove a source registration. Documents SURVIVE (documents.source_id is
+   * on-delete-set-null): deleting a connected source stops future syncs but
+   * never removes anything from the corpus or the archive — unpublishing
+   * stays the audited emergency-unpublish path (docs/connected-sources.md).
+   */
+  deleteSource(agencyId: string, id: string): Promise<void>;
 
   /** Document ids attached to ANY request — those belong to the request review flow. */
   listAttachedDocumentIds(agencyId: string): Promise<string[]>;
@@ -1137,13 +1172,35 @@ export class InMemoryRepository implements Repository {
   async updateSource(
     agencyId: string,
     id: string,
-    patch: Partial<Pick<SourceEntity, "trust" | "defaultClassification" | "apiKeyHash">>,
+    patch: Partial<
+      Pick<
+        SourceEntity,
+        | "name"
+        | "trust"
+        | "defaultClassification"
+        | "apiKeyHash"
+        | "syncSchedule"
+        | "mappingConfig"
+        | "lastSyncAt"
+        | "lastSyncStatus"
+        | "lastSyncError"
+      >
+    >,
   ) {
     const s = this.sources.get(id);
     if (!s || s.agencyId !== agencyId) throw new NotFoundError("Source", id);
     const updated = { ...s, ...patch, id: s.id, agencyId: s.agencyId };
     this.sources.set(id, updated);
     return updated;
+  }
+  async deleteSource(agencyId: string, id: string) {
+    const s = this.sources.get(id);
+    if (!s || s.agencyId !== agencyId) throw new NotFoundError("Source", id);
+    this.sources.delete(id);
+    // Documents survive with sourceId detached — mirrors ON DELETE SET NULL.
+    for (const [docId, d] of this.documents) {
+      if (d.sourceId === id) this.documents.set(docId, { ...d, sourceId: null });
+    }
   }
 
   async listAttachedDocumentIds(agencyId: string) {

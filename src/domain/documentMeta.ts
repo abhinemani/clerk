@@ -44,6 +44,25 @@ export const aiClassificationSchema = z
   .passthrough();
 export type AiClassificationHint = z.infer<typeof aiClassificationSchema>;
 
+/**
+ * Provenance stamp for a connected-source dataset slice
+ * (docs/connected-sources.md): which source and dataset it came from, the
+ * period it covers, and sync recency — everything the requester-facing
+ * "automated answer from public data" card states. checksum makes re-syncs
+ * cheap to skip when nothing changed.
+ */
+export const connectedSourceStampSchema = z
+  .object({
+    sourceId: z.string(),
+    sourceName: z.string(),
+    dataset: z.string(),
+    period: z.string(),
+    checksum: z.string(),
+    syncedAt: z.string(),
+  })
+  .passthrough();
+export type ConnectedSourceStamp = z.infer<typeof connectedSourceStampSchema>;
+
 export const documentMetaSchema = z
   .object({
     // Archive card fields (portal-facing once published).
@@ -65,6 +84,8 @@ export const documentMetaSchema = z
     sensitivity: z.record(z.number()).optional(),
     publicationDecision: publicationDecisionSchema.optional(),
     aiClassification: aiClassificationSchema.optional(),
+    /** Present exactly on connected-source dataset slices. */
+    connectedSource: connectedSourceStampSchema.optional(),
     /**
      * ASK ALIASES — the plain-language questions this record has actually
      * answered (docs/answer-first.md). Appended when a request that this

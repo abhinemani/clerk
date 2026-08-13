@@ -10,6 +10,7 @@ import {
   searchArchiveAction,
   type PriorAnswerCard,
 } from "../[agency]/actions";
+import { ConnectedDataTag } from "./ConnectedDataBadge";
 import { SparkIcon } from "./ui";
 
 interface AgentTurn {
@@ -315,8 +316,19 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
                           request.
                         </div>
                       )}
+                      {r.connectedSource && (
+                        <div style={{ marginTop: 6, fontSize: "0.82rem", color: "var(--ai)" }}>
+                          Automated answer from the city&apos;s public data ({r.connectedSource.sourceName},
+                          last synced {r.connectedSource.syncedAt.slice(0, 10)}) — not a records
+                          determination. File a request if this doesn&apos;t answer your question.
+                        </div>
+                      )}
                       <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                        <span className="tag">Released {r.date}</span>
+                        {r.connectedSource ? (
+                          <ConnectedDataTag stamp={r.connectedSource} />
+                        ) : (
+                          <span className="tag">Released {r.date}</span>
+                        )}
                         {r.tags.map((t) => (
                           <span key={t} className="tag">
                             {t}

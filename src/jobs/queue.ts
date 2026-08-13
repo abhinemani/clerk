@@ -20,7 +20,8 @@ export type JobKind =
   | "embed_public_documents"
   | "embed_document_chunks"
   | "ocr_extract"
-  | "classify_documents";
+  | "classify_documents"
+  | "sync_connected_source";
 
 export interface JobPayloads {
   intake_triage: { agencyId: string; requestId: string };
@@ -34,6 +35,8 @@ export interface JobPayloads {
   embed_document_chunks: { agencyId: string; documentId?: string };
   /** Records-import hints: suggested public/internal for the publication queue. */
   classify_documents: { agencyId: string; documentIds: string[] };
+  /** Connected data sources: pull the source's slices into the corpus. */
+  sync_connected_source: { agencyId: string; sourceId: string; actorLabel?: string };
 }
 
 export type JobHandler<K extends JobKind = JobKind> = (payload: JobPayloads[K]) => Promise<void>;

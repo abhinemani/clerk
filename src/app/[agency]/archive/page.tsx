@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { listArchive } from "@/lib/archive";
 import { getAgencyForSlug } from "@/lib/live";
+import { ConnectedDataTag } from "../../_components/ConnectedDataBadge";
 import { DownloadRecordButton } from "../../_components/DownloadRecordButton";
 import { SparkIcon } from "../../_components/ui";
 
@@ -50,7 +51,11 @@ export default async function ArchivePage({ params }: { params: Promise<{ agency
               {r.summary}
             </p>
             <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <span className="tag">Released {r.date}</span>
+              {r.connectedSource ? (
+                <ConnectedDataTag stamp={r.connectedSource} />
+              ) : (
+                <span className="tag">Released {r.date}</span>
+              )}
               {r.tags.map((t) => (
                 <span key={t} className="tag">
                   {t}

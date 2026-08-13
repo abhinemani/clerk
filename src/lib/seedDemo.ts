@@ -381,6 +381,57 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
     );
   }
 
+  // Connected data source (docs/connected-sources.md phase 1): Riverton's
+  // street-sweeping log syncs in as monthly dataset slices through the REAL
+  // register + sync path (memory connector — the seed writes no directories).
+  // Two months are published by a named human so the answer box demos
+  // "street cleanings for the last 3 months" with the automated-data flag;
+  // the newest slice stays UNDECIDED so the records queue shows a sync
+  // awaiting review.
+  {
+    const { registerConnectedSource, syncConnectedSource } = await import(
+      "@/services/connectedSourceService"
+    );
+    const { publishDocument } = await import("@/services/publicationService");
+    const { createMemoryConnector } = await import("@/adapters/dataSource");
+    const { getVirusScanner } = await import("@/adapters/virusScan");
+    const { source } = await registerConnectedSource(deps, {
+      agencyId,
+      actorUserId: COORDINATOR_ID,
+      name: "Riverton open data portal",
+    });
+    const sweepCsv = (month: string, rows: string[]) =>
+      ["date,route,neighborhood", ...rows].join("\n").replace(/MONTH/g, month);
+    await syncConnectedSource(
+      { ...deps, blobStore: getBlobStore(), virusScanner: getVirusScanner() },
+      { agencyId, sourceId: source.id, actorLabel: "Scheduled sync" },
+      createMemoryConnector([
+        {
+          dataset: "street-sweeping",
+          period: "2026-06",
+          csv: sweepCsv("2026-06", ["MONTH-03,Route 4 North,Riverbend", "MONTH-17,Route 4 South,Riverbend", "MONTH-24,Route 9,Old Town"]),
+        },
+        {
+          dataset: "street-sweeping",
+          period: "2026-07",
+          csv: sweepCsv("2026-07", ["MONTH-01,Route 4 North,Riverbend", "MONTH-15,Route 4 South,Riverbend", "MONTH-29,Route 9,Old Town"]),
+        },
+        {
+          dataset: "street-sweeping",
+          period: "2026-08",
+          csv: sweepCsv("2026-08", ["MONTH-05,Route 4 North,Riverbend", "MONTH-12,Route 9,Old Town"]),
+        },
+      ]),
+    );
+    // A named human publishes June + July; August waits in the queue.
+    const repo = deps.repo;
+    const slices = (await repo.listDocuments(agencyId)).filter((d) => d.sourceId === source.id);
+    for (const period of ["2026-06", "2026-07"]) {
+      const doc = slices.find((d) => d.externalSystemId === `street-sweeping:${period}`);
+      if (doc) await publishDocument(deps, { agencyId, actorUserId: COORDINATOR_ID, documentId: doc.id });
+    }
+  }
+
   // Bellmar: a second tenant on the same deployment (WA statute profile).
   const { agency: bellmar, ingestKey: bellmarIngestKey } = await provisionAgency(deps, {
     name: "City of Bellmar",

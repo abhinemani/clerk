@@ -8,6 +8,7 @@ import { runEmbedPublicDocumentsJob } from "./embedJob";
 import { runExemptionPassJob } from "./exemptionPassJob";
 import { runOcrExtractJob } from "./ocrJob";
 import { getJobQueue } from "./queue";
+import { runSyncConnectedSourceJob } from "./syncConnectedSourceJob";
 import { runIntakeTriageJob } from "./triageJob";
 
 interface RegisterGlobal {
@@ -29,6 +30,7 @@ export function registerJobs(): void {
   queue.register("ocr_extract", runOcrExtractJob);
   queue.register("embed_document_chunks", runEmbedDocumentChunksJob);
   queue.register("classify_documents", runClassifyDocumentsJob);
+  queue.register("sync_connected_source", runSyncConnectedSourceJob);
   // Durable queue: re-queue rows a dead process left "running", then start
   // the polling worker. Jobs enqueued before a restart run after it.
   void queue.recoverAndStart();
@@ -93,6 +95,24 @@ export function registerJobs(): void {
       }
     } catch (err) {
       console.error("[jobs] deadline sweep failed", err);
+    }
+
+    // Connected data sources (docs/connected-sources.md): the nightly pull.
+    // Paused sources (syncSchedule null) are skipped; each sync is a durable
+    // job so a failure lands on the /admin Health surface, not in a log.
+    try {
+      const { getRepository } = await import("@/db/createRepository");
+      const { isConnectedSource } = await import("@/services/connectedSourceService");
+      const repo = await getRepository();
+      for (const agency of await repo.listAgencies()) {
+        const sources = await repo.listSources(agency.id);
+        for (const source of sources) {
+          if (!isConnectedSource(source) || source.syncSchedule == null) continue;
+          queue.enqueue("sync_connected_source", { agencyId: agency.id, sourceId: source.id });
+        }
+      }
+    } catch (err) {
+      console.error("[jobs] connected-source sweep failed", err);
     }
   };
 

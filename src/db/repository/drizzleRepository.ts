@@ -967,8 +967,14 @@ export class DrizzleRepository implements Repository {
       credentialsRef: s.apiKeyHash ? `sha256:${s.apiKeyHash}` : null,
       trust: s.trust,
       defaultClassification: s.defaultClassification,
+      connectorKind: s.connectorKind ?? null,
+      syncSchedule: s.syncSchedule ?? null,
+      mappingConfig: s.mappingConfig ?? null,
+      lastSyncAt: s.lastSyncAt ?? null,
+      lastSyncStatus: s.lastSyncStatus ?? "never",
+      lastSyncError: s.lastSyncError ?? null,
     });
-    return s;
+    return (await this.listSources(s.agencyId)).find((x) => x.id === s.id) ?? s;
   }
   async findSourceByApiKeyHash(agencyId: string, apiKeyHash: string): Promise<SourceEntity | null> {
     const [s] = await this.db
@@ -988,6 +994,12 @@ export class DrizzleRepository implements Repository {
       apiKeyHash: s.credentialsRef?.startsWith("sha256:") ? s.credentialsRef.slice("sha256:".length) : null,
       trust: s.trust,
       defaultClassification: s.defaultClassification,
+      connectorKind: s.connectorKind,
+      syncSchedule: s.syncSchedule,
+      mappingConfig: s.mappingConfig ?? null,
+      lastSyncAt: s.lastSyncAt,
+      lastSyncStatus: s.lastSyncStatus,
+      lastSyncError: s.lastSyncError,
     };
   }
   async listSources(agencyId: string): Promise<SourceEntity[]> {
@@ -997,22 +1009,51 @@ export class DrizzleRepository implements Repository {
   async updateSource(
     agencyId: string,
     id: string,
-    patch: Partial<Pick<SourceEntity, "trust" | "defaultClassification" | "apiKeyHash">>,
+    patch: Partial<
+      Pick<
+        SourceEntity,
+        | "name"
+        | "trust"
+        | "defaultClassification"
+        | "apiKeyHash"
+        | "syncSchedule"
+        | "mappingConfig"
+        | "lastSyncAt"
+        | "lastSyncStatus"
+        | "lastSyncError"
+      >
+    >,
   ): Promise<SourceEntity> {
     const rows = await this.db
       .update(sources)
       .set({
+        name: patch.name,
         trust: patch.trust,
         defaultClassification: patch.defaultClassification,
         // apiKeyHash present in the patch (even as null) replaces the credential.
         ...("apiKeyHash" in patch
           ? { credentialsRef: patch.apiKeyHash ? `sha256:${patch.apiKeyHash}` : null }
           : {}),
+        // Nullable fields update only when the key is present in the patch,
+        // so "not mentioned" and "set to null" stay distinct acts.
+        ...("syncSchedule" in patch ? { syncSchedule: patch.syncSchedule ?? null } : {}),
+        ...("mappingConfig" in patch ? { mappingConfig: patch.mappingConfig ?? null } : {}),
+        ...("lastSyncAt" in patch ? { lastSyncAt: patch.lastSyncAt ?? null } : {}),
+        ...(patch.lastSyncStatus ? { lastSyncStatus: patch.lastSyncStatus } : {}),
+        ...("lastSyncError" in patch ? { lastSyncError: patch.lastSyncError ?? null } : {}),
       })
       .where(tenantWhere(sources.agencyId, agencyId, eq(sources.id, id)))
       .returning();
     if (!rows[0]) throw new NotFoundError("Source", id);
     return this.toSource(rows[0]);
+  }
+  async deleteSource(agencyId: string, id: string): Promise<void> {
+    // documents.source_id is ON DELETE SET NULL — the corpus survives.
+    const rows = await this.db
+      .delete(sources)
+      .where(tenantWhere(sources.agencyId, agencyId, eq(sources.id, id)))
+      .returning({ id: sources.id });
+    if (!rows[0]) throw new NotFoundError("Source", id);
   }
 
   async listAttachedDocumentIds(agencyId: string): Promise<string[]> {
