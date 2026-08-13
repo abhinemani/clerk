@@ -6,10 +6,11 @@ import { BrandLockup, BrandMark, SparkIcon } from "./_components/ui";
  * The marketing site — Brandeis the product, pitched to governments. Distinct
  * from the tenant portals it links to: /riverton is the living demo.
  *
- * Design: copy-forward, with rhythm carried by alternating grounds (dark hero
- * → paper proof → paper pillars → dark principle → paper roster → tinted
- * tenancy → dark close) rather than by imagery. All texture is CSS (see the
- * MARKETING SITE block in globals.css) so this page ships no binary assets.
+ * Design: copy-forward, with rhythm carried by alternating grounds rather
+ * than by imagery. All texture is CSS (see the MARKETING SITE block in
+ * globals.css). The ONE binary asset is the owner's approved lockup in the
+ * footer — raster, so it appears exactly once, large, and on dark; see
+ * public/brand/README.md for why it cannot be the chrome logo.
  *
  * Every number and claim below is checkable in the codebase — no invented
  * customer counts, no testimonials. The product has no public users yet.
@@ -367,6 +368,17 @@ export default function MarketingHome() {
       {/* Product footer */}
       <footer className="gov-footer" style={{ marginTop: 0 }}>
         <div className="wrap">
+          {/* The owner's APPROVED lockup. Raster, so it appears exactly once
+              and only here: large, and on the dark ground it was rendered for.
+              At nav size it smears, and on white its baked glow reads as a
+              grey plate — see public/brand/README.md. Chrome uses the SVG. */}
+          <img
+            src="/brand/brandeis-lockup-dark.png"
+            alt={`${branding.productName} — ${branding.tagline}`}
+            width={1300}
+            height={445}
+            style={{ width: 300, height: "auto", marginTop: 34, marginBottom: -8 }}
+          />
           <div className="mk-foot">
             <div className="mk-foot-col">
               <h4>Product</h4>
