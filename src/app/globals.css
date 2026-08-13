@@ -1002,46 +1002,55 @@ label.lbl {
    it to position:static, so the header follows you down the page. */
 
 /* ---- hero ---- */
-/* THE TEXTURED DARK (owner, 2026-08-13, third revision and the keeper):
-   dark-locked AND styled — the gold aurora, the plum bloom, the
-   engraver's hatch, and the vignette that keeps copy readable over all of
-   it. This is the treatment the flat lock lost ("just dark and dark");
-   restored from the pre-light-hero revision and retuned to tokens. */
+/* THE TEXTURED DARK (owner, 2026-08-13, fourth revision — the hero is the
+   first thing anyone sees, so it should read as MORE lit than the bands
+   below it, not flatter). Previous revision's base gradient used
+   var(--paper) as its middle stop; under the dark lock --paper resolves to
+   #0f141a, all but identical to the #0b0f14/#202834 stops flanking it, so
+   the gradient was collapsing to near-flat and the vignette was smothering
+   what aurora survived. Fixed stop + a third top bloom (ties the hero to
+   the body's own aurora, see the @media screen body block above) +
+   stronger gold/plum + a lighter vignette so the copy still wins but the
+   light underneath is actually visible. */
 .mk-hero {
   position: relative;
   isolation: isolate;
   overflow: hidden;
   color: var(--ink);
   border-bottom: 3px solid var(--gold);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   background:
-    radial-gradient(ellipse 66% 54% at 14% -12%, color-mix(in srgb, var(--gold) 30%, transparent), transparent 62%),
-    radial-gradient(ellipse 58% 52% at 88% 6%, color-mix(in srgb, var(--plum) 78%, transparent), transparent 64%),
-    linear-gradient(158deg, #0b0f14 0%, var(--paper) 46%, #202834 100%);
+    radial-gradient(ellipse 60% 46% at 50% -16%, color-mix(in srgb, var(--primary-tint) 85%, transparent), transparent 66%),
+    radial-gradient(ellipse 70% 58% at 12% -14%, color-mix(in srgb, var(--gold) 40%, transparent), transparent 62%),
+    radial-gradient(ellipse 64% 58% at 92% 4%, color-mix(in srgb, var(--plum) 92%, transparent), transparent 64%),
+    linear-gradient(158deg, #0b0f14 0%, #232b38 46%, #1b2330 100%);
 }
 .mk-hero::before {
-  /* hatch layer, kept off the text */
+  /* hatch layer, kept off the text — a touch stronger than the mid-page
+     bands', since this is the showpiece surface. */
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.05) 0 1px,
+    rgba(255, 255, 255, 0.065) 0 1px,
     transparent 1px 9px
   );
   pointer-events: none;
 }
 .mk-hero::after {
-  /* vignette so copy always wins over the aurora */
+  /* vignette so copy always wins over the aurora — lightened from the
+     previous pass so the (now-visible) aurora still shows through. */
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   background: linear-gradient(
     100deg,
-    rgba(11, 15, 20, 0.88) 0%,
-    rgba(11, 15, 20, 0.6) 46%,
-    rgba(11, 15, 20, 0.12) 100%
+    rgba(11, 15, 20, 0.74) 0%,
+    rgba(11, 15, 20, 0.42) 46%,
+    rgba(11, 15, 20, 0.08) 100%
   );
   pointer-events: none;
 }
@@ -1649,9 +1658,13 @@ label.lbl {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--r-lg);
   /* The glass slab from the original dark panel — gradient, deep shadow,
-     backdrop blur — so the card reads as a lit object over the aurora. */
+     backdrop blur, lit top edge (same inset highlight .card gets app-wide,
+     see the @media screen block above) — so the card reads as a lit
+     object over the aurora, not just a darker rectangle. */
   background: linear-gradient(180deg, rgba(42, 49, 60, 0.92), rgba(15, 20, 26, 0.94));
-  box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 30px 70px -24px rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(10px);
   overflow: hidden;
 }

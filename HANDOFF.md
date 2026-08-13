@@ -45,7 +45,40 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, second correction): THE BOLD PASS —
+**NEWEST (2026-08-13, cloud session, third correction): THE HERO WAS STILL
+FLAT — the owner: "the first div/hero needs more gradients/texture/lighting,
+like the other sections but better."** Root cause: the ACTIVE `.mk-hero`
+rule (globals.css ~line 1010 — the later of the two `.mk-hero` blocks; see
+below) built its base gradient's middle stop from `var(--paper)`. Under the
+dark lock `--paper` resolves to `#0f141a`, nearly identical to the
+`#0b0f14`/`#202834` stops flanking it, so the "gradient" was three
+near-indistinguishable near-blacks — no visible movement at all — and what
+little aurora survived was then smothered by the vignette (0.88 alpha at
+its peak, meant to keep copy readable over a MUCH stronger aurora than was
+actually rendering). Verified by screenshotting the running app, not just
+reading the diff (see the correction two entries below — that lesson
+applied here too). Fixed:
+- Base gradient's middle stop is a real lighter-navy value (`#232b38`,
+  reusing the token already established for this exact purpose in
+  `.mk-band-dark`) instead of the token that was silently collapsing it.
+- Added a third top-center bloom (primary-tint, matching the body's own
+  top bloom) so the hero visually continues the page instead of sitting
+  apart from it — this is the "like the other sections" part of the ask.
+- Gold aurora 30%→40% mix, plum 78%→92%, hatch 0.05→0.065 alpha — pushed
+  past the mid-page bands' intensities since the hero should read as the
+  most-lit surface, not an equal one ("but better").
+- Vignette lightened (0.88/0.6/0.12 → 0.74/0.42/0.08) so the now-real
+  aurora actually shows through; copy is still legible (unchanged
+  contrast requirement, just less overlay).
+- `.mk-chat` (the hero's chat illustration) gets the same inset lit-top-edge
+  highlight `.card` got app-wide in the bold pass below — it hadn't
+  inherited that treatment since it's a bespoke component, not `.card`.
+Proof screenshots (before/after crop of the hero) delivered in-chat. The
+dead first `.mk-hero` block (~line 739, pre-dark-lock, overridden by cascade
+— see the bold-pass entry) was left untouched; still cruft, still not this
+session's job. 848 tests, typecheck clean, CSS-only change.
+
+**PREVIOUS (2026-08-13, cloud session, second correction): THE BOLD PASS —
 the owner looked again and called the pages "so flat"; the timid alphas
 were the problem, plus a push race meant origin/main didn't even carry
 the first app-wide attempt yet (a parallel session's homepage copy
