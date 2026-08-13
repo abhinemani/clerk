@@ -37,6 +37,9 @@ export default defineConfig({
       PORT: String(PORT),
       PGLITE_PATH: join(dataRoot, "pgdata"),
       BLOB_PATH: join(dataRoot, "blobdata"),
+      // Connected-source file drops land in the throwaway root too, so a
+      // smoke run never writes CSVs into the working tree.
+      CONNECTED_DROP_PATH: join(dataRoot, "connected-drop"),
       SEED_DEMO: "true",
       APP_BASE_URL: `http://localhost:${PORT}`,
       AUTH_SECRET: "e2e-smoke-secret",

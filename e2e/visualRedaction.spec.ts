@@ -98,7 +98,10 @@ test("visual spine: file → auto-dispatch → scan upload → draw box → burn
 
   // --- draw a box over the top of the page and burn -------------------------
   const surface = page.locator('img[alt*="page 1"]');
-  await expect(surface).toBeVisible();
+  // Generous: this is the only spec that touches the page-image route, so
+  // its first hit pays the dev-server compile before any bytes arrive —
+  // a broken image has zero size, which Playwright reads as "hidden".
+  await expect(surface).toBeVisible({ timeout: 30_000 });
   const bb = (await surface.boundingBox())!;
   await page.mouse.move(bb.x + bb.width * 0.1, bb.y + bb.height * 0.05);
   await page.mouse.down();

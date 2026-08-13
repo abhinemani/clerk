@@ -163,6 +163,23 @@ export async function registerConnectedSource(
   const checked = validateConnectorConfig(input.kind ?? CONNECTOR_KIND_FILE_DROP, input.config ?? {});
   if (!checked.ok) throw new Error(checked.reason);
 
+  // ONE file drop per agency. The drop directory is per-AGENCY (it has to
+  // be: a clerk needs a path to hand their IT department before any source
+  // exists), so a second file-drop source would read the same files and
+  // mint a duplicate document for every slice — same bytes, different
+  // sourceId, both in the archive. Network sources have their own URLs and
+  // are unaffected.
+  if (checked.kind === CONNECTOR_KIND_FILE_DROP) {
+    const existing = (await repo.listSources(input.agencyId)).find(
+      (s) => s.connectorKind === CONNECTOR_KIND_FILE_DROP,
+    );
+    if (existing) {
+      throw new Error(
+        `This agency already has a file-drop source ("${existing.name}") reading ${connectedDropDir(input.agencyId)}. Add datasets by dropping more files there, or connect an HTTP/Socrata source instead.`,
+      );
+    }
+  }
+
   const source = await repo.createSource({
     id: deps.genId(),
     agencyId: input.agencyId,

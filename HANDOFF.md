@@ -7,10 +7,33 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**787 tests pass, typecheck clean** (as of the 2026-08-14
-connected-sources-phase-2 entry below).
+**789 tests pass, typecheck clean; all 4 e2e specs green** (as of the
+2026-08-14 e2e entry below).
 
-**NEWEST (2026-08-14): CONNECTED SOURCES PHASE 2 — HTTP + SOCRATA
+**NEWEST (2026-08-14, later): CONNECTED-SOURCES E2E + A REAL GUARD IT
+SURFACED.** The twice-verified-by-hand loop is now `e2e/
+connectedSources.spec.ts`: sync → reviewed-mode hold → attest (consequence
+copy asserted) → next period auto-publishes → resident archive shows it
+flagged → pre-attestation slice still held (future-slices-only, asserted)
+→ schema drift quarantines + revokes. File-drop only, deliberately — the
+network connectors are conformance-tested with stubbed fetch, and a smoke
+must not depend on a third-party portal being up.
+- Writing the spec surfaced a REAL bug: the drop directory is per-AGENCY,
+  so a second file-drop source would read the same files and mint duplicate
+  documents for every slice. registerConnectedSource now refuses a second
+  file drop (service-level guard + tests; theoretical register race has no
+  DB constraint — judged not worth a migration).
+- playwright.config now pins CONNECTED_DROP_PATH into the throwaway data
+  root, so e2e runs never write CSVs into the working tree.
+- Fixed a PRE-EXISTING red e2e: visualRedaction failed on the page-image
+  surface with the 5s default — the only spec touching that route pays its
+  cold compile, and a not-yet-loaded img has zero size, which Playwright
+  reads as "hidden". Diagnosed against a warm server (route serves in
+  <900ms, healthy); fix is a 30s timeout on that one assertion, same class
+  as the spec's other cold-route waits.
+789 tests + 4/4 e2e, typecheck clean.
+
+**PREVIOUS (2026-08-14): CONNECTED SOURCES PHASE 2 — HTTP + SOCRATA
 CONNECTORS AND STANDING PUBLICATION.** Owner-directed. Verified in a real
 browser against a **live city open-data portal**, which turned out not to
 need a laptop at all (Socrata is public and this environment has outbound
@@ -947,7 +970,7 @@ and appeal-defense packet builder first). Bucket A is fully wired.
   stored vectors the precedent path uses. Small perf win, any session.
 - Connected data sources: **phases 1 AND 2 SHIPPED** (see the newest
   entry). Phase 3 (structured row store + tabular answers) stays gated on
-  real usage. Still owed: a Playwright e2e for the
-  register→sync→publish→flagged-answer loop (verified by hand twice now).
+  real usage. The Playwright e2e for the loop now exists
+  (e2e/connectedSources.spec.ts) — nothing owed here.
 - The favicon hardcodes brand values inside `src/app/icon.svg` (a favicon
   can't read page tokens) — if the palette ever moves, move it too.

@@ -94,6 +94,31 @@ describe("registerConnectedSource", () => {
   });
 });
 
+describe("registerConnectedSource — one file drop per agency", () => {
+  it("refuses a second file-drop source (they would share a directory and duplicate every slice)", async () => {
+    const { deps } = ctx();
+    await registered(deps);
+    await expect(
+      registerConnectedSource(deps, { agencyId: "ag-1", actorUserId: "u-dana", name: "Another drop" }),
+    ).rejects.toThrow(/already has a file-drop source/i);
+  });
+
+  it("allows network sources alongside the file drop — they have their own origins", async () => {
+    const { deps } = ctx();
+    await registered(deps);
+    const { source } = await registerConnectedSource(deps, {
+      agencyId: "ag-1",
+      actorUserId: "u-dana",
+      name: "Chicago open data",
+      kind: "dataset_socrata",
+      config: { domain: "data.cityofchicago.org", datasetId: "ygr5-vcbg", dataset: "towed-vehicles", dateField: "tow_date" },
+    });
+    expect(source.connectorKind).toBe("dataset_socrata");
+    expect(source.type).toBe("scheduled_pull");
+    expect((await listConnectedSources(deps, "ag-1"))).toHaveLength(2);
+  });
+});
+
 describe("syncConnectedSource", () => {
   it("INVARIANT: every synced slice is born internal — sync cannot publish", async () => {
     const { repo, deps } = ctx();
