@@ -45,7 +45,31 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, latest): TOP-3 BUILDS (owner: "build
+**NEWEST (2026-08-13, cloud session, after the top-3 entry): NEW LOGO
+RENDER ADOPTED (owner supplied it in-chat: "replace the logo/header
+image, cropped as needed").** The drawing changed: gold data-dashes
+streaming into a document sheet — the prism triangle is retired. What
+happened and what to know:
+- The paste never touched the container's disk; the exact bytes were
+  recovered from the session transcript's base64 (2000×731 webp, real
+  alpha) — worth remembering next time an asset arrives by paste.
+- Regenerated from it with sharp, per public/brand/README.md (updated):
+  `brandeis-lockup-dark.png` (1600×248), `mark-{dark,light}.png` (shared
+  252×124 canvas; the new art is ALL GOLD so both files carry the same
+  image — kept as two because the `<picture>` swap references both),
+  `src/app/icon.png` (64px crop of the document glyph — REPLACES
+  icon.svg; nothing hand-drawn survives now), `apple-icon.png` (glyph on
+  the board's plum), `opengraph-image.png` (new lockup on dark paper).
+- Still OLD art, on purpose: `brandeis-lockup-light.png` (unreferenced —
+  nav is pinned dark; README says regenerate before any light-ground use)
+  and `favicon.ico` (ico needs a tool sharp lacks).
+- ⚠ FLAGGED TO OWNER: the render's tagline reads "AI FÓR PUBLIC RECÓRDS"
+  — stray accents baked into the artwork. Swap in a corrected render via
+  the README recipe when one exists.
+Browser-verified: marketing nav light+dark, 390px mark collapse, signup.
+848 tests, typecheck clean (no code paths changed beyond a comment).
+
+**PREVIOUS (2026-08-13, cloud session, latest): TOP-3 BUILDS (owner: "build
 the top 3") + HOMEPAGE REDESIGN (owner directive mid-session).** Four
 pieces, all browser-verified:
 - **Release-history import (the onboarding lever, build-candidate #2).**

@@ -79,9 +79,9 @@ export function Seal({ size = 34, label }: { size?: number; label?: string }) {
  * directive). Two revisions swapped by the visitor's theme; both carry a
  * real alpha channel so they sit on any ground. Grounds that are dark in
  * BOTH themes (the marketing footer) pin the dark revision instead — swap
- * on the GROUND, not the theme. src/app/icon.svg is the one surviving
- * hand-drawn derivative (a favicon cannot ship a 170KB raster) and is
- * maintained separately.
+ * on the GROUND, not the theme. Even the favicon (src/app/icon.png) is a
+ * crop of the render now — nothing hand-drawn survives; see
+ * public/brand/README.md for the regeneration recipe.
  */
 export function BrandMarkRaster({
   alt = "",
