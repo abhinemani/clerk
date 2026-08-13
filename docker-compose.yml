@@ -1,4 +1,4 @@
-# Holmes — self-contained deploy on any machine you own. No hosting accounts,
+# Brandeis — self-contained deploy on any machine you own. No hosting accounts,
 # no external services: one container, one volume.
 #
 #   cp .env.example .env   # set AUTH_SECRET + platform credentials
@@ -6,7 +6,7 @@
 #   SEED_DEMO=true docker compose up --build   # optional: demo tenants at boot
 #
 services:
-  holmes:
+  brandeis:
     build: .
     ports:
       - "${PORT:-3000}:3000"
@@ -43,7 +43,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  # NOT renamed with the product (Clerk → Holmes). Docker resolves volumes by
+  # NOT renamed with the product (Clerk → Brandeis). Docker resolves volumes by
   # name: renaming this makes `docker compose up` mount a fresh empty volume
   # and every existing deployment looks wiped (the old data is orphaned, not
   # deleted). Leave it. To rename anyway, back up and restore per

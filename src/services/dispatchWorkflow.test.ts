@@ -29,7 +29,7 @@ async function setup(withNotifier = true) {
     genToken: () => `tok-${n}`,
     notifier: withNotifier ? notifier : undefined,
     agencyName: AGENCY.name,
-    baseUrl: "https://holmes.example",
+    baseUrl: "https://brandeis.example",
   };
   const request = await submitRequest(deps, { agencyId: "ag-1", rawText: "records for 400 Main St" });
   return { repo, deps, notifier, requestId: request.id };
@@ -52,7 +52,7 @@ describe("dispatchTask delivery", () => {
     const msg = notifier.sent[0]!;
     expect(msg.to).toBe("mbell@riverton.gov");
     expect(msg.kind).toBe("task_dispatch");
-    expect(msg.body).toContain(`https://holmes.example/task/${task.token}`);
+    expect(msg.body).toContain(`https://brandeis.example/task/${task.token}`);
 
     // The delivery is in the append-only source of truth.
     const events = await repo.listEvents("ag-1", requestId);
@@ -110,7 +110,7 @@ describe("dispatchTask — responder heads-up (department-scoped accounts)", () 
     // The credential link stays with the department inbox ONLY (handoff rule):
     // a forwarded heads-up must not carry fulfillment authority.
     expect(notices[0]!.body).not.toContain(task.token);
-    expect(notices[0]!.body).toContain("https://holmes.example/riverton/app/tasks");
+    expect(notices[0]!.body).toContain("https://brandeis.example/riverton/app/tasks");
 
     const events = await repo.listEvents("ag-1", requestId);
     const headsUp = events.find((e) => e.summary.includes("Heads-up"));

@@ -1,8 +1,8 @@
 {
-  "name": "holmes",
+  "name": "brandeis",
   "version": "0.1.0",
   "private": true,
-  "description": "Holmes — an AI-native public records request platform",
+  "description": "Brandeis — an AI-native public records request platform",
   "type": "module",
   "scripts": {
     "dev": "next dev",

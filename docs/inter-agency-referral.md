@@ -97,9 +97,9 @@ referral appears as an Accept/Edit/Dismiss card, and nothing auto-refers.
 
 ---
 
-## Phase 3 — one-click forwarding between Holmes tenants
+## Phase 3 — one-click forwarding between Brandeis tenants
 
-**Outcome:** the moat. When both agencies are on Holmes, the resident keeps a
+**Outcome:** the moat. When both agencies are on Brandeis, the resident keeps a
 single tracking number and never re-files. No competitor can do this because no
 competitor has both agencies in one system.
 

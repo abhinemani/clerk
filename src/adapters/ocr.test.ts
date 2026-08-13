@@ -41,7 +41,7 @@ describe("DisabledOcr", () => {
 describe("TesseractCliOcr", () => {
   it("returns stdout from a working binary and null from a missing one", async () => {
     // Stand-in binary with tesseract's contract: reads stdin, prints text.
-    const dir = await mkdtemp(join(tmpdir(), "holmes-ocr-"));
+    const dir = await mkdtemp(join(tmpdir(), "brandeis-ocr-"));
     try {
       const bin = join(dir, "fake-tesseract");
       await writeFile(bin, '#!/bin/sh\ncat > /dev/null\necho "RECOVERED FROM SCAN"\n');
@@ -57,7 +57,7 @@ describe("TesseractCliOcr", () => {
   });
 
   it("treats a non-zero exit as no text", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "holmes-ocr-"));
+    const dir = await mkdtemp(join(tmpdir(), "brandeis-ocr-"));
     try {
       const bin = join(dir, "failing-tesseract");
       await writeFile(bin, "#!/bin/sh\ncat > /dev/null\nexit 1\n");

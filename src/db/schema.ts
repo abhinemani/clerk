@@ -1,5 +1,5 @@
 /**
- * Holmes — core data model (spec §5).
+ * Brandeis — core data model (spec §5).
  *
  * Design invariants baked into this schema:
  *  - Multi-tenant: every domain table carries `agencyId`; row-level enforcement
@@ -275,7 +275,7 @@ export const departments = pgTable(
 
 /**
  * Neighboring agencies this tenant refers requests to (city → county, school
- * district, state DOJ…). Most will never be Holmes tenants, so an entry is
+ * district, state DOJ…). Most will never be Brandeis tenants, so an entry is
  * plain contact data; `peerAgencyId` links the ones that ARE, which is what
  * makes one-click forwarding possible (phase 3).
  */
@@ -295,7 +295,7 @@ export const agencyDirectory = pgTable(
     // What this agency holds — drives the phase-2 AI suggestion and staff search.
     recordTypes: jsonb("record_types").$type<string[]>().default([]),
     notes: text("notes"),
-    // Set when the referral target is another Holmes tenant (phase 3).
+    // Set when the referral target is another Brandeis tenant (phase 3).
     peerAgencyId: uuid("peer_agency_id").references(() => agencies.id, {
       onDelete: "set null",
     }),

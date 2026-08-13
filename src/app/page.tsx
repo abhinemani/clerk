@@ -3,7 +3,7 @@ import { branding } from "@/config/branding";
 import { Seal, SparkIcon } from "./_components/ui";
 
 /**
- * The marketing site — Holmes the product, pitched to governments. Distinct
+ * The marketing site — Brandeis the product, pitched to governments. Distinct
  * from the tenant portals it links to: /riverton is the living demo.
  */
 export default function MarketingHome() {
@@ -198,7 +198,7 @@ export default function MarketingHome() {
           </p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 20, flexWrap: "wrap" }}>
             <a
-              href={`mailto:hello@holmes.example?subject=${encodeURIComponent(`${branding.productName} demo`)}`}
+              href={`mailto:hello@brandeis.example?subject=${encodeURIComponent(`${branding.productName} demo`)}`}
               className="btn btn-maroon"
             >
               Request a demo
@@ -218,7 +218,7 @@ export default function MarketingHome() {
               © {new Date().getFullYear()} {branding.productName}. {branding.tagline}.
             </span>
             <span>
-              <a href="mailto:hello@holmes.example">hello@holmes.example</a>
+              <a href="mailto:hello@brandeis.example">hello@brandeis.example</a>
             </span>
           </div>
         </div>

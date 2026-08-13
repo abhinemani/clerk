@@ -5,7 +5,7 @@
  * this tenant — county, school district, state — that requests get pointed to
  * when the records aren't ours. Plain contact data; no integration required,
  * which is what makes it work on day one for agencies that will never be
- * Holmes tenants.
+ * Brandeis tenants.
  */
 import { useState, useTransition } from "react";
 import { branding } from "@/config/branding";

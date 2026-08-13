@@ -443,7 +443,7 @@ Demo credentials
   Riverton responder     /riverton/app/login   sam@riverton.gov / riverton-demo3 (Public Works only)
   Riverton resident      /riverton/login       jordan@rivertonledger.com / riverton-resident
   Bellmar staff admin    /bellmar/app/login    amara@bellmar.gov / bellmar-demo
-  Platform operator      /admin/login          admin@holmes.example / holmes-admin-dev
+  Platform operator      /admin/login          admin@brandeis.example / brandeis-admin-dev
                          (override with PLATFORM_ADMIN_EMAIL / PLATFORM_ADMIN_PASSWORD)`);
 }
 

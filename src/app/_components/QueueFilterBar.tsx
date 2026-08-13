@@ -19,10 +19,10 @@ interface SavedFilter {
 }
 
 function storageKey(agencySlug: string, userId: string) {
-  return `holmes:savedFilters:${agencySlug}:${userId}`;
+  return `brandeis:savedFilters:${agencySlug}:${userId}`;
 }
 
-/** Pre-rename key (Clerk → Holmes). Read once so nobody loses saved filters. */
+/** Pre-rename key (Clerk → Brandeis). Read once so nobody loses saved filters. */
 function legacyStorageKey(agencySlug: string, userId: string) {
   return `clerk:savedFilters:${agencySlug}:${userId}`;
 }

@@ -40,7 +40,7 @@ export function RecordsImportPanel({ agencySlug }: { agencySlug: string }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "holmes-records-import-template.csv";
+    a.download = "brandeis-records-import-template.csv";
     a.click();
     URL.revokeObjectURL(url);
   }

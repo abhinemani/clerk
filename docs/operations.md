@@ -24,7 +24,7 @@ directory**, or the copy can be torn.
 ```bash
 docker compose stop app
 docker run --rm -v clerk-data:/data -v "$PWD/backups:/backups" alpine \
-  tar czf "/backups/holmes-$(date +%F).tar.gz" -C /data .
+  tar czf "/backups/brandeis-$(date +%F).tar.gz" -C /data .
 docker compose start app
 ```
 
@@ -38,7 +38,7 @@ database and every blob — one file is the whole deployment's state.
 docker compose down
 docker volume rm clerk-data && docker volume create clerk-data
 docker run --rm -v clerk-data:/data -v "$PWD/backups:/backups" alpine \
-  tar xzf /backups/holmes-YYYY-MM-DD.tar.gz -C /data
+  tar xzf /backups/brandeis-YYYY-MM-DD.tar.gz -C /data
 docker compose up -d
 ```
 
@@ -51,8 +51,8 @@ Verify after every restore (this is the monthly test):
 ## Backup (managed Postgres + S3)
 
 ```bash
-pg_dump "$DATABASE_URL" --format=custom --file="holmes-$(date +%F).dump"
-# restore: pg_restore --clean --dbname="$DATABASE_URL" holmes-YYYY-MM-DD.dump
+pg_dump "$DATABASE_URL" --format=custom --file="brandeis-$(date +%F).dump"
+# restore: pg_restore --clean --dbname="$DATABASE_URL" brandeis-YYYY-MM-DD.dump
 ```
 
 Blobs on S3/MinIO: turn on bucket versioning and rely on the provider's
@@ -81,7 +81,7 @@ the blob store, which only ever gains objects).
   ```
 
   Migrating local → S3: copy `/data/blobs/**` into the bucket preserving
-  relative paths as keys (`mc mirror /data/blobs alias/holmes-blobs`), then set
+  relative paths as keys (`mc mirror /data/blobs alias/brandeis-blobs`), then set
   the env vars and restart. Keys are identical in both stores.
 
 ## Job queue

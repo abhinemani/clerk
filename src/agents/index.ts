@@ -1,5 +1,5 @@
 /**
- * Holmes agentic layer (spec §16, Phase 5).
+ * Brandeis agentic layer (spec §16, Phase 5).
  *
  * Agents are orchestrations over the §6 pipelines and §9 data-plane tools — not
  * new capabilities. This module provides the framework that runs them safely:

@@ -64,7 +64,7 @@ describe("s3ConfigFromEnv", () => {
     expect(s3ConfigFromEnv({ S3_ENDPOINT: "http://x", S3_BUCKET: "b" } as unknown as NodeJS.ProcessEnv)).toBeNull();
     const full = s3ConfigFromEnv({
       S3_ENDPOINT: "http://localhost:9000/",
-      S3_BUCKET: "holmes",
+      S3_BUCKET: "brandeis",
       S3_ACCESS_KEY_ID: "ak",
       S3_SECRET_ACCESS_KEY: "sk",
     } as unknown as NodeJS.ProcessEnv);
@@ -75,7 +75,7 @@ describe("s3ConfigFromEnv", () => {
 describe("S3BlobStore request shape (fake fetch)", () => {
   const config = {
     endpoint: "http://localhost:9000",
-    bucket: "holmes",
+    bucket: "brandeis",
     region: "us-east-1",
     accessKeyId: "ak",
     secretAccessKey: "sk",
@@ -92,7 +92,7 @@ describe("S3BlobStore request shape (fake fetch)", () => {
     await store.put("ag-1/report.pdf", Buffer.from("hello"), "application/pdf");
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe("http://localhost:9000/holmes/ag-1/report.pdf");
+    expect(calls[0]!.url).toBe("http://localhost:9000/brandeis/ag-1/report.pdf");
     const headers = calls[0]!.init.headers as Record<string, string>;
     expect(headers["x-amz-date"]).toBe("20260804T120000Z");
     expect(headers["content-type"]).toBe("application/pdf");

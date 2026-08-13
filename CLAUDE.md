@@ -1,7 +1,8 @@
-# CLAUDE.md — Holmes (AI-native public records platform)
+# CLAUDE.md — Brandeis (AI-native public records platform)
 
-Product name is **Holmes** (lives in `src/config/branding.ts`; renamed from
-Clerk 2026-08-05, naming swept through the codebase 2026-08-13).
+Product name is **Brandeis** (lives in `src/config/branding.ts`). It was
+Clerk, briefly Holmes on 2026-08-05, and settled as Brandeis on 2026-08-13
+with the naming swept codebase-wide. Title case is deliberate.
 
 Two deliberate exceptions — do NOT "fix" either:
 - **"clerk" as a job title stays.** City Clerk, Clerk-Recorder, "the records

@@ -44,13 +44,13 @@ declare module "next-auth" {
 }
 
 /**
- * The platform operator (Holmes's own admin — manages every tenant). A single
+ * The platform operator (Brandeis's own admin — manages every tenant). A single
  * account from the environment, not a tenant row: set PLATFORM_ADMIN_EMAIL and
  * PLATFORM_ADMIN_PASSWORD in production. Dev falls back to a printed default.
  */
 export const PLATFORM_ADMIN = {
-  email: process.env.PLATFORM_ADMIN_EMAIL ?? "admin@holmes.example",
-  password: process.env.PLATFORM_ADMIN_PASSWORD ?? "holmes-admin-dev",
+  email: process.env.PLATFORM_ADMIN_EMAIL ?? "admin@brandeis.example",
+  password: process.env.PLATFORM_ADMIN_PASSWORD ?? "brandeis-admin-dev",
 };
 
 /** Length-independent constant-time string comparison (hash both sides). */
@@ -76,7 +76,7 @@ function resolveAuthSecret(): string {
       "AUTH_SECRET is required in production (any long random string). Refusing to start with the known dev secret.",
     );
   }
-  return "holmes-dev-secret-set-AUTH_SECRET-in-prod";
+  return "brandeis-dev-secret-set-AUTH_SECRET-in-prod";
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({

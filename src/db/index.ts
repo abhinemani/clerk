@@ -9,7 +9,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 
-const connectionString = process.env.DATABASE_URL ?? "postgres://localhost:5432/holmes";
+const connectionString = process.env.DATABASE_URL ?? "postgres://localhost:5432/brandeis";
 
 // `postgres-js` single connection pool. `prepare: false` keeps compatibility with
 // connection poolers (PgBouncer transaction mode) used in serverless deploys.

@@ -8,13 +8,13 @@ const WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILURES = 5;
 
 interface ThrottleGlobal {
-  __holmesLoginFailures?: Map<string, number[]>;
+  __brandeisLoginFailures?: Map<string, number[]>;
 }
 const g = globalThis as ThrottleGlobal;
 
 function failures(): Map<string, number[]> {
-  if (!g.__holmesLoginFailures) g.__holmesLoginFailures = new Map();
-  return g.__holmesLoginFailures;
+  if (!g.__brandeisLoginFailures) g.__brandeisLoginFailures = new Map();
+  return g.__brandeisLoginFailures;
 }
 
 const keyFor = (kind: string, agencySlug: string, email: string) =>

@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const PORT = 3499;
-const dataRoot = mkdtempSync(join(tmpdir(), "holmes-e2e-"));
+const dataRoot = mkdtempSync(join(tmpdir(), "brandeis-e2e-"));
 
 export default defineConfig({
   testDir: "./e2e",

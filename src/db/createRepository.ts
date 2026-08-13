@@ -56,19 +56,19 @@ async function buildDb(): Promise<Db> {
 // PGlite is single-writer, so writes from one bundle would be invisible (or
 // corrupting) to another. One process → one database handle.
 interface DbGlobal {
-  __holmesDbPromise?: Promise<Db>;
-  __holmesRepoPromise?: Promise<Repository>;
+  __brandeisDbPromise?: Promise<Db>;
+  __brandeisRepoPromise?: Promise<Repository>;
 }
 const g = globalThis as DbGlobal;
 
 /** The configured Drizzle db — memoized so migrations run once per process. */
 export function getDb(): Promise<Db> {
-  if (!g.__holmesDbPromise) g.__holmesDbPromise = buildDb();
-  return g.__holmesDbPromise;
+  if (!g.__brandeisDbPromise) g.__brandeisDbPromise = buildDb();
+  return g.__brandeisDbPromise;
 }
 
 /** The app's repository (over getDb()). */
 export function getRepository(): Promise<Repository> {
-  if (!g.__holmesRepoPromise) g.__holmesRepoPromise = getDb().then((db) => new DrizzleRepository(db));
-  return g.__holmesRepoPromise;
+  if (!g.__brandeisRepoPromise) g.__brandeisRepoPromise = getDb().then((db) => new DrizzleRepository(db));
+  return g.__brandeisRepoPromise;
 }
