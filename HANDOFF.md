@@ -10,6 +10,36 @@ Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushe
 **789 tests pass, typecheck clean; all 4 e2e specs green** (as of the
 2026-08-14 e2e entry below).
 
+## START HERE (next session)
+
+State in one line: the product is demo-complete through connected sources
+phase 2 and RAG'd triage; nothing is half-built; every entry below was
+verified as described at its date.
+
+**If this session has an ANTHROPIC_API_KEY** (check — the owner may have
+done laptop-setup Part A): the standing debt comes first. `npm run eval`,
+record the scorecard in a new entry here, retune the priorAnswerService
+floors if `request_match` misbehaves, then file a request in a seeded dev
+server and confirm the triage event cites precedent publicIds. That one
+run clears request_match AND both 2026-08-13.1 prompt bumps.
+
+**Keyless build candidates, roughly by staff-side value** (all offline,
+all sized for one window):
+1. Correspondence threading + Message-ID dedupe (messages already carry
+   From/To/Date metadata; the detail page renders them flat).
+2. Release-history import — link legacy-imported requests to imported
+   documents as releases, so archive/dedup/precedents inherit history
+   (tier-1 remainder, the onboarding lever).
+3. Intake dedup should reuse stored request vectors instead of re-embedding
+   the whole corpus per filing (`[agency]/actions.ts` findDuplicates call).
+4. Small: annual-report CSV companion · proactive retention-destruction
+   warnings · "reviewed by counsel on DATE" field on statute profiles ·
+   responder email on dispatch.
+
+**Gated — do not build without the owner**: connected-sources phase 3
+(row store / tabular answers; needs real usage), Phase 5 agents
+(docs/agentic-horizon.md; needs real-user proof).
+
 **NEWEST (2026-08-14, later): CONNECTED-SOURCES E2E + A REAL GUARD IT
 SURFACED.** The twice-verified-by-hand loop is now `e2e/
 connectedSources.spec.ts`: sync → reviewed-mode hold → attest (consequence

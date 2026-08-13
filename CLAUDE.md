@@ -79,13 +79,21 @@ The GitHub repo, the clone directory, and `.claude/launch.json` still say
    it replaces re-reading the git history. This file (CLAUDE.md) is the stable
    rules layer and deliberately carries no status.
 3. The product spec is `foia.md` at the owner's `~/Desktop` (not in the repo);
-   `docs/` holds per-feature specs (records-ingestion, inter-agency-referral,
-   operations runbook).
+   `docs/` holds per-feature specs (records-ingestion, answer-first,
+   connected-sources, inter-agency-referral, operations runbook) plus
+   `laptop-setup.md` — the owner's checklist for key/env work; cloud
+   sessions keep it current when env vars change.
 
 ## Current phase
-The assistive AI layer is **live**: intake triage, routing, exemption pass,
-auto-classification, redaction suggestions + residual checks, copilot,
+The assistive AI layer is **live**: intake triage and routing (both
+RAG'd — precedents from resolved requests ride the prompts, see
+docs/answer-first.md phase 4), exemption pass, auto-classification,
+redaction suggestions + residual checks, copilot with panel prefill,
 correspondence drafting, hybrid answer box, and the portal requester agent.
+**Connected data sources** (docs/connected-sources.md) are live through
+phase 2: file-drop/HTTP/Socrata connectors, reviewed mode, and per-dataset
+standing publication; phase 3 (row store, tabular answers) is gated on real
+usage.
 `docs/agentic-horizon.md` is **Phase 5 — autonomous agents. Do not build or
 wire Bucket B**; the §16.1 agent framework in `src/agents/` (definitions,
 action tiers, budgets, harness) is built and tested but stays dormant until
@@ -135,11 +143,30 @@ path.
   Never put min/max bounds on numeric fields in a pipeline schema — the API
   rejects them silently (see HANDOFF gotcha 9); clamp on read.
 - Fees/payments were removed on purpose — do not re-add.
+- Connected-source standing publication: an attestation makes FUTURE slices
+  be born public, never flips an existing internal document (that direction
+  is invariant 9's). `classifyNewSlice()` in connectedSourceService is the
+  ONE publicness decision for synced slices — never add a second path.
+  Connector secrets are env-var NAMES (`tokenEnv`); a token value must
+  never reach the database. One file-drop source per agency (shared drop
+  directory ⇒ duplicates otherwise).
 
 ## Definition of done for any feature
 Types pass, tests pass (including any invariant tests you touched), migration
 included if schema changed, seed data updated if the demo should show it, and
 no TODOs that silently skip an invariant.
+
+## Sessions & models (owner's workflow)
+Work happens in Claude Code cloud sessions started from the owner's phone,
+on whichever Claude model the session picks — HANDOFF.md is the context
+package that makes any of them work cold. Rules of thumb the owner uses:
+long autonomous feature windows and anything touching invariants/release/
+redaction go to the strongest available model; well-scoped tasks are fine
+on a lighter one. Whatever the model: browser-verify UI work (HANDOFF
+gotcha 11), run the full offline suite before every commit, append a
+HANDOFF entry per build window, and push to main (standing permission,
+granted this repo's owner-of-one workflow). Report which model actually ran
+if asked — never claim to be one you are not.
 
 ## When unsure
 Prefer asking over guessing on: anything statute-related, anything that changes
