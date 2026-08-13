@@ -51,17 +51,10 @@ VOYAGE_API_KEY
    it must allow `api.anthropic.com` and `api.voyageai.com`. On "trusted"
    or broader you're done; on a custom allowlist, add those two hosts.
 
-**5. PASTE — hand the standing debt to a fresh session** (start one from
-   your phone, paste this as the first message):
-
-```
-Keys are now configured in this environment. Run npm run eval, record the
-full scorecard in a new HANDOFF entry, and clear the eval-debt lines from
-Known small gaps. If request_match over- or under-matches, retune the
-floors in src/services/priorAnswerService.ts and include before/after in
-the commit. Then seed a dev server, file a request, and confirm the triage
-ai_action event cites precedent publicIds. Push to main when green.
-```
+**5. ~~PASTE — hand the standing debt to a fresh session~~ DONE
+   2026-08-13** (keyed laptop session: eval 27/27 recorded in HANDOFF,
+   precedent citations proven live). If you ever bump a prompt again, the
+   equivalent hand-off message is in Part B below.
 
 That's it. New sessions (not already-open ones) see the keys. After this,
 only Part C (Docker) and Part D (email + DNS) ever need you at a machine.
@@ -91,10 +84,12 @@ EOF
 cd clerk && npm run eval
 ```
 
-What good looks like: last recorded scorecard was **exemption 5/5 · recall
-100% · precision ~65–73%**. One run covers all three unevaled prompts
-(`request_match` + the two `2026-08-13.1` RAG bumps — the golden set
-already contains the RAG contamination guards). Then either commit the
+What good looks like (last run 2026-08-13, all gates green): **custodian
+8/8 · exemption 5/5, recall 100%, precision 69% · intake triage 7/8 (88%,
+both RAG cases pass) · answer engine 3/3 grounded**. Note `request_match`
+has no eval case of its own — the RAG golden cases cover the triage/
+routing prompts; a misbehaving request_match needs a new golden set
+first (see HANDOFF). Then either commit the
 scorecard into HANDOFF yourself, or **PASTE** into a Claude session:
 
 ```
