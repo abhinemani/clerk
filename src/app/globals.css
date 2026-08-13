@@ -106,12 +106,16 @@
   --wrap: 1120px;
 }
 
-/* SCREEN-scoped on purpose: print always takes the light palette. A visitor
-   on a dark OS printing any page used to get near-black grounds with pale
-   ink — ink-burning and illegible on paper. Ground-pinned surfaces (hero,
-   gov footer/banner) are exempt by design: they paint their own dark ground
-   in both themes and stay self-consistent in print. */
-@media screen and (prefers-color-scheme: dark) {
+/* DARK-LOCKED (owner directive 2026-08-13): the dark style IS the product's
+   style on every screen, regardless of the visitor's OS preference — this
+   block used to be gated on prefers-color-scheme: dark and is now
+   unconditional on screens. The light :root palette above survives for ONE
+   consumer: PRINT. Paper always takes the light values (a dark page prints
+   as an ink-burning slab), which is why this stays a media query at all —
+   `screen`, not `all`. Ground-pinned surfaces (gov footer/banner, dark
+   band, nav) still paint their own ground and stay self-consistent in
+   print. */
+@media screen {
   :root {
     /* The board is a dark-first identity: these ARE its colors, undiluted. */
     --paper: #0f141a;

@@ -103,12 +103,13 @@ export function BrandMarkRaster({
       </span>
     );
   }
+  // Dark-locked (owner directive 2026-08-13): every screen ground is dark,
+  // so the theme swap is gone — the dark rev is the mark, everywhere.
   return (
-    <picture className="brand-raster">
-      <source srcSet="/brand/mark-dark.png" media="(prefers-color-scheme: dark)" />
+    <span className="brand-raster">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/mark-light.png" alt={alt} style={imgStyle} />
-    </picture>
+      <img src="/brand/mark-dark.png" alt={alt} style={imgStyle} />
+    </span>
   );
 }
 

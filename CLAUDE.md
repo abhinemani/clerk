@@ -42,19 +42,21 @@ interchangeable (details in `public/brand/README.md`):
 them: it stands in for a **government's own** seal on tenant portals. Never
 put the product mark where an agency's seal belongs.
 
-**Both themes ship.** `:root` is light, the `prefers-color-scheme: dark`
-block overrides it, and every surface follows the visitor — including the
-marketing page, which is no longer dark-locked. Anything added to one theme
-needs its counterpart in the other, contrast-checked against that ground.
+**DARK-LOCKED (owner directive 2026-08-13, supersedes "both themes
+ship").** The dark palette is the product's one style on every screen,
+regardless of the visitor's OS preference: the dark token block in
+`globals.css` is scoped `@media screen` (unconditional on screens), and
+`tenantAccentCss` emits the dark-adjusted accent the same way. The light
+`:root` palette is NOT dead — it exists for exactly one consumer, PRINT,
+which always takes light values so reports and letters don't print as ink
+slabs. Do not re-introduce `prefers-color-scheme` gates; do not delete the
+light tokens either.
 
-**Pin to the GROUND, not the theme.** Swapping an asset on
-`prefers-color-scheme`, or letting a token flip with it, is only correct
-where the surface actually follows the visitor. Surfaces whose ground is
-fixed in *both* themes — the nav, the mid-page dark band, the footer on
-`--primary-deep`, the gov banner — must pin their brand tokens to the dark
-values instead; `globals.css` has a GROUND-PINNED TOKENS block for exactly
-this. (The marketing HERO left this family on 2026-08-13, owner directive:
-it sits on the page's own paper and follows the visitor's theme.) This shipped as a bug
+**Pin to the GROUND, not the theme** remains the working principle — with
+every screen dark it is mostly moot day-to-day, but the GROUND-PINNED
+TOKENS block in `globals.css` stays (it is what keeps the nav/footer/gov
+chrome self-consistent in PRINT, where the page ground goes light), and
+the lesson stands if theming ever returns. This shipped as a bug
 twice: a navy wordmark landing on near-black, then gold ornament going pale
 yellow on a dark band. If you add a theme-reactive asset or token, first ask
 what the ground under it does.

@@ -45,7 +45,33 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, after the logo): MARKETING PAGE
+**NEWEST (2026-08-13, cloud session, latest): DARK-LOCKED (owner
+directive — "everything falls into the dark style no matter the user
+preferences").** Supersedes "both themes ship" AND the light-hero
+decision from earlier the same day; CLAUDE.md's brand section is
+rewritten accordingly. Mechanics, because they're subtle:
+- The dark token block in globals.css went from `@media screen and
+  (prefers-color-scheme: dark)` to **`@media screen`** — unconditional on
+  screens. The light `:root` palette is deliberately KEPT: it has exactly
+  one consumer now, PRINT (paper always takes light values; the
+  screen-scoping is the whole print story). Do not delete it; do not
+  re-add preference gates.
+- `tenantAccentCss` same move: the dark-adjusted accent applies on every
+  screen; the stored accent survives in the base declaration for print.
+  branding.test.ts updated (asserts `@media screen{`).
+- The two remaining `<picture>` theme swaps are gone: BrandMarkRaster's
+  no-ground branch and the signup lockup both render the dark rev as
+  plain `<img>` — every screen ground is dark now. (mark-light.png and
+  brandeis-lockup-light.png still exist on disk; nothing references
+  them.)
+- GROUND-PINNED TOKENS block stays — it's what keeps nav/footer/gov
+  chrome self-consistent in print, where the page ground goes light.
+Verified with a LIGHT-preference browser context: marketing, portal,
+signup, bellmar all render --paper #0f141a; print emulation still gets
+#f7f7f5. Hero + quote band + chat all follow tokens into dark cleanly.
+848 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, cloud session, after the logo): MARKETING PAGE
 RETHOUGHT (owner: "rethink and optimize, best judgment").** The light
 hero had left the below-fold reading heavier than the top; the page now
 keeps EXACTLY ONE dark moment (the closing CTA band) before the footer:
