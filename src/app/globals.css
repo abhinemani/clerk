@@ -5,6 +5,13 @@
    ========================================================================= */
 
 :root {
+  /* DARK ONLY (owner decision, 2026-08-13). There is no light theme:
+     these ARE the tokens, not a dark override of a light set. The
+     prefers-color-scheme block is gone, so nothing forks by mode and
+     no surface can drift out of contrast in a theme nobody ships.
+     color-scheme:dark also makes form controls and scrollbars dark. */
+  color-scheme: dark;
+
   /* BRAND PALETTE (2026-08-13 board). Six colors, and the neutral steps
      between them are interpolations of the same two: 0F141A ink, 2A313C
      slate, F5C75E gold, F7F7F5 paper, C46A4A terracotta, 4B2A45 plum.
@@ -12,84 +19,80 @@
      This SUPERSEDES the #990000 civic red. That color was owner-specified on
      2026-07-30 and pinned in CLAUDE.md; the board replaces it, and CLAUDE.md
      has been updated to match. There is no red in the brand now. */
-  --paper: #f7f7f5;
-  --surface: #ffffff;
-  --surface-2: #efefec;
-  --surface-3: #e5e5e1;
-  --border: #dededa;
-  --border-strong: #c7c7c1;
+  --paper: #0f141a;
+  --surface: #171d26;
+  --surface-2: #2a313c;
+  --surface-3: #353d4a;
+  --border: #2a313c;
+  --border-strong: #3e4754;
 
-  --ink: #0f141a;
-  --ink-2: #2a313c;
-  --muted: #5f6672;
+  --ink: #f7f7f5;
+  --ink-2: #c2c8d1;
+  --muted: #8a929e;
 
-  /* Slate carries structure where navy used to. 12.2:1 on paper. */
-  --primary: #2a313c;
-  --primary-deep: #0f141a;
-  --primary-hover: #3d4653;
-  --primary-ink: #ffffff;
-  --primary-tint: #eaebee;
+  /* Structure. A light slate reads on the near-black ground; the deep steps
+     below it are for grounds that sit under content, not for text. */
+  --primary: #93a8c0;
+  --primary-deep: #0b0f14;
+  --primary-hover: #adbed2;
+  --primary-ink: #0f141a;
+  --primary-tint: #202834;
   /* Terracotta is the accent that #990000 used to be. The board's C46A4A is
-     3.6:1 on paper — short of AA — so light mode uses the same hue darkened
-     to the floor: #9c4a2c is 5.7:1 as text and 6.1:1 under white ink as a
-     button fill. Hue is held constant across modes; lightness is the only
-     lever, exactly as the red rule worked. */
-  --maroon: #9c4a2c;
+     4.9:1 on 0F141A — clear of AA — so it is used at full strength. Do NOT
+     lighten it: this hue goes salmon the moment it loses saturation, the same
+     way the old red went pink. The button fill is the darker #9c4a2c so white
+     ink holds 6.1:1 on any surface step. */
+  --maroon: #c46a4a;
   --maroon-btn: #9c4a2c;
-  --maroon-tint: #f7efeb;
-  --accent: #9c4a2c;
-  /* Gold is ORNAMENT — marks, rules, flourishes, and text on dark grounds
-     only. It is 1.5:1 on paper: never body text in light mode. */
+  --maroon-tint: #2a1a14;
+  --accent: #c46a4a;
+  /* Gold: 11.6:1 on the ground, so it is safe as text here — but it stays
+     ORNAMENT by choice (marks, rules, eyebrows), because gold body copy reads
+     as decoration rather than as a document. */
   --gold: #f5c75e;
   /* Plum: deep surface accent (the board's app icon ground). White on it is
-     12.2:1, so it is safe as a solid fill in either mode. */
+     12.2:1, so it is safe as a solid fill. */
   --plum: #4b2a45;
-  /* MARK COLOURS — three roles, because the owner's renders use three: the
-     arriving beam, the refracted fan, and the structure (prism + record).
-
-     LIGHT STYLE, from the owner's light render: navy structure, glassy prism,
-     amber light. The render draws the light in brand gold; gold is 1.5:1 on
-     paper and would vanish, so the hue is held and lightness taken to 3.6:1,
-     clearing the 3:1 minimum for a graphic. This is the one place the
-     implementation departs from the render, and it departs on purpose. */
-  --mark-beam: #a9791f;
-  --mark-ray: #c46a4a;
-  --mark-structure: #1c2a45;
+  /* MARK COLOURS — three roles, taken straight from the owner's DARK render:
+     the beam arrives gold, disperses cool through the prism, and turns gold
+     again as it becomes the record. The light-style values are gone with the
+     light theme. */
+  --mark-beam: #f5c75e;
+  --mark-ray: #c8d2e2;
+  --mark-structure: #f5c75e;
   /** Legacy alias — kept so nothing that still reads it breaks. */
-  --mark-light: #a9791f;
-  /* WORDMARK. The renders differ deliberately: white on dark, navy on light.
-     The tagline is gold in both, but gold is 1.5:1 on paper and this is small
-     text needing 4.5:1 — so light takes the same hue down to 5.2:1. */
-  --wordmark: #1c2a45;
-  --wordmark-sub: #8a6015;
+  --mark-light: #f5c75e;
+  /* WORDMARK: white letters, gold tagline, exactly as the dark render draws it. */
+  --wordmark: #f7f7f5;
+  --wordmark-sub: #f5c75e;
 
   /* AI surfaces — a calm teal. NOT on the brand board: status colors
      (overdue/due/ok) and the AI hue are FUNCTIONAL, not brand, and the board
      does not speak to them. They stay as tuned. */
-  --ai: #0e6b84;
-  --ai-tint: #e9f7fb;
+  --ai: #3fb6d3;
+  --ai-tint: #14262c;
 
   /* Deadline / status semantics */
-  --overdue: #b42318;
-  --overdue-bg: #fef3f2;
-  --overdue-border: #fecdca;
-  --due: #b54708;
-  --due-bg: #fffaeb;
-  --due-border: #fde3a7;
-  --ok: #067647;
-  --ok-bg: #ecfdf3;
-  --ok-border: #a9e5c3;
+  --overdue: #f65a4c;
+  --overdue-bg: #2c1a18;
+  --overdue-border: #6b322b;
+  --due: #f5b855;
+  --due-bg: #2b2214;
+  --due-border: #6a5324;
+  --ok: #6bdca0;
+  --ok-bg: #142a20;
+  --ok-border: #2f5f47;
 
-  --focus: #2c5488;
+  --focus: #7aa6dc;
 
   --r-sm: 7px;
   --r: 11px;
   --r-lg: 16px;
   --r-pill: 999px;
 
-  --shadow-sm: 0 1px 2px rgba(24, 26, 31, 0.05);
-  --shadow: 0 1px 2px rgba(24, 26, 31, 0.05), 0 4px 12px -4px rgba(24, 26, 31, 0.09);
-  --shadow-lg: 0 12px 32px -8px rgba(24, 26, 31, 0.16);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px -6px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 16px 40px -10px rgba(0, 0, 0, 0.6);
 
   /* Public Sans (USWDS — the U.S. government's typeface) + Source Serif
      display, self-hosted via next/font; system stacks as fallback. */
@@ -102,69 +105,6 @@
   --wrap: 1120px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* The board is a dark-first identity: these ARE its colors, undiluted. */
-    --paper: #0f141a;
-    --surface: #171d26;
-    --surface-2: #2a313c;
-    --surface-3: #353d4a;
-    --border: #2a313c;
-    --border-strong: #3e4754;
-
-    --ink: #f7f7f5;
-    --ink-2: #c2c8d1;
-    --muted: #8a929e;
-
-    --primary: #93a8c0;
-    --primary-deep: #0b0f14;
-    --primary-hover: #adbed2;
-    --primary-ink: #0f141a;
-    --primary-tint: #202834;
-    /* Dark mode gets the board's terracotta at full strength — C46A4A is
-       4.9:1 on 0F141A, already clear of AA, so it needs no lightening. Do
-       NOT lighten it further: this hue turns salmon the moment it loses
-       saturation, the same failure the old red had toward pink. The button
-       fill stays the darker #9c4a2c so white ink holds 6.1:1 anywhere. */
-    --maroon: #c46a4a;
-    --maroon-btn: #9c4a2c;
-    --maroon-tint: #2a1a14;
-    --accent: #c46a4a;
-    --gold: #f5c75e;
-    --plum: #4b2a45;
-    /* DARK STYLE, from the dark render: gold beam and structure, with the
-       refracted fan in pale silver — the light arrives gold, disperses cool,
-       and turns back to gold as it becomes the record. */
-    --mark-beam: #f5c75e;
-    --mark-ray: #c8d2e2;
-    --mark-structure: #f5c75e;
-    --mark-light: #f5c75e;
-    --wordmark: #f7f7f5;
-    --wordmark-sub: #f5c75e;
-
-    --ai: #3fb6d3;
-    --ai-tint: #14262c;
-
-    /* Error red, not salmon: #ff9c8f had MORE contrast than needed (8.2:1)
-       — over-lightening is what made it pastel. h5/s90 stays a true alarm
-       red at 5.1:1 on its pill background, 4.6:1 on surface-2. */
-    --overdue: #f65a4c;
-    --overdue-bg: #2c1a18;
-    --overdue-border: #6b322b;
-    --due: #f5b855;
-    --due-bg: #2b2214;
-    --due-border: #6a5324;
-    --ok: #6bdca0;
-    --ok-bg: #142a20;
-    --ok-border: #2f5f47;
-
-    --focus: #7aa6dc;
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px -6px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 16px 40px -10px rgba(0, 0, 0, 0.6);
-  }
-}
 
 /* ---- reset ---- */
 *,
@@ -865,50 +805,8 @@ label.lbl {
    it. Never swap those for tokens.
    ========================================================================= */
 
-body:has(.mk-page),
-.mk-page {
-  color-scheme: dark;
-
-  --paper: #0f141a;
-  --surface: #171d26;
-  --surface-2: #2a313c;
-  --surface-3: #353d4a;
-  --border: #2a313c;
-  --border-strong: #3e4754;
-
-  --ink: #f7f7f5;
-  --ink-2: #c2c8d1;
-  --muted: #8a929e;
-
-  --primary: #93a8c0;
-  --primary-deep: #0b0f14;
-  --primary-hover: #adbed2;
-  --primary-ink: #0f141a;
-  --primary-tint: #202834;
-
-  --maroon: #c46a4a;
-  --maroon-btn: #9c4a2c;
-  --maroon-tint: #2a1a14;
-  --accent: #c46a4a;
-  --gold: #f5c75e;
-  --plum: #4b2a45;
-  --mark-beam: #f5c75e;
-  --mark-ray: #c8d2e2;
-  --mark-structure: #f5c75e;
-  --mark-light: #f5c75e;
-  --wordmark: #f7f7f5;
-  --wordmark-sub: #f5c75e;
-
-  --overdue: #f65a4c;
-  --due: #f5b855;
-  --ok: #6bdca0;
-
-  --focus: #7aa6dc;
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px -6px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 16px 40px -10px rgba(0, 0, 0, 0.6);
-}
+/* The marketing dark-lock is gone: the whole app is dark now, so there is
+   nothing to lock. .mk-page only carries its ground. */
 .mk-page {
   background: var(--paper);
   color: var(--ink);

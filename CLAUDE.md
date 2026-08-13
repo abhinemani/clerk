@@ -18,6 +18,12 @@ this hue goes salmon when it loses saturation, the same way the old red went
 pink. Gold is **ornament** — marks, rules, and text on dark grounds only; it
 is 1.5:1 on paper.
 
+**Dark only (owner decision, 2026-08-13).** There is no light theme. The
+`prefers-color-scheme` fork is gone: `:root` carries the dark values as THE
+values, with `color-scheme: dark`. Do not reintroduce a light palette, and do
+not add a light variant of the mark — nothing should fork by mode, so no
+surface can drift out of contrast in a theme nobody ships.
+
 Status colors (overdue/due/ok) and the AI teal are **functional, not brand**.
 The board does not speak to them and they stay as tuned.
 
