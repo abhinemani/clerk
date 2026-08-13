@@ -23,7 +23,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className="nav">
         <div className="wrap nav-inner">
           <Link href="/admin" className="brand" aria-label={`${branding.productName} platform console`}>
-            <BrandMarkRaster />
+            {/* Nav ground is pinned dark in both themes — pin the revision. */}
+            <BrandMarkRaster ground="dark" />
             <span className="brand-name">
               <span className="brand-agency">{branding.productName}</span>
               <span className="brand-dept">All agencies</span>

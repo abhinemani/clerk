@@ -45,7 +45,27 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, same keyed session, later): EMAIL THREADING +
+**NEWEST (2026-08-13, same keyed session, latest): PINNED DARK NAV
+CHROME (owner directive).** The nav's ground is dark in BOTH themes on
+every page; content below keeps theme-swapping. Implementation is a
+token re-declaration scoped to `.nav` (the dark palette's values,
+mirrored — the block says so loudly; if the dark palette moves, move it
+too), so links, buttons, seals, and tenant names inside go dark without
+knowing why. Consequences handled:
+- The lockup is PINNED dark in `<BrandLockup>` (every lockup placement
+  is a nav) and `<BrandMarkRaster ground="dark">` in the console nav —
+  swap on the GROUND, not the theme. The marketing mid-page mark keeps
+  its theme swap (its ground follows the visitor).
+- `tenantAccentCss` now also emits `.tenant-accent .nav { … }` with the
+  DARK-adjusted accent, unconditionally — a stored accent passed the
+  white-ink guard, so it is dark, so raw on the dark bar it would
+  vanish for light-theme visitors. Two classes outrank the .nav pin.
+- Print: `.nav` joined the print-color-adjust exact family (its dark
+  ground is now load-bearing, same as banner/footer).
+Verified via the Playwright harness: marketing, portal (banner+seal),
+console, signup, mobile — light AND dark. 801 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, same keyed session, later): EMAIL THREADING +
 MESSAGE-ID DEDUPE (build candidate #1) + THE RASTER LOGOS ARE NOW THE
 LOGO.** Two pieces, both browser-verified end to end on the seeded dev
 server:

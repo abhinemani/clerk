@@ -83,16 +83,31 @@ export function Seal({ size = 34, label }: { size?: number; label?: string }) {
  * hand-drawn derivative (a favicon cannot ship a 170KB raster) and is
  * maintained separately.
  */
-export function BrandMarkRaster({ alt = "", size }: { alt?: string; size?: number }) {
+export function BrandMarkRaster({
+  alt = "",
+  size,
+  ground = "auto",
+}: {
+  alt?: string;
+  size?: number;
+  /** "auto" swaps revisions on the visitor's theme; "dark" pins the dark
+   *  revision for grounds that are dark in both themes (the pinned nav). */
+  ground?: "auto" | "dark";
+}) {
+  const imgStyle = size ? { height: size, width: "auto" as const } : undefined;
+  if (ground === "dark") {
+    return (
+      <span className="brand-raster">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/mark-dark.png" alt={alt} style={imgStyle} />
+      </span>
+    );
+  }
   return (
     <picture className="brand-raster">
       <source srcSet="/brand/mark-dark.png" media="(prefers-color-scheme: dark)" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/brand/mark-light.png"
-        alt={alt}
-        style={size ? { height: size, width: "auto" } : undefined}
-      />
+      <img src="/brand/mark-light.png" alt={alt} style={imgStyle} />
     </picture>
   );
 }
@@ -114,21 +129,23 @@ export function BrandLockup({ size = 30 }: { size?: number }) {
     "--lockup": `clamp(${Math.round(size * 0.72)}px, 4.2vw, ${size}px)`,
   } as React.CSSProperties;
   const alt = `${branding.productName} — ${branding.tagline}`;
+  // DARK REVISIONS, PINNED — every lockup placement is a nav, and the nav's
+  // ground is pinned dark in both themes (see the .nav chrome block in
+  // globals.css). Swap on the GROUND, not the theme: a theme swap here put
+  // the navy wordmark on the dark bar for light-OS visitors.
   return (
     <span className="brand-lockup" style={style}>
-      <picture className="brand-raster brand-lockup-full">
-        <source srcSet="/brand/brandeis-lockup-dark.png" media="(prefers-color-scheme: dark)" />
+      <span className="brand-raster brand-lockup-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/brandeis-lockup-light.png" alt={alt} />
-      </picture>
+        <img src="/brand/brandeis-lockup-dark.png" alt={alt} />
+      </span>
       {/* Hidden until the ≤640px collapse — the alt lives on whichever
           rendition is visible, and the nav link's aria-label still names
           the product either way. */}
-      <picture className="brand-raster brand-lockup-mark">
-        <source srcSet="/brand/mark-dark.png" media="(prefers-color-scheme: dark)" />
+      <span className="brand-raster brand-lockup-mark">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/mark-light.png" alt={alt} />
-      </picture>
+        <img src="/brand/mark-dark.png" alt={alt} />
+      </span>
     </span>
   );
 }

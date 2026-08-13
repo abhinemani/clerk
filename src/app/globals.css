@@ -293,8 +293,48 @@ h3 {
   color: #9fadc2;
 }
 
-/* ---- top nav ---- */
+/* ---- top nav ----
+   PINNED DARK CHROME (owner directive 2026-08-13): the nav's ground is dark
+   in BOTH themes — page content below keeps swapping, the bar does not. It
+   joins the ground-pinned family (hero, gov banner, gov footer), which also
+   settles the logo question: the dark lockup rides here always (swap on the
+   GROUND, not the theme).
+
+   Implemented by re-declaring the theme tokens on .nav, so everything inside
+   (links, buttons, seals, tenant names) reads dark values without knowing
+   why. ⚠ This block MIRRORS the dark :root block above — if the dark palette
+   moves, move this with it. Status colors are omitted on purpose: status
+   pills don't render in chrome. */
 .nav {
+  --paper: #0f141a;
+  --surface: #171d26;
+  --surface-2: #2a313c;
+  --surface-3: #353d4a;
+  --border: #2a313c;
+  --border-strong: #3e4754;
+  --ink: #f7f7f5;
+  --ink-2: #c2c8d1;
+  --muted: #8a929e;
+  --primary: #93a8c0;
+  --primary-deep: #0b0f14;
+  --primary-hover: #adbed2;
+  --primary-ink: #0f141a;
+  --primary-tint: #202834;
+  --maroon: #c46a4a;
+  --maroon-btn: #9c4a2c;
+  --maroon-tint: #2a1a14;
+  --accent: #c46a4a;
+  --gold: #f5c75e;
+  --mark-beam: #f5c75e;
+  --mark-ray: #c8d2e2;
+  --mark-structure: #f5c75e;
+  --mark-light: #f5c75e;
+  --wordmark: #f7f7f5;
+  --wordmark-sub: #f5c75e;
+  --focus: #7aa6dc;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px -6px rgba(0, 0, 0, 0.5);
+
   /* One variable, because the bar's height and the nav links' height must
      stay equal — the links are full-height so their active underline lands
      ON the nav's bottom rule rather than floating above it. Two hardcoded
@@ -1765,7 +1805,9 @@ label.lbl {
   }
   /* Printers strip CSS backgrounds by default — which would put these
      surfaces' PINNED light-on-dark ink (white wordmark, pale gold) on bare
-     white paper. Their dark ground is load-bearing, so ask for it exactly. */
+     white paper. Their dark ground is load-bearing, so ask for it exactly.
+     .nav is in this family since the pinned-dark-chrome directive. */
+  .nav,
   .mk-hero,
   .mk-band-dark,
   .gov-footer,

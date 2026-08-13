@@ -75,6 +75,16 @@ describe("tenantAccentCss", () => {
     expect(css.split("@media")[1]).toContain("--primary-deep:#1e3a5f");
   });
 
+  it("pins the dark-adjusted accent inside the nav for BOTH themes — the bar's ground is always dark", () => {
+    const css = tenantAccentCss("#1e3a5f")!;
+    const dark = accentForDarkTheme("#1e3a5f")!;
+    const navBlock = css.slice(css.indexOf(".tenant-accent .nav{"));
+    expect(navBlock).toContain(`--primary:${dark}`);
+    expect(navBlock).toContain("--primary-deep:#1e3a5f");
+    // Outside any media query: the pin applies to light-theme visitors too.
+    expect(css.split("}").at(-2)).toContain(".tenant-accent .nav");
+  });
+
   it("returns null for anything checkAccentColor would refuse — nothing unvetted reaches a <style> tag", () => {
     for (const bad of ["", "blue", "#7fd4ff", "#fff;}body{display:none"]) {
       expect(tenantAccentCss(bad)).toBeNull();

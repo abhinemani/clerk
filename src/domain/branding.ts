@@ -179,7 +179,13 @@ export function tenantAccentCss(input: string): string | null {
     `.tenant-accent{--primary:${accent};--primary-deep:${accent};--primary-hover:${accent};}` +
     `@media screen and (prefers-color-scheme:dark){` +
     `.tenant-accent{--primary:${dark};--primary-hover:${darkHover};--primary-deep:${accent};}` +
-    `}`
+    `}` +
+    // The nav's ground is pinned dark in BOTH themes (globals.css chrome
+    // block), so inside it the accent must be the dark-adjusted variant even
+    // for light-theme visitors — the stored accent passed the white-ink
+    // guard, which makes it dark, which makes it invisible on the dark bar.
+    // Two classes outrank the .nav token pin regardless of order.
+    `.tenant-accent .nav{--primary:${dark};--primary-hover:${darkHover};--primary-deep:${accent};}`
   );
 }
 
