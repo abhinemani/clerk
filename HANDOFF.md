@@ -2,13 +2,38 @@
 
 Context package for continuing in a fresh session. Read this top to bottom
 before doing anything substantial; it replaces re-reading the git history.
-Written 2026-07-29 at the end of a long build window — everything below was
-verified working in that window unless marked otherwise.
+Started 2026-07-29, appended to at the end of each build window since — the
+dated entries below run newest-first. Everything is verified working as of
+its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**506 tests pass, typecheck clean** (as of `f454a17`, 2026-08-04 late night).
+**706 tests pass, typecheck clean** (as of `1942a41`, 2026-08-13).
 
-**NEWEST (2026-08-13): ANSWER-FIRST phase 3 — the learning QUERY LAYER.**
+**NEWEST (2026-08-13): BRAND ADOPTED + MARKETING SITE REBUILT.** The owner's
+board is now the identity — see CLAUDE.md for the rules layer; this entry is
+what happened and what bit. Six colors, `#990000` retired (the Design bullet
+below is rewritten accordingly), terracotta accent, gold as ornament only.
+BOTH THEMES SHIP; the marketing page was briefly dark-locked and is not any
+more. The homepage was rebuilt around AUTOMATION OF RESPONSES, not redaction:
+the hero panel is real markup (never a screenshot — it can't go stale and
+stays sharp), showing a request that triaged, routed, gathered and drafted
+itself, with a named human still holding Send.
+THE LOGO, after many rounds: the owner's renders are **rasters** (supplied as
+`.svg` files that are one base64 `<image>` — zero `<path>`). So there are two
+implementations of one mark, and the split is deliberate: the **cropped
+raster is the chrome logo** (`<BrandMarkRaster>` / `<BrandLockup>`), and the
+hand-authored **`<BrandMark>` SVG** is for large/decorative/token-recolouring
+placements. Do not "unify" them onto the SVG — that was the state that read
+as rough, and it is what the owner asked to change.
+Nav height is keyed on `.nav:has(.brand-lockup)`, not on a page class, so
+`/signup` picked up the taller bar for free and the console/portal (bare mark
+or agency seal) stayed at 66px. New gotchas 10–12 below are all from this
+work; gotcha 11 in particular cost the most time.
+**Still open on this surface:** no `@media print` anywhere (a dark-OS visitor
+prints a near-black page), no favicon, no OG image, and `checkAccentColor`
+guards white-on-accent but not accent-as-text-on-dark.
+
+**PREVIOUS (2026-08-13): ANSWER-FIRST phase 3 — the learning QUERY LAYER.**
 Retrieve-then-rerank in `priorAnswerService.findPriorAnswers()`. (1) SCOPE
 first: for a requester, privately-released prior requests never become
 candidates, so they are not in the corpus, the prompt, or the model context —
@@ -394,6 +419,10 @@ Also complete:
   renders ONLY provided fields (never an invented address — Riverton seeds
   its details so the demo keeps them). Verified live: gold rejected, forest
   green applied to Bellmar's nav, footer + tab title show Records Division.
+  NOTE: `checkAccentColor` only guards WHITE INK ON the accent. It does not
+  check the accent used AS TEXT on a dark ground, which the dark theme now
+  does — a tenant accent that passes here can still be under-contrast there.
+- **Self-serve signup** (2026-08-04, the last piece of the
   multi-tenant loop): `/signup` — any government creates its own tenant
   (name → auto-slug, state from reviewed statute profiles, admin account),
   through the SAME provisionAgency the platform console uses, so
@@ -474,15 +503,20 @@ Also complete:
   precision ~65-73% · 0 missed labels.
 - **Statutes**: `src/statute/` — pure `computeDueDate()` (incl. extension
   validation), profiles for CA/TX/IL/WA/NY (data, not code).
-- **Design**: Public Sans + Source Serif 4; navy/gold/red civic triad in
-  `globals.css`. **The brand red is `#990000` — owner-specified explicitly
-  (2026-07-30); do not drift it.** Light-mode text + button fills use it
-  directly (8.9:1). Dark-mode TEXT uses `#ff4d4d` — same hue 0°, full
-  saturation, lightened only to the AA floor (#990000 itself is 2.0:1 on
-  dark paper); dark buttons keep true `#990000` under white ink. `--overdue`
-  dark is `#f65a4c`. Lesson from two rounds of pink complaints: at the
-  lightness AA forces, saturation is the anti-pink lever; never fix
-  contrast by desaturating or over-lightening.
+- **Design**: Public Sans + Source Serif 4, both self-hosted via next/font
+  (no external font dependency — that is a deliberate part of "self-contained
+  first"). **Serif means document, sans means interface**: display headings
+  are sans, and the serif is reserved for surfaces that ARE a record (the
+  drafted letter, the defensibility PDFs).
+  Palette rules live in CLAUDE.md — the short version is that the 2026-08-13
+  board superseded the navy/gold/red civic triad, `#990000` is retired,
+  terracotta is the accent (`#9c4a2c` light / `#c46a4a` dark), and gold is
+  ornament that is never text on a light ground. The colour lesson survives
+  the palette change and generalises: **at the lightness AA forces,
+  saturation is the anti-pastel lever.** Never fix contrast by desaturating
+  or over-lightening — that is what turned the old red pink, and terracotta
+  goes salmon exactly the same way. Hold the hue, move only lightness.
+  `--overdue` dark is `#f65a4c` (status colours are functional, not brand).
 
 ## Run it (this machine)
 
@@ -556,6 +590,35 @@ One volume (`clerk-data` → `/data`) holds DB + blobs. Optional env:
    `1a69fa1`). Never bound numeric fields in a pipeline schema — clamp on
    read, like intakeTriage's complexity_score and routing/custodian
    confidence now do.
+10. **Detailed SVG dies at chrome size.** The mark's viewBox is ~72 units
+    tall; rendered at 36px that is a 0.5× scale, so a 1px stroke lands on
+    half a pixel and only solid FILLS survive — dashes, hairlines and
+    opacity fades all vanish. Symptom: "the logo looks flat/rough, where
+    did the detail go". This is why the chrome logo is a raster now. If you
+    ever draw for a small size: solid fills, heavier weights, and drop the
+    dasharrays below ~26px. Related trap: the SVG had a `compact` branch
+    gated at `size < 56` while every real placement was 36–40px, so the
+    detailed branch had literally never rendered anywhere.
+11. **VERIFY DESIGN IN A BROWSER, NOT IN TESTS.** Every visual bug this
+    window was invisible to `npm test` and obvious in one screenshot: the
+    sub-pixel mark, a hero beam drawn at 0.1 opacity under its own bloom, a
+    navy wordmark on a near-black footer, an empty-state that never
+    rendered, and a black plate around the dark logo (43% of that PNG's
+    visible pixels were near-opaque black, baked in by the render — keyed
+    out with alpha := max(r,g,b), unpremultiplied, at full res before the
+    downscale). Screenshot both themes AND 390px; measure boxes with
+    `getBoundingClientRect` rather than eyeballing, since a theme swap that
+    shifts layout shows up as a number. Chromium is at
+    `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
+    `executablePath`; `import { chromium } from "@playwright/test"` (bare
+    `playwright` is not installed). Uploads over ~0.9MB fail, so capture at
+    deviceScaleFactor 1 and slice tall pages.
+12. **Full-page screenshots come back BLANK for scroll-revealed sections**
+    unless the context sets `reducedMotion: "reduce"`. That is not just a
+    screenshot artifact — it means content genuinely starts at opacity 0 and
+    only appears on scroll, so anything that doesn't run the observer (print,
+    some crawlers) sees an empty page. Real bug, still unfixed; see the
+    print/OG gap noted in the newest entry.
 
 ## Next: the most important things to make this USEFUL (priority order)
 
@@ -652,3 +715,20 @@ and appeal-defense packet builder first). Bucket A is fully wired.
 - Copilot task/extension proposals point at panels but don't prefill them.
 - Demo-fixture archive (unseeded `/riverton`) has no downloadable bytes —
   by design; seed for the real thing.
+- **No `@media print` anywhere.** A visitor on a dark OS printing any page
+  gets near-black. Compounds with gotcha 12: scroll-revealed sections are at
+  opacity 0 until an observer fires, and print never fires it.
+- **No favicon and no OG image.** Both absent entirely, not merely stale —
+  the marketing page shares as a blank card.
+- `checkAccentColor` guards white-ink-on-accent only, not accent-as-text on
+  a dark ground (see the per-tenant branding bullet).
+- `npm run eval` has NOT been run for the `request_match` prompt — no
+  `ANTHROPIC_API_KEY` in the build environment. Standing CLAUDE.md
+  obligation; run it before relying on that pipeline.
+- The Elasticsearch adapter has never been exercised against a live cluster.
+- `requests.embedding` exists and nothing writes it (answer-first phase 3
+  remainder); phase 4 (RAG'd triage prompts) is specified, not built.
+- Connected data sources — letting an agency register a data store so
+  requests auto-answer from it, flagged to the resident as an automated
+  answer from public data — was discussed with the owner as a likely next
+  build and never specced. No `docs/connected-sources.md` yet.

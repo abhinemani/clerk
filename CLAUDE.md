@@ -18,23 +18,47 @@ this hue goes salmon when it loses saturation, the same way the old red went
 pink. Gold is **ornament** — marks, rules, eyebrows. It is 1.5:1 on paper, so
 it is never text on a light ground.
 
-The approved lockup exists as **two raster revisions**, one per theme, in
-`public/brand/` — used large, swapped by `<picture>`. Neither can be the
-chrome logo; that is `<BrandMark>`. See `public/brand/README.md`.
+The mark is the **prism**: a ray refracts into a document — sunlight becoming
+understanding. It exists as three assets doing three jobs, and they are not
+interchangeable (details in `public/brand/README.md`):
+
+- **Full lockups** — `brandeis-lockup-{dark,light}.png`, the owner's approved
+  artwork, one revision per theme, swapped by `<picture>`. Hero sizes only
+  (~120px and up); at nav height the letterforms smear.
+- **Marks** — `mark-{dark,light}.png`, the prism cropped out of those
+  lockups, rendered by `<BrandMarkRaster>` and wrapped with type by
+  `<BrandLockup>`. **This is the chrome logo.** Both revisions sit on one
+  shared canvas so the header's layout box does not resize when a visitor's
+  OS flips theme; regenerate them as a pair or not at all.
+- **`<BrandMark>`** — hand-authored SVG of the same prism on brand tokens,
+  for placements that run large, recolour from tokens, or need favicon-size
+  legibility (it has a `compact` branch that drops detail below 26px). Its
+  weak point is the middle: at 30–50px the detailed branch is on but the
+  strokes land sub-pixel, which is why chrome uses the raster. It is a
+  second *drawing* of the mark, not a second mark — where both would work,
+  the approved raster wins.
+
+`<Seal>` is a different thing entirely and is NOT interchangeable with any of
+them: it stands in for a **government's own** seal on tenant portals. Never
+put the product mark where an agency's seal belongs.
 
 **Both themes ship.** `:root` is light, the `prefers-color-scheme: dark`
 block overrides it, and every surface follows the visitor — including the
 marketing page, which is no longer dark-locked. Anything added to one theme
 needs its counterpart in the other, contrast-checked against that ground.
 
+**Pin to the GROUND, not the theme.** Swapping an asset on
+`prefers-color-scheme`, or letting a token flip with it, is only correct
+where the surface actually follows the visitor. Surfaces whose ground is
+fixed in *both* themes — the hero and footer on `--primary-deep`, the gov
+banner — must pin their brand tokens to the dark values instead; `globals.css`
+has a GROUND-PINNED TOKENS block for exactly this. This shipped as a bug
+twice: a navy wordmark landing on near-black, then gold ornament going pale
+yellow on a dark band. If you add a theme-reactive asset or token, first ask
+what the ground under it does.
+
 Status colors (overdue/due/ok) and the AI teal are **functional, not brand**.
 The board does not speak to them and they stay as tuned.
-
-The mark is the **prism** (`<BrandMark>`): a ray refracts into a document —
-sunlight becoming understanding. It is hand-authored SVG on brand tokens, no
-binary asset. `<Seal>` is a different thing and is NOT interchangeable: it
-stands in for a **government's own** seal on tenant portals. Never put the
-product mark where an agency's seal belongs.
 
 Two deliberate exceptions — do NOT "fix" either:
 - **"clerk" as a job title stays.** City Clerk, Clerk-Recorder, "the records
