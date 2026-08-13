@@ -128,7 +128,9 @@ export function BrandMark({
   const wStruct = compact ? 3.0 : 2.2;
 
   const beam = `${idPrefix}-beam`;
+  const halo = `${idPrefix}-halo`;
   const flare = `${idPrefix}-flare`;
+  const streak = `${idPrefix}-streak`;
   const glass = `${idPrefix}-glass`;
 
   // Ray fan: apex -> the record's left edge. Full shows seven; compact three.
@@ -146,13 +148,32 @@ export function BrandMark({
       style={{ flex: "none", overflow: "visible" }}
     >
       <defs>
+        {/* Beam CORE — carries most of the way at full strength. The old
+            0.1 floor meant the streak was invisible for its whole left half,
+            which is why the mark looked like a glowing dot with nothing
+            arriving at it. */}
         <linearGradient id={beam} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.1" />
-          <stop offset="0.55" stopColor="var(--mark-beam)" stopOpacity="0.8" />
+          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.35" />
+          <stop offset="0.45" stopColor="var(--mark-beam)" stopOpacity="0.85" />
           <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="1" />
+        </linearGradient>
+        {/* Beam HALO — a wide, soft companion stroke under the core. Two
+            strokes is how you get a light beam rather than a drawn line. */}
+        <linearGradient id={halo} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0" />
+          <stop offset="0.55" stopColor="var(--mark-beam)" stopOpacity="0.22" />
+          <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="0.42" />
         </linearGradient>
         <radialGradient id={flare}>
           <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.9" />
+          <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="0" />
+        </radialGradient>
+        {/* The point of incidence throws a HORIZONTAL flare in the renders,
+            not a round bloom — that elongation is what reads as a light
+            source rather than a dot. */}
+        <radialGradient id={streak}>
+          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.75" />
+          <stop offset="0.55" stopColor="var(--mark-beam)" stopOpacity="0.16" />
           <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="0" />
         </radialGradient>
         {/* the prism reads as glass in the renders, not as a filled shape */}
@@ -162,9 +183,17 @@ export function BrandMark({
         </linearGradient>
       </defs>
 
-      {/* the arriving ray — long, from off-frame, as in the renders */}
+      {/* The arriving ray: halo, then core, then the flare it strikes. Drawn
+          from the very left edge so it reads as coming from off-frame. */}
+      <path
+        d="M0 36H46"
+        stroke={`url(#${halo})`}
+        strokeWidth={wBeam * 2.3}
+        strokeLinecap="round"
+      />
       <path d="M0 36H46" stroke={`url(#${beam})`} strokeWidth={wBeam} strokeLinecap="round" />
-      <circle cx="46" cy="36" r="15" fill={`url(#${flare})`} />
+      <ellipse cx="40" cy="36" rx="42" ry="4.6" fill={`url(#${streak})`} />
+      <circle cx="46" cy="36" r="11" fill={`url(#${flare})`} />
 
       {/* prism: apex at the point of incidence, vertical right face */}
       <path d="M46 36 70 8 70 64Z" fill={`url(#${glass})`} />
