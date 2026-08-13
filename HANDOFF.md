@@ -45,7 +45,28 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, latest): DARK-LOCKED (owner
+**NEWEST (2026-08-13, cloud session, after the lock): THE TEXTURED DARK
+RESTORED (owner: "just dark and dark isn't visually interesting").** The
+dark-lock had flattened the marketing surfaces — the styled dark lives in
+gradients/hatch/auroras, which the light-hero rework had stripped.
+Recovered from git history (aa4cbfe) and redistributed:
+- Hero: the full original treatment — gold aurora top-left, plum bloom
+  right, engraver's hatch ::before, readability vignette ::after; eyebrow
+  and accent headline go GOLD on this ground (screen-scoped — print falls
+  back to ink/terracotta, verified via print emulation).
+- Chat panel: the original glass slab (gradient + deep shadow + backdrop
+  blur), bubbles/records in white-alpha and black-alpha layers.
+- Quote band: plum bloom + hatch + gold hairline borders — deliberately
+  PLUM so it reads distinct from the CTA band's gold aurora.
+- Tenancy band: primary-tint bloom + faint hatch.
+- Cards (pillars, stats, roster): glass gradients + white-alpha hairline
+  borders instead of flat --surface.
+Texture map for future edits: hero=gold+plum aurora · quote=plum ·
+tenancy=primary tint · CTA=gold · everything between stays quiet paper.
+Verified: full-page slices, print emulation (light palette, no gold
+text), 390px zero overflow. 848 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, cloud session, latest): DARK-LOCKED (owner
 directive — "everything falls into the dark style no matter the user
 preferences").** Supersedes "both themes ship" AND the light-hero
 decision from earlier the same day; CLAUDE.md's brand section is

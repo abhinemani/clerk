@@ -954,12 +954,11 @@ label.lbl {
    it to position:static, so the header follows you down the page. */
 
 /* ---- hero ---- */
-/* LIGHT ground (owner directive 2026-08-13): the hero sits on the page's
-   own paper and FOLLOWS the theme — white in light, dark paper in dark.
-   It is no longer in the ground-pinned family; only the nav, the dark
-   band, and the gov chrome keep a fixed dark ground. Gold survives as
-   ornament (the bottom rule, the proof-chip diamonds) — never as text on
-   this ground. */
+/* THE TEXTURED DARK (owner, 2026-08-13, third revision and the keeper):
+   dark-locked AND styled — the gold aurora, the plum bloom, the
+   engraver's hatch, and the vignette that keeps copy readable over all of
+   it. This is the treatment the flat lock lost ("just dark and dark");
+   restored from the pre-light-hero revision and retuned to tokens. */
 .mk-hero {
   position: relative;
   isolation: isolate;
@@ -967,8 +966,36 @@ label.lbl {
   color: var(--ink);
   border-bottom: 3px solid var(--gold);
   background:
-    radial-gradient(ellipse 56% 46% at 88% -8%, color-mix(in srgb, var(--gold) 10%, transparent), transparent 62%),
-    var(--paper);
+    radial-gradient(ellipse 66% 54% at 14% -12%, color-mix(in srgb, var(--gold) 24%, transparent), transparent 62%),
+    radial-gradient(ellipse 58% 52% at 88% 6%, color-mix(in srgb, var(--plum) 78%, transparent), transparent 64%),
+    linear-gradient(158deg, #0b0f14 0%, var(--paper) 46%, #202834 100%);
+}
+.mk-hero::before {
+  /* hatch layer, kept off the text */
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.032) 0 1px,
+    transparent 1px 9px
+  );
+  pointer-events: none;
+}
+.mk-hero::after {
+  /* vignette so copy always wins over the aurora */
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    100deg,
+    rgba(11, 15, 20, 0.88) 0%,
+    rgba(11, 15, 20, 0.6) 46%,
+    rgba(11, 15, 20, 0.12) 100%
+  );
+  pointer-events: none;
 }
 .mk-hero-seal {
   position: absolute;
@@ -976,7 +1003,7 @@ label.lbl {
   top: 50%;
   translate: 0 -50%;
   z-index: -1;
-  opacity: 0.05;
+  opacity: 0.07;
   pointer-events: none;
 }
 .mk-hero-inner {
@@ -1011,6 +1038,18 @@ label.lbl {
 .mk-display .mk-accent {
   color: var(--accent);
 }
+/* On the textured dark hero the accent line and eyebrow go GOLD — the
+   original dark styling. Screen-scoped: in print the hero ground is the
+   light paper, where gold text is illegible and the terracotta/ink
+   defaults above take over. */
+@media screen {
+  .mk-hero .mk-eyebrow {
+    color: var(--gold);
+  }
+  .mk-hero .mk-display .mk-accent {
+    color: var(--gold);
+  }
+}
 .mk-lede {
   margin-top: 22px;
   max-width: 660px;
@@ -1039,8 +1078,9 @@ label.lbl {
   border-radius: var(--r-pill);
   font-size: 0.85rem;
   color: var(--ink-2);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(6px);
 }
 .mk-proof li::before {
   content: "";
@@ -1053,8 +1093,25 @@ label.lbl {
 
 /* ---- bands ---- */
 .mk-band-tint {
-  background: var(--surface-2);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 60% at 18% 110%, color-mix(in srgb, var(--primary-tint) 80%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--surface-2), var(--paper));
   border-block: 1px solid var(--border);
+}
+.mk-band-tint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.022) 0 1px,
+    transparent 1px 9px
+  );
+  pointer-events: none;
 }
 .mk-band-dark {
   position: relative;
@@ -1117,13 +1174,13 @@ label.lbl {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
 .mk-stat {
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(30, 37, 47, 0.96), rgba(19, 24, 31, 0.96));
   padding: 26px 22px;
 }
 .mk-stat-n {
@@ -1150,11 +1207,11 @@ label.lbl {
 }
 .mk-pillar {
   position: relative;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(42, 49, 60, 0.55), rgba(23, 29, 38, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--r-lg);
   padding: 30px 26px 28px;
-  box-shadow: 0 14px 40px -22px rgba(30, 58, 95, 0.5);
+  box-shadow: 0 18px 48px -26px rgba(0, 0, 0, 0.7);
   transition: box-shadow 0.18s ease, transform 0.18s ease;
 }
 .mk-pillar:hover {
@@ -1187,13 +1244,30 @@ label.lbl {
 }
 
 /* ---- pull quote (the operating principle) ---- */
-/* The operating principle as a LETTERHEAD moment: serif on the page's own
-   paper, gold kept to ornament (the outsize quote glyph + the rule). The
-   near-black treatment moved out 2026-08-13 — the closing CTA is the page's
-   one dark moment now. */
+/* The operating principle band: with the whole page dark-locked, its
+   distinction is TEXTURE, not lightness — a plum bloom (the board's plum,
+   deliberately different from the CTA band's gold aurora), the engraver's
+   hatch, and gold rules. */
 .mk-quote-band {
-  background: linear-gradient(180deg, var(--surface-2), var(--paper));
-  border-block: 1px solid var(--border);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 62% 78% at 50% -18%, color-mix(in srgb, var(--plum) 72%, transparent), transparent 66%),
+    linear-gradient(172deg, #131017 0%, var(--paper) 58%, #171d26 100%);
+  border-block: 1px solid color-mix(in srgb, var(--gold) 34%, transparent);
+}
+.mk-quote-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.028) 0 1px,
+    transparent 1px 9px
+  );
+  pointer-events: none;
 }
 .mk-quote {
   max-width: 900px;
@@ -1231,8 +1305,8 @@ label.lbl {
   margin-top: 32px;
 }
 .mk-agent {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(42, 49, 60, 0.45), rgba(23, 29, 38, 0.85));
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-left: 3px solid var(--ai);
   border-radius: 0 var(--r-lg) var(--r-lg) 0;
   padding: 18px 20px 16px;
@@ -1486,10 +1560,13 @@ label.lbl {
    assistant, exactly as it does in the product. */
 .mk-chat {
   position: relative;
-  border: 1px solid var(--border-strong);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow), 0 30px 70px -34px rgba(15, 20, 26, 0.35);
+  /* The glass slab from the original dark panel — gradient, deep shadow,
+     backdrop blur — so the card reads as a lit object over the aurora. */
+  background: linear-gradient(180deg, rgba(42, 49, 60, 0.92), rgba(15, 20, 26, 0.94));
+  box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
   overflow: hidden;
 }
 .mk-chat-head {
@@ -1498,8 +1575,8 @@ label.lbl {
   align-items: center;
   gap: 4px 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.035);
   font-size: 0.8rem;
   color: var(--ink-2);
 }
@@ -1538,15 +1615,15 @@ label.lbl {
 }
 .mk-msg-user {
   justify-self: end;
-  background: var(--primary-tint);
+  background: rgba(255, 255, 255, 0.07);
   color: var(--ink);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-bottom-right-radius: 4px;
 }
 .mk-msg-bot {
   justify-self: start;
-  background: var(--paper);
-  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-bottom-left-radius: 4px;
   color: var(--ink);
 }
@@ -1565,9 +1642,9 @@ label.lbl {
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: var(--r-sm);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-left: 3px solid var(--accent);
-  background: var(--surface-2);
+  background: rgba(0, 0, 0, 0.28);
   font-size: 0.86rem;
   line-height: 1.45;
 }
@@ -1583,8 +1660,8 @@ label.lbl {
      the line jumbles as soon as it wraps (it does at 390px) */
   padding: 11px 16px;
   line-height: 1.5;
-  border-top: 1px solid var(--border);
-  background: var(--surface-2);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
   font-size: 0.78rem;
   color: var(--muted);
 }
