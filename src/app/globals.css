@@ -44,14 +44,24 @@
   /* Plum: deep surface accent (the board's app icon ground). White on it is
      12.2:1, so it is safe as a solid fill in either mode. */
   --plum: #4b2a45;
-  /* The mark's STRUCTURE (page outline, rule lines). Gold is 1.5:1 on paper,
-     so on light grounds the structure goes slate and only the light itself
-     stays gold. On dark it is gold throughout, as the board draws it. */
-  --mark-structure: #2a313c;
-  /* The RAYS. The board draws them in gold, but gold is 1.5:1 on paper — no
-     stroke weight rescues that. Light grounds get the same hue taken down to
-     3.6:1, which clears the 3:1 minimum for graphics. Dark keeps board gold. */
+  /* MARK COLOURS — three roles, because the owner's renders use three: the
+     arriving beam, the refracted fan, and the structure (prism + record).
+
+     LIGHT STYLE, from the owner's light render: navy structure, glassy prism,
+     amber light. The render draws the light in brand gold; gold is 1.5:1 on
+     paper and would vanish, so the hue is held and lightness taken to 3.6:1,
+     clearing the 3:1 minimum for a graphic. This is the one place the
+     implementation departs from the render, and it departs on purpose. */
+  --mark-beam: #a9791f;
+  --mark-ray: #c46a4a;
+  --mark-structure: #1c2a45;
+  /** Legacy alias — kept so nothing that still reads it breaks. */
   --mark-light: #a9791f;
+  /* WORDMARK. The renders differ deliberately: white on dark, navy on light.
+     The tagline is gold in both, but gold is 1.5:1 on paper and this is small
+     text needing 4.5:1 — so light takes the same hue down to 5.2:1. */
+  --wordmark: #1c2a45;
+  --wordmark-sub: #8a6015;
 
   /* AI surfaces — a calm teal. NOT on the brand board: status colors
      (overdue/due/ok) and the AI hue are FUNCTIONAL, not brand, and the board
@@ -122,8 +132,15 @@
     --accent: #c46a4a;
     --gold: #f5c75e;
     --plum: #4b2a45;
+    /* DARK STYLE, from the dark render: gold beam and structure, with the
+       refracted fan in pale silver — the light arrives gold, disperses cool,
+       and turns back to gold as it becomes the record. */
+    --mark-beam: #f5c75e;
+    --mark-ray: #c8d2e2;
     --mark-structure: #f5c75e;
     --mark-light: #f5c75e;
+    --wordmark: #f7f7f5;
+    --wordmark-sub: #f5c75e;
 
     --ai: #3fb6d3;
     --ai-tint: #14262c;
@@ -875,8 +892,12 @@ body:has(.mk-page),
   --accent: #c46a4a;
   --gold: #f5c75e;
   --plum: #4b2a45;
+  --mark-beam: #f5c75e;
+  --mark-ray: #c8d2e2;
   --mark-structure: #f5c75e;
   --mark-light: #f5c75e;
+  --wordmark: #f7f7f5;
+  --wordmark-sub: #f5c75e;
 
   --overdue: #f65a4c;
   --due: #f5b855;
@@ -1595,7 +1616,7 @@ body:has(.mk-page),
   letter-spacing: 0.22em;
   text-transform: uppercase;
   line-height: 1;
-  color: var(--ink);
+  color: var(--wordmark);
   /* the tracking adds a trailing gap; pull it back so the lockup optically centers */
   margin-right: -0.22em;
 }
@@ -1608,7 +1629,7 @@ body:has(.mk-page),
   letter-spacing: 0.18em;
   text-transform: uppercase;
   line-height: 1;
-  color: var(--gold);
+  color: var(--wordmark-sub);
 }
 .brand-lockup-stack {
   flex-direction: column;
