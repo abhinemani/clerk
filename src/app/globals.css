@@ -48,6 +48,10 @@
      so on light grounds the structure goes slate and only the light itself
      stays gold. On dark it is gold throughout, as the board draws it. */
   --mark-structure: #2a313c;
+  /* The RAYS. The board draws them in gold, but gold is 1.5:1 on paper — no
+     stroke weight rescues that. Light grounds get the same hue taken down to
+     3.6:1, which clears the 3:1 minimum for graphics. Dark keeps board gold. */
+  --mark-light: #a9791f;
 
   /* AI surfaces — a calm teal. NOT on the brand board: status colors
      (overdue/due/ok) and the AI hue are FUNCTIONAL, not brand, and the board
@@ -119,6 +123,7 @@
     --gold: #f5c75e;
     --plum: #4b2a45;
     --mark-structure: #f5c75e;
+    --mark-light: #f5c75e;
 
     --ai: #3fb6d3;
     --ai-tint: #14262c;
@@ -871,6 +876,7 @@ body:has(.mk-page),
   --gold: #f5c75e;
   --plum: #4b2a45;
   --mark-structure: #f5c75e;
+  --mark-light: #f5c75e;
 
   --overdue: #f65a4c;
   --due: #f5b855;

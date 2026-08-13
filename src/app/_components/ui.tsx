@@ -94,14 +94,26 @@ export function BrandMark({
   size?: number;
   label?: string;
   idPrefix?: string;
-  /** Defaults by size: the 7-ray fan and the page's rule lines turn to mush
-   *  below ~36px, so small marks drop them instead of shipping a smudge. */
   detail?: "full" | "compact";
 }) {
-  const compact = (detail ?? (size < 36 ? "compact" : "full")) === "compact";
+  /**
+   * SCALE IS THE WHOLE PROBLEM HERE. The viewBox is 64 units tall and the
+   * mark renders at `size` px, so every stroke is scaled by size/64 — 0.41x
+   * in the nav. A 1.2-unit stroke lands at 0.5px, antialiases to a ghost, and
+   * the only things that survive are the shapes with solid fills. That is
+   * exactly the bug this component shipped with: you could see the focal dot
+   * and the page outline and nothing else.
+   *
+   * So: weights below are minimums that survive the downscale (>= 1.2px at
+   * nav size), opacity fades are gone from the small variant, and dashes —
+   * which chop an already-thin line into invisible ticks — are full-size
+   * only. Every current use is <= 40px, so `compact` is the common path.
+   */
+  const compact = (detail ?? (size < 56 ? "compact" : "full")) === "compact";
+  const wLight = compact ? 3.4 : 2.2;
+  const wStruct = compact ? 3.2 : 2.1;
   const beam = `${idPrefix}-beam`;
   const glow = `${idPrefix}-glow`;
-  const fan = `${idPrefix}-fan`;
   return (
     <svg
       width={size * (128 / 64)}
@@ -114,64 +126,67 @@ export function BrandMark({
       style={{ flex: "none", overflow: "visible" }}
     >
       <defs>
+        {/* the fade-in only exists to suggest the ray arriving from off-frame;
+            it never drops low enough to erase the stroke */}
         <linearGradient id={beam} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="var(--gold)" stopOpacity="0" />
-          <stop offset="0.55" stopColor="var(--gold)" stopOpacity="0.55" />
-          <stop offset="1" stopColor="var(--gold)" stopOpacity="1" />
+          <stop offset="0" stopColor="var(--mark-light)" stopOpacity="0.15" />
+          <stop offset="0.6" stopColor="var(--mark-light)" stopOpacity="0.85" />
+          <stop offset="1" stopColor="var(--mark-light)" stopOpacity="1" />
         </linearGradient>
         <radialGradient id={glow}>
-          <stop offset="0" stopColor="var(--gold)" stopOpacity="0.95" />
-          <stop offset="1" stopColor="var(--gold)" stopOpacity="0" />
+          <stop offset="0" stopColor="var(--mark-light)" stopOpacity="0.85" />
+          <stop offset="1" stopColor="var(--mark-light)" stopOpacity="0" />
         </radialGradient>
-        <linearGradient id={fan} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="var(--gold)" stopOpacity="0.95" />
-          <stop offset="1" stopColor="var(--gold)" stopOpacity="0.35" />
-        </linearGradient>
       </defs>
 
       {/* incoming ray */}
-      <path d="M0 32H30" stroke={`url(#${beam})`} strokeWidth="1.6" strokeLinecap="round" />
-      {/* the strike */}
-      <circle cx="30" cy="32" r="11" fill={`url(#${glow})`} />
-      <circle cx="30" cy="32" r="2.1" fill="var(--gold)" />
-
-      {/* the prism: apex at the point of incidence, base to the right */}
       <path
-        d="M30 32 58 5 58 59Z"
-        stroke="var(--ink)"
-        strokeOpacity="0.55"
-        strokeWidth="1.15"
+        d="M2 32H30"
+        stroke={`url(#${beam})`}
+        strokeWidth={wLight}
+        strokeLinecap="round"
+      />
+      <circle cx="30" cy="32" r="13" fill={`url(#${glow})`} />
+      <circle cx="30" cy="32" r={compact ? 3.6 : 3} fill="var(--mark-light)" />
+
+      {/* the prism — solid brand ink, not translucent */}
+      <path
+        d="M30 32 58 6 58 58Z"
+        stroke="var(--mark-structure)"
+        strokeWidth={wStruct}
         strokeLinejoin="round"
       />
 
-      {/* refracted fan — solid at the prism, resolving into data further out */}
-      <g stroke={`url(#${fan})`} strokeWidth="1.15" strokeLinecap="round">
-        <path d="M33 32H92" />
-        <path d="M33 32 92 20" strokeDasharray="14 4 7 5" />
-        <path d="M33 32 92 44" strokeDasharray="14 4 7 5" />
+      {/* refracted fan */}
+      <g stroke="var(--mark-light)" strokeWidth={wLight * 0.8} strokeLinecap="round">
+        <path d="M34 32H90" />
+        <path d="M36 30 90 19" strokeDasharray={compact ? undefined : "13 5 7 6"} />
+        <path d="M36 34 90 45" strokeDasharray={compact ? undefined : "13 5 7 6"} />
         {!compact && (
           <>
-            <path d="M33 32 88 12" strokeDasharray="10 5 5 6" />
-            <path d="M33 32 88 52" strokeDasharray="10 5 5 6" />
-            <path d="M33 32 84 7" strokeDasharray="6 6 4 7" opacity="0.75" />
-            <path d="M33 32 84 57" strokeDasharray="6 6 4 7" opacity="0.75" />
+            <path d="M35 31 86 11" strokeDasharray="10 5 5 6" opacity="0.85" />
+            <path d="M35 33 86 53" strokeDasharray="10 5 5 6" opacity="0.85" />
           </>
         )}
       </g>
 
-      {/* the record the light resolves into: a page with a turned corner */}
+      {/* the record the light resolves into */}
       <path
-        d="M92 12h20l8 8v32H92z"
+        d="M92 11h20l9 9v33H92z"
         stroke="var(--mark-structure)"
-        strokeWidth="1.4"
+        strokeWidth={wStruct}
         strokeLinejoin="round"
       />
-      <path d="M112 12v8h8" stroke="var(--mark-structure)" strokeWidth="1.4" strokeLinejoin="round" />
+      <path
+        d="M112 11v9h9"
+        stroke="var(--mark-structure)"
+        strokeWidth={wStruct}
+        strokeLinejoin="round"
+      />
       {!compact && (
-        <g stroke="var(--mark-structure)" strokeWidth="1.3" strokeLinecap="round" opacity="0.85">
-          <path d="M98 30h11" />
-          <path d="M98 37h16" />
-          <path d="M98 44h8" />
+        <g stroke="var(--mark-structure)" strokeWidth="2" strokeLinecap="round" opacity="0.85">
+          <path d="M99 31h11" />
+          <path d="M99 39h15" />
         </g>
       )}
     </svg>
