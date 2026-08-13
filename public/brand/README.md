@@ -1,25 +1,32 @@
 # Brand assets
 
-`brandeis-lockup-dark.png` — the owner's APPROVED full lockup (1300×445,
-transparent background), extracted from the supplied `.svg`. That file was a
-raster wrapped in an SVG element: one `<image>` with a base64 PNG, zero path
-data. It is not a vector, so it does not scale and cannot be recoloured.
+Two revisions of the owner's approved full lockup, one per theme:
 
-**Use it only large, and only on dark grounds.** Two things were measured:
+- `brandeis-lockup-dark.png` (1300×445) — white wordmark, gold tagline.
+- `brandeis-lockup-light.png` (1400×296) — navy wordmark, gold tagline.
+  Cropped from a 3072×2048 export that was mostly transparent padding.
+
+Both were supplied as `.svg` files that are **rasters in disguise**: a single
+`<image>` element holding a base64 PNG, zero `<path>` data. They do not scale
+and cannot be recoloured, so they are used as images, not as the mark.
+
+**Use them large, and match the revision to the ground.** Two things were
+measured:
 
 - At 26px (nav height) the outlined letterforms and the record's data grid
-  collapse into an illegible smear. This is a hero lockup, ~120px and up.
-- The render has a soft glow baked into the pixels. On the brand dark ground
-  it disappears; on white it reads as a dirty grey plate around the artwork.
+  collapse into an illegible smear. These are hero lockups, ~120px and up.
+- Each render has its glow baked into the pixels. The dark rev vanishes on
+  the brand ground and reads as a dirty grey plate on paper; the light rev's
+  navy wordmark inverts the problem. `<picture>` + `prefers-color-scheme`
+  picks the right one.
 
-Everything smaller or light-mode uses `<BrandMark>` / `<BrandLockup>` in
+Everything smaller uses `<BrandMark>` / `<BrandLockup>` in
 `src/app/_components/ui.tsx`: hand-authored SVG on brand tokens, legible at
-favicon size, and it recolours per style. Two assets, two jobs — do not swap
-one for the other.
+favicon size, recolouring per theme. Two kinds of asset, two jobs — do not
+swap one for the other.
 
-To replace this with a true vector, the designer needs to export with text
-converted to outlines and shapes as paths (Illustrator: "Save As → SVG" with
-*Preserve Illustrator Editing* off and no rasterisation; Figma: select the
-frame → Export → SVG, with "Outline text" on). A correct export contains
-`<path>` elements. If the file contains `<image ... base64>`, it is a bitmap
-in disguise.
+To replace these with a true vector, export with text converted to outlines
+and shapes as paths (Illustrator: Save As → SVG, *Preserve Illustrator
+Editing* off; Figma: Export → SVG with "Outline text" on). A correct export
+contains `<path>` elements. A file containing `<image ... base64>` is a
+bitmap in disguise, like both of these.

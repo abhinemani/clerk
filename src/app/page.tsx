@@ -8,9 +8,10 @@ import { BrandLockup, BrandMark, SparkIcon } from "./_components/ui";
  *
  * Design: copy-forward, with rhythm carried by alternating grounds rather
  * than by imagery. All texture is CSS (see the MARKETING SITE block in
- * globals.css). The ONE binary asset is the owner's approved lockup in the
- * footer — raster, so it appears exactly once, large, and on dark; see
- * public/brand/README.md for why it cannot be the chrome logo.
+ * globals.css). The only binary assets are the owner's approved lockup —
+ * two revisions, one per theme, in the footer. Raster, so each appears once
+ * and large; see public/brand/README.md for why neither can be the chrome
+ * logo.
  *
  * Every number and claim below is checkable in the codebase — no invented
  * customer counts, no testimonials. The product has no public users yet.
@@ -368,15 +369,15 @@ export default function MarketingHome() {
       {/* Product footer */}
       <footer className="gov-footer" style={{ marginTop: 0 }}>
         <div className="wrap">
-          {/* The owner's APPROVED lockup. Raster, so it appears exactly once
-              and only here: large, and on the dark ground it was rendered for.
-              At nav size it smears, and on white its baked glow reads as a
-              grey plate — see public/brand/README.md. Chrome uses the SVG. */}
+          {/* Dark rev, PINNED — not swapped. The footer's ground is
+              --primary-deep, which is dark in BOTH themes, so keying the swap
+              off prefers-color-scheme put the light rev's navy wordmark on a
+              near-black footer and made it disappear. Swap on the GROUND, not
+              the theme. The light rev lives on /signup, whose ground follows
+              the visitor. */}
           <img
             src="/brand/brandeis-lockup-dark.png"
             alt={`${branding.productName} — ${branding.tagline}`}
-            width={1300}
-            height={445}
             style={{ width: 300, height: "auto", marginTop: 34, marginBottom: -8 }}
           />
           <div className="mk-foot">

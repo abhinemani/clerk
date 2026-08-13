@@ -11,18 +11,21 @@ Six colors, and every neutral step is an interpolation of them:
 
 **The `#990000` civic red is retired.** It was owner-specified on 2026-07-30
 and this file used to pin it; the board replaces it and there is no red in
-the brand now. The accent is terracotta: the board's `#c46a4a` at full
-strength (4.9:1 on the ground), with `#9c4a2c` as the button fill so white ink
-holds 6.1:1. Do not lighten `#c46a4a` — this hue goes salmon when it loses
-saturation, the same way the old red went pink. Gold clears contrast as text
-here, but stays **ornament** by choice: marks, rules, eyebrows. Gold body copy
-reads as decoration rather than as a document.
+the brand now. The accent is terracotta, held at one hue across themes and
+moved only in lightness — `#9c4a2c` on light (5.7:1 text, 6.1:1 under white
+ink), the board's `#c46a4a` on dark (4.9:1). Do not lighten the dark one:
+this hue goes salmon when it loses saturation, the same way the old red went
+pink. Gold is **ornament** — marks, rules, eyebrows. It is 1.5:1 on paper, so
+it is never text on a light ground.
 
-**Dark only (owner decision, 2026-08-13).** There is no light theme. The
-`prefers-color-scheme` fork is gone: `:root` carries the dark values as THE
-values, with `color-scheme: dark`. Do not reintroduce a light palette, and do
-not add a light variant of the mark — nothing should fork by mode, so no
-surface can drift out of contrast in a theme nobody ships.
+The approved lockup exists as **two raster revisions**, one per theme, in
+`public/brand/` — used large, swapped by `<picture>`. Neither can be the
+chrome logo; that is `<BrandMark>`. See `public/brand/README.md`.
+
+**Both themes ship.** `:root` is light, the `prefers-color-scheme: dark`
+block overrides it, and every surface follows the visitor — including the
+marketing page, which is no longer dark-locked. Anything added to one theme
+needs its counterpart in the other, contrast-checked against that ground.
 
 Status colors (overdue/due/ok) and the AI teal are **functional, not brand**.
 The board does not speak to them and they stay as tuned.
