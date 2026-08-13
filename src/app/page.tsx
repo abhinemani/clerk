@@ -88,11 +88,11 @@ export default function MarketingHome() {
   return (
     <div className="mk-page">
       {/* Product header — sticky glass, same .nav as the portals.
-          Wordmark is the seal + name only: no tagline lockup (owner call). */}
+          Full lockup: approved mark + wordmark + tagline, all from branding.ts. */}
       <div className="nav mk-topnav">
         <div className="wrap nav-inner">
           <Link href="/" className="brand" aria-label={branding.productName}>
-            <BrandLockup size={40} tagline={false} idPrefix="nav" />
+            <BrandLockup size={36} idPrefix="nav" />
           </Link>
           <nav className="nav-links" aria-label="Primary">
             <Link href="/riverton" className="nav-link">

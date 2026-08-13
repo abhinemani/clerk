@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import type { RiskBand } from "@/domain/deadlineRisk";
 import { initials } from "@/lib/format";
+import { branding } from "@/config/branding";
 
 export function DeadlineBand({ band, label }: { band: RiskBand; label: string }) {
   return (
@@ -97,35 +98,26 @@ export function BrandMark({
   detail?: "full" | "compact";
 }) {
   /**
-   * Redrawn 2026-08-13 from the owner's high-res renders (light + dark).
-   * Geometry taken off those: apex-left prism with a vertical right face,
-   * a long beam arriving from off-frame, a fan of SEVEN fine rays that
-   * crosses the prism interior and resolves into the data rows of a record.
+   * Redrawn 2026-08-13 (rev 3) against all four of the owner's renders,
+   * taking what is consistent across them. Three things the earlier drafts
+   * got wrong, all visible once the renders are compared side by side:
    *
-   * Three colour roles, because the renders use three:
-   *   --mark-beam      the arriving sunlight (gold in both styles)
-   *   --mark-ray       the refracted fan (silver on dark, amber on light)
-   *   --mark-structure prism + record outline + data rows
+   *  - The record is NOT a closed rectangle. It is a bracket, OPEN on the
+   *    left, so the rays run into it and become its contents. Closing it
+   *    turned the mark into three separate objects.
+   *  - The prism is glass with THICKNESS: a back edge sits inside the right
+   *    face, and the lit top edge reads brighter than the body.
+   *  - The fan CHANGES COLOUR. Rays leave the prism cool/silver and turn
+   *    gold as they enter the record — light literally becoming data, which
+   *    is the whole idea of the mark.
    *
-   * SCALE. The viewBox is 72 tall and the mark renders at `size`, so strokes
-   * scale by size/72 — 0.36x in the nav. Seven fine rays and a row of data
-   * dashes cannot survive that, so `compact` keeps the silhouette (beam,
-   * flare, prism, three rays, record) and drops what would turn to mush. The
-   * hero render is the full variant; the nav gets an honest reduction of it,
-   * not a different mark.
+   * Detail is the point here, so `compact` is reserved for favicon scale.
    */
-  // Threshold is 30, not 56. The header runs at 40px and the console at 36,
-  // and at those sizes the detail DOES survive — the previous 56 meant every
-  // real placement silently got the reduction, so the dashed fan and the
-  // record's data rows never appeared anywhere on the site. Compact is now
-  // reserved for genuinely tiny marks (favicon scale).
-  const compact = (detail ?? (size < 30 ? "compact" : "full")) === "compact";
-  // Widths are in viewBox units against a 72-tall box, so at the 40px header
-  // the full set lands at ~0.9-1.3 CSS px — thin on purpose, but above the
-  // sub-pixel floor that erased the mark the first time.
-  const wBeam = compact ? 3.2 : 2.4;
-  const wRay = compact ? 2.6 : 1.7;
-  const wStruct = compact ? 3.0 : 2.2;
+  const compact = (detail ?? (size < 26 ? "compact" : "full")) === "compact";
+  const wBeam = compact ? 3.4 : 2.3;
+  const wRay = compact ? 2.6 : 1.5;
+  const wStruct = compact ? 3.2 : 2.0;
+  const wData = compact ? 2.6 : 1.9;
 
   const beam = `${idPrefix}-beam`;
   const halo = `${idPrefix}-halo`;
@@ -133,14 +125,29 @@ export function BrandMark({
   const streak = `${idPrefix}-streak`;
   const glass = `${idPrefix}-glass`;
 
-  // Ray fan: apex -> the record's left edge. Full shows seven; compact three.
-  const fan = compact ? [26, 36, 46] : [20, 25.5, 31, 36, 41, 46.5, 52];
+  /** Fan geometry: apex -> the bracket's open mouth. */
+  const APEX = { x: 42, y: 48 };
+  const MOUTH = 106;
+  const rays = compact
+    ? [36, 48, 60]
+    : [28, 33.5, 39, 44, 48, 52, 57, 62.5, 68];
+
+  /** Data rows inside the record, at the y values the rays arrive on. */
+  const rows: Array<[number, Array<[number, number]>]> = [
+    [31, [[112, 7], [122, 5]]],
+    [37, [[112, 12]]],
+    [43, [[112, 6], [121, 8]]],
+    [49, [[112, 15]]],
+    [55, [[112, 5], [120, 6], [129, 4]]],
+    [61, [[112, 11]]],
+    [67, [[112, 7], [122, 6]]],
+  ];
 
   return (
     <svg
-      width={size * (128 / 72)}
+      width={size * (160 / 96)}
       height={size}
-      viewBox="0 0 128 72"
+      viewBox="0 0 160 96"
       fill="none"
       role={label ? "img" : undefined}
       aria-label={label}
@@ -148,103 +155,124 @@ export function BrandMark({
       style={{ flex: "none", overflow: "visible" }}
     >
       <defs>
-        {/* Beam CORE — carries most of the way at full strength. The old
-            0.1 floor meant the streak was invisible for its whole left half,
-            which is why the mark looked like a glowing dot with nothing
-            arriving at it. */}
         <linearGradient id={beam} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.35" />
           <stop offset="0.45" stopColor="var(--mark-beam)" stopOpacity="0.85" />
           <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="1" />
         </linearGradient>
-        {/* Beam HALO — a wide, soft companion stroke under the core. Two
-            strokes is how you get a light beam rather than a drawn line. */}
         <linearGradient id={halo} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0" />
-          <stop offset="0.55" stopColor="var(--mark-beam)" stopOpacity="0.22" />
-          <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="0.42" />
+          <stop offset="0.55" stopColor="var(--mark-beam)" stopOpacity="0.2" />
+          <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="0.4" />
         </linearGradient>
         <radialGradient id={flare}>
-          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.9" />
+          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.92" />
           <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="0" />
         </radialGradient>
-        {/* The point of incidence throws a HORIZONTAL flare in the renders,
-            not a round bloom — that elongation is what reads as a light
-            source rather than a dot. */}
         <radialGradient id={streak}>
-          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.75" />
-          <stop offset="0.55" stopColor="var(--mark-beam)" stopOpacity="0.16" />
+          <stop offset="0" stopColor="var(--mark-beam)" stopOpacity="0.7" />
+          <stop offset="0.5" stopColor="var(--mark-beam)" stopOpacity="0.14" />
           <stop offset="1" stopColor="var(--mark-beam)" stopOpacity="0" />
         </radialGradient>
-        {/* the prism reads as glass in the renders, not as a filled shape */}
-        <linearGradient id={glass} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="var(--mark-ray)" stopOpacity="0.22" />
-          <stop offset="1" stopColor="var(--mark-ray)" stopOpacity="0.04" />
+        {/* Glass body: brighter along the lit top face, falling away below. */}
+        <linearGradient id={glass} x1="0.2" y1="0" x2="0.8" y2="1">
+          <stop offset="0" stopColor="var(--mark-ray)" stopOpacity="0.34" />
+          <stop offset="0.5" stopColor="var(--mark-ray)" stopOpacity="0.13" />
+          <stop offset="1" stopColor="var(--mark-ray)" stopOpacity="0.05" />
         </linearGradient>
       </defs>
 
-      {/* The arriving ray: halo, then core, then the flare it strikes. Drawn
-          from the very left edge so it reads as coming from off-frame. */}
-      <path
-        d="M0 36H46"
-        stroke={`url(#${halo})`}
-        strokeWidth={wBeam * 2.3}
-        strokeLinecap="round"
-      />
-      <path d="M0 36H46" stroke={`url(#${beam})`} strokeWidth={wBeam} strokeLinecap="round" />
-      <ellipse cx="40" cy="36" rx="42" ry="4.6" fill={`url(#${streak})`} />
-      <circle cx="46" cy="36" r="11" fill={`url(#${flare})`} />
+      {/* ---- the arriving ray ---- */}
+      <path d="M0 48H42" stroke={`url(#${halo})`} strokeWidth={wBeam * 2.4} strokeLinecap="round" />
+      <path d="M0 48H42" stroke={`url(#${beam})`} strokeWidth={wBeam} strokeLinecap="round" />
+      <ellipse cx="36" cy="48" rx="46" ry="5.5" fill={`url(#${streak})`} />
 
-      {/* prism: apex at the point of incidence, vertical right face */}
-      <path d="M46 36 70 8 70 64Z" fill={`url(#${glass})`} />
+      {/* ---- prism: glass body, back edge, lit top face ---- */}
+      <path d="M42 48 76 12 76 84Z" fill={`url(#${glass})`} />
+      {!compact && (
+        <path
+          d="M69 19.6V76.4"
+          stroke="var(--mark-structure)"
+          strokeWidth={wStruct * 0.6}
+          strokeOpacity="0.5"
+          strokeLinecap="round"
+        />
+      )}
       <path
-        d="M46 36 70 8 70 64Z"
+        d="M42 48 76 12 76 84Z"
         stroke="var(--mark-structure)"
         strokeWidth={wStruct}
         strokeLinejoin="round"
       />
+      {!compact && (
+        <path
+          d="M42 48 76 12"
+          stroke="var(--mark-ray)"
+          strokeWidth={wStruct * 0.55}
+          strokeOpacity="0.75"
+          strokeLinecap="round"
+        />
+      )}
 
-      {/* Refracted fan. In the renders the rays leave the prism solid and
-          BREAK INTO SEGMENTS as they approach the record — light becoming
-          data. That dash pattern is the mark's whole idea, so only the
-          central ray stays continuous; the rest dash progressively. */}
-      <g stroke="var(--mark-ray)" strokeWidth={wRay} strokeLinecap="round">
-        {fan.map((y, i) => (
-          <path
-            key={y}
-            d={`M47 36 100 ${y}`}
-            strokeDasharray={compact || y === 36 ? undefined : i % 2 === 0 ? "20 3 8 3 5 3" : "16 3 6 3 4 3"}
-          />
-        ))}
+      {/* ---- refracted fan: cool leaving the prism, warming into the record ---- */}
+      <g strokeWidth={wRay} strokeLinecap="round">
+        {rays.map((y, i) => {
+          const mid = i === Math.floor(rays.length / 2);
+          return (
+            <path
+              key={y}
+              d={`M${APEX.x + 1} ${APEX.y} ${MOUTH} ${y}`}
+              stroke={i % 3 === 2 ? "var(--mark-beam)" : "var(--mark-ray)"}
+              strokeOpacity={mid ? 1 : 0.82}
+              strokeDasharray={
+                compact || mid ? undefined : i % 2 === 0 ? "26 3 9 3 5 3" : "21 3 7 3 4 3"
+              }
+            />
+          );
+        })}
       </g>
 
-      {/* the flare core sits ON TOP of the fan so the origin stays a point */}
-      <circle cx="46" cy="36" r={compact ? 3.2 : 2.4} fill="var(--mark-beam)" />
+      {/* flare core sits above the fan so the origin stays a point */}
+      <circle cx="42" cy="48" r={compact ? 13 : 11} fill={`url(#${flare})`} />
+      <circle cx="42" cy="48" r={compact ? 3.4 : 2.5} fill="var(--mark-beam)" />
 
-      {/* the record the light resolves into: rounded, top-right corner turned */}
+      {/* ---- the record: a bracket, OPEN on the left, corner turned ---- */}
       <path
-        d="M105 14H117L126 23V57A5 5 0 0 1 121 62H105A5 5 0 0 1 100 57V19A5 5 0 0 1 105 14Z"
-        stroke="var(--mark-structure)"
+        d="M104 24H134L144 34V72H104"
+        stroke="var(--mark-beam)"
         strokeWidth={wStruct}
         strokeLinejoin="round"
+        strokeLinecap="round"
       />
-      <path
-        d="M117 14V23H126"
-        stroke="var(--mark-structure)"
-        strokeWidth={wStruct}
-        strokeLinejoin="round"
-      />
-
-      {/* the fan becoming data — same rows the rays arrive on */}
       {!compact && (
-        <g stroke="var(--mark-structure)" strokeWidth="1.9" strokeLinecap="round">
-          <path d="M105 20h6M114 20h4" />
-          <path d="M105 25.5h10" />
-          <path d="M105 31h5M112 31h7" />
-          <path d="M105 36h12" />
-          <path d="M105 41h4M111 41h6" />
-          <path d="M105 46.5h9" />
-          <path d="M105 52h6M113 52h4" />
+        <path
+          d="M134 24V34H144"
+          stroke="var(--mark-beam)"
+          strokeWidth={wStruct * 0.7}
+          strokeOpacity="0.75"
+          strokeLinejoin="round"
+        />
+      )}
+
+      {/* ---- the fan, become data ---- */}
+      {!compact && (
+        <g strokeWidth={wData} strokeLinecap="round">
+          {rows.map(([y, segs], ri) =>
+            segs.map(([x, len], si) => (
+              <path
+                key={`${y}-${x}`}
+                d={`M${x} ${y}h${len}`}
+                stroke={(ri + si) % 3 === 1 ? "var(--mark-ray)" : "var(--mark-beam)"}
+                strokeOpacity={(ri + si) % 3 === 1 ? 0.7 : 0.95}
+              />
+            )),
+          )}
+          {/* a few solid blocks, as in the renders */}
+          <g fill="var(--mark-beam)" fillOpacity="0.85" stroke="none">
+            <rect x="126" y="35.2" width="3.6" height="3.6" rx="0.6" />
+            <rect x="132" y="47.2" width="3.6" height="3.6" rx="0.6" />
+            <rect x="126" y="59.2" width="3.6" height="3.6" rx="0.6" />
+          </g>
         </g>
       )}
     </svg>
@@ -298,10 +326,10 @@ export function BrandLockup({
   } as React.CSSProperties;
   return (
     <span className={`brand-lockup${stack ? " brand-lockup-stack" : ""}`} style={style}>
-      <BrandMarkRaster />
+      <BrandMark size={size} idPrefix={idPrefix} />
       <span>
         <span className="brand-wordmark">Brandeis</span>
-        {tagline && <span className="brand-tagline">AI for public records</span>}
+        {tagline && <span className="brand-tagline">{branding.tagline}</span>}
       </span>
     </span>
   );

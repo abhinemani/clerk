@@ -1362,7 +1362,8 @@ label.lbl {
      the viewport no matter how far the lockup shrinks — clamping the size
      just makes an illegible wordmark instead of an overflowing one. The
      link keeps its aria-label, so the product name is still announced. */
-  .mk-topnav .brand-wordmark {
+  .mk-topnav .brand-wordmark,
+  .mk-topnav .brand-tagline {
     display: none;
   }
 }
@@ -1600,6 +1601,12 @@ label.lbl {
   height: var(--lockup);
   width: auto;
 }
+/* With a tagline the text block is two lines, so the mark grows to span
+   both — otherwise it sits short against the name and reads misaligned. */
+.brand-lockup:has(.brand-tagline) > svg,
+.brand-lockup:has(.brand-tagline) > .brand-raster img {
+  height: calc(var(--lockup) * 1.22);
+}
 .brand-wordmark {
   display: block;
   font-size: 0.68em;
@@ -1613,9 +1620,12 @@ label.lbl {
 }
 .brand-tagline {
   display: block;
-  margin-top: 7px;
+  /* Sized off --lockup like the wordmark, at roughly the 0.38 ratio the
+     board draws. It was 0.62em of the WRAPPER, which resolved to nearly the
+     wordmark's own size — a tagline as big as the name. */
+  margin-top: 0.14em;
   margin-right: -0.18em;
-  font-size: 0.62em;
+  font-size: 0.26em;
   font-weight: 500;
   letter-spacing: 0.18em;
   text-transform: uppercase;

@@ -5,7 +5,7 @@
  */
 export const branding = {
   productName: "Brandeis",
-  tagline: "AI for public records",
+  tagline: "AI for FOIA",
   supportEmail: "support@brandeis.us",
   domain: "brandeis.us",
 } as const;
