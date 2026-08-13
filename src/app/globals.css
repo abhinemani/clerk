@@ -290,6 +290,11 @@ h3 {
 
 /* ---- top nav ---- */
 .nav {
+  /* One variable, because the bar's height and the nav links' height must
+     stay equal — the links are full-height so their active underline lands
+     ON the nav's bottom rule rather than floating above it. Two hardcoded
+     66px values used to encode that, which is a silent trap. */
+  --nav-h: 66px;
   position: sticky;
   top: 0;
   z-index: 20;
@@ -301,7 +306,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 20px;
-  height: 66px;
+  height: var(--nav-h);
 }
 .brand {
   display: inline-flex;
@@ -339,7 +344,7 @@ h3 {
 .nav-link {
   display: inline-flex;
   align-items: center;
-  height: 66px; /* full nav height → the underline sits on the nav rule */
+  height: var(--nav-h); /* full nav height → the underline sits on the nav rule */
   padding: 0 13px;
   color: var(--ink-2);
   font-weight: 500;
@@ -1342,6 +1347,20 @@ label.lbl {
   font-size: 0.92rem;
 }
 
+/* A bar carrying the FULL lockup is taller than one carrying a bare mark.
+   The lockup stacks wordmark over tagline and runs ~44px; at 66px that left
+   11px of air and read wedged in. 92px puts the artwork under half the bar's
+   height, which is where a lockup stops looking cramped.
+
+   Keyed on :has(.brand-lockup) rather than on .mk-topnav, because the cause
+   is the artwork, not the page's role — /signup carries the same lockup in a
+   plain .nav and had the same problem. Console and tenant navs carry a bare
+   <BrandMarkRaster> or an agency seal, match nothing here, and keep 66px:
+   they are work surfaces, where vertical space is inventory. */
+.nav:has(.brand-lockup) {
+  --nav-h: 92px;
+}
+
 /* Marketing nav at small widths. Scoped to .mk-topnav so the tenant portal
    navs (which carry an agency seal + name and need their own rules) are
    untouched. The dropped links both survive as hero CTAs. */
@@ -1365,6 +1384,15 @@ label.lbl {
   .mk-topnav .brand-wordmark,
   .mk-topnav .brand-tagline {
     display: none;
+  }
+}
+/* The lockup is down to the mark alone at this width, and a sticky bar costs
+   viewport on a phone — so take back some of the desktop height rather than
+   reserving 92px for a 32px mark. Outside the .mk-topnav block because the
+   rule follows the lockup, not the marketing page. */
+@media (max-width: 640px) {
+  .nav:has(.brand-lockup) {
+    --nav-h: 74px;
   }
 }
 
