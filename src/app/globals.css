@@ -296,8 +296,9 @@ h3 {
 /* ---- top nav ----
    PINNED DARK CHROME (owner directive 2026-08-13): the nav's ground is dark
    in BOTH themes — page content below keeps swapping, the bar does not. It
-   joins the ground-pinned family (hero, gov banner, gov footer), which also
-   settles the logo question: the dark lockup rides here always (swap on the
+   joins the ground-pinned family (dark band, gov banner, gov footer — the
+   hero left the family the same day, owner directive), which also settles
+   the logo question: the dark lockup rides here always (swap on the
    GROUND, not the theme).
 
    Implemented by re-declaring the theme tokens on .nav, so everything inside
@@ -731,9 +732,8 @@ label.lbl {
   transform: translate(-50%, -50%) rotate(45deg);
   box-shadow: 0 0 0 3px var(--paper);
 }
-.mk-hero .letterhead-rule::after {
-  box-shadow: 0 0 0 3px #16304f; /* halo matches the navy hero */
-}
+/* (The hero letterhead-rule keeps the default paper halo — its ground is
+   the page's own paper now.) */
 .smallcaps {
   font-variant-caps: all-small-caps;
   letter-spacing: 0.14em;
@@ -950,43 +950,21 @@ label.lbl {
    it to position:static, so the header follows you down the page. */
 
 /* ---- hero ---- */
+/* LIGHT ground (owner directive 2026-08-13): the hero sits on the page's
+   own paper and FOLLOWS the theme — white in light, dark paper in dark.
+   It is no longer in the ground-pinned family; only the nav, the dark
+   band, and the gov chrome keep a fixed dark ground. Gold survives as
+   ornament (the bottom rule, the proof-chip diamonds) — never as text on
+   this ground. */
 .mk-hero {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  color: #e8ecf3;
+  color: var(--ink);
   border-bottom: 3px solid var(--gold);
   background:
-    radial-gradient(ellipse 66% 54% at 14% -12%, color-mix(in srgb, var(--gold) 24%, transparent), transparent 62%),
-    radial-gradient(ellipse 58% 52% at 88% 6%, color-mix(in srgb, var(--plum) 78%, transparent), transparent 64%),
-    linear-gradient(158deg, #0b0f14 0%, var(--paper) 46%, #202834 100%);
-}
-.mk-hero::before {
-  /* hatch layer, kept off the text */
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.032) 0 1px,
-    transparent 1px 9px
-  );
-  pointer-events: none;
-}
-.mk-hero::after {
-  /* vignette so copy always wins over the aurora */
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(
-    100deg,
-    rgba(11, 15, 20, 0.88) 0%,
-    rgba(11, 15, 20, 0.6) 46%,
-    rgba(11, 15, 20, 0.12) 100%
-  );
-  pointer-events: none;
+    radial-gradient(ellipse 56% 46% at 88% -8%, color-mix(in srgb, var(--gold) 10%, transparent), transparent 62%),
+    var(--paper);
 }
 .mk-hero-seal {
   position: absolute;
@@ -994,7 +972,7 @@ label.lbl {
   top: 50%;
   translate: 0 -50%;
   z-index: -1;
-  opacity: 0.07;
+  opacity: 0.05;
   pointer-events: none;
 }
 .mk-hero-inner {
@@ -1010,7 +988,8 @@ label.lbl {
   font-weight: 800;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--gold);
+  /* Accent, not gold: eyebrows are text, and gold is never text on paper. */
+  color: var(--accent);
 }
 .mk-display {
   margin: 0;
@@ -1022,18 +1001,18 @@ label.lbl {
   line-height: 1.06;
   letter-spacing: -0.025em;
   font-weight: 650;
-  color: #ffffff;
+  color: var(--ink);
   text-wrap: balance;
 }
-.mk-display .mk-gold {
-  color: var(--gold);
+.mk-display .mk-accent {
+  color: var(--accent);
 }
 .mk-lede {
   margin-top: 22px;
   max-width: 660px;
   font-size: clamp(1.06rem, 1.5vw, 1.28rem);
   line-height: 1.55;
-  color: #c2cee1;
+  color: var(--ink-2);
 }
 .mk-hero .letterhead-rule {
   margin-inline: 0;
@@ -1055,10 +1034,9 @@ label.lbl {
   padding: 7px 13px;
   border-radius: var(--r-pill);
   font-size: 0.85rem;
-  color: #d8e0ec;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(6px);
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
 }
 .mk-proof li::before {
   content: "";
@@ -1403,7 +1381,9 @@ label.lbl {
    <BrandMarkRaster> or an agency seal, match nothing here, and keep 66px:
    they are work surfaces, where vertical space is inventory. */
 .nav:has(.brand-lockup) {
-  --nav-h: 92px;
+  /* 104px (owner ask 2026-08-13: "a bit taller, at least 15px margins") —
+     the ~42px artwork gets ~31px of air above and below. */
+  --nav-h: 104px;
 }
 
 /* Marketing nav at small widths. Scoped to .mk-topnav so the tenant portal
@@ -1439,7 +1419,7 @@ label.lbl {
    rule follows the lockup, not the marketing page. */
 @media (max-width: 640px) {
   .nav:has(.brand-lockup) {
-    --nav-h: 74px;
+    --nav-h: 82px;
   }
 }
 
@@ -1468,132 +1448,129 @@ label.lbl {
   gap: clamp(28px, 5vw, 64px);
   align-items: center;
 }
-
-.mk-panel {
-  position: relative;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: var(--r-lg);
-  background: linear-gradient(180deg, rgba(42, 49, 60, 0.92), rgba(15, 20, 26, 0.94));
-  box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(10px);
-  overflow: hidden;
-}
-.mk-panel-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.035);
-  font-size: 0.82rem;
-  color: #b9c5d8;
-}
-.mk-panel-id {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: #dbe3ef;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-.mk-panel-sub {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Grid items may never dictate width — a nowrap span inside the chat once
+   forced the whole hero past a phone viewport. */
+.mk-hero-grid > div {
   min-width: 0;
 }
-.mk-panel-due {
+
+/* ---- hero chat (the resident-asks / assistant-answers illustration) ----
+   Lives on the LIGHT hero, so everything reads from theme tokens — it
+   follows the visitor into dark mode for free. The AI teal marks the
+   assistant, exactly as it does in the product. */
+.mk-chat {
+  position: relative;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow), 0 30px 70px -34px rgba(15, 20, 26, 0.35);
+  overflow: hidden;
+}
+.mk-chat-head {
+  display: flex;
+  flex-wrap: wrap; /* the two labels stack on narrow screens, never overflow */
+  align-items: center;
+  gap: 4px 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+.mk-chat-title {
+  font-weight: 650;
+}
+.mk-chat-live {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
-  border-radius: var(--r-pill);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #f5b855;
-  white-space: nowrap;
-  background: rgba(245, 184, 85, 0.13);
-  border: 1px solid rgba(245, 184, 85, 0.3);
+  font-size: 0.74rem;
+  color: var(--muted);
 }
-.mk-panel-body {
-  padding: 18px 18px 16px;
+.mk-chat-live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ai);
 }
-.mk-panel-kicker {
+.mk-chat-body {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+.mk-msg {
+  max-width: 88%;
+  padding: 10px 14px;
+  border-radius: var(--r-md, 10px);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.mk-msg p {
+  margin: 0;
+}
+.mk-msg-user {
+  justify-self: end;
+  background: var(--primary-tint);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-bottom-right-radius: 4px;
+}
+.mk-msg-bot {
+  justify-self: start;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+  color: var(--ink);
+}
+.mk-msg-tag {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 0.74rem;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 0.7rem;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ai);
 }
-.mk-panel-cite {
+.mk-chat-record {
   margin-top: 10px;
-  font-family: var(--font-sans);
-  letter-spacing: -0.01em;
-  font-size: 1.1rem;
-  line-height: 1.35;
-  color: #ffffff;
-}
-.mk-panel-quote {
-  margin-top: 12px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-radius: var(--r-sm);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: rgba(0, 0, 0, 0.28);
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: #c8d2e2;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
-/* the burn — this product's signature gesture */
-.mk-redact {
-  display: inline-block;
-  border-radius: 2px;
-  background: #05070a;
-  color: transparent;
-  user-select: none;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+.mk-chat-record em {
+  display: block;
+  margin-top: 4px;
+  font-style: normal;
+  font-size: 0.76rem;
+  color: var(--muted);
 }
-.mk-panel-acts {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-  flex-wrap: wrap;
-}
-.mk-act {
-  padding: 7px 14px;
-  border-radius: var(--r-sm);
-  font-size: 0.85rem;
-  font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #dbe3ef;
-  background: rgba(255, 255, 255, 0.05);
-}
-.mk-act-primary {
-  background: var(--ai);
-  border-color: var(--ai);
-  color: #06222b;
-}
-.mk-panel-foot {
+.mk-chat-foot {
   /* plain text flow, NOT flex — flex makes each text node its own item and
      the line jumbles as soon as it wraps (it does at 390px) */
   padding: 11px 16px;
   line-height: 1.5;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.22);
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
   font-size: 0.78rem;
-  color: #93a3b9;
+  color: var(--muted);
 }
-.mk-panel-foot strong {
-  color: #c8d2e2;
+.mk-chat-foot strong {
+  color: var(--ink-2);
   font-weight: 600;
 }
 .mk-panel-note {
   margin-top: 14px;
   text-align: center;
   font-size: 0.8rem;
-  color: #8fa0ba;
+  color: var(--muted);
 }
 
 /* stat strip — short label, quiet sub */
@@ -1698,71 +1675,20 @@ label.lbl {
   display: none;
 }
 
-/* Hero panel: the automation chain above the drafted response. The point of
-   the hero is that the response WROTE ITSELF and a person still sends it, so
-   the completed steps are quiet and the draft is the loud part. */
-.mk-panel-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 12px 18px 0;
-}
-.mk-panel-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 9px;
-  border-radius: var(--r-pill);
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: #9fb0a8;
-  background: rgba(107, 220, 160, 0.09);
-  border: 1px solid rgba(107, 220, 160, 0.22);
-}
-.mk-panel-step::before {
-  content: "✓";
-  color: var(--ok);
-  font-size: 0.8rem;
-}
-.mk-panel-ask {
-  margin-top: 14px;
-  padding-left: 11px;
-  border-left: 2px solid var(--border-strong);
-  font-size: 0.85rem;
-  line-height: 1.55;
-  color: #93a3b9;
-}
-.mk-panel-letter {
-  margin-top: 12px;
-  padding: 13px 15px;
-  border-radius: var(--r-sm);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: rgba(0, 0, 0, 0.26);
-  font-family: var(--font-serif);
-  font-size: 0.93rem;
-  line-height: 1.62;
-  color: #dbe3ef;
-}
-.mk-panel-letter em {
-  display: block;
-  margin-top: 8px;
-  font-family: var(--font-sans);
-  font-style: normal;
-  font-size: 0.8rem;
-  color: #8fa0ba;
-}
 
 /* =========================================================================
    GROUND-PINNED TOKENS
 
-   These sections are dark in BOTH themes — the hero, the dark bands, the
-   government footer and banner all paint their own near-black ground. A token
-   that follows the THEME is wrong inside them: in the light theme the deeper
+   These sections are dark in BOTH themes — the dark bands, the government
+   footer and banner all paint their own near-black ground. A token that
+   follows the THEME is wrong inside them: in the light theme the deeper
    paper-gold would land on near-black and go muddy.
+
+   (The hero LEFT this family 2026-08-13, owner directive: it sits on the
+   page's own paper now and follows the theme.)
 
    Same lesson as the footer lockup: pin to the GROUND, not the theme.
    ========================================================================= */
-.mk-hero,
 .mk-band-dark,
 .gov-footer,
 .gov-banner {
@@ -1806,9 +1732,9 @@ label.lbl {
   /* Printers strip CSS backgrounds by default — which would put these
      surfaces' PINNED light-on-dark ink (white wordmark, pale gold) on bare
      white paper. Their dark ground is load-bearing, so ask for it exactly.
-     .nav is in this family since the pinned-dark-chrome directive. */
+     .nav is in this family since the pinned-dark-chrome directive; the hero
+     left it 2026-08-13 (light ground — prints fine unforced). */
   .nav,
-  .mk-hero,
   .mk-band-dark,
   .gov-footer,
   .gov-banner {

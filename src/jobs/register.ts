@@ -9,6 +9,7 @@ import { runEmbedRequestsJob } from "./embedRequestsJob";
 import { runExemptionPassJob } from "./exemptionPassJob";
 import { runOcrExtractJob } from "./ocrJob";
 import { getJobQueue } from "./queue";
+import { runDeliverStatusWebhookJob } from "./statusWebhookJob";
 import { runSyncConnectedSourceJob } from "./syncConnectedSourceJob";
 import { runIntakeTriageJob } from "./triageJob";
 
@@ -33,6 +34,7 @@ export function registerJobs(): void {
   queue.register("classify_documents", runClassifyDocumentsJob);
   queue.register("sync_connected_source", runSyncConnectedSourceJob);
   queue.register("embed_requests", runEmbedRequestsJob);
+  queue.register("deliver_status_webhook", runDeliverStatusWebhookJob);
   // Durable queue: re-queue rows a dead process left "running", then start
   // the polling worker. Jobs enqueued before a restart run after it.
   void queue.recoverAndStart();

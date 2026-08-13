@@ -17,6 +17,7 @@ import type { RoutingRule, WorkflowSettings } from "@/domain/workflow";
 export interface AgencySettings {
   publicRequestLog?: boolean;
   statuteReview?: { reviewedBy: string; reviewedOn: string; note?: string };
+  statusApi?: { enabled: boolean; webhookUrl?: string | null };
 }
 
 /** Per-tenant identity — mirrors the schema's AgencyBranding. All optional. */

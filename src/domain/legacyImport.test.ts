@@ -135,4 +135,20 @@ describe("parseLegacyCsv", () => {
   it("handles an empty file", () => {
     expect(parseLegacyCsv("")).toEqual({ rows: [], errors: [], missingHeaders: expect.any(Array) });
   });
+
+  it("parses released_records ids: ; or | separated, trimmed, deduped", () => {
+    const csv = [
+      "description,filed_date,released_records",
+      '"Paving emails",2024-01-15,"PAV-001; PAV-002 |PAV-001"',
+    ].join("\n");
+    const { rows } = parseLegacyCsv(csv);
+    expect(rows[0]!.releasedRecordIds).toEqual(["PAV-001", "PAV-002"]);
+  });
+
+  it("released_records absent or blank → empty list", () => {
+    const { rows } = parseLegacyCsv('description,filed_date\n"Plain",2024-01-15');
+    expect(rows[0]!.releasedRecordIds).toEqual([]);
+    const { rows: rows2 } = parseLegacyCsv('description,filed_date,released_records\n"Blank",2024-01-15,');
+    expect(rows2[0]!.releasedRecordIds).toEqual([]);
+  });
 });

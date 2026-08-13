@@ -1115,6 +1115,15 @@ export interface AgencySettings {
    * Recorded by the agency admin; display-only everywhere else.
    */
   statuteReview?: { reviewedBy: string; reviewedOn: string; note?: string };
+  /**
+   * Requester status API (agentic-horizon §16.4 first brick, opt-in):
+   * GET /api/v1/{slug}/requests/{publicId} serves the tracker's
+   * requester-safe projection; webhookUrl (https) receives a ping on every
+   * status change / extension. Ping-style on purpose: the POST carries only
+   * tracking-number-level facts, and subscribers verify against the status
+   * API — so there is no signing secret to store.
+   */
+  statusApi?: { enabled: boolean; webhookUrl?: string | null };
 }
 
 /**

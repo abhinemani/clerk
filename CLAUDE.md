@@ -50,9 +50,11 @@ needs its counterpart in the other, contrast-checked against that ground.
 **Pin to the GROUND, not the theme.** Swapping an asset on
 `prefers-color-scheme`, or letting a token flip with it, is only correct
 where the surface actually follows the visitor. Surfaces whose ground is
-fixed in *both* themes — the hero and footer on `--primary-deep`, the gov
-banner — must pin their brand tokens to the dark values instead; `globals.css`
-has a GROUND-PINNED TOKENS block for exactly this. This shipped as a bug
+fixed in *both* themes — the nav, the mid-page dark band, the footer on
+`--primary-deep`, the gov banner — must pin their brand tokens to the dark
+values instead; `globals.css` has a GROUND-PINNED TOKENS block for exactly
+this. (The marketing HERO left this family on 2026-08-13, owner directive:
+it sits on the page's own paper and follows the visitor's theme.) This shipped as a bug
 twice: a navy wordmark landing on near-black, then gold ornament going pale
 yellow on a dark band. If you add a theme-reactive asset or token, first ask
 what the ground under it does.

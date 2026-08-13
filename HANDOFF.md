@@ -7,9 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**824 tests pass (+4 skipped), typecheck clean** (as of the newest
-2026-08-13 small-items entry); build + 4/4 e2e were green in the
-env-hygiene entry the same day, not re-run since.
+**848 tests pass (+4 skipped), typecheck clean** (as of the newest
+2026-08-13 top-3 entry); build + 4/4 e2e were green in the env-hygiene
+entry the same day, not re-run since.
 
 ## START HERE (next session)
 
@@ -27,11 +27,10 @@ cloud sessions get keys per laptop-setup ⚡ steps.
 all sized for one window):
 1. ~~Correspondence threading + Message-ID dedupe~~ **DONE** (2026-08-13,
    newest entry).
-2. Release-history import — link legacy-imported requests to imported
-   documents as releases, so archive/dedup/precedents inherit history
-   (tier-1 remainder, the onboarding lever).
-3. Intake dedup should reuse stored request vectors instead of re-embedding
-   the whole corpus per filing (`[agency]/actions.ts` findDuplicates call).
+2. ~~Release-history import~~ **DONE** (2026-08-13 top-3 entry).
+3. ~~Intake dedup on stored request vectors~~ **DONE** (2026-08-13 top-3
+   entry — the premise was half-wrong: it was lexical-only, not
+   re-embedding; now stored-vector cosine with lexical fallback).
 4. ~~Small: annual-report CSV companion · proactive retention-destruction
    warnings · "reviewed by counsel on DATE" field on statute profiles ·
    responder email on dispatch~~ ALL DONE (2026-08-13, newest entry;
@@ -46,7 +45,71 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, later): THE SMALL-ITEMS BASKET —
+**NEWEST (2026-08-13, cloud session, latest): TOP-3 BUILDS (owner: "build
+the top 3") + HOMEPAGE REDESIGN (owner directive mid-session).** Four
+pieces, all browser-verified:
+- **Release-history import (the onboarding lever, build-candidate #2).**
+  The legacy CSV gains an optional `released_records` column — external_ids
+  from a records import, `;` or `|` separated. Each named doc is linked to
+  the row's request (request_documents), a real release row is minted
+  (artifacts with documentId, releasedAt = the row's closed date, approver =
+  the importing admin), askedAs aliases + metadata.releaseId land on the
+  docs, and `embed_requests` is enqueued post-import. INVARIANT 9 SHAPE:
+  publicness is NEVER minted here — docs keep their existing classification,
+  and the release is public only when every linked doc already IS public
+  (deriving from prior named-human decisions). UI copy says to import (and
+  publish) records FIRST — linked docs leave the publication queue, which is
+  the existing review-set rule, so sequencing matters. Missing external_ids
+  are reported per row and in the result, matched ones still link.
+- **Requester status API + webhooks (agentic-horizon §16.4 first brick).**
+  `GET /api/v1/{slug}/requests/{publicId}` serves the tracker's
+  requester-safe projection as JSON (statusApiService.publicRequestStatus —
+  tests pin that NOTHING about the requester, raw text, or staff crosses;
+  milestones are status_change+extension events only). Per-agency opt-in
+  (settings.statusApi, no migration — jsonb), 404-plays-dead when off, admin
+  card next to Compliance. Webhooks are PINGS on purpose: POST carries
+  tracking-number facts + statusUrl; subscribers verify against the API, so
+  NO signing secret exists (house rule: no secret values in the DB).
+  Emitted via emitStatusWebhook from ALL EIGHT status-moving sites
+  (submitRequest, transitionRequest, releaseRequest, denyRequest,
+  fulfillByReference, referRequest, forwardRequest + extendRequest as
+  deadline_extended) — the status-write choke point is LEAKY (7 sites
+  bypass transitionRequest; scout-verified list in the entry's commit).
+  Delivery is a durable `deliver_status_webhook` job (10s timeout, retries,
+  failures on /admin Health). Webhook URL is SSRF-guarded
+  (domain/statusApi.ts checkWebhookUrl: https-only, no IP literals/
+  localhost/internal names, tested).
+- **Intake dedup on stored vectors (build-candidate #3).** The scout
+  corrected HANDOFF's premise: intake dedup was LEXICAL-only over the full
+  corpus (the embedder branch existed but was dormant — naively enabling it
+  would have been the re-embed trap). `findDuplicateRequests` in
+  similarRequestsService now reads stored ask vectors; the filing's own
+  vector is already written by submitRequest, so the common case costs ZERO
+  embed calls. Per-metric thresholds (cosine 0.6 / Jaccard 0.35 — the
+  scales differ), per-row lexical fallback for vector-less rows, event
+  payload contract unchanged (the "Possibly related" card renders as
+  before). `src/ai/dedup/duplicates.ts` stays for its tests; intake no
+  longer calls it.
+- **HOMEPAGE REDESIGN (owner: "feels like a military company").** The hero
+  LEFT the ground-pinned family (CLAUDE.md updated): it sits on the page's
+  own paper now — white in light, follows the visitor in dark. The nav
+  stays pinned dark and got taller (104px desktop / 82px ≤640px; measured
+  23-24px of air around the lockup, owner asked ≥15). The hero panel is now
+  a CHAT — resident asks for inspection reports → assistant answers from
+  the public archive (no request needed) → resident asks for an unpublished
+  record → assistant files a drafted request with the statutory due date.
+  All theme-token styled (.mk-chat*), gold reduced to ornament (eyebrow +
+  heading accent went terracotta — gold is never text on paper). TRAP HIT:
+  two nowrap spans in the chat header forced the hero past a 390px
+  viewport (grid min-content); fixed with flex-wrap + `.mk-hero-grid > div
+  { min-width: 0 }`, verified scrollWidth === clientWidth. Screenshots:
+  light, dark, 390px.
+848 tests (24 new), typecheck clean. No prompt changes; no owner-facing
+env/service changes (laptop-setup untouched, checked). Follow-ups worth a
+window: statusWebhookJob has no direct unit test (fetch-thin, covered via
+emit tests); consider HMAC signing only if a subscriber demands it.
+
+**PREVIOUS (2026-08-13, cloud session, later): THE SMALL-ITEMS BASKET —
 build-candidate #4, all four, browser-verified both themes.** One of the
 four turned out to be stale (already shipped); its replacement was a real
 bug found while checking. What landed:

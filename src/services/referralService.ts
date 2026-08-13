@@ -151,6 +151,15 @@ export async function referRequest(
     },
     createdAt: at,
   });
+  {
+    const { emitStatusWebhook } = await import("./statusApiService");
+    await emitStatusWebhook(deps, {
+      agencyId: input.agencyId,
+      publicId: request.publicId,
+      event: "status_changed",
+      to: "referred",
+    });
+  }
 
   // Tell the requester where to go. Recorded in the correspondence thread so
   // it lives with the rest of the conversation, and delivered via the outbox.
@@ -423,6 +432,15 @@ export async function forwardRequest(
     },
     createdAt: at,
   });
+  {
+    const { emitStatusWebhook } = await import("./statusApiService");
+    await emitStatusWebhook(deps, {
+      agencyId: input.agencyId,
+      publicId: request.publicId,
+      event: "status_changed",
+      to: "referred",
+    });
+  }
 
   // Tell the requester where their request now lives.
   let requesterNotified = false;

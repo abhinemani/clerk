@@ -9,6 +9,7 @@ import { RoutingRulesPanel } from "../../../../_components/RoutingRulesPanel";
 import { DepartmentManager, type DepartmentRow } from "../../../../_components/DepartmentManager";
 import { BrandingPanel } from "../../../../_components/BrandingPanel";
 import { CompliancePanel, type StatuteVM } from "../../../../_components/CompliancePanel";
+import { StatusApiPanel } from "../../../../_components/StatusApiPanel";
 import { effectiveWorkflowSettings } from "@/domain/workflow";
 import { computeSetupStatus } from "@/domain/setupChecklist";
 import { getStateProfile } from "@/statute/profiles";
@@ -245,6 +246,13 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
         statute={statuteVM}
         logEnabled={agencySettings.publicRequestLog === true}
       />
+      <div style={{ marginTop: 12 }}>
+        <StatusApiPanel
+          agencySlug={slug}
+          enabled={agencySettings.statusApi?.enabled === true}
+          webhookUrl={agencySettings.statusApi?.webhookUrl ?? null}
+        />
+      </div>
 
       <h2 id="automation" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>
         Workflow automation

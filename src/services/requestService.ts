@@ -179,6 +179,15 @@ export async function submitRequest(
     console.error("received-milestone email failed", e);
   }
 
+  // Status webhook (opt-in per agency, never blocking): the subscriber's ping.
+  const { emitStatusWebhook } = await import("./statusApiService");
+  await emitStatusWebhook(deps, {
+    agencyId: agency.id,
+    publicId,
+    event: "status_changed",
+    to: "submitted",
+  });
+
   // Ask vector (answer-first phase 4): written at the moment of filing so
   // this request joins the precedent corpus for every later one. Best-effort
   // inside writeRequestEmbedding — an embedding provider being down must
@@ -310,6 +319,14 @@ export async function transitionRequest(
       console.error("in_progress-milestone email failed", e);
     }
   }
+
+  const { emitStatusWebhook } = await import("./statusApiService");
+  await emitStatusWebhook(deps, {
+    agencyId: input.agencyId,
+    publicId: request.publicId,
+    event: "status_changed",
+    to: input.to,
+  });
 
   return updated;
 }
@@ -497,6 +514,16 @@ export async function extendRequest(deps: ServiceDeps, input: ExtendRequestInput
       summary: "Extension notice required but the requester has no email on file",
       payload: { reason: input.reason },
       createdAt: deps.now(),
+    });
+  }
+
+  {
+    const { emitStatusWebhook } = await import("./statusApiService");
+    await emitStatusWebhook(deps, {
+      agencyId: input.agencyId,
+      publicId: request.publicId,
+      event: "deadline_extended",
+      dueAt: computed.dueAt,
     });
   }
 

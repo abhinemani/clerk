@@ -451,3 +451,51 @@ export async function setTransparencyLogAction(input: {
     return { ok: false, error: "Could not update the setting." };
   }
 }
+
+/**
+ * Status API + webhook (agentic-horizon: the §16.4 first brick). The API
+ * serves only the tracker's requester-safe projection; the webhook URL is
+ * validated as an SSRF surface (checkWebhookUrl) because the server posts
+ * to whatever a tenant admin types here.
+ */
+export async function setStatusApiAction(input: {
+  agencySlug: string;
+  enabled: boolean;
+  webhookUrl: string;
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+
+    let webhookUrl: string | null = null;
+    if (input.webhookUrl.trim()) {
+      const { checkWebhookUrl } = await import("@/domain/statusApi");
+      const checked = checkWebhookUrl(input.webhookUrl);
+      if (!checked.ok) return { ok: false, error: checked.reason };
+      webhookUrl = checked.url;
+    }
+
+    const agency = await repo.getAgency(agencyId);
+    await repo.updateAgency(agencyId, {
+      settings: {
+        ...(agency?.settings ?? {}),
+        statusApi: { enabled: input.enabled, webhookUrl },
+      },
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "status_api_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: input.enabled
+        ? `Status API ENABLED${webhookUrl ? ` — webhook → ${webhookUrl}` : ""}`
+        : "Status API disabled",
+      payload: { enabled: input.enabled, webhookUrl },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    return { ok: true };
+  } catch (e) {
+    console.error("setStatusApi failed", e);
+    return { ok: false, error: "Could not update the setting." };
+  }
+}

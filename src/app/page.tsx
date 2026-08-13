@@ -109,7 +109,9 @@ export default function MarketingHome() {
       </div>
 
       <main id="main">
-        {/* Hero — the product wears the flag: deep navy, gold aurora, seal watermark */}
+        {/* Hero — light civic paper (owner directive 2026-08-13: the dark hero
+            read as severe; the dark ground now belongs to the nav and the
+            mid-page band only). */}
         <section className="mk-hero">
           <div className="wrap">
             <div className="mk-hero-grid">
@@ -120,7 +122,7 @@ export default function MarketingHome() {
               <h1 className="mk-display">
                 Every response drafted for you.
                 <br />
-                <span className="mk-gold">Every decision still yours.</span>
+                <span className="mk-accent">Every decision still yours.</span>
               </h1>
               <hr className="letterhead-rule" aria-hidden />
               <p className="mk-lede">
@@ -139,7 +141,7 @@ export default function MarketingHome() {
                 <Link href="/signup" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
                   Create your records office
                 </Link>
-                <Link href="/riverton" className="btn btn-outline-light" style={{ paddingInline: 24, paddingBlock: 12 }}>
+                <Link href="/riverton" className="btn" style={{ paddingInline: 24, paddingBlock: 12 }}>
                   Explore the live demo
                 </Link>
               </div>
@@ -148,53 +150,61 @@ export default function MarketingHome() {
               </p>
             </div>
 
-            {/* The thesis, made concrete. role=img with a description: the
-                buttons are an illustration, not real controls, so assistive
-                tech gets the summary instead of unfocusable fake widgets. */}
+            {/* The thesis, made concrete: a resident asks, the assistant
+                answers — from the public archive first, a drafted request
+                only when the record isn't public yet. role=img with a
+                description: the bubbles are an illustration, not controls,
+                so assistive tech gets the summary instead of fake widgets. */}
             <div>
               <div
-                className="mk-panel"
+                className="mk-chat"
                 role="img"
-                aria-label="Illustration: request PR-2026-00184 has been triaged, routed to Public Works and matched to 34 records automatically, and a response letter has been drafted for a staff member to send, edit or discard. The decision is written to the append-only audit log."
+                aria-label="Illustration of the records assistant: a resident asks for inspection reports for 400 Main Street and instantly receives three already-public records to download. They then ask for an incident report that is not public, and the assistant files a drafted request on their behalf with the statutory response date computed from state law."
               >
-                <div className="mk-panel-head">
-                  <span className="mk-panel-id">PR-2026-00184</span>
-                  <span className="mk-panel-sub">Public Works</span>
-                  <span className="mk-panel-due">Due in 3 days</span>
+                <div className="mk-chat-head">
+                  <span className="mk-chat-title">City of Riverton · Public records</span>
+                  <span className="mk-chat-live">Answers from the public archive</span>
                 </div>
-                <div className="mk-panel-steps">
-                  <span className="mk-panel-step">Triaged</span>
-                  <span className="mk-panel-step">Routed to Public Works</span>
-                  <span className="mk-panel-step">34 records gathered</span>
-                </div>
-                <div className="mk-panel-body">
-                  <p className="mk-panel-ask">
-                    &ldquo;Emails between the Public Works director and Acme Paving about the Main
-                    Street resurfacing contract, January through March.&rdquo;
-                  </p>
-                  <span className="mk-panel-kicker" style={{ marginTop: 16, display: "inline-flex" }}>
-                    <SparkIcon />
-                    Response drafted
-                  </span>
-                  <div className="mk-panel-letter">
-                    Dear Ms. Alvarez — we identified 34 records responsive to your request. 31 are
-                    released in full and attached. 3 are withheld under Gov. Code § 6254(c), with
-                    the basis for each itemized below.
-                    <em>Due 14 March · computed from Cal. Gov. Code § 7922.535</em>
+                <div className="mk-chat-body">
+                  <div className="mk-msg mk-msg-user">
+                    Do you have building inspection reports for 400 Main Street?
                   </div>
-                  <div className="mk-panel-acts">
-                    <span className="mk-act mk-act-primary">Send as Dana</span>
-                    <span className="mk-act">Edit</span>
-                    <span className="mk-act">Discard</span>
+                  <div className="mk-msg mk-msg-bot">
+                    <span className="mk-msg-tag">
+                      <SparkIcon />
+                      {branding.productName}
+                    </span>
+                    <p>
+                      Yes — three inspection reports for 400 Main St are already public. No request
+                      needed:
+                    </p>
+                    <div className="mk-chat-record">
+                      Inspection report · 400 Main St
+                      <em>Released June 2025 · PDF · with 2 more from 2024</em>
+                    </div>
+                  </div>
+                  <div className="mk-msg mk-msg-user">
+                    I also need the police incident report from the June 2025 vehicle damage there.
+                  </div>
+                  <div className="mk-msg mk-msg-bot">
+                    <span className="mk-msg-tag">
+                      <SparkIcon />
+                      {branding.productName}
+                    </span>
+                    <p>That record isn&apos;t published yet, so I&apos;ve drafted a request for you:</p>
+                    <div className="mk-chat-record">
+                      &ldquo;Police incident report, June 2025 vehicle damage at 400 Main St.&rdquo;
+                      <em>Filed as PR-2026-00184 · response due Mar 14, per Cal. Gov. Code § 7922.535</em>
+                    </div>
                   </div>
                 </div>
-                <div className="mk-panel-foot">
-                  Written to <strong>request_events</strong> · sent by{" "}
-                  <strong>dana@riverton.gov</strong>
+                <div className="mk-chat-foot">
+                  Every answer cites the public archive. Every filed request arrives triaged, and a{" "}
+                  <strong>named human</strong> decides what goes out.
                 </div>
               </div>
               <p className="mk-panel-note">
-                The response writes itself. It does not send itself.
+                Residents get answers in seconds. Staff get requests that arrive already organized.
               </p>
             </div>
             </div>
