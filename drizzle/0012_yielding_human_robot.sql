@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS "request_playbooks" (
+CREATE TABLE IF NOT EXISTS "request_plays" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"agency_id" uuid NOT NULL,
 	"topic" text NOT NULL,
@@ -11,9 +11,9 @@ CREATE TABLE IF NOT EXISTS "request_playbooks" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "request_playbooks" ADD CONSTRAINT "request_playbooks_agency_id_agencies_id_fk" FOREIGN KEY ("agency_id") REFERENCES "public"."agencies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "request_plays" ADD CONSTRAINT "request_plays_agency_id_agencies_id_fk" FOREIGN KEY ("agency_id") REFERENCES "public"."agencies"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "request_playbooks_agency_idx" ON "request_playbooks" USING btree ("agency_id");
+CREATE INDEX IF NOT EXISTS "request_plays_agency_idx" ON "request_plays" USING btree ("agency_id");

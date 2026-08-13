@@ -7,7 +7,7 @@
  * agency-scoped; the in-memory adapter enforces the same tenant isolation the DB
  * layer must (a cross-agency read returns null, never another tenant's row).
  */
-import type { AgentBudgetLimits, AgentBudgetSpend, AgentPlanState, PlaybookStats } from "@/db/schema";
+import type { AgentBudgetLimits, AgentBudgetSpend, AgentPlanState, PlayStats } from "@/db/schema";
 import type { RequestStatus } from "@/domain/requestLifecycle";
 import type { TaskStatus } from "@/domain/taskWorkflow";
 import type { RoutingRule, WorkflowSettings } from "@/domain/workflow";
@@ -223,12 +223,12 @@ export interface DocumentEntity {
  * learning-loop.md). Rows are a nightly-rebuilt materialized aggregate —
  * replaced wholesale per agency, never mutated row-by-row.
  */
-export interface PlaybookEntity {
+export interface PlayEntity {
   id: string;
   agencyId: string;
   topic: string;
   keywords: string[];
-  stats: PlaybookStats;
+  stats: PlayStats;
   episodeCount: number;
   rebuiltAt: Date;
   createdAt: Date;
@@ -620,11 +620,11 @@ export interface Repository {
   appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity>;
   listDeflections(agencyId: string): Promise<DeflectionEntity[]>;
 
-  // Learning loop (docs/learning-loop.md): playbooks are replaced wholesale
+  // Learning loop (docs/learning-loop.md): plays are replaced wholesale
   // per agency by the nightly rebuild — full-replace semantics on purpose,
   // so the store can never drift from the record it summarizes.
-  replaceAgencyPlaybooks(agencyId: string, rows: PlaybookEntity[]): Promise<void>;
-  listPlaybooks(agencyId: string): Promise<PlaybookEntity[]>;
+  replaceAgencyPlays(agencyId: string, rows: PlayEntity[]): Promise<void>;
+  listPlays(agencyId: string): Promise<PlayEntity[]>;
 
   // Agent runs (§16.2): persisted plan state so runs are resumable and a
   // human can steer any run from the UI. All reads agency-scoped.
@@ -1180,16 +1180,16 @@ export class InMemoryRepository implements Repository {
     return this.deflections.filter((d) => d.agencyId === agencyId);
   }
 
-  private playbooks: PlaybookEntity[] = [];
+  private plays: PlayEntity[] = [];
 
-  async replaceAgencyPlaybooks(agencyId: string, rows: PlaybookEntity[]) {
-    this.playbooks = [
-      ...this.playbooks.filter((p) => p.agencyId !== agencyId),
+  async replaceAgencyPlays(agencyId: string, rows: PlayEntity[]) {
+    this.plays = [
+      ...this.plays.filter((p) => p.agencyId !== agencyId),
       ...rows.filter((p) => p.agencyId === agencyId),
     ];
   }
-  async listPlaybooks(agencyId: string) {
-    return this.playbooks
+  async listPlays(agencyId: string) {
+    return this.plays
       .filter((p) => p.agencyId === agencyId)
       .sort((a, b) => b.episodeCount - a.episodeCount);
   }

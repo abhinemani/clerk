@@ -1058,7 +1058,7 @@ export const agentRuns = pgTable(
 );
 
 /**
- * request_playbooks — the learning loop's distilled knowledge (docs/
+ * request_plays — the learning loop's distilled knowledge (docs/
  * learning-loop.md). Each row is one learned cluster of demand ("towing
  * contracts", "bodycam footage") with the statistics of how the office
  * actually resolved it: routes, exemptions, timing, outcomes. Rebuilt
@@ -1068,8 +1068,8 @@ export const agentRuns = pgTable(
  * feeds the existing auto-dispatch gate (never at 1.0 — explicit rules own
  * that).
  */
-export const requestPlaybooks = pgTable(
-  "request_playbooks",
+export const requestPlays = pgTable(
+  "request_plays",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     agencyId: uuid("agency_id")
@@ -1079,12 +1079,12 @@ export const requestPlaybooks = pgTable(
     topic: text("topic").notNull(),
     /** Term profile the intake matcher compares new asks against. */
     keywords: jsonb("keywords").$type<string[]>().notNull(),
-    stats: jsonb("stats").$type<PlaybookStats>().notNull(),
+    stats: jsonb("stats").$type<PlayStats>().notNull(),
     episodeCount: integer("episode_count").notNull(),
     rebuiltAt: timestamp("rebuilt_at", { withTimezone: true }).notNull(),
     ...timestamps,
   },
-  (t) => [index("request_playbooks_agency_idx").on(t.agencyId)],
+  (t) => [index("request_plays_agency_idx").on(t.agencyId)],
 );
 
 // ---------------------------------------------------------------------------
@@ -1092,7 +1092,7 @@ export const requestPlaybooks = pgTable(
 // ---------------------------------------------------------------------------
 
 /** Aggregated resolution knowledge for one learned demand cluster. */
-export interface PlaybookStats {
+export interface PlayStats {
   /** Departments that actually produced the records, by share (desc). */
   routes: { departmentId: string | null; department: string; share: number }[];
   /** Exemption labels cited in reviews, by count (desc). */
@@ -1277,7 +1277,7 @@ export const allTables = {
   authTokens,
   agentRuns,
   publicIdCounters,
-  requestPlaybooks,
+  requestPlays,
   jobs,
   publicationDecisions,
   instanceMeta,

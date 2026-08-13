@@ -25,7 +25,7 @@ import {
   publicationDecisions,
   publicIdCounters,
   releases,
-  requestPlaybooks,
+  requestPlays,
   requestDocuments,
   requestEvents,
   requesters,
@@ -52,7 +52,7 @@ import {
   type JobRecord,
   type JobStatus,
   type MessageEntity,
-  type PlaybookEntity,
+  type PlayEntity,
   type PublicationDecisionRow,
   type PublicationState,
   type ReleaseEntity,
@@ -1521,11 +1521,11 @@ export class DrizzleRepository implements Repository {
 
   // --- learning loop (docs/learning-loop.md) -------------------------------
 
-  async replaceAgencyPlaybooks(agencyId: string, rows: PlaybookEntity[]): Promise<void> {
-    await this.db.delete(requestPlaybooks).where(eq(requestPlaybooks.agencyId, agencyId));
+  async replaceAgencyPlays(agencyId: string, rows: PlayEntity[]): Promise<void> {
+    await this.db.delete(requestPlays).where(eq(requestPlays.agencyId, agencyId));
     const mine = rows.filter((p) => p.agencyId === agencyId);
     if (mine.length === 0) return;
-    await this.db.insert(requestPlaybooks).values(
+    await this.db.insert(requestPlays).values(
       mine.map((p) => ({
         id: p.id,
         agencyId: p.agencyId,
@@ -1539,13 +1539,13 @@ export class DrizzleRepository implements Repository {
     );
   }
 
-  async listPlaybooks(agencyId: string): Promise<PlaybookEntity[]> {
+  async listPlays(agencyId: string): Promise<PlayEntity[]> {
     const rows = await this.db
       .select()
-      .from(requestPlaybooks)
-      .where(eq(requestPlaybooks.agencyId, agencyId))
-      .orderBy(desc(requestPlaybooks.episodeCount));
-    return rows.map((p: typeof requestPlaybooks.$inferSelect) => ({
+      .from(requestPlays)
+      .where(eq(requestPlays.agencyId, agencyId))
+      .orderBy(desc(requestPlays.episodeCount));
+    return rows.map((p: typeof requestPlays.$inferSelect) => ({
       id: p.id,
       agencyId: p.agencyId,
       topic: p.topic,

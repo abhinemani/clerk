@@ -2,13 +2,13 @@
  * The learning loop (docs/learning-loop.md) — resolved requests make the
  * platform smarter, structurally, not just as RAG context.
  *
- * rebuildAgencyPlaybooks: nightly (and cheap — four agency-wide queries, no
+ * rebuildAgencyPlays: nightly (and cheap — four agency-wide queries, no
  * per-request reads), distills every CLOSED request into an episode and
- * re-clusters them into playbooks, replacing the agency's rows wholesale. A
+ * re-clusters them into plays, replacing the agency's rows wholesale. A
  * materialized aggregate of the append-only record: it can be dropped and
  * rebuilt at any time and can never drift from the truth it summarizes.
  *
- * applyPlaybookRouting: at filing time, match the new ask against the learned
+ * applyPlayRouting: at filing time, match the new ask against the learned
  * clusters. A match writes ONE proposal-card event (the same shape rules and
  * the AI pipeline write, so staff review all three identically) and hands the
  * suggestion to the SAME auto-dispatch gate — with confidence EARNED from
@@ -16,21 +16,21 @@
  * with zero API keys: this is statistics over the agency's own record.
  */
 import {
-  buildPlaybooks,
+  buildPlays,
   distillEpisode,
-  matchPlaybook,
+  matchPlay,
   routingSuggestionFrom,
   type CaseEpisode,
-  type PlaybookMatch,
+  type PlayMatch,
 } from "@/domain/caseLearning";
 import type { ServiceDeps } from "./deps";
-import type { PlaybookEntity } from "./repository";
+import type { PlayEntity } from "./repository";
 import { autoDispatchSuggestions, type AutoDispatchResult } from "./taskService";
 
-export async function rebuildAgencyPlaybooks(
+export async function rebuildAgencyPlays(
   deps: ServiceDeps,
   agencyId: string,
-): Promise<{ playbooks: number; episodes: number }> {
+): Promise<{ plays: number; episodes: number }> {
   const { repo } = deps;
   const [requests, tasks, reviews, departments] = await Promise.all([
     repo.listRequests(agencyId),
@@ -48,8 +48,8 @@ export async function rebuildAgencyPlaybooks(
   // Oldest-first for stable clustering across rebuilds.
   episodes.sort((a, b) => a.closedAt.getTime() - b.closedAt.getTime());
 
-  const built = buildPlaybooks(episodes);
-  const rows: PlaybookEntity[] = built.map((p) => ({
+  const built = buildPlays(episodes);
+  const rows: PlayEntity[] = built.map((p) => ({
     id: deps.genId(),
     agencyId,
     topic: p.topic,
@@ -59,18 +59,18 @@ export async function rebuildAgencyPlaybooks(
     rebuiltAt: deps.now(),
     createdAt: deps.now(),
   }));
-  await repo.replaceAgencyPlaybooks(agencyId, rows);
-  return { playbooks: rows.length, episodes: episodes.length };
+  await repo.replaceAgencyPlays(agencyId, rows);
+  return { plays: rows.length, episodes: episodes.length };
 }
 
-/** Match a new ask against the agency's learned playbooks (read-only). */
-export async function consultPlaybooks(
+/** Match a new ask against the agency's learned plays (read-only). */
+export async function consultPlays(
   deps: ServiceDeps,
   input: { agencyId: string; text: string },
-): Promise<PlaybookMatch<PlaybookEntity> | null> {
-  const playbooks = await deps.repo.listPlaybooks(input.agencyId);
-  if (playbooks.length === 0) return null;
-  return matchPlaybook(playbooks, input.text);
+): Promise<PlayMatch<PlayEntity> | null> {
+  const plays = await deps.repo.listPlays(input.agencyId);
+  if (plays.length === 0) return null;
+  return matchPlay(plays, input.text);
 }
 
 /**
@@ -79,15 +79,15 @@ export async function consultPlaybooks(
  * history, and autoDispatchSuggestions' own "tasks already exist" guard then
  * makes the learned pass advisory-only whenever a rule already dispatched.
  */
-export async function applyPlaybookRouting(
+export async function applyPlayRouting(
   deps: ServiceDeps,
   input: { agencyId: string; requestId: string; rawText: string },
 ): Promise<AutoDispatchResult & { suggested: number }> {
-  const match = await consultPlaybooks(deps, { agencyId: input.agencyId, text: input.rawText });
-  if (!match) return { suggested: 0, dispatched: 0, heldForReview: 0, reason: "no playbook matched" };
+  const match = await consultPlays(deps, { agencyId: input.agencyId, text: input.rawText });
+  if (!match) return { suggested: 0, dispatched: 0, heldForReview: 0, reason: "no play matched" };
 
-  const suggestion = routingSuggestionFrom(match.playbook);
-  const { stats } = match.playbook;
+  const suggestion = routingSuggestionFrom(match.play);
+  const { stats } = match.play;
 
   // Always record the match — the advisory (timing, exemption patterns,
   // precedents) is worth a card even when no route clears the bar.
@@ -97,12 +97,12 @@ export async function applyPlaybookRouting(
     requestId: input.requestId,
     kind: "ai_action",
     actorUserId: null,
-    summary: `Playbook match: ${match.playbook.episodeCount} similar past request(s) ("${match.playbook.topic}")`,
+    summary: `Play match: ${match.play.episodeCount} similar past request(s) ("${match.play.topic}")`,
     payload: {
-      pipeline: "playbook_routing",
-      topic: match.playbook.topic,
+      pipeline: "play_routing",
+      topic: match.play.topic,
       score: Math.round(match.score * 100) / 100,
-      episodes: match.playbook.episodeCount,
+      episodes: match.play.episodeCount,
       medianDaysToClose: stats.medianDaysToClose,
       extensionRate: stats.extensionRate,
       exemptions: stats.exemptions.slice(0, 3),

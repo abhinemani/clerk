@@ -7,6 +7,12 @@ already ride the triage/routing prompts (docs/answer-first.md phase 4).
 
 ## The idea
 
+A **play** (owner's name, 2026-08-13) is one unit of learned institutional
+memory: for one recurring type of ask, the record of how the office
+actually resolves it — who has the records, what gets withheld and why,
+how long it takes, how it ends. The way a veteran clerk knows "towing
+contracts? Public Works, about a week, redact the bank details."
+
 Every closed request is a complete lesson the office already paid for:
 what was asked → which department actually had the records → what was
 released vs. withheld and under which exemptions → how long it really took.
@@ -27,15 +33,15 @@ closed requests + tasks + reviews        (the append-only record)
         ▼
 distillEpisode → CaseEpisode             (src/domain/caseLearning.ts, pure)
         ▼
-buildPlaybooks → term-overlap clusters   (same clustering family as
+buildPlays → term-overlap clusters   (same clustering family as
         │                                 demandPatterns; deterministic)
         ▼
-request_playbooks table                  (migration 0012 — a MATERIALIZED
+request_plays table                  (migration 0012 — a MATERIALIZED
         │                                 AGGREGATE: replaced wholesale per
         │                                 agency, never mutated, can never
         │                                 drift from the record)
         ▼ at filing time (deterministic, no model)
-matchPlaybook → precedent card event     (pipeline "playbook_routing")
+matchPlay → precedent card event     (pipeline "play_routing")
         + routingSuggestionFrom          → the SAME autoDispatchSuggestions
                                            gate rules and AI use
 ```
@@ -45,10 +51,10 @@ episodes/5)`, hard-capped at **0.9**. Explicit agency routing rules own
 1.0; the AI pipeline reports its own model confidence; learned routes sit
 in between and say exactly where their number came from. The default
 posture is unchanged — auto-dispatch stays opt-in per agency
-(workflowSettings), and with it off the playbook is purely advisory.
+(workflowSettings), and with it off the play is purely advisory.
 
 **Ordering contract at intake**: routing rules run first (explicit policy
-outranks learned history); the playbook pass runs second, and
+outranks learned history); the play pass runs second, and
 autoDispatchSuggestions' tasks-already-exist guard makes it advisory
 whenever a rule already dispatched.
 
@@ -58,10 +64,10 @@ whenever a rule already dispatched.
   route, median days to close, extension rate, exemptions cited before,
   precedent publicIds. Consulted live, so nightly rebuilds keep old
   requests' cards fresh too.
-- **Filing time** — one `playbook_routing` event (proposal-card shape) on
+- **Filing time** — one `play_routing` event (proposal-card shape) on
   the record, plus auto-dispatch when the agency opted in and evidence
   clears its threshold.
-- **The stats are prompt-ready**: the same playbook rows can ride the
+- **The stats are prompt-ready**: the same play rows can ride the
   triage/copilot prompts as structured context (v2, below).
 
 ## The database decision (owner asked)
@@ -71,7 +77,7 @@ PG via DATABASE_URL) — deliberately not a separate analytics store:
 
 1. Self-contained first is an owner preference on the record; a second
    database would be the first mandatory extra service in the product.
-2. The playbook store is a *rebuildable aggregate* of the append-only
+2. The play store is a *rebuildable aggregate* of the append-only
    audit record. Nightly full rebuild = no incremental-update bugs, no
    drift, trivially correct; drop the table and nothing is lost.
 3. Scale: rebuild is 4 agency-wide queries + in-memory clustering. A
@@ -91,10 +97,10 @@ PG via DATABASE_URL) — deliberately not a separate analytics store:
 
 ## v2 candidates (build on demand)
 
-- Feed playbook stats into the triage/copilot prompts as structured
+- Feed play stats into the triage/copilot prompts as structured
   context (needs `npm run eval` per the prompt rule).
 - Embedding-based matching (stored ask vectors exist) when lexical
   overlap misses paraphrases — lexical stays the fallback.
-- Response-letter scaffolds per playbook (drafts only, invariant 4).
-- Proposal-feedback learning: accept/dismiss rates on playbook cards
+- Response-letter scaffolds per play (drafts only, invariant 4).
+- Proposal-feedback learning: accept/dismiss rates on play cards
   tuning the evidence discount.

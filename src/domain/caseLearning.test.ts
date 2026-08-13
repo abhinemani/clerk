@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { RequestEntity, ReviewEntity, TaskEntity } from "@/services/repository";
 import {
-  buildPlaybooks,
+  buildPlays,
   distillEpisode,
-  matchPlaybook,
+  matchPlay,
   routingSuggestionFrom,
   type CaseEpisode,
 } from "./caseLearning";
@@ -83,12 +83,12 @@ function episodes(): CaseEpisode[] {
   ];
 }
 
-describe("buildPlaybooks", () => {
-  const playbooks = buildPlaybooks(episodes());
+describe("buildPlays", () => {
+  const plays = buildPlays(episodes());
 
   it("clusters by topic and aggregates route shares", () => {
-    expect(playbooks).toHaveLength(2);
-    const towing = playbooks[0]!; // 3 episodes > 2
+    expect(plays).toHaveLength(2);
+    const towing = plays[0]!; // 3 episodes > 2
     expect(towing.episodeCount).toBe(3);
     expect(towing.keywords).toContain("towing");
     expect(towing.stats.routes[0]).toMatchObject({ department: "Public Works", share: 1 });
@@ -99,27 +99,27 @@ describe("buildPlaybooks", () => {
 
   it("drops singletons — one case is an anecdote, not a pattern", () => {
     const withStray = [...episodes(), distillEpisode(req("9", "drone procurement records"), [task("9", "d-pw")], [], DEPTS)!];
-    const built = buildPlaybooks(withStray);
+    const built = buildPlays(withStray);
     expect(built.some((p) => p.keywords.includes("drone"))).toBe(false);
   });
 
   it("is deterministic", () => {
-    expect(buildPlaybooks(episodes())).toEqual(buildPlaybooks(episodes()));
+    expect(buildPlays(episodes())).toEqual(buildPlays(episodes()));
   });
 });
 
-describe("matchPlaybook + routingSuggestionFrom", () => {
-  const playbooks = buildPlaybooks(episodes());
+describe("matchPlay + routingSuggestionFrom", () => {
+  const plays = buildPlays(episodes());
 
   it("matches a new ask to the learned cluster", () => {
-    const m = matchPlaybook(playbooks, "all towing contracts since January")!;
-    expect(m.playbook.keywords).toContain("towing");
+    const m = matchPlay(plays, "all towing contracts since January")!;
+    expect(m.play.keywords).toContain("towing");
     expect(m.score).toBeGreaterThanOrEqual(0.5);
-    expect(matchPlaybook(playbooks, "zoning variance appeals")).toBeNull();
+    expect(matchPlay(plays, "zoning variance appeals")).toBeNull();
   });
 
   it("earns confidence from evidence and never reaches the rules' 1.0", () => {
-    const towing = playbooks[0]!;
+    const towing = plays[0]!;
     const s = routingSuggestionFrom(towing)!;
     expect(s.department).toBe("Public Works");
     // share 1.0 × evidence 3/5 = 0.6 — three cases is a lead, not a law.

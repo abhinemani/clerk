@@ -1,5 +1,5 @@
 {
-  "id": "aa0c64cb-8ca0-4123-b376-b87d00181ed9",
+  "id": "cfac8d45-1012-43ef-bd75-1f7b3d5ff782",
   "prevId": "5063c36a-dae1-4c0d-ad5f-fd6c622b7fcc",
   "version": "7",
   "dialect": "postgresql",
@@ -2571,8 +2571,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.request_playbooks": {
-      "name": "request_playbooks",
+    "public.request_plays": {
+      "name": "request_plays",
       "schema": "",
       "columns": {
         "id": {
@@ -2634,8 +2634,8 @@
         }
       },
       "indexes": {
-        "request_playbooks_agency_idx": {
-          "name": "request_playbooks_agency_idx",
+        "request_plays_agency_idx": {
+          "name": "request_plays_agency_idx",
           "columns": [
             {
               "expression": "agency_id",
@@ -2651,9 +2651,9 @@
         }
       },
       "foreignKeys": {
-        "request_playbooks_agency_id_agencies_id_fk": {
-          "name": "request_playbooks_agency_id_agencies_id_fk",
-          "tableFrom": "request_playbooks",
+        "request_plays_agency_id_agencies_id_fk": {
+          "name": "request_plays_agency_id_agencies_id_fk",
+          "tableFrom": "request_plays",
           "tableTo": "agencies",
           "columnsFrom": [
             "agency_id"

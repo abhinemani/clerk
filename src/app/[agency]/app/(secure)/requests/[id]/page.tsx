@@ -112,7 +112,7 @@ export default async function RequestDetail({
   let requesterHasEmail = false;
   // Learned precedent (docs/learning-loop.md): how the office resolved
   // similar past requests — consulted live so nightly rebuilds keep it fresh.
-  let playbookVM: {
+  let playVM: {
     topic: string;
     episodes: number;
     medianDays: number | null;
@@ -138,17 +138,17 @@ export default async function RequestDetail({
       repo.getRequest(staff.agencyId, r.id),
     ]);
     if (rawRequest) {
-      const { consultPlaybooks } = await import("@/services/learningService");
+      const { consultPlays } = await import("@/services/learningService");
       const { defaultDeps } = await import("@/services/deps");
-      const match = await consultPlaybooks(defaultDeps(repo), {
+      const match = await consultPlays(defaultDeps(repo), {
         agencyId: staff.agencyId,
         text: rawRequest.interpretedScope ?? rawRequest.rawText,
       });
       if (match) {
-        const { stats } = match.playbook;
-        playbookVM = {
-          topic: match.playbook.topic,
-          episodes: match.playbook.episodeCount,
+        const { stats } = match.play;
+        playVM = {
+          topic: match.play.topic,
+          episodes: match.play.episodeCount,
           medianDays: stats.medianDaysToClose,
           extensionPct: Math.round(stats.extensionRate * 100),
           topRoute: stats.routes[0] ? `${stats.routes[0].department} (${Math.round(stats.routes[0].share * 100)}%)` : null,
@@ -602,24 +602,24 @@ export default async function RequestDetail({
           {/* Learned precedent (docs/learning-loop.md): the office's own
               resolved history for this kind of ask — deterministic stats, no
               model. Advisory: routing/decisions stay named-human acts. */}
-          {playbookVM && (
+          {playVM && (
             <div className="card card-pad">
               <div className="panel-title">Similar past requests</div>
               <p style={{ fontSize: "0.88rem", margin: "8px 0 0" }}>
-                {playbookVM.episodes} resolved request(s) about{" "}
-                <span style={{ fontWeight: 600 }}>{playbookVM.topic}</span>
-                {playbookVM.topRoute ? <> — mostly fulfilled by {playbookVM.topRoute}</> : null}.
+                {playVM.episodes} resolved request(s) about{" "}
+                <span style={{ fontWeight: 600 }}>{playVM.topic}</span>
+                {playVM.topRoute ? <> — mostly fulfilled by {playVM.topRoute}</> : null}.
               </p>
               <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
-                {playbookVM.medianDays != null ? `Median ${playbookVM.medianDays} days to close. ` : ""}
-                {playbookVM.extensionPct > 0 ? `${playbookVM.extensionPct}% took an extension. ` : ""}
-                {playbookVM.exemptions.length > 0
-                  ? `Exemptions cited before: ${playbookVM.exemptions.join(", ")}.`
+                {playVM.medianDays != null ? `Median ${playVM.medianDays} days to close. ` : ""}
+                {playVM.extensionPct > 0 ? `${playVM.extensionPct}% took an extension. ` : ""}
+                {playVM.exemptions.length > 0
+                  ? `Exemptions cited before: ${playVM.exemptions.join(", ")}.`
                   : "No exemptions cited in past cases."}
               </div>
-              {playbookVM.samples.length > 0 && (
+              {playVM.samples.length > 0 && (
                 <div className="mono muted" style={{ fontSize: "0.76rem", marginTop: 6 }}>
-                  Precedents: {playbookVM.samples.join(" · ")}
+                  Precedents: {playVM.samples.join(" · ")}
                 </div>
               )}
             </div>

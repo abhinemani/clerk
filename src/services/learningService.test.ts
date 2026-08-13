@@ -1,13 +1,13 @@
 /**
  * The learning loop end to end (docs/learning-loop.md): closed requests →
- * nightly rebuild → playbooks → a NEW similar request gets a precedent card
+ * nightly rebuild → plays → a NEW similar request gets a precedent card
  * and an earned-confidence route through the existing auto-dispatch gate.
  * Offline, deterministic, zero model calls.
  */
 import { describe, expect, it } from "vitest";
 import { InMemoryRepository, type Agency, type RequestEntity } from "./repository";
 import type { ServiceDeps } from "./deps";
-import { applyPlaybookRouting, consultPlaybooks, rebuildAgencyPlaybooks } from "./learningService";
+import { applyPlayRouting, consultPlays, rebuildAgencyPlays } from "./learningService";
 
 const AG1 = "ag-1";
 const AG2 = "ag-2";
@@ -84,35 +84,35 @@ async function fileNewRequest(deps: ServiceDeps, id: string, text: string): Prom
   } as RequestEntity);
 }
 
-describe("rebuildAgencyPlaybooks", () => {
-  it("distills closed history into playbooks, tenant-scoped, idempotent", async () => {
+describe("rebuildAgencyPlays", () => {
+  it("distills closed history into plays, tenant-scoped, idempotent", async () => {
     const deps = makeDeps();
     await seedHistory(deps);
 
-    const first = await rebuildAgencyPlaybooks(deps, AG1);
-    expect(first).toEqual({ playbooks: 1, episodes: 3 });
+    const first = await rebuildAgencyPlays(deps, AG1);
+    expect(first).toEqual({ plays: 1, episodes: 3 });
 
-    const playbooks = await deps.repo.listPlaybooks(AG1);
-    expect(playbooks[0]!.keywords).toContain("towing");
-    expect(playbooks[0]!.stats.routes[0]).toMatchObject({ department: "Public Works", share: 1 });
-    expect(await deps.repo.listPlaybooks(AG2)).toHaveLength(0); // invariant 2
+    const plays = await deps.repo.listPlays(AG1);
+    expect(plays[0]!.keywords).toContain("towing");
+    expect(plays[0]!.stats.routes[0]).toMatchObject({ department: "Public Works", share: 1 });
+    expect(await deps.repo.listPlays(AG2)).toHaveLength(0); // invariant 2
 
     // Rebuild replaces wholesale — same knowledge, no duplicates.
-    await rebuildAgencyPlaybooks(deps, AG1);
-    expect(await deps.repo.listPlaybooks(AG1)).toHaveLength(1);
+    await rebuildAgencyPlays(deps, AG1);
+    expect(await deps.repo.listPlays(AG1)).toHaveLength(1);
   });
 });
 
-describe("applyPlaybookRouting", () => {
+describe("applyPlayRouting", () => {
   it("records the precedent card and auto-dispatches when the agency opted in and evidence clears the bar", async () => {
     const deps = makeDeps({
       workflowSettings: { autoAssign: false, autoDispatch: true, autoDispatchConfidence: 0.5, milestoneEmails: false },
     });
     await seedHistory(deps);
-    await rebuildAgencyPlaybooks(deps, AG1);
+    await rebuildAgencyPlays(deps, AG1);
     const req = await fileNewRequest(deps, "req-new", "all towing contracts since January");
 
-    const result = await applyPlaybookRouting(deps, { agencyId: AG1, requestId: req.id, rawText: req.rawText });
+    const result = await applyPlayRouting(deps, { agencyId: AG1, requestId: req.id, rawText: req.rawText });
 
     // 3 episodes, 100% Public Works → confidence 0.6 ≥ threshold 0.5 → dispatched.
     expect(result.suggested).toBe(1);
@@ -123,7 +123,7 @@ describe("applyPlaybookRouting", () => {
 
     // The precedent card event is on the record, with the earned confidence.
     const events = await deps.repo.listEvents(AG1, req.id);
-    const card = events.find((e) => (e.payload as { pipeline?: string })?.pipeline === "playbook_routing")!;
+    const card = events.find((e) => (e.payload as { pipeline?: string })?.pipeline === "play_routing")!;
     expect(card.summary).toContain("3 similar past request(s)");
     const payload = card.payload as { suggestions: { confidence: number; department: string }[] };
     expect(payload.suggestions[0]).toMatchObject({ department: "Public Works", confidence: 0.6 });
@@ -132,34 +132,34 @@ describe("applyPlaybookRouting", () => {
   it("stays advisory when auto-dispatch is off (the default posture)", async () => {
     const deps = makeDeps(); // no workflowSettings — everything manual
     await seedHistory(deps);
-    await rebuildAgencyPlaybooks(deps, AG1);
+    await rebuildAgencyPlays(deps, AG1);
     const req = await fileNewRequest(deps, "req-new", "towing contracts for the harbor");
 
-    const result = await applyPlaybookRouting(deps, { agencyId: AG1, requestId: req.id, rawText: req.rawText });
+    const result = await applyPlayRouting(deps, { agencyId: AG1, requestId: req.id, rawText: req.rawText });
     expect(result.dispatched).toBe(0);
     expect(await deps.repo.listTasks(AG1, req.id)).toHaveLength(0);
     // …but the precedent card is still there for the coordinator.
     const events = await deps.repo.listEvents(AG1, req.id);
-    expect(events.some((e) => (e.payload as { pipeline?: string })?.pipeline === "playbook_routing")).toBe(true);
+    expect(events.some((e) => (e.payload as { pipeline?: string })?.pipeline === "play_routing")).toBe(true);
   });
 
   it("does nothing loud when nothing matches", async () => {
     const deps = makeDeps();
     await seedHistory(deps);
-    await rebuildAgencyPlaybooks(deps, AG1);
+    await rebuildAgencyPlays(deps, AG1);
     const req = await fileNewRequest(deps, "req-new", "zoning variance appeal records");
 
-    const result = await applyPlaybookRouting(deps, { agencyId: AG1, requestId: req.id, rawText: req.rawText });
+    const result = await applyPlayRouting(deps, { agencyId: AG1, requestId: req.id, rawText: req.rawText });
     expect(result).toMatchObject({ suggested: 0, dispatched: 0 });
     expect(await deps.repo.listEvents(AG1, req.id)).toHaveLength(0); // no noise event
   });
 
-  it("consultPlaybooks surfaces timing and exemption knowledge for display", async () => {
+  it("consultPlays surfaces timing and exemption knowledge for display", async () => {
     const deps = makeDeps();
     await seedHistory(deps);
-    await rebuildAgencyPlaybooks(deps, AG1);
-    const match = await consultPlaybooks(deps, { agencyId: AG1, text: "towing contracts request" });
-    expect(match!.playbook.stats.medianDaysToClose).toBe(7);
-    expect(match!.playbook.stats.samplePublicIds.length).toBeGreaterThan(0);
+    await rebuildAgencyPlays(deps, AG1);
+    const match = await consultPlays(deps, { agencyId: AG1, text: "towing contracts request" });
+    expect(match!.play.stats.medianDaysToClose).toBe(7);
+    expect(match!.play.stats.samplePublicIds.length).toBeGreaterThan(0);
   });
 });

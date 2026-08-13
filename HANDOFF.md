@@ -55,33 +55,33 @@ file is copy/paste-only by design; keep it that way.
 requests now make the platform structurally smarter (docs/learning-loop.md,
 new spec).** Owner ask: learning from the types of questions and answers,
 beyond RAG. Shipped v1:
-- **`request_playbooks` (migration 0012 — first since 0011)**: a
+- **`request_plays` (migration 0012 — first since 0011)**: a
   materialized aggregate, rebuilt WHOLESALE per agency by the nightly
   sweep from 4 agency-wide queries (requests + tasks + reviews +
   departments; no N+1). Full-replace semantics on purpose: it can never
   drift from the append-only record it summarizes. Port:
-  `replaceAgencyPlaybooks`/`listPlaybooks`, conformance-tested.
+  `replaceAgencyPlays`/`listPlays`, conformance-tested.
 - **`src/domain/caseLearning.ts`** (pure, tested): distillEpisode (closed
-  request + done tasks + reviews → episode), buildPlaybooks (term-overlap
+  request + done tasks + reviews → episode), buildPlays (term-overlap
   clustering, same family as demandPatterns; min 2 episodes — one case is
-  an anecdote), matchPlaybook, routingSuggestionFrom. **Confidence is
+  an anecdote), matchPlay, routingSuggestionFrom. **Confidence is
   earned and capped**: route share × min(1, episodes/5), hard cap 0.9 —
   explicit rules own 1.0, and the rationale states the numbers ("83% of
   12 similar requests…").
-- **Intake wiring** (`learningService.applyPlaybookRouting`, called from
+- **Intake wiring** (`learningService.applyPlayRouting`, called from
   fileRequest AFTER routing rules — explicit policy outranks learned
-  history): one `playbook_routing` proposal-card event with the precedent
+  history): one `play_routing` proposal-card event with the precedent
   stats, and the suggestion goes through the SAME autoDispatchSuggestions
   gate (its tasks-already-exist guard keeps the learned pass advisory
   when a rule fired). Deterministic, zero API keys.
 - **Request page**: "Similar past requests" card (left rail, above the
   timeline) — episode count, top route, median days, extension rate,
   exemptions cited before, precedent publicIds. Consulted LIVE against
-  the playbooks table, so nightly rebuilds keep old requests fresh.
-- No seed change: the demo's boot sweep builds playbooks organically as
+  the plays table, so nightly rebuilds keep old requests fresh.
+- No seed change: the demo's boot sweep builds plays organically as
   closed history accrues. No laptop-setup change (no env vars; the
   migration applies itself).
-v2 candidates recorded in the spec: playbook stats as structured prompt
+v2 candidates recorded in the spec: play stats as structured prompt
 context (eval required), embedding-based matching over stored ask
 vectors, letter scaffolds, accept/dismiss feedback tuning.
 
