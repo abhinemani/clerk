@@ -1086,6 +1086,13 @@ export interface AgentPlanStep {
   disposition?: "autonomous" | "requires_human" | "forbidden";
   output?: unknown;
   note?: string;
+  /**
+   * Named human who approved THIS step at a checkpoint (§16.3 "one approval
+   * releases"). A requires_human step executes on resume only when this is
+   * set; the approval is scoped to the single step, never the run. Forbidden
+   * actions ignore it — nothing approves those.
+   */
+  approvedByUserId?: string;
 }
 
 export interface AgentPlanState {

@@ -7,8 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**869 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-13 Phase-5 B3 entry — e2e re-run that session).
+**876 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-13 checkpoint-surface entry — e2e re-run that session).
 
 ## START HERE (next session)
 
@@ -50,7 +50,46 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session, same window as B1): B3 — THE
+**NEWEST (2026-08-13, cloud session, same window as B1/B3): THE CHECKPOINT
+/ STEERING SURFACE — the prerequisite for a live fulfillment agent, and
+the first time a parked run can be approved and resumed from the UI.**
+Owner asked "biggest/hardest thing?"; answer: the model-driven fulfillment
+agent, and this surface is its first prerequisite (approve-and-resume UX),
+built now because every agent inherits it.
+- **agent_runs is finally used**: the table shipped dormant in migration
+  0000; the repository port now exposes it (create/get/update/list, tenant
+  -scoped, in the conformance suite). NOTE: the DB `agent_type` enum still
+  has only the five §16.1 agents — persisting B1/B2-style Phase-5 runs
+  needs a migration adding enum values; deliberately deferred (their runs
+  complete instantly today, nothing to steer).
+- **Harness: per-step approval (§16.3 "one approval releases").**
+  `AgentPlanStep.approvedByUserId` — a `requires_human` step executes on
+  resume ONLY when set, attributed in its audit event
+  (`autonomousSend: false`, approver recorded); approval is per-step,
+  never per-run, and forbidden actions ignore it entirely.
+- **Deadline agent v2 exercises it for real**: the sweep now PLANS Tier-2
+  `send_custodian_nudge_email` steps (open tasks on overdue requests
+  whose department has an email; capped 3/agency). Under the default
+  policy the run parks awaiting_checkpoint. Resumability rule worth
+  keeping: every deadline capability reads ONLY its step's `input`
+  (embedded at plan time) + injected deps — no closures over sweep-time
+  state — so persisted plans resume across processes. Registry factory
+  exported (`deadlineCapabilityRegistry`) for the resume path.
+- **`/app/agents`** (staff, coordinator+): parked runs on top with the
+  pending step ("wants to email works@… for PR-…") and Approve & resume /
+  Skip / Cancel; below, run history with status, step glyphs, budget
+  spend, handoff notes. Approve sends the REAL email via remindResponder
+  (delivery event on the request, as ever). Command center gained an
+  "Agents (N waiting)" button. Steering acts land in the admin log as
+  `agent_steered`; nightly register.ts persists each sweep run and says
+  when it parked. Full loop covered offline in
+  `src/agents/steering.test.ts`.
+Next toward the fulfillment agent, in order: (1) migration adding Phase-5
+values to the `agent_type` enum, (2) scope-decomposition golden set in the
+eval suite, (3) the model-driven planner behind a per-agency flag, demo
+tenant first.
+
+**PREVIOUS (2026-08-13, cloud session, same window as B1): B3 — THE
 APPEAL-DEFENSE PACKET BUILDER.** Second Phase-5 agent, per the spec's
 order. "The audit log was built for exactly this moment; this agent is
 its reader."

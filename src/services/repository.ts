@@ -7,6 +7,7 @@
  * agency-scoped; the in-memory adapter enforces the same tenant isolation the DB
  * layer must (a cross-agency read returns null, never another tenant's row).
  */
+import type { AgentBudgetLimits, AgentBudgetSpend, AgentPlanState } from "@/db/schema";
 import type { RequestStatus } from "@/domain/requestLifecycle";
 import type { TaskStatus } from "@/domain/taskWorkflow";
 import type { RoutingRule, WorkflowSettings } from "@/domain/workflow";
@@ -214,6 +215,43 @@ export interface DocumentEntity {
   retentionUntil?: Date | null;
   /** Non-null = do not destroy, whatever the schedule says (§ retention). */
   legalHoldReason?: string | null;
+  createdAt: Date;
+}
+
+/** DB enum agent_type — the five §16.1 agents (Phase-5 additions need a migration). */
+export type PersistedAgentType =
+  | "fulfillment"
+  | "deadline"
+  | "release_prep"
+  | "ingest_steward"
+  | "requester_side";
+
+export type AgentRunStatus =
+  | "planning"
+  | "running"
+  | "paused"
+  | "awaiting_checkpoint"
+  | "completed"
+  | "exhausted"
+  | "failed"
+  | "cancelled";
+
+/** A persisted agent run (§16.2) — resumable, interruptible, human-steerable. */
+export interface AgentRunEntity {
+  id: string;
+  agencyId: string;
+  agentType: PersistedAgentType;
+  requestId: string | null;
+  status: AgentRunStatus;
+  goal: string;
+  plan: AgentPlanState | null;
+  budgetLimits: AgentBudgetLimits | null;
+  budgetSpend: AgentBudgetSpend | null;
+  /** Null = system/cron initiated (e.g. the nightly deadline sweep). */
+  startedByUserId: string | null;
+  pausedByUserId?: string | null;
+  handoffNote: string | null;
+  lastStepAt: Date | null;
   createdAt: Date;
 }
 
@@ -565,6 +603,22 @@ export interface Repository {
 
   appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity>;
   listDeflections(agencyId: string): Promise<DeflectionEntity[]>;
+
+  // Agent runs (§16.2): persisted plan state so runs are resumable and a
+  // human can steer any run from the UI. All reads agency-scoped.
+  createAgentRun(r: AgentRunEntity): Promise<AgentRunEntity>;
+  getAgentRun(agencyId: string, id: string): Promise<AgentRunEntity | null>;
+  updateAgentRun(
+    agencyId: string,
+    id: string,
+    patch: Partial<
+      Pick<
+        AgentRunEntity,
+        "status" | "plan" | "budgetSpend" | "handoffNote" | "lastStepAt" | "pausedByUserId"
+      >
+    >,
+  ): Promise<AgentRunEntity>;
+  listAgentRuns(agencyId: string): Promise<AgentRunEntity[]>;
 
   // Durable job queue (deployment-scoped — payloads carry agency ids).
   createJob(j: JobRecord): Promise<JobRecord>;
@@ -1102,6 +1156,38 @@ export class InMemoryRepository implements Repository {
   }
   async listDeflections(agencyId: string) {
     return this.deflections.filter((d) => d.agencyId === agencyId);
+  }
+
+  private agentRuns = new Map<string, AgentRunEntity>();
+
+  async createAgentRun(r: AgentRunEntity) {
+    this.agentRuns.set(r.id, { ...r });
+    return r;
+  }
+  async getAgentRun(agencyId: string, id: string) {
+    const run = this.agentRuns.get(id);
+    return run && run.agencyId === agencyId ? run : null;
+  }
+  async updateAgentRun(
+    agencyId: string,
+    id: string,
+    patch: Partial<
+      Pick<
+        AgentRunEntity,
+        "status" | "plan" | "budgetSpend" | "handoffNote" | "lastStepAt" | "pausedByUserId"
+      >
+    >,
+  ) {
+    const run = await this.getAgentRun(agencyId, id);
+    if (!run) throw new NotFoundError("AgentRun", id);
+    const updated = { ...run, ...patch };
+    this.agentRuns.set(id, updated);
+    return updated;
+  }
+  async listAgentRuns(agencyId: string) {
+    return [...this.agentRuns.values()]
+      .filter((r) => r.agencyId === agencyId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   private jobs = new Map<string, JobRecord>();

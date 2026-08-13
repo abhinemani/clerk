@@ -118,8 +118,13 @@ export default async function Queue({
   // Repeated-demand patterns (same computation as the librarian's nightly
   // sweep) — proposals only; publishing stays a named human's act.
   let demandPatterns: DemandPattern[] = [];
+  // Agent runs parked at a human checkpoint — the /app/agents badge.
+  let parkedAgentRuns = 0;
   if (ws.source === "live" && ws.agencyId) {
     const repo = await getRepository();
+    parkedAgentRuns = (await repo.listAgentRuns(ws.agencyId)).filter(
+      (r) => r.status === "awaiting_checkpoint",
+    ).length;
     retentionRisk = documentsAtRetentionRisk(
       await repo.listDocumentsUnderRetention(ws.agencyId),
       ws.now,
@@ -165,6 +170,9 @@ export default async function Queue({
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Command center</h1>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href={`/${slug}/app/agents`} className="btn btn-sm">
+            Agents{parkedAgentRuns > 0 ? ` (${parkedAgentRuns} waiting)` : ""}
+          </Link>
           <Link href={`/${slug}/app/search`} className="btn btn-sm">
             Records search
           </Link>

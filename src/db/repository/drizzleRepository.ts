@@ -13,6 +13,7 @@ import {
   adminEvents,
   agencies,
   agencyDirectory,
+  agentRuns,
   authTokens,
   deflections,
   deliveries,
@@ -39,6 +40,7 @@ import {
   NotFoundError,
   type AdminEventEntity,
   type Agency,
+  type AgentRunEntity,
   type AuthTokenEntity,
   type DeflectionEntity,
   type DeliveryEntity,
@@ -1513,5 +1515,82 @@ export class DrizzleRepository implements Repository {
       estimatedStaffHoursAvoided: d.estimatedStaffHoursAvoided ?? 0,
       createdAt: d.createdAt,
     }));
+  }
+
+  // --- agent runs (§16.2) --------------------------------------------------
+
+  private toAgentRun(r: typeof agentRuns.$inferSelect): AgentRunEntity {
+    return {
+      id: r.id,
+      agencyId: r.agencyId,
+      agentType: r.agentType as AgentRunEntity["agentType"],
+      requestId: r.requestId,
+      status: r.status as AgentRunEntity["status"],
+      goal: r.goal,
+      plan: r.plan ?? null,
+      budgetLimits: r.budgetLimits ?? null,
+      budgetSpend: r.budgetSpend ?? null,
+      startedByUserId: r.startedByUserId,
+      pausedByUserId: r.pausedByUserId,
+      handoffNote: r.handoffNote,
+      lastStepAt: r.lastStepAt,
+      createdAt: r.createdAt,
+    };
+  }
+
+  async createAgentRun(r: AgentRunEntity): Promise<AgentRunEntity> {
+    await this.db.insert(agentRuns).values({
+      id: r.id,
+      agencyId: r.agencyId,
+      agentType: r.agentType,
+      requestId: r.requestId,
+      status: r.status,
+      goal: r.goal,
+      plan: r.plan,
+      budgetLimits: r.budgetLimits,
+      budgetSpend: r.budgetSpend,
+      startedByUserId: r.startedByUserId,
+      handoffNote: r.handoffNote,
+      lastStepAt: r.lastStepAt,
+      createdAt: r.createdAt,
+    });
+    return r;
+  }
+
+  async getAgentRun(agencyId: string, id: string): Promise<AgentRunEntity | null> {
+    const [row] = await this.db
+      .select()
+      .from(agentRuns)
+      .where(and(eq(agentRuns.agencyId, agencyId), eq(agentRuns.id, id)))
+      .limit(1);
+    return row ? this.toAgentRun(row) : null;
+  }
+
+  async updateAgentRun(
+    agencyId: string,
+    id: string,
+    patch: Partial<
+      Pick<
+        AgentRunEntity,
+        "status" | "plan" | "budgetSpend" | "handoffNote" | "lastStepAt" | "pausedByUserId"
+      >
+    >,
+  ): Promise<AgentRunEntity> {
+    const [row] = await this.db
+      .update(agentRuns)
+      .set(patch)
+      .where(and(eq(agentRuns.agencyId, agencyId), eq(agentRuns.id, id)))
+      .returning();
+    if (!row) throw new NotFoundError("AgentRun", id);
+    return this.toAgentRun(row);
+  }
+
+  async listAgentRuns(agencyId: string): Promise<AgentRunEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.agencyId, agencyId))
+      .orderBy(desc(agentRuns.createdAt));
+    return rows.map((r: typeof agentRuns.$inferSelect) => this.toAgentRun(r));
   }
 }

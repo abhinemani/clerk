@@ -456,6 +456,43 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect((await repo.listDeflections(AG2)).some((x) => x.id === d.id)).toBe(false);
     });
 
+    it("agent runs: create + get + update + list, all tenant-scoped (§16.2)", async () => {
+      const run = await repo.createAgentRun({
+        id: uid(),
+        agencyId: AG1,
+        agentType: "deadline",
+        requestId: null,
+        status: "awaiting_checkpoint",
+        goal: "Nightly deadline sweep",
+        plan: {
+          goal: "Nightly deadline sweep",
+          cursor: 1,
+          steps: [
+            { index: 0, action: "read_queue", description: "read_queue", status: "done" },
+            { index: 1, action: "send_custodian_nudge_email", description: "nudge", status: "awaiting_human" },
+          ],
+        },
+        budgetLimits: { maxToolCalls: 10, maxTokens: 1000, maxWallClockMs: 60_000 },
+        budgetSpend: { toolCalls: 1, tokens: 0, wallClockMs: 5 },
+        startedByUserId: null,
+        handoffNote: null,
+        lastStepAt: null,
+        createdAt: new Date(),
+      });
+
+      expect((await repo.getAgentRun(AG1, run.id))?.status).toBe("awaiting_checkpoint");
+      expect(await repo.getAgentRun(AG2, run.id)).toBeNull(); // invariant 2
+
+      const plan = { ...run.plan!, cursor: 2 };
+      const updated = await repo.updateAgentRun(AG1, run.id, { status: "completed", plan });
+      expect(updated.status).toBe("completed");
+      expect(updated.plan?.cursor).toBe(2);
+      await expect(repo.updateAgentRun(AG2, run.id, { status: "cancelled" })).rejects.toThrow();
+
+      expect((await repo.listAgentRuns(AG1)).some((r) => r.id === run.id)).toBe(true);
+      expect((await repo.listAgentRuns(AG2)).some((r) => r.id === run.id)).toBe(false);
+    });
+
     // --- durable job queue ---------------------------------------------------
 
     it("jobs: claim → oldest runnable; retry backoff and boot recovery behave alike", async () => {

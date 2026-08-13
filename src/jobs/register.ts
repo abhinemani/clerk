@@ -62,16 +62,18 @@ export function registerJobs(): void {
   // agency's append-only admin log, whether or not anyone opens the app.
   const sweep = async () => {
     try {
-      const [{ getRepository }, { runDeadlineSweep }] = await Promise.all([
+      const [{ getRepository }, { runDeadlineSweep }, { defaultDeps }] = await Promise.all([
         import("@/db/createRepository"),
         import("@/agents/deadlineAgent"),
+        import("@/services/deps"),
       ]);
       const repo = await getRepository();
       const agencies = await repo.listAgencies();
       for (const agency of agencies) {
-        const [requests, tasks] = await Promise.all([
+        const [requests, tasks, departments] = await Promise.all([
           repo.listRequests(agency.id),
           repo.listAgencyTasks(agency.id),
+          repo.listDepartments(agency.id),
         ]);
         const openRequests = requests.filter((r) => r.closedAt == null);
         if (openRequests.length === 0) continue;
@@ -81,8 +83,58 @@ export function registerJobs(): void {
             openByRequest.set(t.requestId, (openByRequest.get(t.requestId) ?? 0) + 1);
           }
         }
+
+        // Tier-2 custodian nudges: open tasks on OVERDUE requests whose
+        // department has an email. Under the default policy these park the
+        // run at a human checkpoint on /app/agents (§16.3).
+        const now = new Date();
+        const requestById = new Map(openRequests.map((r) => [r.id, r]));
+        const deptById = new Map(departments.map((d) => [d.id, d]));
+        const nudgeTargets = tasks
+          .filter((t) => t.status !== "done" && t.status !== "cancelled")
+          .flatMap((t) => {
+            const request = requestById.get(t.requestId);
+            const dept = t.departmentId ? deptById.get(t.departmentId) : undefined;
+            const email = dept?.defaultResponderEmails?.[0];
+            if (!request?.statutoryDueAt || request.statutoryDueAt >= now || !dept || !email) return [];
+            return [{ publicId: request.publicId, taskId: t.id, departmentEmail: email, departmentName: dept.name }];
+          })
+          .slice(0, 3);
+
+        // Persist the run so /app/agents can show, approve, and resume it.
+        const runId = crypto.randomUUID();
+        await repo.createAgentRun({
+          id: runId,
+          agencyId: agency.id,
+          agentType: "deadline",
+          requestId: null,
+          status: "planning",
+          goal: "Nightly deadline sweep",
+          plan: null,
+          budgetLimits: null,
+          budgetSpend: null,
+          startedByUserId: null,
+          handoffNote: null,
+          lastStepAt: null,
+          createdAt: now,
+        });
+        const persistRun = async (r: import("@/agents/runHarness").AgentRunState) => {
+          await repo.updateAgentRun(agency.id, runId, {
+            status: r.status,
+            plan: r.plan,
+            budgetSpend: r.budgetSpend,
+            handoffNote: r.handoffNote ?? null,
+            lastStepAt: r.lastStepAt ?? null,
+          });
+        };
+
         const result = await runDeadlineSweep({
-          now: new Date(),
+          now,
+          agencyId: agency.id,
+          runId,
+          deps: defaultDeps(repo),
+          nudgeTargets,
+          persist: persistRun,
           queue: openRequests.map((r) => ({
             publicId: r.publicId,
             dueAt: r.statutoryDueAt ?? new Date(r.createdAt.getTime() + 10 * 86_400_000),
@@ -90,13 +142,17 @@ export function registerJobs(): void {
             complexityScore: r.complexityScore ?? 0,
           })),
         });
+        await persistRun(result.run);
         await repo.appendAdminEvent({
           id: crypto.randomUUID(),
           agencyId: agency.id,
           kind: "deadline_sweep",
           actorLabel: "deadline agent",
-          summary: result.digest.split("\n")[0] ?? "Deadline sweep completed",
-          payload: { digest: result.digest, outcome: result.outcome },
+          summary:
+            result.outcome === "awaiting_checkpoint"
+              ? `Deadline sweep parked: custodian nudge(s) await approval on /app/agents`
+              : (result.digest.split("\n")[0] ?? "Deadline sweep completed"),
+          payload: { digest: result.digest, outcome: result.outcome, runId },
           createdAt: new Date(),
         });
       }

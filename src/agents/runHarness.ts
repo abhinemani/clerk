@@ -77,6 +77,8 @@ export interface AgentActionEvent {
     tier?: number | null;
     /** True only for autonomously-executed side-effecting actions (§16.3 attribution). */
     autonomousSend: boolean;
+    /** Set when a named human approved this step at a checkpoint. */
+    approvedByUserId?: string;
     note?: string;
     planSnapshot: { cursor: number; statuses: AgentPlanStep["status"][] };
   };
@@ -176,6 +178,7 @@ export async function runAgent(
         auditEvent(run, definition, step.index, describeStep(step), result.eventDisposition, {
           tier: result.tier,
           autonomousSend: result.autonomousSend,
+          approvedByUserId: step.approvedByUserId,
         }),
       );
       run.plan.cursor += 1;
@@ -254,17 +257,24 @@ async function executeStep(step: AgentPlanStep, ctx: StepExecCtx): Promise<StepE
     tier = resolved.tier;
 
     if (resolved.disposition === "forbidden") {
+      // Forbidden is forbidden — a recorded approval cannot revive it.
       step.status = "blocked";
       throw new StepHalt("failed", resolved.reason);
     }
     if (resolved.disposition === "requires_human") {
-      // Park the run at a human checkpoint; the cursor stays on this step so a
-      // later resume (after approval) re-enters here.
-      step.status = "awaiting_human";
-      throw new StepHalt("awaiting_checkpoint", resolved.reason);
+      if (!step.approvedByUserId) {
+        // Park the run at a human checkpoint; the cursor stays on this step so
+        // a later resume (after approval) re-enters here.
+        step.status = "awaiting_human";
+        throw new StepHalt("awaiting_checkpoint", resolved.reason);
+      }
+      // A named human approved THIS step (§16.3 "one approval releases") —
+      // execute it as a human-authorized action, not an autonomous send.
+      step.note = `approved by user:${step.approvedByUserId}`;
+    } else {
+      // autonomous side-effecting action → attributable as an agent-sent action.
+      autonomousSend = true;
     }
-    // autonomous side-effecting action → attributable as an agent-sent action.
-    autonomousSend = true;
   }
 
   // (3) Corpus scope — requester-side agents may never widen past the public corpus.
@@ -315,7 +325,7 @@ function auditEvent(
   stepIndex: number,
   summary: string,
   disposition: Disposition | "read",
-  extra: { tier?: number | null; autonomousSend?: boolean; note?: string } = {},
+  extra: { tier?: number | null; autonomousSend?: boolean; approvedByUserId?: string; note?: string } = {},
 ): AgentActionEvent {
   return {
     agencyId: run.agencyId,
@@ -329,6 +339,7 @@ function auditEvent(
       disposition,
       tier: extra.tier ?? null,
       autonomousSend: extra.autonomousSend ?? false,
+      approvedByUserId: extra.approvedByUserId,
       note: extra.note,
       planSnapshot: {
         cursor: run.plan.cursor,
