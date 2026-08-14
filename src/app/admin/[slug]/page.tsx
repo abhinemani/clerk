@@ -66,7 +66,7 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="wrap" style={{ maxWidth: 920, paddingBlock: "36px 48px" }}>
+    <div className="wrap" style={{ maxWidth: 920, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href="/admin" className="muted" style={{ fontSize: "0.9rem" }}>
         ← All agencies
       </Link>

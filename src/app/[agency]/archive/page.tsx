@@ -23,7 +23,7 @@ export default async function ArchivePage({ params }: { params: Promise<{ agency
   return (
     <>
       <div className="civic-hero">
-        <div className="wrap" style={{ paddingBlock: "36px 30px" }}>
+        <div className="wrap" style={{ paddingBlock: "var(--page-top) 30px" }}>
           <Link href={`/${agency.slug}`} className="muted" style={{ fontSize: "0.9rem" }}>
             ← Back to portal
           </Link>
@@ -43,7 +43,7 @@ export default async function ArchivePage({ params }: { params: Promise<{ agency
         </div>
       </div>
 
-      <div className="wrap" style={{ paddingBlock: "30px 40px" }}>
+      <div className="wrap" style={{ paddingBlock: "var(--page-top-snug) var(--page-bottom)" }}>
         <div
           style={{
             display: "grid",

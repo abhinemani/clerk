@@ -27,7 +27,7 @@ export default async function VerifyPage({
       : null;
 
   return (
-    <div className="wrap" style={{ maxWidth: 520, paddingBlock: "56px" }}>
+    <div className="wrap" style={{ maxWidth: 520, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <span className="eyebrow">{agency.name} · Public Records</span>
       {requester ? (
         <>

@@ -64,7 +64,7 @@ export default async function DepartmentTasksPage({
   const closed = visible.filter(({ task }) => !OPEN_TASK_STATUSES.has(task.status));
 
   return (
-    <div className="wrap" style={{ maxWidth: 860, paddingBlock: "28px 48px" }}>
+    <div className="wrap" style={{ maxWidth: 860, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       {!isResponder && (
         <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
           ← Queue

@@ -18,7 +18,7 @@ export default async function TrackPage({
   return (
     <>
       <div className="civic-hero">
-        <div className="wrap" style={{ maxWidth: 680, paddingBlock: "36px 30px" }}>
+        <div className="wrap" style={{ maxWidth: 680, paddingBlock: "var(--page-top) 30px" }}>
           <Link href={`/${agency.slug}`} className="muted" style={{ fontSize: "0.9rem" }}>
             ← Back to portal
           </Link>
@@ -36,7 +36,7 @@ export default async function TrackPage({
         </div>
       </div>
 
-      <div className="wrap" style={{ maxWidth: 680, paddingBlock: "26px 40px" }}>
+      <div className="wrap" style={{ maxWidth: 680, paddingBlock: "var(--page-top-snug) var(--page-bottom)" }}>
         <div className="card card-pad">
           <div className="panel-title">Lost your tracking number?</div>
           <p className="muted" style={{ fontSize: "0.9rem", margin: "8px 0 12px" }}>

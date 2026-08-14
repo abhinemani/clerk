@@ -39,7 +39,7 @@ export default async function ArchiveRecordPage({
   const PREVIEW_LINES = 400;
 
   return (
-    <div className="wrap" style={{ paddingBlock: "40px", maxWidth: 820 }}>
+    <div className="wrap" style={{ paddingBlock: "var(--page-top) var(--page-bottom)", maxWidth: 820 }}>
       <Link href={`/${slug}/archive`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Public records archive
       </Link>

@@ -371,7 +371,7 @@ export default async function RequestDetail({
         }));
 
   return (
-    <div className="wrap" style={{ paddingBlock: "28px 8px" }}>
+    <div className="wrap" style={{ paddingBlock: "var(--page-top-snug) 8px" }}>
       <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Queue
       </Link>

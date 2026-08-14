@@ -37,7 +37,7 @@ export default async function AccountPage({ params }: { params: Promise<{ agency
     agency.id && verified ? await repo.listRequestsByRequester(agency.id, session.requesterId) : [];
 
   return (
-    <div className="wrap" style={{ maxWidth: 760, paddingBlock: "40px" }}>
+    <div className="wrap" style={{ maxWidth: 760, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
           <span className="eyebrow">{agency.name} · Public Records</span>

@@ -18,7 +18,7 @@ export default async function Portal({ params }: { params: Promise<{ agency: str
     {/* Hero — official letterhead: seal, office line, double rule, full-bleed
         wash. The question box stays the front door, not a form (§6.7). */}
     <section className="portal-hero">
-      <div className="wrap" style={{ maxWidth: 768, paddingBlock: "56px 40px", textAlign: "center" }}>
+      <div className="wrap" style={{ maxWidth: 768, paddingBlock: "var(--page-top) var(--page-bottom)", textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
           <Seal size={68} label={`Seal of the ${agency.name}`} />
         </div>
@@ -54,7 +54,7 @@ export default async function Portal({ params }: { params: Promise<{ agency: str
       </div>
     </section>
 
-    <div className="wrap" style={{ paddingBlock: "8px" }}>
+    <div className="wrap" style={{ paddingBlock: "8px var(--page-bottom)" }}>
       {/* How it works */}
       <section style={{ marginTop: 48 }}>
         <div className="stat-row" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>

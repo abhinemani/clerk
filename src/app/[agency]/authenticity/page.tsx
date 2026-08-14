@@ -25,7 +25,7 @@ export default async function AuthenticityPage({ params }: { params: Promise<{ a
   const verifiable = register.filter((r) => r.artifacts.some((a) => a.sha256));
 
   return (
-    <div className="wrap" style={{ maxWidth: 860, paddingBlock: "36px 56px" }}>
+    <div className="wrap" style={{ maxWidth: 860, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <span className="eyebrow">{agency.name} · Public Records</span>
       <h1 className="serif" style={{ fontSize: "1.9rem", marginTop: 8, fontWeight: 600 }}>
         Verify a released document

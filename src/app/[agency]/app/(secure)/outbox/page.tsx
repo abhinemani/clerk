@@ -22,7 +22,7 @@ export default async function OutboxPage({ params }: { params: Promise<{ agency:
   const deliveries = await repo.listDeliveries(agency.id, 100);
 
   return (
-    <div className="wrap" style={{ maxWidth: 820, paddingBlock: "36px" }}>
+    <div className="wrap" style={{ maxWidth: 820, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Command center
       </Link>

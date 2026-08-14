@@ -50,7 +50,7 @@ export default async function RecordsSearchPage({
   }
 
   return (
-    <div className="wrap" style={{ paddingBlock: "28px 8px", maxWidth: 860 }}>
+    <div className="wrap" style={{ paddingBlock: "var(--page-top-snug) 8px", maxWidth: 860 }}>
       <Link
         href={target ? `/${slug}/app/requests/${target.id}` : `/${slug}/app`}
         className="muted"
