@@ -195,7 +195,14 @@ build in place.
 cp .env.example .env    # set AUTH_SECRET, PLATFORM_ADMIN_EMAIL/_PASSWORD
 docker compose up --build
 SEED_DEMO=true docker compose up --build   # …or with the Riverton demo seeded
+SEED_FULL_CITY=true docker compose up --build   # …or the full demo city (more
+                                                 # depts/staff/requesters, ~45
+                                                 # requests spanning every status)
 ```
+
+Without Docker: `npm run seed` seeds the base demo tenants; `npm run seed:full`
+adds the larger historical Riverton dataset on top (both idempotent, safe to
+re-run).
 
 Everything persists in the `clerk-data` volume (`/data`). Back up by copying
 the volume; upgrade by rebuilding the image — migrations are append-only and

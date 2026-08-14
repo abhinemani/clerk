@@ -4,6 +4,7 @@
 #   cp .env.example .env   # set AUTH_SECRET + platform credentials
 #   docker compose up --build
 #   SEED_DEMO=true docker compose up --build   # optional: demo tenants at boot
+#   SEED_FULL_CITY=true docker compose up --build   # optional: the larger demo city (implies SEED_DEMO)
 #
 services:
   brandeis:
@@ -19,6 +20,10 @@ services:
       # Seed the City of Riverton / Bellmar demo at boot (in-process — the
       # only safe way with a single-writer embedded DB). Idempotent.
       SEED_DEMO: ${SEED_DEMO:-}
+      # Also layer on the much larger historical Riverton dataset (more
+      # departments/staff/requesters, ~45 requests across every status).
+      # Implies SEED_DEMO. Idempotent.
+      SEED_FULL_CITY: ${SEED_FULL_CITY:-}
       #
       # Everything below is an OPTIONAL upgrade — the app is fully functional
       # without any of it (outbox-as-mailbox, keyword+fake-vector search,

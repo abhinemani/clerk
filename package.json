@@ -19,6 +19,7 @@
     "duedate": "tsx scripts/duedate.ts",
     "triage": "tsx scripts/triage.ts",
     "seed": "tsx scripts/seed.ts",
+    "seed:full": "tsx scripts/seedFullCity.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

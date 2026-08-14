@@ -57,7 +57,58 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session): SESSION-START HOOK — fresh cloud
+**NEWEST (2026-08-14, cloud session): "FULL CITY" DEMO DATA — a much larger,
+historically-spread dataset for testing the app like a real records office,
+not a 3-request fixture.** Owner ask: generate enough fake data (requests,
+people, workflows) to build out a full site/city for testing. New file
+`src/lib/seedFullCity.ts`, additive on top of the existing `seedDemoTenants`
+(never modifies it — only `demoPdf` was exported so both files can build
+real PDF bytes): 6 more Riverton departments (9 total), 4 more staff logins
+(dept-scoped responders + the existing admin/coordinator), ~20 named
+requesters across every `RequesterType`, 2 new non-peer directory entries +
+one more peer-linked Bellmar entry, and **~45 additional requests covering
+every value in `RequestStatus`** (submitted, in_review, clarification_needed
+— including one that resumes via a requester reply and keeps moving,
+in_progress — including one overdue pair and one that takes its statutory
+extension, records_review, partially_fulfilled, fulfilled — three topic
+clusters of 2-3 each so the learning loop's plays actually cluster, plus
+three `fulfillByReference` citations against the base seed's public archive,
+denied — three exemption shapes including a no-records determination,
+referred — one of which is a peer `forwardRequest` to Bellmar, withdrawn,
+and two fully anonymous filings). Every scenario runs through the REAL
+service layer (submitRequest/transitionRequest/dispatchTask/.../
+releaseRequest/denyRequest/referRequest/forwardRequest/extendRequest) — no
+row is hand-inserted — so every audit event, webhook emit, and invariant
+check fires exactly as it would from the UI. **The whole thing is spread
+across a virtual clock keyed off the REAL wall clock at run time** (`daysAgo`
+offsets from `new Date()`, not a fixed calendar date): each scenario builds
+its own `ServiceDeps` with `now` pinned to a historical offset and a small
+`makeClock().advance()` helper steps it forward within a scenario, so
+"overdue" / SLA risk reads correctly no matter when this is actually run,
+history runs back ~170 days, and `rebuildAgencyPlays` is called at the end so
+the plays are materialized immediately rather than waiting on the nightly
+sweep. Also logs 20 varied `download`/`scope_down`/`archive_miss`
+deflections directly (the ROI numbers on the command center / reports).
+Idempotent on a marker department ("Fire Department" not yet existing);
+assumes `seedDemoTenants` has already run. New script `scripts/
+seedFullCity.ts` (`npm run seed:full` — runs both seeds, then prints
+credentials) and a new boot flag `SEED_FULL_CITY=true` in
+`src/instrumentation.ts` (implies `SEED_DEMO`), documented in
+`docker-compose.yml` and README next to the existing `SEED_DEMO` docs.
+Verified end-to-end against a throwaway embedded PGlite dir: fresh run seeds
+clean with zero errors (checked with `VOYAGE_API_KEY` unset — the container's
+own key is rate-limited and would otherwise print harmless non-fatal
+embedding-write warnings, per `similarRequestsService`'s existing
+best-effort contract), re-run correctly no-ops, and the resulting data
+checked out — 48 Riverton requests spanning all 9 statuses in the schema,
+9 departments, 20 deflections, 4 learning-loop plays with real episode
+counts, 29 documents (6 public). 894 tests, typecheck clean (no code path
+in the existing app changed — this is pure additive seed data, so e2e
+wasn't re-run). No schema change. No laptop-setup change: `SEED_FULL_CITY`
+is a dev/demo-only toggle exactly like `SEED_DEMO` (neither needs owner
+hands — no new key, account, or service).
+
+**PREVIOUS (2026-08-14, cloud session): SESSION-START HOOK — fresh cloud
 containers now `npm install` before the session begins** (`.claude/hooks/
 session-start.sh`, registered in `.claude/settings.json`; web-only,
 synchronous, idempotent). Fixes the "vitest: not found" cold-start this

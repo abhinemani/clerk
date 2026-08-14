@@ -22,7 +22,7 @@ import { submitRequest, transitionRequest } from "@/services/requestService";
 import { acceptTaskRecords, dispatchTask, startTask, submitTaskRecords } from "@/services/taskService";
 
 /** A tiny real, openable PDF — so seeded downloads download actual bytes. */
-function demoPdf(title: string): Buffer {
+export function demoPdf(title: string): Buffer {
   const text = `BT /F1 16 Tf 72 720 Td (${title.replace(/[()\\]/g, "")}) Tj ET`;
   return Buffer.from(
     [
