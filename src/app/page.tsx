@@ -156,9 +156,19 @@ export default function MarketingHome() {
                 number, so the bar itself doesn't move — only the artwork. */}
             <BrandLockup size={29} />
           </Link>
+          {/* Two CTAs, one pair, everywhere on the page (owner, 2026-08-14):
+              /signup for the office ready to move, /demo for the one that
+              needs to see it with a person first. The self-serve live demo is
+              a nav link, not a third button — it answers a different question
+              ("can I poke at it?") and competing three ways picks none.
+              At ≤640px the .nav-link items collapse (globals.css) and only
+              the primary button survives; /demo is a hero CTA there. */}
           <nav className="nav-links" aria-label="Primary">
             <Link href="/riverton" className="nav-link">
               Live demo
+            </Link>
+            <Link href="/demo" className="nav-link">
+              Book a walkthrough
             </Link>
             <Link href="/admin" className="nav-link">
               Platform console
@@ -196,10 +206,13 @@ export default function MarketingHome() {
                 <Link href="/signup" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
                   Create your records office
                 </Link>
-                <Link href="/riverton" className="btn" style={{ paddingInline: 24, paddingBlock: 12 }}>
-                  Explore the live demo
+                <Link href="/demo" className="btn" style={{ paddingInline: 24, paddingBlock: 12 }}>
+                  Book a walkthrough
                 </Link>
               </div>
+              <p className="mk-note" style={{ marginTop: 14 }}>
+                Or <Link href="/riverton">explore the live demo</Link> — no account, real records.
+              </p>
               {/* Proof row — anchors the column's foot (the old centered layout
                   left this corner empty). Same checkable claims as the
                   under-the-hood strip; a hero states them first, smaller. */}
@@ -594,23 +607,24 @@ export default function MarketingHome() {
                 Stand up a records office in an afternoon.
               </h2>
               <p className="mk-sub" style={{ marginInline: "auto", maxWidth: 560 }}>
-                Self-signup is open to government email addresses. Bring your state, your
-                departments, and your seal — the checklist does the rest.
+                {/* No .gov requirement since 2026-08-14 — the page said there
+                    was one, which turned away districts and authorities. */}
+                Self-signup is open to any records office. Bring your state, your departments, and
+                your seal — the checklist does the rest.
               </p>
               <div className="mk-cta-row">
                 <Link href="/signup" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
                   Create your records office
                 </Link>
-                <Link href="/riverton" className="btn btn-outline-light" style={{ paddingInline: 24, paddingBlock: 12 }}>
-                  Explore the live demo
+                <Link href="/demo" className="btn btn-outline-light" style={{ paddingInline: 24, paddingBlock: 12 }}>
+                  Book a walkthrough
                 </Link>
               </div>
+              {/* The walkthrough ask used to be a mailto in this line; it is a
+                  real form now (/demo), so the line carries the third option
+                  instead of a fourth CTA. */}
               <p className="mk-note" style={{ marginTop: 16 }}>
-                Prefer a guided look?{" "}
-                <a href={`mailto:hello@brandeis.us?subject=${encodeURIComponent(`${branding.productName} demo`)}`}>
-                  Request a walkthrough
-                </a>
-                .
+                Or <Link href="/riverton">explore the live demo</Link> first — no account needed.
               </p>
             </div>
           </div>
@@ -636,6 +650,7 @@ export default function MarketingHome() {
               <h4>Product</h4>
               <Link href="/riverton">Live demo</Link>
               <Link href="/signup">Create your records office</Link>
+              <Link href="/demo">Book a walkthrough</Link>
               <Link href="/admin">Platform console</Link>
             </div>
             <div className="mk-foot-col">

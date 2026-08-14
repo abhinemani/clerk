@@ -832,6 +832,64 @@ label.lbl {
   font-weight: 600;
   color: var(--ink-2);
 }
+legend.lbl {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  padding: 0;
+}
+
+/* Two fields side by side; one column the moment there isn't room. Used by
+   the signup and walkthrough forms — both are read on phones. */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Checkbox chips (walkthrough availability). The input stays in the DOM and
+   focusable — it is the control; the chip is its label. `is-on` mirrors React
+   state so the painted state can never drift from `checked`. */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+.chip-toggle:hover {
+  border-color: var(--accent);
+}
+.chip-toggle input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+.chip-toggle:focus-within {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent);
+}
+.chip-toggle.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--ink);
+}
 
 /* ---- stat strip ---- */
 .stat-row {

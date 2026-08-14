@@ -1110,6 +1110,42 @@ export const requestPlays = pgTable(
   (t) => [index("request_plays_agency_idx").on(t.agencyId)],
 );
 
+/**
+ * demo_requests — the marketing site's "book a walkthrough" call to action.
+ *
+ * DELIBERATELY NOT AGENCY-SCOPED, and one of only two tables that aren't
+ * (instance_meta is the other). A jurisdiction asking for a demo has no
+ * tenant yet — that is the entire point of the form — so there is no
+ * agency_id to scope it by and no tenant that may read it. It is operator
+ * data: written by an anonymous visitor, read only by the platform console
+ * behind requirePlatformAdmin. No tenant code path touches this table, so
+ * invariant 2's isolation story is unchanged.
+ *
+ * Availability is stored as the requester's own words about their week
+ * (weekdays + coarse windows + their time zone), not as a booked slot —
+ * there is no calendar here and the operator confirms by replying.
+ */
+export const demoRequests = pgTable(
+  "demo_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    organization: text("organization").notNull(),
+    role: text("role"),
+    /** Two-letter state, when they told us — statute profile hint, not a key. */
+    stateCode: text("state_code"),
+    days: jsonb("days").$type<string[]>().notNull(),
+    windows: jsonb("windows").$type<string[]>().notNull(),
+    timezone: text("timezone").notNull(),
+    note: text("note"),
+    /** Operator triage: "new" until someone marks it handled. */
+    status: text("status").notNull().default("new"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("demo_requests_created_idx").on(t.createdAt)],
+);
+
 // ---------------------------------------------------------------------------
 // Shared JSONB payload types (kept here so schema is the single source of truth)
 // ---------------------------------------------------------------------------
@@ -1329,6 +1365,7 @@ export const allTables = {
   jobs,
   publicationDecisions,
   instanceMeta,
+  demoRequests,
 } as const;
 
 // Silence unused-import warning for `sql` when no raw defaults are used yet; it

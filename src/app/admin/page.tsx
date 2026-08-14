@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requirePlatformAdmin } from "@/auth/guards";
 import { getRepository } from "@/db/createRepository";
 import { computeSetupStatus } from "@/domain/setupChecklist";
+import { describeAvailability } from "@/domain/demoRequest";
+import { branding } from "@/config/branding";
 import { getStateProfile } from "@/statute/profiles";
 import { getEmailSender } from "@/adapters/email";
 import { CreateAgencyForm } from "../_components/PlatformConsole";
@@ -66,10 +68,14 @@ export default async function PlatformHome() {
   // Deployment health: failures must be VISIBLE, not console-only. Failed
   // jobs stay in the jobs table (durable queue); failed relays stay on their
   // outbox rows. Green means actually green.
-  const [failedJobs, queuedJobs, failedDeliveries] = await Promise.all([
+  const [failedJobs, queuedJobs, failedDeliveries, demoRequests] = await Promise.all([
     repo.listJobs({ status: "failed", limit: 10 }),
     repo.listJobs({ status: "queued", limit: 100 }),
     repo.listFailedDeliveries(10),
+    // Walkthrough requests from the marketing site. THE ROW IS THE RECORD:
+    // a default deployment has no email provider, so this list is the only
+    // place a lead surfaces — it is not a convenience view.
+    repo.listDemoRequests(20),
   ]);
   const agencyNameById = new Map(agencies.map((a) => [a.id, a.name]));
   const oldestQueued = queuedJobs.at(-1); // listJobs is newest-first
@@ -256,6 +262,46 @@ export default async function PlatformHome() {
           </p>
         )}
       </div>
+
+      {/* Only rendered when someone has actually asked — an empty panel on
+          every console load is noise, and there is nothing to do about zero. */}
+      {demoRequests.length > 0 && (
+        <>
+          <h2 style={{ fontSize: "1.05rem", marginTop: 34, marginBottom: 12 }}>
+            Walkthrough requests · {demoRequests.length}
+          </h2>
+          <p className="muted" style={{ fontSize: "0.82rem", marginTop: -6, marginBottom: 12 }}>
+            From the marketing site&apos;s <span className="mono">/demo</span> form. Reply to
+            propose a time inside their window.
+          </p>
+          <div style={{ display: "grid", gap: 10 }}>
+            {demoRequests.map((d) => (
+              <article key={d.id} className="card card-pad" style={{ display: "grid", gap: 6 }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                  <span className="serif" style={{ fontWeight: 600, fontSize: "1.02rem" }}>
+                    {d.organization}
+                  </span>
+                  {d.stateCode && <span className="tag">{d.stateCode}</span>}
+                  <span className="muted" style={{ fontSize: "0.82rem", marginLeft: "auto" }}>
+                    {d.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </span>
+                </div>
+                <div style={{ fontSize: "0.9rem" }}>
+                  {d.name}
+                  {d.role ? `, ${d.role}` : ""} ·{" "}
+                  <a href={`mailto:${d.email}?subject=${encodeURIComponent(`${branding.productName} walkthrough`)}`} className="mono">
+                    {d.email}
+                  </a>
+                </div>
+                <div className="muted" style={{ fontSize: "0.85rem" }}>
+                  Available: {describeAvailability(d)}
+                </div>
+                {d.note && <p style={{ fontSize: "0.88rem", margin: 0 }}>{d.note}</p>}
+              </article>
+            ))}
+          </div>
+        </>
+      )}
 
       <h2 style={{ fontSize: "1.05rem", marginTop: 34, marginBottom: 12 }}>Onboard an agency</h2>
       <CreateAgencyForm />

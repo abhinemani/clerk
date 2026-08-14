@@ -7,9 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**983 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (counts as
-of the newest 2026-08-14 signup-email entry; e2e last run fresh at the
-portal-mobile build before it).
+**1001 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (counts as
+of the newest 2026-08-14 marketing-CTA entry; e2e last run fresh at the
+portal-mobile build).
 
 ## START HERE (next session)
 
@@ -71,7 +71,54 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, twelfth build of the window): THE
+**NEWEST (2026-08-14, cloud session, thirteenth build of the window): TWO
+CTAs ON THE MARKETING SITE, AND /demo IS A REAL FORM (owner: "we need two
+calls to action — get started → sign up, request a demo → a scheduling
+form … I don't like the language for either but that's the idea").** The
+site had three competing buttons (signup, live demo, and a `mailto:` for a
+walkthrough) — the guided-look path, the one most government buyers take,
+was the weakest of them.
+- **One CTA pair, everywhere.** Hero, closing band, nav, and footer now all
+  carry **Create your records office** (`/signup`, primary) + **Book a
+  walkthrough** (`/demo`, secondary). The self-serve live demo dropped to a
+  text link ("Or explore the live demo — no account, real records") because
+  it answers a different question; three buttons picked none. Copy is mine,
+  not the owner's placeholder — "Get started"/"Request a demo" say nothing a
+  clerk cares about. The pair is swappable in one place per section.
+- **`/demo` — a scheduling form with no calendar and no third party.**
+  `src/app/demo/{page,actions}.tsx` + `_components/DemoRequestForm.tsx` over
+  a pure `src/domain/demoRequest.ts` (validate → describe → email body). It
+  collects weekdays + coarse windows + the requester's zone, not a booked
+  slot: we have no availability to publish, and a grid of bookable times
+  would be a lie. A deployment with a real booking page sets
+  `DEMO_SCHEDULING_URL` and it appears ABOVE the form, never instead of it.
+- **The row is the record.** New platform-level `demo_requests` table
+  (migration 0015) — the second table with no `agency_id`, deliberately:
+  the jurisdiction has no tenant yet, which is the point of the form. Port
+  methods `createDemoRequest`/`listDemoRequests` in both adapters +
+  conformance test. `/admin` grows a **Walkthrough requests** panel above
+  "Onboard an agency" (rendered only when there are any). A default
+  deployment has no email provider, so notification (`DEMO_REQUEST_EMAIL`,
+  best effort, never fails the submission) can never be the only path.
+- Rate-limited with its own `SignupRateLimiter` instance (5/client/hour, 60
+  deployment-wide) so a demo flood can't consume the signup budget.
+- Two CSS additions in the forms block: `.form-grid` (the two-up field row
+  the signup form was already asking for via an undefined `.roster-grid` —
+  left alone, but new code uses the real one) and `.chip-toggle` checkbox
+  chips. `/demo`'s nav carries `.mk-topnav` so the ≤640px mark-only collapse
+  applies — without it the full lockup smears at phone width.
+- Fixed a stale line while in there: the closing band claimed "self-signup
+  is open to government email addresses", which the twelfth build made
+  false.
+- **Verified in a browser** (gotcha 11): 1280 + 390px, no horizontal
+  overflow on either page; submitted with no availability → "Pick at least
+  one day that works.", then a real submission → success card → the row
+  renders on `/admin` as "City of Alto · CA · Available: Tue, Thu · morning
+  · Pacific". 1001 tests pass (18 new), typecheck clean. `.env.example` +
+  `docs/laptop-setup.md` (new Part D⅞) updated in the same commit — both
+  new vars are optional and the doc says so first.
+
+**PREVIOUS (2026-08-14, cloud session, twelfth build of the window): THE
 GOV-EMAIL SIGNUP GATE IS GONE (owner: "users shouldn't need to have gov
 emails to register").** `/signup` refused anything that wasn't
 .gov/.mil/state-local .us, which turned away real records offices —

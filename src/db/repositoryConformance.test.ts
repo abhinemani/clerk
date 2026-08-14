@@ -576,6 +576,34 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect((await repo.listDeflections(AG2)).some((x) => x.id === d.id)).toBe(false);
     });
 
+    it("demo requests: platform-level create + newest-first list", async () => {
+      // No agencyId on purpose — a walkthrough request arrives before the
+      // jurisdiction has a tenant (see the demo_requests schema comment).
+      const mk = (organization: string, createdAt: Date) => ({
+        id: uid(),
+        name: "Dana Okafor",
+        email: "dana@example.org",
+        organization,
+        role: "City Clerk",
+        stateCode: "CA",
+        days: ["tue", "thu"],
+        windows: ["morning"],
+        timezone: "PT",
+        note: null,
+        status: "new" as const,
+        createdAt,
+      });
+      const older = await repo.createDemoRequest(mk("City of Alto", new Date("2026-01-01T00:00:00Z")));
+      const newer = await repo.createDemoRequest(mk("Bay County", new Date("2026-06-01T00:00:00Z")));
+      const all = await repo.listDemoRequests();
+      const mine = all.filter((x) => x.id === older.id || x.id === newer.id);
+      expect(mine.map((x) => x.id)).toEqual([newer.id, older.id]); // newest first
+      expect(mine[0]!.days).toEqual(["tue", "thu"]);
+      expect(mine[0]!.windows).toEqual(["morning"]);
+      expect(mine[0]!.status).toBe("new");
+      expect((await repo.listDemoRequests(1)).length).toBe(1);
+    });
+
     it("plays: full-replace per agency, tenant-scoped list", async () => {
       const mk = (agencyId: string, topic: string, episodes: number) => ({
         id: uid(),

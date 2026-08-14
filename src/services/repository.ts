@@ -293,6 +293,26 @@ export interface DeflectionEntity {
   createdAt: Date;
 }
 
+/**
+ * A walkthrough request from the marketing site. PLATFORM-LEVEL, not
+ * tenant-level: the jurisdiction has no agency yet (see the schema comment on
+ * `demo_requests`). Reads are operator-only.
+ */
+export interface DemoRequestEntity {
+  id: string;
+  name: string;
+  email: string;
+  organization: string;
+  role: string | null;
+  stateCode: string | null;
+  days: string[];
+  windows: string[];
+  timezone: string;
+  note: string | null;
+  status: "new" | "contacted" | "closed";
+  createdAt: Date;
+}
+
 export type JobStatus = "queued" | "running" | "done" | "failed";
 
 /** One durable background job — survives restarts; failures stay visible. */
@@ -675,6 +695,12 @@ export interface Repository {
 
   appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity>;
   listDeflections(agencyId: string): Promise<DeflectionEntity[]>;
+
+  // Marketing-site walkthrough requests. No agencyId anywhere on purpose —
+  // these arrive before a tenant exists, and only the platform console reads
+  // them (guarded by requirePlatformAdmin, never by tenant scope).
+  createDemoRequest(d: DemoRequestEntity): Promise<DemoRequestEntity>;
+  listDemoRequests(limit?: number): Promise<DemoRequestEntity[]>;
 
   // Learning loop (docs/learning-loop.md): plays are replaced wholesale
   // per agency by the nightly rebuild — full-replace semantics on purpose,
@@ -1305,6 +1331,18 @@ export class InMemoryRepository implements Repository {
   }
   async listDeflections(agencyId: string) {
     return this.deflections.filter((d) => d.agencyId === agencyId);
+  }
+
+  private demoRequests: DemoRequestEntity[] = [];
+
+  async createDemoRequest(d: DemoRequestEntity) {
+    this.demoRequests.push(d);
+    return d;
+  }
+  async listDemoRequests(limit = 50) {
+    return [...this.demoRequests]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
   }
 
   private plays: PlayEntity[] = [];

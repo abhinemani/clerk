@@ -260,6 +260,38 @@ jurisdictions — leave it unset unless you have a reason.
 
 ---
 
+## Part D⅞ — walkthrough requests (nothing required; two optional vars)
+
+The marketing site's second button, **Book a walkthrough**, posts to `/demo`.
+**Nothing needs setting up.** Every request is saved and appears under
+"Walkthrough requests" on `/admin`, above "Onboard an agency" — that list is
+the record, so a lead is never lost.
+
+**1. CLICK** — check for new ones: `/admin` → sign in → scroll to
+   **Walkthrough requests**. Each card carries the person, the jurisdiction,
+   their availability, and a mailto link; reply to propose a time.
+
+**2. (Optional) get an email when one arrives.** Needs Part D's email
+   provider already set. **PASTE** into your `.env` (and the deployment's
+   Variables screen):
+
+```
+DEMO_REQUEST_EMAIL=you@your-domain.gov
+```
+Without an email provider the variable does nothing and the request is still
+saved — the console list is unaffected.
+
+**3. (Optional) use a real booking page instead of the availability form.**
+   If you have a Cal.com / Calendly link, **PASTE**:
+
+```
+DEMO_SCHEDULING_URL=https://cal.com/your-handle/brandeis-walkthrough
+```
+`/demo` then shows a "Pick a time on the calendar →" button above the form.
+The form stays — it is the path that works with no third-party account.
+
+---
+
 ## Part E — fresh laptop from zero (~10 min, no accounts)
 
 **PASTE, top to bottom:**

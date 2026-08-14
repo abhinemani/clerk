@@ -17,6 +17,7 @@ import {
   authTokens,
   deflections,
   deliveries,
+  demoRequests,
   departments,
   documentChunks,
   documents,
@@ -45,6 +46,7 @@ import {
   type AuthTokenEntity,
   type DeflectionEntity,
   type DeliveryEntity,
+  type DemoRequestEntity,
   type Department,
   type DirectoryEntry,
   type DocumentEntity,
@@ -1653,6 +1655,48 @@ export class DrizzleRepository implements Repository {
       documentId: d.documentId,
       estimatedStaffHoursAvoided: d.estimatedStaffHoursAvoided ?? 0,
       createdAt: d.createdAt,
+    }));
+  }
+
+  // --- marketing walkthrough requests (platform-level, no tenant) ----------
+
+  async createDemoRequest(d: DemoRequestEntity): Promise<DemoRequestEntity> {
+    await this.db.insert(demoRequests).values({
+      id: d.id,
+      name: d.name,
+      email: d.email,
+      organization: d.organization,
+      role: d.role,
+      stateCode: d.stateCode,
+      days: d.days,
+      windows: d.windows,
+      timezone: d.timezone,
+      note: d.note,
+      status: d.status,
+      createdAt: d.createdAt,
+    });
+    return d;
+  }
+
+  async listDemoRequests(limit = 50): Promise<DemoRequestEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(demoRequests)
+      .orderBy(desc(demoRequests.createdAt))
+      .limit(limit);
+    return rows.map((r: typeof demoRequests.$inferSelect) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      organization: r.organization,
+      role: r.role,
+      stateCode: r.stateCode,
+      days: (r.days ?? []) as string[],
+      windows: (r.windows ?? []) as string[],
+      timezone: r.timezone,
+      note: r.note,
+      status: r.status as DemoRequestEntity["status"],
+      createdAt: r.createdAt,
     }));
   }
 
