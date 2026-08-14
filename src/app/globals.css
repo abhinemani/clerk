@@ -497,15 +497,22 @@ h3 {
    these are work surfaces; the texture must read as material, not noise. */
 @media screen {
   body {
-    /* The room the product sits in: a cool bloom from above, a plum ember
-       at the right shoulder, and the engraver's hatch across the whole
-       ground — all UNDER the content (background stack, not an overlay),
-       fixed so it doesn't swim on scroll. */
+    /* The room the product sits in (owner, 2026-08-14: the ground itself
+       must not be flat). A full lighting rig, all UNDER the content and
+       viewport-fixed so the light source doesn't swim on scroll:
+       vignette → gold dawn (top-left) → cool key light (center-top) →
+       plum ember (right shoulder) → floor glow (bottom-left) → hatch →
+       photographic grain → vertical falloff base (lighter up top, darker
+       at the foot of the page). */
     background:
-      radial-gradient(ellipse 90% 46% at 50% -12%, color-mix(in srgb, var(--primary-tint) 90%, transparent), transparent 64%),
-      radial-gradient(ellipse 52% 38% at 108% -4%, color-mix(in srgb, var(--plum) 42%, transparent), transparent 62%),
-      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 9px),
-      var(--paper);
+      radial-gradient(ellipse 130% 100% at 50% 30%, transparent 55%, rgba(4, 7, 11, 0.5) 100%),
+      radial-gradient(ellipse 46% 32% at 12% -6%, color-mix(in srgb, var(--gold) 10%, transparent), transparent 70%),
+      radial-gradient(ellipse 95% 52% at 50% -14%, #2b3646, transparent 66%),
+      radial-gradient(ellipse 54% 44% at 106% 0%, color-mix(in srgb, var(--plum) 75%, transparent), transparent 62%),
+      radial-gradient(ellipse 60% 34% at -6% 112%, color-mix(in srgb, var(--plum) 40%, transparent), transparent 60%),
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 9px),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E"),
+      linear-gradient(180deg, #151c26 0%, #0f141a 55%, #0b0e13 100%);
     background-attachment: fixed;
   }
   .card {

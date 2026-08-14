@@ -104,6 +104,15 @@ grammar as the marketing eyebrows), a gold base rule under `.stat-num`
 numerals, and the engraver's hatch layered into the card/stat slab
 gradients. Print-guarded (ornaments display:none in print). Browser-
 verified on the command center and the request detail page.
+**And the GROUND (owner: "work on the backgrounds, not just the cards").**
+The body's screen-only background is now a full lighting rig, viewport-
+fixed: corner vignette → gold dawn top-left → cool slate key light
+center-top → plum ember right shoulder → plum floor glow bottom-left →
+engraver's hatch → SVG-grain (inline data URI, CSP-safe) → vertical
+falloff base (lighter at the top of the viewport, darker at the foot).
+Pages now read as a lit room behind the plates, not a flat dark sheet.
+Browser-verified on the command center (no hero) and archive (with hero);
+one e2e flake when unit+e2e ran simultaneously, two clean 4/4 runs after.
 
 **PREVIOUS (2026-08-13, cloud session): THE LEARNING LOOP — resolved
 requests now make the platform structurally smarter (docs/learning-loop.md,
