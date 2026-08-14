@@ -4,12 +4,12 @@ Four files, two jobs.
 
 ## Full lockups — hero use
 
-- `brandeis-lockup-dark.png` (1600×248) — white wordmark, gold tagline.
-  **Rev 2026-08-13b**, cropped/downscaled from the owner's 2000×731
+- `brandeis-lockup-dark.png` (1600×269) — white wordmark, gold tagline.
+  **Rev 2026-08-14**, cropped/downscaled from the owner's corrected 2085×413
   transparent render supplied in-session: gold data-dashes streaming into a
-  document sheet (the old prism-triangle drawing is retired). ⚠ The render's
-  tagline carries stray accents ("FÓR", "RECÓRDS") — flagged to the owner at
-  handoff; replace this file from a corrected render when one exists.
+  document sheet (the old prism-triangle drawing is retired). This replaces
+  2026-08-13b, whose tagline carried stray accents ("FÓR", "RECÓRDS") — the
+  new render fixes the typo cleanly ("FOR", "RECORDS").
 - `brandeis-lockup-light.png` (1600×301) — navy wordmark, gold tagline.
   **PREVIOUS drawing, currently UNREFERENCED by code** (the nav is pinned
   dark, so every lockup placement renders the dark rev). Kept only so a
@@ -33,9 +33,9 @@ visitor, pin the dark revision on grounds that are dark in both themes
 ## Marks — header use
 
 - `mark-dark.png`, `mark-light.png` — the mark (data-dashes + document
-  sheet) cropped out of the 2026-08-13b lockup render (everything left of
+  sheet) cropped out of the 2026-08-14 lockup render (everything left of
   the gap before the wordmark), fitted inside a shared **252×124** canvas
-  and centred. The new drawing is ALL GOLD with no ground-specific ink, so
+  and centred. The drawing is ALL GOLD with no ground-specific ink, so
   both files currently carry the SAME image — kept as two files because
   `<BrandMarkRaster>`'s `<picture>` swap references both, and a future
   render pair may diverge again.
@@ -52,25 +52,25 @@ on solid black with no alpha at all, which needed `alpha := max(r,g,b)`
 keying before any of this. If a future render arrives flattened like that
 again, key it at full resolution, before the downscale.)
 
-**The canvas is shared.** The two revisions have genuinely different content
-proportions (the prisms run slightly wider than 252:124, so each is fitted
-by width — dark lands at 252×114 of content, light at 252×118 — and centred
-vertically). Crop them tight instead and the header's layout box changes
-the moment a visitor's OS flips theme. If you regenerate one, regenerate
-both, onto the same canvas.
+**The canvas is shared.** The mark's content is wider than the 252:124
+canvas, so it is fitted by HEIGHT (124px) and centred horizontally — the
+2026-08-14 crop lands at 236×124 of content, 8px of transparent padding on
+each side. Crop it tight instead and the header's layout box changes the
+moment a visitor's OS flips theme. `mark-dark.png` and `mark-light.png` are
+written as identical files from this one fit; if a future render pair
+diverges by ground again, regenerate both onto the same canvas.
 
 ## Which asset where
 
 The rasters, everywhere (owner directive 2026-08-13): `<BrandLockup>` for
 the full lockup, `<BrandMarkRaster>` for the mark alone. The hand-authored
 `<BrandMark>` SVG was REMOVED with that directive — do not redraw the mark
-in code. With the 2026-08-13b render the last hand-drawn derivative
-(`src/app/icon.svg`, the old prism) was replaced by `src/app/icon.png` —
-a 64px crop of the render's document glyph, so even the favicon is the
-owner's pixels now. `apple-icon.png` (mark on the board's plum) and
+in code. `src/app/icon.png` is a 64px crop of the render's document
+glyph (right-aligned square, content-height wide), so even the favicon is
+the owner's pixels. `apple-icon.png` (mark on the board's plum) and
 `opengraph-image.png` (lockup on dark paper) are composed from the same
-render; `favicon.ico` is still the OLD drawing (ico needs a tool sharp
-doesn't have) — regenerate it when convenient.
+render. `favicon.ico` is regenerated from the same square crop
+(16/32/48/64px) as of the 2026-08-14 render — no longer the old drawing.
 
 To replace the rasters with a true vector, export with text converted to
 outlines and shapes as paths (Illustrator: Save As → SVG, *Preserve
