@@ -70,7 +70,7 @@ requests. The same one person. Still by hand."; pillars head "Three
 jobs. One system. No new headcount."; quote body ends "Two years later,
 the log reads like a defense exhibit."; closing eyebrow "An afternoon,
 not a procurement." TESTIMONIALS untouched (the illustrative disclaimer
-wording matters). Browser-verified full-page, screenshots delivered;
+wording matters). Owner then asked for less text density: card bodies cut to one sentence, stat sublines to fragments, section subs to one line, roster entries compacted — the page lost ~500px of copy. Browser-verified full-page, screenshots delivered;
 894 tests, typecheck clean. Owner reviewed screenshots pre-push; merge
 to main awaits their word.
 

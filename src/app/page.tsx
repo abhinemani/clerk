@@ -26,15 +26,15 @@ import { BrandLockup, BrandMarkRaster, SparkIcon } from "./_components/ui";
 const PROBLEMS = [
   {
     h: "Staffing hasn't kept pace",
-    d: "Most records offices are one person — often a fraction of one, wedged between other duties. Volume climbs every year. Headcount doesn't.",
+    d: "Most offices are one person, wedged between other duties. Volume climbs. Headcount doesn't.",
   },
   {
     h: "AI is driving the volume up",
-    d: "Request tools now write the requests: more of them, broader, worded by software instead of the person who wants the record. Volume stopped tracking need.",
+    d: "Request tools now write the requests — more, broader, tireless. Volume stopped tracking need.",
   },
   {
     h: "Most of what's public was never published",
-    d: "The answer usually exists and is already public — sitting where no resident can find it. So a question becomes a case number, and a person has to work it.",
+    d: "The answer is usually already public — just nowhere a resident can find it. So a question becomes a case number.",
   },
 ];
 
@@ -43,34 +43,34 @@ const PILLARS = [
     n: "01",
     t: "Deflect",
     h: "Answer before they file",
-    d: "Residents ask in plain language. The answer box searches everything you've released — keyword and meaning together — and hands over the document in seconds. A request that ends as a download never touches your desk.",
+    d: "Plain-language search over everything you've released. The document arrives in seconds — no case file opened.",
   },
   {
     n: "02",
     t: "Fulfill",
     h: "Run every request on rails",
-    d: "Triage drafts the scope and routing the moment a request lands. Departments answer from a no-login link or a plain email reply. The clock comes from your state's law, and every extension records its reason.",
+    d: "Triage drafts scope and routing at intake. Departments answer from a no-login link. The clock comes from your state's law.",
   },
   {
     n: "03",
     t: "Defend",
     h: "An audit log for counsel",
-    d: "Every action — human or AI — lands in an append-only log: who, what, why. Redactions are burned into the bytes, not layered on top. Every release carries a named approver.",
+    d: "Every action lands in an append-only log. Redactions burn into the bytes. Every release carries a named approver.",
   },
 ];
 
 const ROI_STATS = [
-  { n: "6", l: "stages every request moves through", s: "Intake, triage, search, review, redaction, correspondence. Traditionally worked by hand, one request at a time." },
-  { n: "1", l: "statutory clock, computed automatically", s: "Set the moment a request is filed, straight from your state's law. Not a spreadsheet someone has to remember." },
-  { n: "0", l: "cost to a resident who asks first", s: "Free and instant. A question answered from the public archive never opens a case file." },
-  { n: "100%", l: "of the paper trail, kept", s: "Every suggestion, every decision, one append-only log. It caps the cost of a bad call two years from now." },
+  { n: "6", l: "stages every request moves through", s: "Intake to release — traditionally by hand." },
+  { n: "1", l: "statutory clock, computed automatically", s: "Set at filing, straight from state law." },
+  { n: "0", l: "cost to a resident who asks first", s: "Archive answers never open a case file." },
+  { n: "100%", l: "of the paper trail, kept", s: "One append-only log, forever." },
 ];
 
 const STATS = [
-  { n: "5", l: "state statute profiles", s: "California, Texas, Illinois, Washington, New York. Clock rules are data, not code." },
-  { n: "0", l: "external services required", s: "AI, email, OCR and object storage are each opt-in behind an adapter." },
-  { n: "1", l: "deployment, every agency", s: "Each with its own portal, seal, statute profile and isolated data." },
-  { n: "100%", l: "of actions audit-logged", s: "Append-only, human and AI alike. No edit path, no delete path." },
+  { n: "5", l: "state statute profiles", s: "Clock rules are data, not code." },
+  { n: "0", l: "external services required", s: "AI, email, OCR, storage — all opt-in." },
+  { n: "1", l: "deployment, every agency", s: "Own portal, seal, statute, data." },
+  { n: "100%", l: "of actions audit-logged", s: "Human and AI alike. No edit path." },
 ];
 
 const TESTIMONIALS = [
@@ -92,38 +92,38 @@ const AGENTS = [
   {
     stage: "Before a request exists",
     name: "The answer box",
-    does: "Answers residents in plain language, from everything you've already released — keyword and semantic search together, linked straight to the documents.",
-    human: "Draws only on records already public. It cannot see anything else.",
+    does: "Answers residents from everything already released, linked straight to the documents.",
+    human: "Sees only public records. Nothing else.",
   },
   {
     stage: "At intake",
     name: "Triage",
-    does: "Drafts the scope, estimates complexity, suggests which departments respond, and flags likely duplicates.",
-    human: "A coordinator accepts, edits, or discards the scope before anything moves.",
+    does: "Drafts scope, complexity, routing, and duplicate flags the moment a request lands.",
+    human: "A coordinator accepts, edits, or discards.",
   },
   {
     stage: "As records arrive",
     name: "Document review",
-    does: "Suggests a classification for each document and flags passages that may fall under a statutory exemption, citation included.",
-    human: "Suggestions land as cards. Staff accept, edit, or dismiss each one.",
+    does: "Suggests a classification and flags exemption passages, citation included.",
+    human: "Cards: accept, edit, or dismiss.",
   },
   {
     stage: "In the redaction studio",
     name: "Redaction assist",
-    does: "Runs a PII pass and proposes redactions span by span. Finalizing burns them into regenerated bytes — never an overlay.",
-    human: "Every span is human-confirmed; a leak check verifies the final artifact.",
+    does: "Proposes redactions span by span; finalizing burns them into fresh bytes — never an overlay.",
+    human: "Every span human-confirmed. A leak check verifies.",
   },
   {
     stage: "In correspondence",
     name: "Drafting",
-    does: "Drafts clarifications, extension notices, response letters, and denials with the appeal language your statute requires.",
-    human: "Letters go out under a staff name only after a staff member sends them.",
+    does: "Clarifications, extensions, response letters, denials — with your statute's appeal language.",
+    human: "Sent only by a staff member, under their name.",
   },
   {
     stage: "Alongside your team",
     name: "The copilot & deadline watch",
-    does: "Answers coordinators' questions about any request. A nightly sweep watches every clock and digests what's at risk.",
-    human: "Every consultation is itself an audit event. Clock math is statute data, not model output.",
+    does: "Answers questions about any request; a nightly sweep watches every clock.",
+    human: "Every consultation is itself an audit event.",
   },
 ];
 
@@ -172,11 +172,9 @@ export default function MarketingHome() {
               </h1>
               <hr className="letterhead-rule" aria-hidden />
               <p className="mk-lede">
-                Most records requests ask for something that&apos;s already public.{" "}
-                {branding.productName} answers those on the spot, straight from your archive — no
-                case file, no wait. Everything else arrives triaged, routed, and on the statutory
-                clock, with every AI draft held for a named human&apos;s sign-off. Your office
-                decides. The software does the chasing.
+                Most requests ask for something that&apos;s already public. {branding.productName}{" "}
+                answers those instantly, straight from your archive. The rest arrive triaged,
+                routed, and on the statutory clock — every AI draft waiting on a named human.
               </p>
               <div style={{ display: "flex", gap: 12, marginTop: 32, flexWrap: "wrap" }}>
                 <Link href="/signup" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
@@ -256,9 +254,7 @@ export default function MarketingHome() {
             <div className="mk-head">
               <span className="mk-eyebrow">The problem</span>
               <h2 className="mk-h2">More requests. The same one person. Still by hand.</h2>
-              <p className="mk-sub">
-                Not a failure of any one office — three trends landing on the same desk at once.
-              </p>
+              <p className="mk-sub">Three trends, one desk.</p>
             </div>
             <div className="mk-trio mk-reveal">
               {PROBLEMS.map((p) => (
@@ -281,8 +277,7 @@ export default function MarketingHome() {
               </span>
               <h2 className="mk-h2">Three jobs. One system. No new headcount.</h2>
               <p className="mk-sub">
-                Most records software does only the middle job. The requests you never receive and
-                the decisions you defend years later — that&apos;s where the real cost lives.
+                Most records software does only the middle one.
               </p>
             </div>
             <div className="mk-pillars">
@@ -333,9 +328,8 @@ export default function MarketingHome() {
               </span>
               <h2 className="mk-h2">A request is never just the letter that comes back.</h2>
               <p className="mk-sub">
-                It&apos;s staff hours pulled off other duties, a clock that runs whether or not
-                anyone is free, and — if something&apos;s missed — a decision someone has to defend
-                later. That&apos;s what {branding.productName} takes off your desk.
+                Staff hours, a running clock, and decisions someone defends later — that&apos;s
+                what comes off your desk.
               </p>
             </div>
             <div className="mk-stats mk-reveal">
@@ -360,8 +354,7 @@ export default function MarketingHome() {
               </span>
               <h2 className="mk-h2">How the tech works</h2>
               <p className="mk-sub">
-                An AI worker at every stage of a request. Each one drafts; a named staffer decides.
-                Here&apos;s the whole roster — no fine print.
+                An AI worker at every stage. Each one drafts; a named staffer decides.
               </p>
             </div>
             <div className="mk-stats mk-reveal" style={{ marginTop: 44, marginBottom: 44 }}>
@@ -390,9 +383,8 @@ export default function MarketingHome() {
               ))}
             </div>
             <p className="mk-sub" style={{ textAlign: "center", maxWidth: 680, marginInline: "auto", marginTop: 26 }}>
-              Every AI action logs to the same append-only record as human actions: model, prompt
-              version, outcome. No AI key configured? {branding.productName} still runs — the workers
-              stand down, the workflow doesn&apos;t.
+              Every AI action logs model, prompt version, and outcome. No AI key?{" "}
+              {branding.productName} still runs.
             </p>
           </div>
         </section>
@@ -406,25 +398,23 @@ export default function MarketingHome() {
                 One platform. Every agency its own house.
               </h2>
               <p className="mk-sub">
-                Each government gets its own portal at its own address: its seal, its statute
-                profile, its staff, its residents. Tenancy is enforced in the data layer on every
-                query. Statute logic is data — California&apos;s 10-day clock, Washington&apos;s
-                5-business-day response, New York&apos;s FOIL — configured, not coded.
+                Its own portal, seal, statute profile, staff, and residents — tenancy enforced in
+                the data layer, statute logic configured, not coded.
               </p>
             </div>
             <div className="mk-trio mk-reveal">
               {[
                 {
                   h: "Its own address",
-                  d: "Every agency lives at its own path, with its own seal, accent color, and contact block. Residents never see another jurisdiction's branding.",
+                  d: "Own path, seal, accent, and contact block. Residents never see another jurisdiction.",
                 },
                 {
                   h: "Its own clock",
-                  d: "The statute profile sets business days, observed holidays, and which extension reasons are allowed. Change states and the math changes with it — no code edit, no redeploy.",
+                  d: "Business days, holidays, extensions — change states and the math follows. No redeploy.",
                 },
                 {
                   h: "Its own data",
-                  d: "Tenancy is enforced at the data layer on every query, not by a filter someone remembered to add. A conformance suite runs the same assertions against both storage adapters.",
+                  d: "Isolation enforced on every query, proven by a conformance suite.",
                 },
               ].map((c) => (
                 <div key={c.h}>
