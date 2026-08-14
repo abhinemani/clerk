@@ -125,9 +125,10 @@ walkthrough" → `/demo`) and the no-commitment look ("See it live" →
   clean.
   Owner-facing (two env vars) → `.env.example` + `docs/laptop-setup.md`
   updated in the same commit.
-  **One copy claim to confirm:** the success card promises a reply "within
-  one business day" — change it if that is not a promise you want on the
-  page.
+- **No turnaround promise on the success card** (owner, same session: the
+  draft said "within one business day" → "cut that"). It now says what
+  happens, not when. Don't let a reply-time SLA back onto a public surface
+  — the product can't keep one on the owner's behalf.
 
 **PREVIOUS (2026-08-14, cloud session, twelfth build of the window): THE
 GOV-EMAIL SIGNUP GATE IS GONE (owner: "users shouldn't need to have gov

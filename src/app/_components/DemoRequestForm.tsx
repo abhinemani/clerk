@@ -35,9 +35,12 @@ export function DemoRequestForm({
     return (
       <div className="card card-pad stack" style={{ gap: 12, borderLeft: "3px solid var(--ok)" }}>
         <div className="panel-title">✓ Request received</div>
+        {/* No turnaround promise here — the product can't keep a reply-time
+            commitment on the owner's behalf (owner, 2026-08-14: "cut that").
+            Say what happens, not when. */}
         <p style={{ fontSize: "0.95rem" }}>
-          We&apos;ll email <span className="mono">{email}</span> within one business day with a
-          couple of times. If it&apos;s easier, reply with your own.
+          We&apos;ll email <span className="mono">{email}</span> with a couple of times. If
+          it&apos;s easier, reply with your own.
         </p>
         <p className="muted" style={{ fontSize: "0.85rem" }}>
           In the meantime the live demo is open — no login, nothing to install.
