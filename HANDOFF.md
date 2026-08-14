@@ -66,7 +66,26 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, ninth build of the window): THE
+**NEWEST (2026-08-14, cloud session, tenth build of the window): HOMEPAGE
+COPY — hero third beat + the quote band (owner ask: "Decisions you can
+defend" didn't land; the pitch is transparency made turnkey, and the
+namesake's line belongs on the page).** Two edits, `src/app/page.tsx`
+only:
+- Hero accent line is now **"Transparency, made turnkey."** (was
+  "Decisions you can defend.").
+- The `mk-quote-band` letterhead moment now carries the actual Brandeis
+  quote — **"Sunlight is said to be the best of disinfectants."** (Louis
+  D. Brandeis, 1913) — with a one-line tie-back to the product. The "AI
+  proposes. Staff disposes." band copy comes off the homepage (the
+  principle still reads in the under-the-hood sub and the hero chat
+  foot, and remains a hard convention in CLAUDE.md — nothing about the
+  product changed, only the pull-quote).
+Copy stays LEAN per the standing directive — same beat count, no new
+sections, no claims or numbers changed. Offline suite + typecheck green;
+homepage HTML render-checked for both strings. Nothing owner-facing
+(no env/keys/services — laptop doc untouched, checked).
+
+**PREVIOUS (2026-08-14, cloud session, ninth build of the window): THE
 FULFILLMENT AGENT V1 + B2 + THE PRODUCTION INDEX — HANDOFF candidate #1
 built end-to-end, plus two items graduated from the owner's
 FOIA-workflow-recommendations review (owner: "Do #1, 3 and 4 from your
