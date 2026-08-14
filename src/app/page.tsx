@@ -63,23 +63,12 @@ const PILLARS = [
   },
 ];
 
-/* The agent-era trio — every claim shipped and checkable:
-   docs/requester-api.md · docs/release-verification.md ·
-   docs/transparency-impact.md. */
-const AGENT_ERA = [
-  {
-    h: "Your portal speaks MCP",
-    d: "Residents' and newsrooms' AI assistants search the archive, check status, and file — through the same public-records-only door.",
-  },
-  {
-    h: "Releases anyone can verify",
-    d: "Every release is fingerprinted at approval; a court or a newsroom confirms a file in the browser, byte for byte.",
-  },
-  {
-    h: "Fewer requests, measured",
-    d: "One report: requests vs. deflections, and what publishing next would be worth in staff-hours.",
-  },
-];
+/* The agent-era proofs — each panel is a MINIATURE OF THE REAL SURFACE
+   (owner, 2026-08-14: "use the look and feels"), the way the hero renders
+   the answer box. The verification panel mirrors the live demo's actual
+   seeded release — filename, request, and fingerprint prefix are checkable
+   on /riverton/authenticity; the MCP exchange reuses the hero's PR-2026-00184
+   scenario; the bars are the reports page's chart shape, illustrative. */
 
 const STATS = [
   { n: "5", l: "state statute profiles", s: "Clock rules are data, not code." },
@@ -362,14 +351,104 @@ export default function MarketingHome() {
                 residents&apos; AI assistants — safely.
               </p>
             </div>
-            <div className="mk-trio mk-reveal">
-              {AGENT_ERA.map((c) => (
-                <div key={c.h}>
-                  <div className="mk-trio-rule" />
-                  <h3>{c.h}</h3>
-                  <p>{c.d}</p>
+            <div className="mk-proofs mk-reveal">
+              {/* 1 — the requester MCP server, as a tool exchange. */}
+              <div
+                className="mk-proof"
+                role="img"
+                aria-label="Illustration of the MCP endpoint: an AI assistant calls the search_records tool for towing contracts and receives three public records with download links, then calls file_request and receives tracking number PR-2026-00184 with the statutory due date."
+              >
+                <div className="mk-proof-head">Your portal speaks MCP</div>
+                <div className="mk-proof-body">
+                  <div className="mk-proof-call">
+                    <b>→ tools/call</b> search_records &#123;&quot;query&quot;: &quot;towing
+                    contracts&quot;&#125;
+                  </div>
+                  <div className="mk-proof-result">
+                    3 public records · download links included
+                    <em>Same public-records-only door as the portal</em>
+                  </div>
+                  <div className="mk-proof-call">
+                    <b>→ tools/call</b> file_request &#123;&quot;description&quot;: &quot;police
+                    incident report…&quot;&#125;
+                  </div>
+                  <div className="mk-proof-result">
+                    Filed as PR-2026-00184
+                    <em>Response due Mar 14, per Cal. Gov. Code § 7922.535</em>
+                  </div>
                 </div>
-              ))}
+                <div className="mk-proof-caption">
+                  Residents&apos; and newsrooms&apos; AI assistants search, check status, and file —
+                  never seeing more than the portal shows anyone.
+                </div>
+              </div>
+
+              {/* 2 — release verification: the authenticity page's verified
+                  card, mirroring the live demo's actual seeded release. */}
+              <div
+                className="mk-proof"
+                role="img"
+                aria-label="Illustration of release verification: a file fingerprinted in the browser is confirmed byte-identical to janitorial-contract-2025.pdf, released under request PR-2026-00002, with its SHA-256 fingerprint shown."
+              >
+                <div className="mk-proof-head">Releases anyone can verify</div>
+                <div className="mk-proof-body">
+                  <div className="mk-proof-verified">
+                    <strong>✓ Authentic release</strong>
+                    <br />
+                    Byte-identical to <span className="mono">janitorial-contract-2025.pdf</span>,
+                    released under <span className="mono">PR-2026-00002</span>.
+                  </div>
+                  <div className="mk-proof-fingerprint">sha-256 3471666bd1131958…145f84</div>
+                  <div className="mk-proof-result" style={{ borderLeftColor: "var(--gold)" }}>
+                    Register of public releases
+                    <em>Every published release, with its fingerprint — updated live</em>
+                  </div>
+                </div>
+                <div className="mk-proof-caption">
+                  Every release is fingerprinted at approval; a court or a newsroom verifies the
+                  file in the browser — it never uploads.
+                </div>
+              </div>
+
+              {/* 3 — the north star: the reports page's chart, postcard-size.
+                  Bar widths are illustrative; the crossover is the point. */}
+              <div
+                className="mk-proof"
+                role="img"
+                aria-label="Illustration of the transparency report: three months of paired bars where requests filed shrink while requests deflected grow, with a projection pill reading approximately 3 staff-hours per quarter for publishing the towing series."
+              >
+                <div className="mk-proof-head">Fewer requests, measured</div>
+                <div className="mk-proof-body">
+                  <div className="mk-proof-bars">
+                    {[
+                      { m: "Jun", req: 88, def: 16 },
+                      { m: "Jul", req: 66, def: 38 },
+                      { m: "Aug", req: 46, def: 62 },
+                    ].map((r) => (
+                      <div key={r.m} className="mk-proof-bar-row">
+                        <span className="mono">{r.m}</span>
+                        <div className="mk-proof-bar-pair">
+                          <div className="mk-proof-bar mk-proof-bar-req">
+                            <span style={{ width: `${r.req}%` }} />
+                          </div>
+                          <div className="mk-proof-bar mk-proof-bar-def">
+                            <span style={{ width: `${r.def}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <span className="mk-proof-pill">≈ 3h / quarter · publish the towing series</span>
+                  <div className="mk-proof-fingerprint">
+                    3 similar requests × 1.0 staff-hour per citation answer — the math prints with
+                    the number
+                  </div>
+                </div>
+                <div className="mk-proof-caption">
+                  One report: requests filed vs. deflected, and what publishing next would be worth
+                  — every number traced to the request log.
+                </div>
+              </div>
             </div>
             <p className="mk-sub" style={{ marginTop: 30 }}>
               Try it now: point any MCP client at{" "}
