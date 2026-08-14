@@ -1,4 +1,7 @@
-/** Signup trust & safety: gov-email gate + rate limiting. */
+/**
+ * Signup trust & safety: gov-email LABEL (not a gate — see signupPolicy.ts)
+ * + rate limiting, which is the load-bearing guard now that the door is open.
+ */
 import { describe, expect, it } from "vitest";
 import { isGovernmentEmail, SignupRateLimiter } from "./signupPolicy";
 
@@ -16,7 +19,7 @@ describe("isGovernmentEmail", () => {
     }
   });
 
-  it("rejects everything else — including lookalikes", () => {
+  it("does not label anything else — including lookalikes", () => {
     for (const bad of [
       "me@gmail.com",
       "clerk@rivertongov.com", // lookalike, no dot before gov
@@ -26,6 +29,20 @@ describe("isGovernmentEmail", () => {
       "@riverton.gov",
     ]) {
       expect(isGovernmentEmail(bad), bad).toBe(false);
+    }
+  });
+
+  it("is a label, not an admission test — real offices it under-counts", () => {
+    // These are genuine records offices. False here MUST NOT mean refused;
+    // signup/actions.ts only blocks them when an operator opts into
+    // SIGNUP_REQUIRE_GOV_EMAIL. Documented so nobody re-reads false as "fake".
+    for (const realButUnlabelled of [
+      "clerk@cityofriverton.org",
+      "records@rivertonschools.edu",
+      "foia@riverton-transit-authority.com",
+      "clerk@riverton.ca", // a jurisdiction outside the .gov namespace
+    ]) {
+      expect(isGovernmentEmail(realButUnlabelled), realButUnlabelled).toBe(false);
     }
   });
 });

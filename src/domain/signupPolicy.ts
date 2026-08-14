@@ -1,23 +1,40 @@
 /**
  * Self-signup trust & safety (pure).
  *
- * Two guards keep the open /signup honest on a public deployment:
+ * GOVERNMENT EMAIL IS A SIGNAL, NOT A GATE (2026-08-14). It used to be a
+ * hard requirement, which was wrong: plenty of real records officers work
+ * from a `@cityofx.org`, a joint-powers authority domain, a school district,
+ * a library, a tribal government, or a personal address while their IT
+ * department catches up. Turning those people away at the door is a worse
+ * failure than letting a stranger create a tenant that an operator can see
+ * and delete. So anyone may register; `isGovernmentEmail` now only labels
+ * the signup in the audit trail (and lets an operator who wants the old
+ * strict door set SIGNUP_REQUIRE_GOV_EMAIL=true).
  *
- * 1. GOVERNMENT EMAIL: the admin address must be on a government domain
- *    (.gov, .mil, or the state/local .us hierarchy). This isn't bulletproof
- *    identity-proofing — it's the same bar GitHub/Slack-style gov programs
- *    use, and it stops casual squatting of city names. Self-hosted or demo
- *    deployments loosen it with SIGNUP_ALLOW_ANY_EMAIL=true.
+ * What actually guards the open door:
  *
- * 2. RATE LIMIT: a fixed window per client plus a global cap, so a script
+ * 1. RATE LIMIT: a fixed window per client plus a global cap, so a script
  *    can't flood the deployment with tenants. Deterministic (clock injected)
  *    and in-memory — a restart resets it, which for signup is fine.
+ *
+ * 2. VISIBILITY: every self-signup lands in the append-only admin event log
+ *    saying it was self-service and whether the admin address was on a
+ *    government domain, so the operator console shows who walked in.
+ *
+ * 3. Tenants are isolated from row one (invariant 2), so a junk tenant is
+ *    junk in its own box — it can't see or touch anyone else's records.
  */
 
 const GOV_TLD = /\.(gov|mil)$/i;
 // state/local .us domains (ci.springfield.il.us, co.marlin.tx.us, state.wa.us …)
 const US_HIERARCHY = /\.[a-z]{2}\.us$/i;
 
+/**
+ * True for .gov, .mil, and the state/local .us hierarchy. Used to LABEL a
+ * signup, not to admit it — a false result is not a reason to refuse anyone
+ * (see the module header). Deliberately conservative: it under-counts real
+ * governments (`@cityofx.org`) rather than over-counting lookalikes.
+ */
 export function isGovernmentEmail(email: string): boolean {
   const at = email.lastIndexOf("@");
   if (at < 1) return false; // needs a non-empty local part

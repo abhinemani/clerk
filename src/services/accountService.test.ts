@@ -338,6 +338,51 @@ describe("provisionAgency — the multi-tenant front door (self-signup + console
       }),
     ).rejects.toThrow(AccountError);
   });
+
+  it("provisions a tenant whose admin has no government email", async () => {
+    // The door is open by design (signupPolicy.ts): a school district or a
+    // .org jurisdiction gets the same tenant as a .gov one.
+    const deps = makeDeps();
+    const { agency, admin } = await provisionAgency(deps, {
+      name: "Marlin Unified School District",
+      slug: "marlin-usd",
+      stateCode: "CA",
+      admin: { name: "Lee Park", email: "records@marlinusd.org", password: "district-pass-1" },
+      origin: { kind: "self_signup", govEmail: false },
+    });
+    expect(admin.role).toBe("admin");
+    expect(await deps.repo.findUserByEmail(agency.id, "records@marlinusd.org")).not.toBeNull();
+  });
+
+  it("labels how a tenant walked in — self-signup and its email domain — in the audit trail", async () => {
+    const deps = makeDeps();
+    const { agency } = await provisionAgency(deps, {
+      name: "Town of Ash",
+      slug: "ash",
+      stateCode: "CA",
+      admin: { name: "Sam Ash", email: "sam@ash-town.org", password: "ash-pass-123" },
+      origin: { kind: "self_signup", govEmail: false },
+    });
+    const ev = (await deps.repo.listAdminEvents(agency.id)).find((e) => e.kind === "agency_created");
+    expect(ev?.actorLabel).toBe("self-service signup");
+    expect(ev?.summary).toContain("self-registered");
+    expect(ev?.summary).toContain("non-government email");
+    expect(ev?.payload).toMatchObject({ origin: "self_signup", govEmail: false });
+
+    // Console-provisioned tenants keep the operator attribution.
+    const { agency: viaConsole } = await provisionAgency(deps, {
+      name: "City of Birch",
+      slug: "birch",
+      stateCode: "CA",
+      admin: { name: "Jo Birch", email: "jo@birch.gov", password: "birch-pass-1" },
+    });
+    const consoleEv = (await deps.repo.listAdminEvents(viaConsole.id)).find(
+      (e) => e.kind === "agency_created",
+    );
+    expect(consoleEv?.actorLabel).toBe("platform operator");
+    expect(consoleEv?.payload).toMatchObject({ origin: "console" });
+    expect(consoleEv?.payload).not.toHaveProperty("govEmail");
+  });
 });
 
 describe("platform console — city & user management", () => {

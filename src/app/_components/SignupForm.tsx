@@ -17,7 +17,14 @@ function suggestSlug(name: string): string {
     .slice(0, 30);
 }
 
-export function SignupForm({ states }: { states: { code: string; name: string }[] }) {
+export function SignupForm({
+  states,
+  requireGovEmail = false,
+}: {
+  states: { code: string; name: string }[];
+  /** True only on deployments that opted into SIGNUP_REQUIRE_GOV_EMAIL. */
+  requireGovEmail?: boolean;
+}) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -180,9 +187,18 @@ export function SignupForm({ states }: { states: { code: string; name: string }[
             className="field"
             required
             placeholder="clerk@yourcity.gov"
+            aria-describedby="su-admin-email-help"
             value={adminEmail}
             onChange={(e) => setAdminEmail(e.target.value)}
           />
+          {/* No .gov requirement (2026-08-14) — districts, authorities, and
+              .org jurisdictions are real; say so where the doubt happens.
+              The rule the server enforces is the rule we print. */}
+          <p id="su-admin-email-help" className="muted" style={{ fontSize: "0.78rem" }}>
+            {requireGovEmail
+              ? "This deployment accepts .gov, .mil, and state .us addresses."
+              : "Any address works — a .gov isn't required."}
+          </p>
         </div>
       </div>
       <div className="stack" style={{ gap: 6 }}>

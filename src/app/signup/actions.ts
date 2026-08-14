@@ -11,7 +11,10 @@
  * operator-provisioned one — and it appears in the operator's console
  * immediately, with the go-live checklist tracking its setup.
  *
- * Deployments that want operator-only onboarding set SELF_SIGNUP=off.
+ * NO GOVERNMENT EMAIL REQUIRED (2026-08-14) — see src/domain/signupPolicy.ts
+ * for why the gate became a label. Deployments that want operator-only
+ * onboarding set SELF_SIGNUP=off; the few that want the old .gov-only door
+ * set SIGNUP_REQUIRE_GOV_EMAIL=true.
  */
 import { AuthError } from "next-auth";
 import { headers } from "next/headers";
@@ -45,20 +48,21 @@ export async function selfSignupAction(input: {
     return { ok: false, error: "Self-service signup is disabled on this deployment." };
   }
 
-  // Trust gate: government email required unless this deployment opts out
-  // (SIGNUP_ALLOW_ANY_EMAIL=true — self-hosted and demo setups).
-  if (
-    process.env.SIGNUP_ALLOW_ANY_EMAIL !== "true" &&
-    !isGovernmentEmail(input.adminEmail ?? "")
-  ) {
+  // A government email is a SIGNAL, not a requirement — real records
+  // officers work from .org, district, authority, and personal addresses.
+  // It rides the audit trail so the operator console can see who walked in.
+  // A deployment that genuinely wants the strict door opts INTO it.
+  const govEmail = isGovernmentEmail(input.adminEmail ?? "");
+  if (process.env.SIGNUP_REQUIRE_GOV_EMAIL === "true" && !govEmail) {
     return {
       ok: false,
       error:
-        "Use your government email address (.gov, .mil, or your state's .us domain). If your jurisdiction uses another domain, contact the deployment operator to be onboarded.",
+        "This deployment accepts government email addresses only (.gov, .mil, or your state's .us domain). Contact the deployment operator to be onboarded another way.",
     };
   }
 
-  // Abuse gate: fixed-window limit per client + deployment-wide.
+  // Abuse gate: fixed-window limit per client + deployment-wide. With the
+  // email door open this is the load-bearing guard against tenant floods.
   const hdrs = await headers();
   const clientKey = (hdrs.get("x-forwarded-for") ?? "local").split(",")[0]!.trim();
   if (!limiter.allow(clientKey, Date.now())) {
@@ -72,6 +76,7 @@ export async function selfSignupAction(input: {
       slug: input.slug,
       stateCode: input.stateCode,
       admin: { name: input.adminName, email: input.adminEmail, password: input.adminPassword },
+      origin: { kind: "self_signup", govEmail },
     });
     return { ok: true, slug: agency.slug, ingestKey };
   } catch (e) {

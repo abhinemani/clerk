@@ -10,8 +10,11 @@ export const dynamic = "force-dynamic";
 /**
  * Self-service jurisdiction signup. Multi-tenant front door: any government
  * creates its own isolated tenant — portal, workspace, statute clock — and
- * lands on the go-live checklist. Operator deployments can turn this page off
- * with SELF_SIGNUP=off (the platform console remains the onboarding path).
+ * lands on the go-live checklist. No government email required (2026-08-14);
+ * SIGNUP_REQUIRE_GOV_EMAIL=true restores the old door on deployments that
+ * want it, and the form's copy follows whatever the server enforces.
+ * Operator deployments can turn this page off with SELF_SIGNUP=off (the
+ * platform console remains the onboarding path).
  */
 export default function SignupPage() {
   // Kill switch for operator-only deployments (the action re-checks too).
@@ -57,7 +60,10 @@ export default function SignupPage() {
           </p>
 
           <div style={{ marginTop: 24 }}>
-            <SignupForm states={states} />
+            <SignupForm
+              states={states}
+              requireGovEmail={process.env.SIGNUP_REQUIRE_GOV_EMAIL === "true"}
+            />
           </div>
 
           <p className="muted" style={{ fontSize: "0.82rem", marginTop: 18 }}>

@@ -238,6 +238,26 @@ PLATFORM_ADMIN_EMAIL=you@your-domain.gov
 PLATFORM_ADMIN_PASSWORD=REPLACE-run: openssl rand -base64 24
 ```
 
+**Who may open a tenant at `/signup`:** anyone, with any email address —
+that is the default and needs no variable. Self-registrations show up in the
+console labelled "self-service signup" (and flagged when the admin address
+isn't a .gov), so you can see and delete a junk tenant. You only need one of
+these two, and only if you want a different door — **PASTE** whichever
+applies into the same Variables screen:
+
+```
+SELF_SIGNUP=off
+```
+Operator-only: hides `/signup` entirely; you onboard every agency from
+`/admin`.
+
+```
+SIGNUP_REQUIRE_GOV_EMAIL=true
+```
+Restricts self-signup to `.gov` / `.mil` / state-local `.us` addresses. This
+turns away real school districts, joint-powers authorities, and `.org`
+jurisdictions — leave it unset unless you have a reason.
+
 ---
 
 ## Part E — fresh laptop from zero (~10 min, no accounts)
