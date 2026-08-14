@@ -19,8 +19,12 @@ import { BrandLockup, BrandMarkRaster, SparkIcon } from "./_components/ui";
  * (owner ask, 2026-08-13) rather than passed off as real quotes. Swap them
  * for the real thing the moment there is a real thing.
  *
- * Copy structure (owner ask, 2026-08-13): hero → the problem → how we help →
- * ROI → how the tech works → what we're hearing → close.
+ * Copy structure (owner redesign, 2026-08-14): hero → the problem → how we
+ * help → the agent era (MCP + verification + the measured north star) →
+ * how the tech works → tenancy → what we're hearing → close. The agent-era
+ * band replaced the abstract ROI stats: the three shipped differentiators
+ * (docs/requester-api.md, docs/release-verification.md,
+ * docs/transparency-impact.md) make the cost argument concretely now.
  */
 
 const PROBLEMS = [
@@ -43,7 +47,7 @@ const PILLARS = [
     n: "01",
     t: "Deflect",
     h: "Answer before they file",
-    d: "Plain-language search over everything you've released. The document arrives in seconds — no case file opened.",
+    d: "Plain-language search over everything you've released — and a report of the requests it prevented, in staff-hours.",
   },
   {
     n: "02",
@@ -55,15 +59,26 @@ const PILLARS = [
     n: "03",
     t: "Defend",
     h: "An audit log for counsel",
-    d: "Every action lands in an append-only log. Redactions burn into the bytes. Every release carries a named approver.",
+    d: "Every action lands in an append-only log. Redactions burn into the bytes. Every release carries a named approver — and a fingerprint anyone can verify.",
   },
 ];
 
-const ROI_STATS = [
-  { n: "6", l: "stages every request moves through", s: "Intake to release — traditionally by hand." },
-  { n: "1", l: "statutory clock, computed automatically", s: "Set at filing, straight from state law." },
-  { n: "0", l: "cost to a resident who asks first", s: "Archive answers never open a case file." },
-  { n: "100%", l: "of the paper trail, kept", s: "One append-only log, forever." },
+/* The agent-era trio — every claim shipped and checkable:
+   docs/requester-api.md · docs/release-verification.md ·
+   docs/transparency-impact.md. */
+const AGENT_ERA = [
+  {
+    h: "Your portal speaks MCP",
+    d: "Residents' and newsrooms' AI assistants search the archive, check status, and file — through the same public-records-only door.",
+  },
+  {
+    h: "Releases anyone can verify",
+    d: "Every release is fingerprinted at approval; a court or a newsroom confirms a file in the browser, byte for byte.",
+  },
+  {
+    h: "Fewer requests, measured",
+    d: "One report: requests vs. deflections, and what publishing next would be worth in staff-hours.",
+  },
 ];
 
 const STATS = [
@@ -124,6 +139,18 @@ const AGENTS = [
     name: "The copilot & deadline watch",
     does: "Answers questions about any request; a nightly sweep watches every clock.",
     human: "Every consultation is itself an audit event.",
+  },
+  {
+    stage: "After the release",
+    name: "The disclosure librarian",
+    does: "Mines repeated demand — requests, searches, misses — and points at what to publish next.",
+    human: "Publishing stays a named human's per-record call.",
+  },
+  {
+    stage: "If a denial is appealed",
+    name: "The appeal packet builder",
+    does: "Assembles counsel's dossier straight from the audit log — timeline, deadlines, exemptions, checksums.",
+    human: "Drafted for counsel's review. It never sends itself.",
   },
 ];
 
@@ -240,7 +267,8 @@ export default function MarketingHome() {
                 </div>
               </div>
               <p className="mk-panel-note">
-                Residents get answers in seconds. Staff get requests that arrive already organized.
+                Residents get answers in seconds — and so do their AI assistants, over MCP. Staff
+                get requests that arrive already organized.
               </p>
             </div>
             </div>
@@ -317,30 +345,36 @@ export default function MarketingHome() {
           </div>
         </section>
 
-        {/* Section 3 — ROI. What a request costs isn't just the letter you
-            write back; it's staff hours, a clock that runs regardless, and
-            the risk of a decision nobody can reconstruct later. */}
+        {/* Section 3 — the agent era (redesign, 2026-08-14). The problem
+            section says AI is driving volume UP; this is the answer: the
+            platform stands on both sides of the machine-filed future. Every
+            claim here shipped — the closing line points at the live
+            endpoint so a skeptic can check from their terminal. */}
         <section className="mk-band-plum">
           <div className="wrap mk-section">
             <div className="mk-head">
               <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
-                What it costs
+                The agent era
               </span>
-              <h2 className="mk-h2">A request is never just the letter that comes back.</h2>
+              <h2 className="mk-h2">Machine-filed requests are coming. Be on both sides.</h2>
               <p className="mk-sub">
-                Staff hours, a running clock, and decisions someone defends later — that&apos;s
-                what comes off your desk.
+                The platform that absorbs AI-written requests also serves your records to
+                residents&apos; AI assistants — safely.
               </p>
             </div>
-            <div className="mk-stats mk-reveal">
-              {ROI_STATS.map((s) => (
-                <div key={s.n} className="mk-stat">
-                  <div className="mk-stat-n">{s.n}</div>
-                  <div className="mk-stat-l">{s.l}</div>
-                  <div className="mk-stat-sub">{s.s}</div>
+            <div className="mk-trio mk-reveal">
+              {AGENT_ERA.map((c) => (
+                <div key={c.h}>
+                  <div className="mk-trio-rule" />
+                  <h3>{c.h}</h3>
+                  <p>{c.d}</p>
                 </div>
               ))}
             </div>
+            <p className="mk-sub" style={{ marginTop: 30 }}>
+              Try it now: point any MCP client at{" "}
+              <span className="mono">/api/v1/riverton/mcp</span> on the live demo.
+            </p>
           </div>
         </section>
 
@@ -514,6 +548,7 @@ export default function MarketingHome() {
               <Link href="/riverton/archive">Browse released records</Link>
               <Link href="/riverton/track">Track a request</Link>
               <Link href="/riverton/log">Public request log</Link>
+              <Link href="/riverton/authenticity">Verify a released document</Link>
             </div>
             <div className="mk-foot-col">
               <h4>Contact</h4>
