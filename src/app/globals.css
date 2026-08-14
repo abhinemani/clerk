@@ -2115,6 +2115,170 @@ label.lbl {
   color: var(--ink-2);
   font-weight: 600;
 }
+/* THE PROOF PANELS (owner, 2026-08-14: "use the look and feels") — the
+   agent-era claims render as MINIATURES OF THE REAL SURFACES, the same way
+   the hero renders the answer box: an MCP exchange, the authenticity page's
+   verified card, and the reports page's requests-vs-deflections bars. Same
+   glass-slab grammar as .mk-chat, at card scale; captions carry the one-
+   sentence claims (LEAN rule — the illustrations do the talking). */
+.mk-proofs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 44px;
+}
+@media (max-width: 940px) {
+  .mk-proofs {
+    grid-template-columns: 1fr;
+  }
+}
+.mk-proof {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, rgba(42, 49, 60, 0.9), rgba(15, 20, 26, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 24px 54px -22px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+}
+.mk-proof-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mk-proof-head::before {
+  /* the letterhead tick, panel-title grammar at marketing scale */
+  content: "";
+  width: 13px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 18%, transparent));
+}
+.mk-proof-body {
+  flex: 1;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 14px;
+}
+.mk-proof-caption {
+  padding: 11px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+/* MCP miniature: a tool call and its result, terminal-toned. */
+.mk-proof-call {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.mk-proof-call b {
+  color: var(--ai);
+  font-weight: 650;
+}
+.mk-proof-result {
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-left: 3px solid var(--ai);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.mk-proof-result em {
+  display: block;
+  margin-top: 3px;
+  font-style: normal;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+/* Verification miniature: the authenticity page's verified card, verbatim. */
+.mk-proof-verified {
+  padding: 11px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-left: 3px solid var(--ok);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+.mk-proof-verified strong {
+  color: var(--ok);
+  font-weight: 700;
+}
+.mk-proof-fingerprint {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* North-star miniature: the reports page's dual bars, at postcard scale. */
+.mk-proof-bars {
+  display: grid;
+  gap: 9px;
+}
+.mk-proof-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.mk-proof-bar-row .mono {
+  width: 46px;
+  flex: none;
+}
+.mk-proof-bar-pair {
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+.mk-proof-bar {
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.mk-proof-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+}
+.mk-proof-bar-req > span {
+  background: var(--primary);
+}
+.mk-proof-bar-def > span {
+  background: var(--ai);
+}
+.mk-proof-pill {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--ai);
+}
+
 .mk-panel-note {
   margin-top: 14px;
   text-align: center;

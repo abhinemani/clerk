@@ -67,10 +67,20 @@ asks: "redesign the homepage… logo stays the same" / "main divs for the
 admin pages should have a white/cream background… more official").**
 - **Homepage** (`src/app/page.tsx`, logo/lockup untouched): the abstract
   "What it costs" ROI-stat band is REPLACED by "The agent era" (same plum
-  band, texture map intact) — the three shipped differentiators as a trio
-  (portal speaks MCP · releases anyone can verify · fewer requests,
-  measured) closing with the literal endpoint (`/api/v1/riverton/mcp`)
-  so a skeptic can check from a terminal. Roster grew 6→8 (clean 2×4):
+  band, texture map intact) — and per the owner's follow-up ("use the
+  look and feels"), the three differentiators render as **PROOF PANELS:
+  miniatures of the real surfaces** in the hero-chat's glass-slab grammar
+  (`.mk-proof*` in globals.css): an MCP tool exchange (search_records →
+  file_request → PR-2026-00184, the hero's scenario), the authenticity
+  page's "✓ Authentic release" card mirroring the SEEDED release
+  (janitorial-contract-2025.pdf · PR-2026-00002 · real sha prefix —
+  literally checkable on /riverton/authenticity), and the reports page's
+  requests-vs-deflections bars at postcard scale with the projection
+  pill + basis line. Captions carry the one-sentence claims (LEAN rule);
+  each panel is role="img" with a full aria-label, like the hero chat.
+  Section closes with the literal endpoint (`/api/v1/riverton/mcp`)
+  so a skeptic can check from a terminal. Verified: no horizontal
+  overflow at 1440 or 390px. Roster grew 6→8 (clean 2×4):
   the disclosure librarian and the appeal packet builder. Deflect/Defend
   pillar bodies absorb the measured-report and fingerprint claims (still
   one sentence each — the LEAN rule held; page structure note at the top
