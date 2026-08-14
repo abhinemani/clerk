@@ -77,6 +77,20 @@ is now a token scale, not ad-hoc numbers:
   tight bottoms but rise to the snug top. Marketing was already fluid
   (mk-hero clamp 64–108px; mk-section clamp 54–88px) — untouched.
   Future pages: use the tokens, never a literal.
+- **HERO RECOMPOSED (owner: "the homepage hero is not well designed").**
+  Three structural fixes, not tweaks: (1) columns are TOP-ALIGNED
+  (`align-items: start` on .mk-hero-grid) — centering the short headline
+  column against the taller panel had left it floating with no shared
+  top line; a 6px optical offset meets the eyebrow to the chat header.
+  (2) A **proof row** (`.mk-hero-proof`: 5 statute profiles · 100%
+  audit-logged · 0 services, stat-numeral grammar with gold base rules)
+  anchors the headline column's foot where dead space was. (3) The chat
+  panel is STAGED as a composed object (`.mk-chat-wrap`): an offset
+  gold backing plate (engraved-plate language at hero scale) plus its
+  own key light — GOTCHA: the glow's radial ellipses must fit their box
+  (center ± radius ≤ 100%) or the clipped edges print as faint hard
+  lines; the comment in globals.css records the rule. Verified 1440/
+  1000/390, no overflow.
 - **HERO CHAT COMPACTED (owner follow-up: "the image on the homepage
   hero is too tall").** The chat illustration went 712→587px (hero
   961→836) via tighter .mk-chat-* spacing (body gap/padding, bubble

@@ -1324,8 +1324,40 @@ label.lbl {
   z-index: 1;
   /* Vertical padding lives on .mk-hero-grid, NOT here (owner, 2026-08-14:
      the chat panel sat nearly flush under the nav) — padding on this left
-     column only let the right column ride to the section's top edge. */
+     column only let the right column ride to the section's top edge. The
+     small offset below is optical: the eyebrow's cap line meets the chat
+     panel's header text, not its border. */
+  padding-top: 6px;
   max-width: 880px;
+}
+/* Hero proof row — the stat-numeral grammar (gold base rule) at hero scale. */
+.mk-hero-proof {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px clamp(28px, 3.5vw, 52px);
+  margin-top: 40px;
+}
+.mk-hero-proof .n {
+  font-size: 1.35rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.mk-hero-proof .n::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 2px;
+  margin-top: 5px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--gold) 55%, transparent);
+}
+.mk-hero-proof .l {
+  margin-top: 6px;
+  max-width: 150px;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--muted);
 }
 
 .mk-eyebrow {
@@ -2001,10 +2033,14 @@ label.lbl {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.8fr);
   gap: clamp(28px, 5vw, 64px);
-  align-items: center;
+  /* TOP-aligned, not centered (owner redesign, 2026-08-14): centering the
+     shorter headline column against the taller panel left it floating in
+     dead space with no shared top line. Both columns now hang from the
+     same edge; the proof row anchors the headline column's foot. */
+  align-items: start;
   /* The hero's breathing room, on the GRID so both columns get it — the
      headline and the chat panel clear the nav together. */
-  padding-block: clamp(64px, 9vw, 108px) clamp(52px, 7vw, 84px);
+  padding-block: clamp(56px, 8vw, 96px) clamp(52px, 7vw, 84px);
 }
 /* Grid items may never dictate width — a nowrap span inside the chat once
    forced the whole hero past a phone viewport. */
@@ -2016,6 +2052,43 @@ label.lbl {
    Lives on the LIGHT hero, so everything reads from theme tokens — it
    follows the visitor into dark mode for free. The AI teal marks the
    assistant, exactly as it does in the product. */
+/* The chat panel's staging (owner redesign, 2026-08-14): the bare slab read
+   as a screenshot pasted beside text. It now sits as a COMPOSED OBJECT —
+   an offset gold backing plate (the engraved-plate corner language at hero
+   scale) and its own key light, so the panel is lit and layered instead of
+   floating in the dark. */
+.mk-chat-wrap {
+  position: relative;
+}
+.mk-chat-wrap::after {
+  /* localized key light behind the panel — gold from the upper right where
+     the page's dawn comes from, plum settling at the lower left */
+  content: "";
+  position: absolute;
+  inset: -64px -72px;
+  /* Ellipses must FIT the box (center ± radius ≤ 100%) or their clipped
+     edges print as faint hard lines around the glow. */
+  background:
+    radial-gradient(ellipse 44% 34% at 54% 36%, color-mix(in srgb, var(--gold) 16%, transparent), transparent 72%),
+    radial-gradient(ellipse 44% 36% at 46% 62%, color-mix(in srgb, var(--plum) 58%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.mk-chat-wrap::before {
+  /* the backing plate, offset down-right */
+  content: "";
+  position: absolute;
+  top: 24px;
+  right: -16px;
+  bottom: -16px;
+  left: 24px;
+  border: 1px solid color-mix(in srgb, var(--gold) 32%, transparent);
+  border-radius: var(--r-lg);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--gold) 6%, transparent), transparent 55%);
+  pointer-events: none;
+}
+.mk-chat-wrap .mk-chat {
+  z-index: 1;
+}
 .mk-chat {
   position: relative;
   border: 1px solid rgba(255, 255, 255, 0.14);
