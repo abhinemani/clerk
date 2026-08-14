@@ -33,24 +33,10 @@ export default async function Portal({ params }: { params: Promise<{ agency: str
           Ask in plain language. Many records are already public — you can often get what you need in
           seconds, without filing a request.
         </p>
+        {/* No reassurance chips under the box (owner, 2026-08-14). They sat
+            between the question box and its answers — the one place on the
+            page where nothing may compete for the eye. */}
         <PortalTabs agencySlug={agency.slug} aiEnabled={Boolean(process.env.ANTHROPIC_API_KEY)} />
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            justifyContent: "center",
-            marginTop: 18,
-          }}
-        >
-          {["Free", "No account needed", "Plain-language answers", "Typical response: 10 days"].map(
-            (chip) => (
-              <span key={chip} className="tag">
-                {chip}
-              </span>
-            ),
-          )}
-        </div>
       </div>
     </section>
 

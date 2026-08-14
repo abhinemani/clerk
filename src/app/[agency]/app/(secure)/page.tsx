@@ -463,8 +463,7 @@ export default async function Queue({
 
       <style>{`
         .cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        @media (max-width: 820px) { .cc-grid { grid-template-columns: 1fr; }
-          .stat-row { grid-template-columns: repeat(2, 1fr) !important; } }
+        @media (max-width: 820px) { .cc-grid { grid-template-columns: 1fr; } }
       `}</style>
     </div>
   );
