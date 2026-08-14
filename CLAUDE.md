@@ -61,6 +61,16 @@ twice: a navy wordmark landing on near-black, then gold ornament going pale
 yellow on a dark band. If you add a theme-reactive asset or token, first ask
 what the ground under it does.
 
+**The app's surface language (owner-directed, 2026-08-14, all in
+globals.css, all print-guarded):** the LIT GROUND (body lighting rig —
+vignette, gold dawn, slate key light, plum ember + floor glow, hatch,
+grain, vertical falloff; viewport-fixed), the ENGRAVED-PLATE card system
+(gold corner bracket on `.card-pad`, letterhead tick on `.panel-title`,
+base rule under `.stat-num`, hatch in the slab), and `.civic-hero` header
+bands on public pages. These are system-level: new pages inherit them by
+using the standard classes — don't re-create per-page texture, and don't
+strip the ornaments to "simplify".
+
 Status colors (overdue/due/ok) and the AI teal are **functional, not brand**.
 The board does not speak to them and they stay as tuned.
 
@@ -106,8 +116,13 @@ harness) is the substrate — Bucket B agents are configurations over it
 relaxed: action tiers stay enforced in code (Tier 3 can never be
 configured autonomous, the forbidden set stands), every agent action lands
 in the append-only log, and invariant 9 still means no agent flips
-internal→public — agents propose, a named human publishes. Build order per
-the spec: B1 → B3, then B4; connected-sources phase 3 as its own window.
+internal→public — agents propose, a named human publishes.
+**Live so far:** B1 (disclosure librarian) and B3 (appeal packets); the
+§16.2 checkpoint/steering surface (`/app/agents` — parked runs, per-step
+approvals, resume through the harness); and the learning loop v1
+(docs/learning-loop.md — "plays"). Next per HANDOFF: B2/B4, then the
+fulfillment agent (enum migration → eval golden set → planner behind a
+per-agency flag).
 
 ## Stack (do not substitute without asking)
 Next.js App Router + TypeScript (strict), Drizzle on **embedded PGlite by
@@ -151,6 +166,18 @@ path.
   Never put min/max bounds on numeric fields in a pipeline schema — the API
   rejects them silently (see HANDOFF gotcha 9); clamp on read.
 - Fees/payments were removed on purpose — do not re-add.
+- Learning loop ("plays", docs/learning-loop.md): `request_plays` is a
+  nightly FULL-REBUILD materialized aggregate of the append-only record —
+  never mutate play rows incrementally, never add a second consult path.
+  Learned-route confidence is capped at 0.9 IN CODE (explicit routing
+  rules own 1.0). `archive_miss` deflection rows are demand signal, never
+  ROI — every deflection count must exclude them.
+- Agent steering (§16.2/§16.3): checkpoint approval is PER-STEP
+  (`approvedByUserId` on the plan step), never per-run; forbidden actions
+  ignore approvals entirely. Deadline-agent capabilities read only their
+  step's `input` + injected deps (no closures over sweep-time state) so
+  persisted plans resume across processes — keep that rule for any agent
+  whose runs persist.
 - Connected-source standing publication: an attestation makes FUTURE slices
   be born public, never flips an existing internal document (that direction
   is invariant 9's). `classifyNewSlice()` in connectedSourceService is the

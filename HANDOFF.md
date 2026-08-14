@@ -12,38 +12,45 @@ newest 2026-08-14 UX-pass entry — e2e re-run that session).
 
 ## START HERE (next session)
 
-State in one line: the product is demo-complete through connected sources
-phase 2 and RAG'd triage; nothing is half-built; every entry below was
-verified as described at its date.
+State in one line: demo-complete product, **Phase 5 open with two agents
+live** (B1 disclosure librarian, B3 appeal packets) plus the §16.2
+checkpoint/steering surface, the **learning loop v1** ("plays" —
+docs/learning-loop.md, migration 0012), a consolidated ingestion hub
+(/app/admin/data with drag-and-drop upload), and a full UX/visual pass
+(staff nav rail, archive storefront, civic hero bands, engraved-plate
+card ornament, lit page ground). Nothing is half-built; every entry below
+was verified as described at its date.
 
 **The standing eval debt is CLEARED** (2026-08-13 keyed session, entry
-below): scorecard recorded, RAG'd triage proven live with precedent
-citations in the audit events, floors untouched (no misbehavior signal).
-The laptop's `.env` now carries ANTHROPIC_API_KEY (owner did Part A);
+below). The laptop's `.env` carries ANTHROPIC_API_KEY (owner did Part A);
 cloud sessions get keys per laptop-setup ⚡ steps.
 
-**Build candidates, roughly by staff-side value** (all offline,
-all sized for one window):
-1. ~~Correspondence threading + Message-ID dedupe~~ **DONE** (2026-08-13,
-   newest entry).
-2. ~~Release-history import~~ **DONE** (2026-08-13 top-3 entry).
-3. ~~Intake dedup on stored request vectors~~ **DONE** (2026-08-13 top-3
-   entry — the premise was half-wrong: it was lexical-only, not
-   re-embedding; now stored-vector cosine with lexical fallback).
-4. ~~Small: annual-report CSV companion · proactive retention-destruction
-   warnings · "reviewed by counsel on DATE" field on statute profiles ·
-   responder email on dispatch~~ ALL DONE (2026-08-13, newest entry;
-   responder email had already shipped 2026-08-05 — the bullet was stale).
+**GATES RELEASED (owner, 2026-08-13):** connected-sources phase 3 AND
+Phase 5 agents (docs/agentic-horizon.md Bucket B) are buildable.
+Guardrails unchanged: tiers enforced in code, invariant 9 untouched —
+agents propose, a named human publishes.
 
-**GATES RELEASED (owner, 2026-08-13, this session):** connected-sources
-phase 3 AND Phase 5 agents (docs/agentic-horizon.md Bucket B) are now
-buildable. B1 (proactive-disclosure librarian) AND B3 (appeal-defense
-packet builder) shipped the same day — see the two newest entries. Next
-candidates: B2 (consistency auditor — cheap, read-only) or B4
-(third-party notice steward — the differentiator, needs notice rules in
-state profiles); connected-sources phase 3 (row store / tabular answers)
-deserves its own full window. Guardrails unchanged: tiers enforced in
-code, invariant 9 untouched — agents propose, a named human publishes.
+**Build candidates, in rough priority order:**
+1. **Fulfillment agent path** (the biggest thing left; see the 2026-08-13
+   checkpoint-surface entry): (a) migration adding Phase-5 values to the
+   DB `agent_type` enum, (b) scope-decomposition golden set in the eval
+   suite, (c) the model-driven planner behind a per-agency flag, demo
+   tenant first. The checkpoint UX it needs is DONE (/app/agents).
+2. **B2 consistency auditor** (cheap, read-only Tier 1 — reads the
+   exemption logs finalizeRedaction writes; weekly digest + card) or
+   **B4 third-party notice steward** (differentiator; needs notice rules
+   added to state profiles as data).
+3. **Learning loop v2**: play stats as structured prompt context (REQUIRES
+   `npm run eval`), embedding-based play matching over stored ask vectors,
+   letter scaffolds per play.
+4. **Connected-sources phase 3** (row store / tabular answers) — its own
+   full window; wrong-table answers are confidently wrong, so provenance
+   and refusal-when-unsure are load-bearing from day one.
+5. **Hybrid staff search** (per-chunk embeddings at ingest; service
+   signature ready) + the intake-dedup stored-vector perf item.
+6. **Mobile pass + animation review** — the UX pass verified desktop
+   width only, reduced-motion only. Also: redaction-studio trio (redo,
+   bar→log-card, redact-everywhere), backup/restore runbook.
 
 **Before every push** (full contract in CLAUDE.md): offline suite green,
 HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
