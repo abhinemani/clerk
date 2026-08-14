@@ -138,6 +138,12 @@ load.
 
 ## 6. The transparency autopilot (the north-star metric)
 
+**✅ v1 SHIPPED 2026-08-14 (docs/transparency-impact.md):** the reports
+page carries the north-star chart (requests vs. deflections, publications
+annotated) and quantified publish-next recommendations with their
+arithmetic printed. Remaining from this bet: the public-page version and
+requests-per-resident normalization. Original case:
+
 The homepage already promises "Fewer requests." Make that the measured
 product, not a tagline:
 

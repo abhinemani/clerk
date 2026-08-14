@@ -5,6 +5,7 @@ import { decisionsFor, getWorkspace, outstandingTasks, workloadFor } from "@/lib
 import { deadlineRisk, byRiskDesc } from "@/domain/deadlineRisk";
 import { documentsAtRetentionRisk, type RetentionStatus } from "@/domain/retention";
 import { mineDemandPatterns, type DemandPattern } from "@/domain/demandPatterns";
+import { demandSignalsFrom } from "@/domain/transparencyImpact";
 import { isAssignableRole } from "@/domain/workflow";
 import { matchesQueueFilters, parseQueueFilters, hasActiveFilters } from "@/domain/queueFilters";
 import { runDeadlineSweep } from "@/agents/deadlineAgent";
@@ -137,24 +138,9 @@ export default async function Queue({
     );
 
     const allRequests = await repo.listRequests(ws.agencyId);
-    demandPatterns = mineDemandPatterns(
-      [
-        ...allRequests.map((r) => ({
-          kind: "request" as const,
-          text: r.interpretedScope ?? r.rawText,
-          at: r.receivedAt ?? r.createdAt,
-          ref: r.publicId,
-        })),
-        ...deflections
-          .filter((d) => (d.query ?? "").trim().length >= 3)
-          .map((d) => ({
-            kind: d.kind === "archive_miss" ? ("archive_miss" as const) : ("deflection_query" as const),
-            text: d.query!,
-            at: d.createdAt,
-          })),
-      ].sort((a, b) => a.at.getTime() - b.at.getTime()),
-      { now: ws.now },
-    );
+    // Shared signal builder (domain/transparencyImpact) — the reports page's
+    // impact section mines the same signals, so the two can never diverge.
+    demandPatterns = mineDemandPatterns(demandSignalsFrom(allRequests, deflections), { now: ws.now });
 
     const closedRequests = ws.requests.filter((r) => r.closedAt != null);
     onTimeLabel = closedRequests.length

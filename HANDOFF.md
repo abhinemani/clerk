@@ -7,8 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**933 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-14 release-verification entry).
+**937 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-14 transparency-impact entry; e2e last run at the
+release-verification build — nothing it covers changed since).
 
 ## START HERE (next session)
 
@@ -60,7 +61,32 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, third build of the window): RELEASE
+**NEWEST (2026-08-14, cloud session, fourth build of the window):
+TRANSPARENCY IMPACT — big-ticket §6's first slice is LIVE
+(docs/transparency-impact.md).** Item three of the "one at a time" run:
+the north-star metric on the page. /app/reports gains a "Transparency
+impact" section (live agencies only): totals (hours avoided all-time /
+deflections / archive size), the requests-vs-deflections 6-month chart
+(publications + misses annotated per month, goal stated in the caption),
+and "What publishing next would be worth" — the B1 demand patterns with
+a CONSERVATIVE projection each (requests × 1.0h citation-answer rate;
+searches/misses cited as demand, never monetized — no double counting)
+and a computeDueDate-style `basis` string so every number traces to the
+request log.
+- `src/domain/transparencyImpact.ts` (pure, tested) + service loader.
+  REFACTOR WORTH KNOWING: `demandSignalsFrom` is now the ONE demand-
+  signal builder — the command center's inline signal code was replaced
+  with it, so the disclosure card and the impact section can't diverge.
+- archive_miss stays out of every ROI column (house rule); "records
+  published" buckets by document createdAt (classification flips aren't
+  separately timestamped — copy says so).
+- 937 tests (+4), typecheck clean. Browser-verified: section renders on
+  the seeded server; opportunities card appears once ≥3 clustered
+  signals exist (verified by filing 3 similar requests through the new
+  requester API — the two features compose). No migration, no env vars,
+  no laptop-setup change.
+
+**PREVIOUS (2026-08-14, cloud session, third build of the window): RELEASE
 VERIFICATION — big-ticket §5 is LIVE (docs/release-verification.md).**
 Item two of the owner's "one at a time, push and merge" run. Invariant 8's
 checksums, made public: anyone holding a released file can prove it is
