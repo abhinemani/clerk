@@ -67,9 +67,19 @@ vignette, gold dawn, slate key light, plum ember + floor glow, hatch,
 grain, vertical falloff; viewport-fixed), the ENGRAVED-PLATE card system
 (gold corner bracket on `.card-pad`, letterhead tick on `.panel-title`,
 base rule under `.stat-num`, hatch in the slab), and `.civic-hero` header
-bands on public pages. These are system-level: new pages inherit them by
-using the standard classes — don't re-create per-page texture, and don't
-strip the ornaments to "simplify".
+bands on public pages. The marketing page speaks the same grammar:
+`.mk-eyebrow::before` gold bar on every eyebrow, `.mk-stat-n::after`
+base rule under stat numerals. These are system-level: new pages inherit
+them by using the standard classes — don't re-create per-page texture,
+and don't strip the ornaments to "simplify".
+
+**Homepage copy is LEAN by owner directive (2026-08-14, two rounds):**
+headlines carry the argument; card bodies are ONE sentence; stat
+sub-lines are fragments; section subs are one line. When editing the
+homepage, cut before you add — re-inflating the copy reverts an explicit
+owner call. Claims and numbers must stay checkable against the codebase,
+and the TESTIMONIALS keep their "illustrative, not customer quotes"
+framing until real ones exist.
 
 Status colors (overdue/due/ok) and the AI teal are **functional, not brand**.
 The board does not speak to them and they stay as tuned.

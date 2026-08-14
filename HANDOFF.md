@@ -71,8 +71,10 @@ jobs. One system. No new headcount."; quote body ends "Two years later,
 the log reads like a defense exhibit."; closing eyebrow "An afternoon,
 not a procurement." TESTIMONIALS untouched (the illustrative disclaimer
 wording matters). Owner then asked for less text density: card bodies cut to one sentence, stat sublines to fragments, section subs to one line, roster entries compacted — the page lost ~500px of copy. Browser-verified full-page, screenshots delivered;
-894 tests, typecheck clean. Owner reviewed screenshots pre-push; merge
-to main awaits their word.
+894 tests, typecheck clean. **Owner approved both rounds and merged; the
+lean-copy rule is now pinned in CLAUDE.md's brand section** (headlines
+carry, card bodies one sentence, stat sub-lines fragments, subs one
+line — cut before you add).
 
 **PREVIOUS (2026-08-14, cloud session): THE UX PASS — owner-directed
 design/flow review, then all seven findings built in one window.**
