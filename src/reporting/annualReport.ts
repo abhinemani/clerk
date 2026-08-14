@@ -15,6 +15,11 @@ export function renderComplianceNarrative(
   report: ComplianceReport,
   agencyName: string,
   periodLabel: string,
+  opts?: {
+    /** Counsel sign-off on the statute configuration — printed so the report
+     *  is honest about whether its deadline math was ever legally reviewed. */
+    statuteReview?: { reviewedBy: string; reviewedOn: string } | null;
+  },
 ): string {
   const title = `${agencyName} — Public Records Compliance Report`;
   const months = Object.entries(report.volumeByMonth).sort(([a], [b]) => a.localeCompare(b));
@@ -24,6 +29,9 @@ export function renderComplianceNarrative(
     title,
     "=".repeat(title.length),
     `Period: ${periodLabel}`,
+    opts?.statuteReview
+      ? `Statute configuration reviewed by counsel: ${opts.statuteReview.reviewedBy}, ${opts.statuteReview.reviewedOn}`
+      : "Statute configuration not yet reviewed by counsel.",
     "",
     "Summary",
     "-------",

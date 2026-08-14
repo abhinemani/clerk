@@ -27,7 +27,13 @@ async function buildDb(): Promise<Db> {
       import("drizzle-orm/postgres-js/migrator"),
       import("postgres").then((m) => m.default),
     ]);
-    const client = postgres(url, { prepare: false, max: 1 });
+    // prepare:false keeps transaction-mode poolers (Neon/pgBouncer) happy.
+    // Pool size: serverless platforms want 1 per instance (the platform fans
+    // out instances and an external pooler multiplexes); a long-running
+    // container needs a real pool or every concurrent request queues behind
+    // one connection. PG_POOL_MAX overrides either default.
+    const max = Number(process.env.PG_POOL_MAX ?? (process.env.VERCEL ? 1 : 10));
+    const client = postgres(url, { prepare: false, max });
     const db = drizzle(client, { schema }) as unknown as Db;
     await migrate(db as never, { migrationsFolder: MIGRATIONS });
     return db;

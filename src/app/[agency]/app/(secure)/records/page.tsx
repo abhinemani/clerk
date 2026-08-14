@@ -131,7 +131,7 @@ export default async function RecordsQueuePage({
   ];
 
   return (
-    <div className="wrap" style={{ maxWidth: 900, paddingBlock: "36px 48px" }}>
+    <div className="wrap" style={{ maxWidth: 900, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Command center
       </Link>
@@ -147,8 +147,8 @@ export default async function RecordsQueuePage({
             only). Every decision is recorded under your name.
           </p>
         </div>
-        <Link href={`/${slug}/app/admin/records-import`} className="btn btn-sm">
-          Import records
+        <Link href={`/${slug}/app/admin/data`} className="btn btn-sm">
+          Data &amp; files
         </Link>
       </div>
 

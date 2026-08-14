@@ -76,7 +76,7 @@ export default async function TaskPage({ params }: { params: Promise<{ token: st
   if (!view) notFound();
 
   return (
-    <div className="wrap" style={{ maxWidth: 720, paddingBlock: "40px" }}>
+    <div className="wrap" style={{ maxWidth: 720, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <div style={{ textAlign: "center", marginBottom: 24 }}>
         <span className="eyebrow">{view.agencyName} · Records request task</span>
         <h1 style={{ fontSize: "1.5rem", marginTop: 8 }}>

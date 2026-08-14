@@ -73,7 +73,7 @@ export default async function VisualRedactPage({
   }
 
   return (
-    <div className="wrap" style={{ paddingBlock: "28px 24px" }}>
+    <div className="wrap" style={{ paddingBlock: "var(--page-top-snug) 24px" }}>
       <Link href={`/${slug}/app/requests/${id}`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← {detail.request.publicId}
       </Link>

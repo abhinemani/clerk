@@ -9,6 +9,9 @@ import { RoutingRulesPanel } from "../../../../_components/RoutingRulesPanel";
 import { DepartmentManager, type DepartmentRow } from "../../../../_components/DepartmentManager";
 import { BrandingPanel } from "../../../../_components/BrandingPanel";
 import { CompliancePanel, type StatuteVM } from "../../../../_components/CompliancePanel";
+import { StatusApiPanel } from "../../../../_components/StatusApiPanel";
+import { RequesterApiPanel } from "../../../../_components/RequesterApiPanel";
+import { ReleaseVerificationPanel } from "../../../../_components/ReleaseVerificationPanel";
 import { effectiveWorkflowSettings } from "@/domain/workflow";
 import { computeSetupStatus } from "@/domain/setupChecklist";
 import { getStateProfile } from "@/statute/profiles";
@@ -90,7 +93,7 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
     : null;
 
   return (
-    <div className="wrap" style={{ maxWidth: 820, paddingBlock: "36px 48px" }}>
+    <div className="wrap" style={{ maxWidth: 820, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Command center
       </Link>
@@ -111,11 +114,8 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
           <Link href={`/${slug}/app/admin/directory`} className="btn btn-sm">
             Referral directory
           </Link>
-          <Link href={`/${slug}/app/admin/records-import`} className="btn btn-sm">
-            Import records
-          </Link>
-          <Link href={`/${slug}/app/admin/sources`} className="btn btn-sm">
-            Connected data sources
+          <Link href={`/${slug}/app/admin/data`} className="btn btn-sm">
+            Data &amp; files
           </Link>
           <Link href={`/${slug}/app/admin/import`} className="btn btn-sm">
             Import legacy requests
@@ -124,7 +124,9 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
       </div>
 
       {/* Section index — one glance, one click to any lever. */}
-      <nav aria-label="Admin sections" style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0 22px" }}>
+      {/* Sticky below the workspace rail: this page is nine sections long,
+          so its index has to travel with the scroll to be a real index. */}
+      <nav aria-label="Admin sections" className="admin-section-nav">
         {sections.map((s) => (
           <a key={s.id} href={`#${s.id}`} className="tag" style={{ textDecoration: "none" }}>
             {s.label}
@@ -245,6 +247,29 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
         statute={statuteVM}
         logEnabled={agencySettings.publicRequestLog === true}
       />
+      <div style={{ marginTop: 12 }}>
+        <StatusApiPanel
+          agencySlug={slug}
+          enabled={agencySettings.statusApi?.enabled === true}
+          webhookUrl={agencySettings.statusApi?.webhookUrl ?? null}
+        />
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <RequesterApiPanel
+          agencySlug={slug}
+          enabled={agencySettings.requesterApi?.enabled === true}
+          filingEnabled={
+            agencySettings.requesterApi?.enabled === true &&
+            agencySettings.requesterApi?.filingEnabled !== false
+          }
+        />
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <ReleaseVerificationPanel
+          agencySlug={slug}
+          enabled={agencySettings.releaseVerification?.enabled === true}
+        />
+      </div>
 
       <h2 id="automation" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>
         Workflow automation

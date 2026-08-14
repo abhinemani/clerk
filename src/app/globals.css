@@ -104,14 +104,29 @@
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
   --wrap: 1120px;
+
+  /* VERTICAL RHYTHM (owner, 2026-08-14 spacing pass): one scale on the 8px
+     grid, replacing the ad-hoc 28/36/40/48px page paddings. --page-top is
+     the air between the sticky chrome (banner + nav + rail) and the first
+     line of content — under ~48px it reads cramped beneath two stacked
+     bars. --page-bottom is deliberately larger: pages should exhale before
+     the footer, not stop. --page-top-snug is for workbenches (request
+     detail, redaction studio, search) that keep tools high on purpose. */
+  --page-top: 56px;
+  --page-top-snug: 40px;
+  --page-bottom: 88px;
 }
 
-/* SCREEN-scoped on purpose: print always takes the light palette. A visitor
-   on a dark OS printing any page used to get near-black grounds with pale
-   ink — ink-burning and illegible on paper. Ground-pinned surfaces (hero,
-   gov footer/banner) are exempt by design: they paint their own dark ground
-   in both themes and stay self-consistent in print. */
-@media screen and (prefers-color-scheme: dark) {
+/* DARK-LOCKED (owner directive 2026-08-13): the dark style IS the product's
+   style on every screen, regardless of the visitor's OS preference — this
+   block used to be gated on prefers-color-scheme: dark and is now
+   unconditional on screens. The light :root palette above survives for ONE
+   consumer: PRINT. Paper always takes the light values (a dark page prints
+   as an ink-burning slab), which is why this stays a media query at all —
+   `screen`, not `all`. Ground-pinned surfaces (gov footer/banner, dark
+   band, nav) still paint their own ground and stay self-consistent in
+   print. */
+@media screen {
   :root {
     /* The board is a dark-first identity: these ARE its colors, undiluted. */
     --paper: #0f141a;
@@ -296,8 +311,9 @@ h3 {
 /* ---- top nav ----
    PINNED DARK CHROME (owner directive 2026-08-13): the nav's ground is dark
    in BOTH themes — page content below keeps swapping, the bar does not. It
-   joins the ground-pinned family (hero, gov banner, gov footer), which also
-   settles the logo question: the dark lockup rides here always (swap on the
+   joins the ground-pinned family (dark band, gov banner, gov footer — the
+   hero left the family the same day, owner directive), which also settles
+   the logo question: the dark lockup rides here always (swap on the
    GROUND, not the theme).
 
    Implemented by re-declaring the theme tokens on .nav, so everything inside
@@ -485,7 +501,164 @@ h3 {
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.16s ease;
 }
+/* TEXTURED DARK, APP-WIDE (owner, 2026-08-13 — "the divs had more
+   texture/gradients; this is just dark and dark"). The styled dark is not
+   only the marketing page: every surface gets it. Screen-scoped so PRINT
+   keeps the flat light card above. Kept subtler than the marketing slabs —
+   these are work surfaces; the texture must read as material, not noise. */
+@media screen {
+  body {
+    /* The room the product sits in (owner, 2026-08-14: the ground itself
+       must not be flat). A full lighting rig, all UNDER the content and
+       viewport-fixed so the light source doesn't swim on scroll:
+       vignette → gold dawn (top-left) → cool key light (center-top) →
+       plum ember (right shoulder) → floor glow (bottom-left) → hatch →
+       photographic grain → vertical falloff base (lighter up top, darker
+       at the foot of the page). */
+    background:
+      radial-gradient(ellipse 130% 100% at 50% 30%, transparent 55%, rgba(4, 7, 11, 0.5) 100%),
+      radial-gradient(ellipse 46% 32% at 12% -6%, color-mix(in srgb, var(--gold) 10%, transparent), transparent 70%),
+      radial-gradient(ellipse 95% 52% at 50% -14%, #2b3646, transparent 66%),
+      radial-gradient(ellipse 54% 44% at 106% 0%, color-mix(in srgb, var(--plum) 75%, transparent), transparent 62%),
+      radial-gradient(ellipse 60% 34% at -6% 112%, color-mix(in srgb, var(--plum) 40%, transparent), transparent 60%),
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 9px),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E"),
+      linear-gradient(180deg, #151c26 0%, #0f141a 55%, #0b0e13 100%);
+    background-attachment: fixed;
+  }
+  .card {
+    /* Glass slab with a LIT top edge — the inset highlight is what makes a
+       dark card read as material instead of a flatter shade of dark. The
+       hatch layer under the gradient is the engraver's texture at card
+       scale (owner, 2026-08-14: "visual elements on the divs"). */
+    background:
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 10px),
+      linear-gradient(180deg, rgba(52, 60, 75, 0.66), rgba(20, 26, 34, 0.95));
+    border-color: rgba(255, 255, 255, 0.11);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 14px 34px -18px rgba(0, 0, 0, 0.65);
+  }
+  /* Engraved-plate corner: a gold bracket in the padding zone of every
+     padded card — the plate-maker's mark that keeps a grid of dark slabs
+     from reading as identical rectangles. Sits inside the 22px padding so
+     it never collides with content. */
+  .card-pad::after {
+    content: "";
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    width: 15px;
+    height: 15px;
+    border-top: 1px solid color-mix(in srgb, var(--gold) 42%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--gold) 42%, transparent);
+    border-top-right-radius: 7px;
+    pointer-events: none;
+  }
+  .stat {
+    background:
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 10px),
+      linear-gradient(180deg, rgba(34, 41, 52, 0.97), rgba(19, 24, 31, 0.97));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .stat-row {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  /* The nav's seam picks up a breath of gold — the chrome's signature. */
+  .nav {
+    border-bottom-color: color-mix(in srgb, var(--gold) 28%, var(--border));
+  }
+  /* Portal hero: the marketing hero's aurora language, tuned for a page
+     with a search box in it. */
+  .portal-hero {
+    background:
+      radial-gradient(ellipse 62% 46% at 50% 0%, color-mix(in srgb, var(--gold) 20%, transparent), transparent 72%),
+      radial-gradient(ellipse 50% 36% at 92% 4%, color-mix(in srgb, var(--plum) 55%, transparent), transparent 64%),
+      radial-gradient(ellipse 55% 40% at 50% 6%, var(--primary-tint), transparent 72%);
+  }
+}
+/* =========================================================================
+   OFFICIAL PAPER — admin plates (owner directive 2026-08-14: "the main divs
+   for the admin pages should have a white/cream background … more official").
+   NOT a theme switch and NOT a dark-lock exception at page level: the admin
+   pages keep the dark lit ground, nav, and section headings; only the
+   card/stat PLATES flip to cream — official documents laid on the desk.
+
+   Mechanism is the house token-re-pin idiom (same as the .nav dark pin):
+   the LIGHT :root palette's values, mirrored verbatim onto the plates so
+   every token-reading style inside them (text, pills, fields, buttons,
+   ornaments) resolves light without knowing why. IF THE LIGHT :ROOT PALETTE
+   MOVES, MOVE THIS BLOCK TOO. Print needs nothing: these are the light
+   values print already uses.
+   ========================================================================= */
+.admin-paper .card,
+.admin-paper .stat {
+  --paper: #f7f7f5;
+  --surface: #ffffff;
+  --surface-2: #efefec;
+  --surface-3: #e5e5e1;
+  --border: #dededa;
+  --border-strong: #c7c7c1;
+  --ink: #0f141a;
+  --ink-2: #2a313c;
+  --muted: #5f6672;
+  --primary: #2a313c;
+  --primary-deep: #0f141a;
+  --primary-hover: #3d4653;
+  --primary-ink: #ffffff;
+  --primary-tint: #eaebee;
+  --maroon: #9c4a2c;
+  --maroon-btn: #9c4a2c;
+  --maroon-tint: #f7efeb;
+  --accent: #9c4a2c;
+  --gold: #b8860b; /* gold goes DEEP on paper — ornament rule, brand section */
+  --plum: #4b2a45;
+  --ai: #0e6b84;
+  --ai-tint: #e9f7fb;
+  --overdue: #b42318;
+  --overdue-bg: #fef3f2;
+  --overdue-border: #fecdca;
+  --due: #b54708;
+  --due-bg: #fffaeb;
+  --due-border: #fde3a7;
+  --ok: #067647;
+  --ok-bg: #ecfdf3;
+  --ok-border: #a9e5c3;
+  --focus: #2c5488;
+  --shadow-sm: 0 1px 2px rgba(24, 26, 31, 0.05);
+  --shadow: 0 1px 2px rgba(24, 26, 31, 0.05), 0 4px 12px -4px rgba(24, 26, 31, 0.09);
+  --shadow-lg: 0 12px 32px -8px rgba(24, 26, 31, 0.16);
+  color: var(--ink);
+}
+@media screen {
+  /* The dark glass-slab card background is explicit hexes (above), so the
+     plates need their own paint, not just tokens: cream sheet, engraver's
+     hatch in ink at whisper volume, a lit top edge, and a real drop onto
+     the dark ground so the sheet reads as sitting ON the desk. */
+  .admin-paper .card {
+    background:
+      repeating-linear-gradient(45deg, rgba(15, 20, 26, 0.02) 0 1px, transparent 1px 10px),
+      linear-gradient(180deg, #ffffff, #f3f2ee);
+    border-color: rgba(15, 20, 26, 0.16);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 14px 34px -16px rgba(0, 0, 0, 0.7);
+  }
+  .admin-paper .stat {
+    background:
+      repeating-linear-gradient(45deg, rgba(15, 20, 26, 0.016) 0 1px, transparent 1px 10px),
+      linear-gradient(180deg, #fbfaf8, #efeeea);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+  .admin-paper .stat-row {
+    background: rgba(15, 20, 26, 0.25);
+    border-color: rgba(247, 247, 245, 0.25);
+  }
+}
+
 .card-pad {
+  position: relative;
   padding: 22px;
 }
 .panel-title {
@@ -494,6 +667,35 @@ h3 {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--primary);
+}
+/* The letterhead tick: every panel opens with a short gold rule — the same
+   ornament grammar as the marketing eyebrows, at panel scale. */
+.panel-title::before {
+  content: "";
+  display: inline-block;
+  width: 13px;
+  height: 2px;
+  margin-right: 8px;
+  vertical-align: 3px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 18%, transparent));
+}
+/* Annual-report numerals get an engraved base rule. */
+.stat-num::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 2px;
+  margin-top: 6px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--gold) 55%, transparent);
+}
+@media print {
+  .panel-title::before,
+  .card-pad::after,
+  .stat-num::after {
+    display: none;
+  }
 }
 
 /* ---- pills / bands ---- */
@@ -731,13 +933,119 @@ label.lbl {
   transform: translate(-50%, -50%) rotate(45deg);
   box-shadow: 0 0 0 3px var(--paper);
 }
-.mk-hero .letterhead-rule::after {
-  box-shadow: 0 0 0 3px #16304f; /* halo matches the navy hero */
-}
+/* (The hero letterhead-rule keeps the default paper halo — its ground is
+   the page's own paper now.) */
 .smallcaps {
   font-variant-caps: all-small-caps;
   letter-spacing: 0.14em;
   font-weight: 600;
+}
+
+/* ---- page shell: footer pinned to the viewport bottom -----------------
+   Short pages (track, search) used to end mid-screen with bare ground
+   below the footer — the shell makes main flex-grow so the footer always
+   closes the page. Screen-only: print keeps natural flow. */
+@media screen {
+  .agency-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .agency-shell > main {
+    flex: 1 0 auto;
+  }
+}
+
+/* ---- civic hero band ---------------------------------------------------
+   The one lit moment each public page gets: the marketing bands' aurora
+   language at municipal volume — a soft gold bloom, a plum counter-wash,
+   and the gold seam underneath. Applies to page headers on portal
+   surfaces so the app reads as one designed system with the front door. */
+.civic-hero {
+  position: relative;
+  border-bottom: 1px solid color-mix(in srgb, var(--gold) 34%, transparent);
+  background:
+    radial-gradient(ellipse 56% 120% at 14% -20%, color-mix(in srgb, var(--gold) 13%, transparent), transparent 62%),
+    radial-gradient(ellipse 50% 130% at 88% -30%, color-mix(in srgb, var(--plum) 55%, transparent), transparent 60%),
+    linear-gradient(172deg, color-mix(in srgb, var(--paper-2) 82%, var(--plum) 6%) 0%, var(--paper) 92%);
+}
+.civic-hero::after {
+  /* the engraver's hatch, one notch above the body's */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.035) 0 1px,
+    transparent 1px 10px
+  );
+  pointer-events: none;
+}
+.civic-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- staff workspace nav ----------------------------------------------
+   The persistent second-level rail under the site header on every /app
+   page. Sticky so deep pages keep their exits in reach. */
+.staff-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.staff-nav-row {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.staff-nav-row::-webkit-scrollbar {
+  display: none;
+}
+.staff-nav-link {
+  padding: 9px 13px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--ink-2);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.staff-nav-link:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+.staff-nav-link.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--gold);
+}
+@media print {
+  .staff-nav {
+    display: none;
+  }
+}
+
+/* Admin page's section index — sticks just below the workspace rail so a
+   nine-section page always has its map in reach. */
+.admin-section-nav {
+  position: sticky;
+  top: 38px; /* directly under .staff-nav */
+  z-index: 30;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 0 22px;
+  padding: 8px 0;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(10px);
+}
+@media print {
+  .admin-section-nav {
+    display: none;
+  }
 }
 
 /* ---- government footer ---- */
@@ -941,7 +1249,7 @@ label.lbl {
   /* Fine engraver's hatch — the texture on banknotes and certificates. */
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.032) 0 1px,
+    rgba(255, 255, 255, 0.05) 0 1px,
     transparent 1px 9px
   );
 }
@@ -950,41 +1258,55 @@ label.lbl {
    it to position:static, so the header follows you down the page. */
 
 /* ---- hero ---- */
+/* THE TEXTURED DARK (owner, 2026-08-13, fourth revision — the hero is the
+   first thing anyone sees, so it should read as MORE lit than the bands
+   below it, not flatter). Previous revision's base gradient used
+   var(--paper) as its middle stop; under the dark lock --paper resolves to
+   #0f141a, all but identical to the #0b0f14/#202834 stops flanking it, so
+   the gradient was collapsing to near-flat and the vignette was smothering
+   what aurora survived. Fixed stop + a third top bloom (ties the hero to
+   the body's own aurora, see the @media screen body block above) +
+   stronger gold/plum + a lighter vignette so the copy still wins but the
+   light underneath is actually visible. */
 .mk-hero {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  color: #e8ecf3;
+  color: var(--ink);
   border-bottom: 3px solid var(--gold);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   background:
-    radial-gradient(ellipse 66% 54% at 14% -12%, color-mix(in srgb, var(--gold) 24%, transparent), transparent 62%),
-    radial-gradient(ellipse 58% 52% at 88% 6%, color-mix(in srgb, var(--plum) 78%, transparent), transparent 64%),
-    linear-gradient(158deg, #0b0f14 0%, var(--paper) 46%, #202834 100%);
+    radial-gradient(ellipse 60% 46% at 50% -16%, color-mix(in srgb, var(--primary-tint) 85%, transparent), transparent 66%),
+    radial-gradient(ellipse 70% 58% at 12% -14%, color-mix(in srgb, var(--gold) 40%, transparent), transparent 62%),
+    radial-gradient(ellipse 64% 58% at 92% 4%, color-mix(in srgb, var(--plum) 92%, transparent), transparent 64%),
+    linear-gradient(158deg, #0b0f14 0%, #232b38 46%, #1b2330 100%);
 }
 .mk-hero::before {
-  /* hatch layer, kept off the text */
+  /* hatch layer, kept off the text — a touch stronger than the mid-page
+     bands', since this is the showpiece surface. */
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.032) 0 1px,
+    rgba(255, 255, 255, 0.065) 0 1px,
     transparent 1px 9px
   );
   pointer-events: none;
 }
 .mk-hero::after {
-  /* vignette so copy always wins over the aurora */
+  /* vignette so copy always wins over the aurora — lightened from the
+     previous pass so the (now-visible) aurora still shows through. */
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   background: linear-gradient(
     100deg,
-    rgba(11, 15, 20, 0.88) 0%,
-    rgba(11, 15, 20, 0.6) 46%,
-    rgba(11, 15, 20, 0.12) 100%
+    rgba(11, 15, 20, 0.74) 0%,
+    rgba(11, 15, 20, 0.42) 46%,
+    rgba(11, 15, 20, 0.08) 100%
   );
   pointer-events: none;
 }
@@ -1000,8 +1322,42 @@ label.lbl {
 .mk-hero-inner {
   position: relative;
   z-index: 1;
-  padding-block: clamp(64px, 9vw, 108px) clamp(52px, 7vw, 84px);
+  /* Vertical padding lives on .mk-hero-grid, NOT here (owner, 2026-08-14:
+     the chat panel sat nearly flush under the nav) — padding on this left
+     column only let the right column ride to the section's top edge. The
+     small offset below is optical: the eyebrow's cap line meets the chat
+     panel's header text, not its border. */
+  padding-top: 6px;
   max-width: 880px;
+}
+/* Hero proof row — the stat-numeral grammar (gold base rule) at hero scale. */
+.mk-hero-proof {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px clamp(28px, 3.5vw, 52px);
+  margin-top: 40px;
+}
+.mk-hero-proof .n {
+  font-size: 1.35rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.mk-hero-proof .n::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 2px;
+  margin-top: 5px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--gold) 55%, transparent);
+}
+.mk-hero-proof .l {
+  margin-top: 6px;
+  max-width: 150px;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--muted);
 }
 
 .mk-eyebrow {
@@ -1010,7 +1366,23 @@ label.lbl {
   font-weight: 800;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--gold);
+}
+/* The letterhead tick at marketing scale: a gold bar opens every eyebrow —
+   gold as ORNAMENT (never text), same grammar as the app's panel titles. */
+.mk-eyebrow::before {
+  content: "";
+  display: inline-block;
+  width: 26px;
+  height: 3px;
+  margin-right: 10px;
+  vertical-align: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 22%, transparent));
+}
+.mk-eyebrow {
+  /* Accent, not gold: eyebrows are TEXT, and gold is never text on paper.
+     The ::before bar above is the sanctioned gold — ornament, not letters. */
+  color: var(--accent);
 }
 .mk-display {
   margin: 0;
@@ -1022,18 +1394,30 @@ label.lbl {
   line-height: 1.06;
   letter-spacing: -0.025em;
   font-weight: 650;
-  color: #ffffff;
+  color: var(--ink);
   text-wrap: balance;
 }
-.mk-display .mk-gold {
-  color: var(--gold);
+.mk-display .mk-accent {
+  color: var(--accent);
+}
+/* On the textured dark hero the accent line and eyebrow go GOLD — the
+   original dark styling. Screen-scoped: in print the hero ground is the
+   light paper, where gold text is illegible and the terracotta/ink
+   defaults above take over. */
+@media screen {
+  .mk-hero .mk-eyebrow {
+    color: var(--gold);
+  }
+  .mk-hero .mk-display .mk-accent {
+    color: var(--gold);
+  }
 }
 .mk-lede {
   margin-top: 22px;
   max-width: 660px;
   font-size: clamp(1.06rem, 1.5vw, 1.28rem);
   line-height: 1.55;
-  color: #c2cee1;
+  color: var(--ink-2);
 }
 .mk-hero .letterhead-rule {
   margin-inline: 0;
@@ -1055,7 +1439,7 @@ label.lbl {
   padding: 7px 13px;
   border-radius: var(--r-pill);
   font-size: 0.85rem;
-  color: #d8e0ec;
+  color: var(--ink-2);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.16);
   backdrop-filter: blur(6px);
@@ -1071,8 +1455,25 @@ label.lbl {
 
 /* ---- bands ---- */
 .mk-band-tint {
-  background: var(--surface-2);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 60% at 18% 110%, color-mix(in srgb, var(--primary-tint) 80%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--surface-2), var(--paper));
   border-block: 1px solid var(--border);
+}
+.mk-band-tint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.022) 0 1px,
+    transparent 1px 9px
+  );
+  pointer-events: none;
 }
 .mk-band-dark {
   position: relative;
@@ -1092,6 +1493,82 @@ label.lbl {
   background-image: repeating-linear-gradient(
     45deg,
     rgba(255, 255, 255, 0.03) 0 1px,
+    transparent 1px 9px
+  );
+  pointer-events: none;
+}
+
+/* Three more bands, filling in what used to be a long flat stretch of
+   plain page ground between "the problem" and "tenancy" (owner: more
+   visually interesting backgrounds/gradients). Each ties its color to the
+   section it wraps rather than repeating the same wash everywhere: */
+/* "How we help" — warm terracotta, matching the section's own accent-
+   colored eyebrow, with a cool anchor in the opposite corner. */
+.mk-band-accent {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 58% 54% at 84% -8%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 62%),
+    radial-gradient(ellipse 52% 46% at 4% 108%, color-mix(in srgb, var(--primary-tint) 70%, transparent), transparent 60%),
+    var(--paper);
+  border-block: 1px solid var(--border);
+}
+.mk-band-accent::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.026) 0 1px,
+    transparent 1px 9px
+  );
+  pointer-events: none;
+}
+/* "What it costs" — plum again, deliberately: it continues the "operating
+   principle" band directly above rather than resetting the mood. */
+.mk-band-plum {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 56% 48% at 12% 6%, color-mix(in srgb, var(--plum) 60%, transparent), transparent 62%),
+    radial-gradient(ellipse 60% 52% at 96% 96%, color-mix(in srgb, var(--plum) 40%, transparent), transparent 62%),
+    var(--paper);
+  border-block: 1px solid var(--border);
+}
+.mk-band-plum::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.024) 0 1px,
+    transparent 1px 9px
+  );
+  pointer-events: none;
+}
+/* "How the tech works" — the AI teal, same hue as the roster cards' left
+   rail and spark icon, so the band and its contents read as one idea. */
+.mk-band-ai {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 64% 50% at 50% -10%, color-mix(in srgb, var(--ai) 26%, transparent), transparent 64%),
+    var(--paper);
+  border-block: 1px solid var(--border);
+}
+.mk-band-ai::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.024) 0 1px,
     transparent 1px 9px
   );
   pointer-events: none;
@@ -1135,13 +1612,13 @@ label.lbl {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
 .mk-stat {
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(30, 37, 47, 0.96), rgba(19, 24, 31, 0.96));
   padding: 26px 22px;
 }
 .mk-stat-n {
@@ -1151,6 +1628,17 @@ label.lbl {
   font-weight: 600;
   color: var(--primary);
   letter-spacing: -0.02em;
+}
+/* Engraved base rule under marketing stat numerals — same grammar as the
+   app's .stat-num. */
+.mk-stat-n::after {
+  content: "";
+  display: block;
+  width: 26px;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--gold) 70%, transparent);
 }
 .mk-stat-l {
   margin-top: 9px;
@@ -1168,11 +1656,11 @@ label.lbl {
 }
 .mk-pillar {
   position: relative;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(42, 49, 60, 0.55), rgba(23, 29, 38, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--r-lg);
   padding: 30px 26px 28px;
-  box-shadow: 0 14px 40px -22px rgba(30, 58, 95, 0.5);
+  box-shadow: 0 18px 48px -26px rgba(0, 0, 0, 0.7);
   transition: box-shadow 0.18s ease, transform 0.18s ease;
 }
 .mk-pillar:hover {
@@ -1205,6 +1693,31 @@ label.lbl {
 }
 
 /* ---- pull quote (the operating principle) ---- */
+/* The operating principle band: with the whole page dark-locked, its
+   distinction is TEXTURE, not lightness — a plum bloom (the board's plum,
+   deliberately different from the CTA band's gold aurora), the engraver's
+   hatch, and gold rules. */
+.mk-quote-band {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 62% 78% at 50% -18%, color-mix(in srgb, var(--plum) 72%, transparent), transparent 66%),
+    linear-gradient(172deg, #131017 0%, var(--paper) 58%, #171d26 100%);
+  border-block: 1px solid color-mix(in srgb, var(--gold) 34%, transparent);
+}
+.mk-quote-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.028) 0 1px,
+    transparent 1px 9px
+  );
+  pointer-events: none;
+}
 .mk-quote {
   max-width: 900px;
   margin-inline: auto;
@@ -1223,29 +1736,29 @@ label.lbl {
   line-height: 1.14;
   letter-spacing: -0.02em;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--ink);
 }
 .mk-quote-b {
   margin: 20px auto 0;
   max-width: 640px;
   font-size: 1.06rem;
   line-height: 1.62;
-  color: #c2cee1;
+  color: var(--ink-2);
 }
 
 /* ---- agent roster ---- */
 .mk-roster {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
-  margin-top: 42px;
+  gap: 14px;
+  margin-top: 32px;
 }
 .mk-agent {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(42, 49, 60, 0.45), rgba(23, 29, 38, 0.85));
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-left: 3px solid var(--ai);
   border-radius: 0 var(--r-lg) var(--r-lg) 0;
-  padding: 24px 24px 22px;
+  padding: 18px 20px 16px;
   transition: box-shadow 0.18s ease;
 }
 .mk-agent:hover {
@@ -1262,8 +1775,8 @@ label.lbl {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 9px 0 0;
-  font-size: 1.14rem;
+  margin: 8px 0 0;
+  font-size: 1.05rem;
   letter-spacing: -0.01em;
 }
 .mk-agent h3 svg {
@@ -1271,18 +1784,18 @@ label.lbl {
   flex: none;
 }
 .mk-agent p {
-  margin-top: 10px;
-  font-size: 0.95rem;
-  line-height: 1.6;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  line-height: 1.55;
   color: var(--ink-2);
 }
 .mk-agent-human {
   display: flex;
   gap: 9px;
-  margin-top: 14px;
-  padding-top: 13px;
+  margin-top: 11px;
+  padding-top: 10px;
   border-top: 1px dashed var(--border-strong);
-  font-size: 0.89rem;
+  font-size: 0.84rem;
   line-height: 1.5;
   color: var(--ai);
   font-weight: 500;
@@ -1309,13 +1822,28 @@ label.lbl {
 .mk-note {
   margin-top: 16px;
   font-size: 0.86rem;
+  /* Theme token, not the old dark-hero grey — #8fa0ba was designed for a
+     near-black ground and fails AA on the light hero. */
+  color: var(--muted);
+}
+.mk-band-dark .mk-note {
   color: #8fa0ba;
+}
+.mk-band-dark .mk-note a {
+  color: #c8d2e2;
+  text-decoration: underline;
+}
+/* Eyebrows went accent (terracotta) for light grounds; on the dark band the
+   pinned gold is the readable choice. */
+.mk-band-dark .mk-eyebrow {
+  color: var(--gold);
 }
 
 /* ---- responsive ---- */
 @media (max-width: 900px) {
   .mk-pillars,
-  .mk-roster {
+  .mk-roster,
+  .mk-testimonials {
     grid-template-columns: 1fr;
   }
   .mk-stats {
@@ -1371,6 +1899,43 @@ label.lbl {
   }
 }
 
+/* ---- testimonials ("what we're hearing") ----
+   Same card grammar as .mk-pillar, quieter: a serif mark, the line, a named
+   role. No photos, no company logos — the product has no public customers
+   yet, so these are illustrative and say so above the grid. */
+.mk-testimonials {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 44px;
+}
+.mk-testimonial {
+  background: linear-gradient(180deg, rgba(42, 49, 60, 0.45), rgba(23, 29, 38, 0.85));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--r-lg);
+  padding: 26px 24px 22px;
+}
+.mk-testimonial-mark {
+  font-family: var(--font-serif);
+  font-size: 2.1rem;
+  line-height: 1;
+  color: var(--gold);
+}
+.mk-testimonial p {
+  margin-top: 6px;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.mk-testimonial-by {
+  display: block;
+  margin-top: 16px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+
 /* footer columns on the marketing page */
 .mk-foot {
   display: flex;
@@ -1403,7 +1968,9 @@ label.lbl {
    <BrandMarkRaster> or an agency seal, match nothing here, and keep 66px:
    they are work surfaces, where vertical space is inventory. */
 .nav:has(.brand-lockup) {
-  --nav-h: 92px;
+  /* 104px (owner ask 2026-08-13: "a bit taller, at least 15px margins") —
+     the ~42px artwork gets ~31px of air above and below. */
+  --nav-h: 104px;
 }
 
 /* Marketing nav at small widths. Scoped to .mk-topnav so the tenant portal
@@ -1439,7 +2006,7 @@ label.lbl {
    rule follows the lockup, not the marketing page. */
 @media (max-width: 640px) {
   .nav:has(.brand-lockup) {
-    --nav-h: 74px;
+    --nav-h: 82px;
   }
 }
 
@@ -1466,134 +2033,346 @@ label.lbl {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.8fr);
   gap: clamp(28px, 5vw, 64px);
-  align-items: center;
+  /* TOP-aligned, not centered (owner redesign, 2026-08-14): centering the
+     shorter headline column against the taller panel left it floating in
+     dead space with no shared top line. Both columns now hang from the
+     same edge; the proof row anchors the headline column's foot. */
+  align-items: start;
+  /* The hero's breathing room, on the GRID so both columns get it — the
+     headline and the chat panel clear the nav together. */
+  padding-block: clamp(56px, 8vw, 96px) clamp(52px, 7vw, 84px);
+}
+/* Grid items may never dictate width — a nowrap span inside the chat once
+   forced the whole hero past a phone viewport. */
+.mk-hero-grid > div {
+  min-width: 0;
 }
 
-.mk-panel {
+/* ---- hero chat (the resident-asks / assistant-answers illustration) ----
+   Lives on the LIGHT hero, so everything reads from theme tokens — it
+   follows the visitor into dark mode for free. The AI teal marks the
+   assistant, exactly as it does in the product. */
+/* The chat panel's staging (owner redesign, 2026-08-14): the bare slab read
+   as a screenshot pasted beside text. It now sits as a COMPOSED OBJECT —
+   an offset gold backing plate (the engraved-plate corner language at hero
+   scale) and its own key light, so the panel is lit and layered instead of
+   floating in the dark. */
+.mk-chat-wrap {
+  position: relative;
+}
+.mk-chat-wrap::after {
+  /* localized key light behind the panel — gold from the upper right where
+     the page's dawn comes from, plum settling at the lower left */
+  content: "";
+  position: absolute;
+  inset: -64px -72px;
+  /* Ellipses must FIT the box (center ± radius ≤ 100%) or their clipped
+     edges print as faint hard lines around the glow. */
+  background:
+    radial-gradient(ellipse 44% 34% at 54% 36%, color-mix(in srgb, var(--gold) 16%, transparent), transparent 72%),
+    radial-gradient(ellipse 44% 36% at 46% 62%, color-mix(in srgb, var(--plum) 58%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.mk-chat-wrap::before {
+  /* the backing plate, offset down-right */
+  content: "";
+  position: absolute;
+  top: 24px;
+  right: -16px;
+  bottom: -16px;
+  left: 24px;
+  border: 1px solid color-mix(in srgb, var(--gold) 32%, transparent);
+  border-radius: var(--r-lg);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--gold) 6%, transparent), transparent 55%);
+  pointer-events: none;
+}
+.mk-chat-wrap .mk-chat {
+  z-index: 1;
+}
+.mk-chat {
   position: relative;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--r-lg);
+  /* The glass slab from the original dark panel — gradient, deep shadow,
+     backdrop blur, lit top edge (same inset highlight .card gets app-wide,
+     see the @media screen block above) — so the card reads as a lit
+     object over the aurora, not just a darker rectangle. */
   background: linear-gradient(180deg, rgba(42, 49, 60, 0.92), rgba(15, 20, 26, 0.94));
-  box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 30px 70px -24px rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(10px);
   overflow: hidden;
 }
-.mk-panel-head {
+.mk-chat-head {
   display: flex;
+  flex-wrap: wrap; /* the two labels stack on narrow screens, never overflow */
   align-items: center;
-  gap: 10px;
-  padding: 13px 16px;
+  gap: 4px 10px;
+  padding: 10px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.035);
-  font-size: 0.82rem;
-  color: #b9c5d8;
+  font-size: 0.8rem;
+  color: var(--ink-2);
 }
-.mk-panel-id {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: #dbe3ef;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
+.mk-chat-title {
+  font-weight: 650;
 }
-.mk-panel-sub {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-.mk-panel-due {
+.mk-chat-live {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.mk-chat-live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ai);
+}
+.mk-chat-body {
+  display: grid;
+  gap: 9px;
+  padding: 13px 14px;
+}
+.mk-msg {
+  max-width: 92%;
+  padding: 8px 12px;
+  border-radius: var(--r-md, 10px);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.mk-msg p {
+  margin: 0;
+}
+.mk-msg-user {
+  justify-self: end;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom-right-radius: 4px;
+}
+.mk-msg-bot {
+  justify-self: start;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom-left-radius: 4px;
+  color: var(--ink);
+}
+.mk-msg-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ai);
+}
+.mk-chat-record {
+  margin-top: 8px;
+  padding: 8px 11px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-left: 3px solid var(--accent);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+.mk-chat-record em {
+  display: block;
+  margin-top: 4px;
+  font-style: normal;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.mk-chat-foot {
+  /* plain text flow, NOT flex — flex makes each text node its own item and
+     the line jumbles as soon as it wraps (it does at 390px) */
+  padding: 9px 14px;
+  line-height: 1.5;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.mk-chat-foot strong {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+/* THE PROOF PANELS (owner, 2026-08-14: "use the look and feels") — the
+   agent-era claims render as MINIATURES OF THE REAL SURFACES, the same way
+   the hero renders the answer box: an MCP exchange, the authenticity page's
+   verified card, and the reports page's requests-vs-deflections bars. Same
+   glass-slab grammar as .mk-chat, at card scale; captions carry the one-
+   sentence claims (LEAN rule — the illustrations do the talking). */
+.mk-proofs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 44px;
+}
+@media (max-width: 940px) {
+  .mk-proofs {
+    grid-template-columns: 1fr;
+  }
+}
+.mk-proof {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, rgba(42, 49, 60, 0.9), rgba(15, 20, 26, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 24px 54px -22px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+}
+.mk-proof-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mk-proof-head::before {
+  /* the letterhead tick, panel-title grammar at marketing scale */
+  content: "";
+  width: 13px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 18%, transparent));
+}
+.mk-proof-body {
+  flex: 1;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 14px;
+}
+.mk-proof-caption {
+  padding: 11px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+/* MCP miniature: a tool call and its result, terminal-toned. */
+.mk-proof-call {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.mk-proof-call b {
+  color: var(--ai);
+  font-weight: 650;
+}
+.mk-proof-result {
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-left: 3px solid var(--ai);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.mk-proof-result em {
+  display: block;
+  margin-top: 3px;
+  font-style: normal;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+/* Verification miniature: the authenticity page's verified card, verbatim. */
+.mk-proof-verified {
+  padding: 11px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-left: 3px solid var(--ok);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+.mk-proof-verified strong {
+  color: var(--ok);
+  font-weight: 700;
+}
+.mk-proof-fingerprint {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* North-star miniature: the reports page's dual bars, at postcard scale. */
+.mk-proof-bars {
+  display: grid;
+  gap: 9px;
+}
+.mk-proof-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.mk-proof-bar-row .mono {
+  width: 46px;
+  flex: none;
+}
+.mk-proof-bar-pair {
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+.mk-proof-bar {
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.mk-proof-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+}
+.mk-proof-bar-req > span {
+  background: var(--primary);
+}
+.mk-proof-bar-def > span {
+  background: var(--ai);
+}
+.mk-proof-pill {
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
   border-radius: var(--r-pill);
-  font-size: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.76rem;
   font-weight: 600;
-  color: #f5b855;
-  white-space: nowrap;
-  background: rgba(245, 184, 85, 0.13);
-  border: 1px solid rgba(245, 184, 85, 0.3);
-}
-.mk-panel-body {
-  padding: 18px 18px 16px;
-}
-.mk-panel-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.74rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
   color: var(--ai);
 }
-.mk-panel-cite {
-  margin-top: 10px;
-  font-family: var(--font-sans);
-  letter-spacing: -0.01em;
-  font-size: 1.1rem;
-  line-height: 1.35;
-  color: #ffffff;
-}
-.mk-panel-quote {
-  margin-top: 12px;
-  padding: 12px 14px;
-  border-radius: var(--r-sm);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: rgba(0, 0, 0, 0.28);
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: #c8d2e2;
-}
-/* the burn — this product's signature gesture */
-.mk-redact {
-  display: inline-block;
-  border-radius: 2px;
-  background: #05070a;
-  color: transparent;
-  user-select: none;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
-}
-.mk-panel-acts {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-  flex-wrap: wrap;
-}
-.mk-act {
-  padding: 7px 14px;
-  border-radius: var(--r-sm);
-  font-size: 0.85rem;
-  font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #dbe3ef;
-  background: rgba(255, 255, 255, 0.05);
-}
-.mk-act-primary {
-  background: var(--ai);
-  border-color: var(--ai);
-  color: #06222b;
-}
-.mk-panel-foot {
-  /* plain text flow, NOT flex — flex makes each text node its own item and
-     the line jumbles as soon as it wraps (it does at 390px) */
-  padding: 11px 16px;
-  line-height: 1.5;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.22);
-  font-size: 0.78rem;
-  color: #93a3b9;
-}
-.mk-panel-foot strong {
-  color: #c8d2e2;
-  font-weight: 600;
-}
+
 .mk-panel-note {
   margin-top: 14px;
   text-align: center;
   font-size: 0.8rem;
-  color: #8fa0ba;
+  color: var(--muted);
 }
 
 /* stat strip — short label, quiet sub */
@@ -1698,71 +2477,20 @@ label.lbl {
   display: none;
 }
 
-/* Hero panel: the automation chain above the drafted response. The point of
-   the hero is that the response WROTE ITSELF and a person still sends it, so
-   the completed steps are quiet and the draft is the loud part. */
-.mk-panel-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 12px 18px 0;
-}
-.mk-panel-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 9px;
-  border-radius: var(--r-pill);
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: #9fb0a8;
-  background: rgba(107, 220, 160, 0.09);
-  border: 1px solid rgba(107, 220, 160, 0.22);
-}
-.mk-panel-step::before {
-  content: "✓";
-  color: var(--ok);
-  font-size: 0.8rem;
-}
-.mk-panel-ask {
-  margin-top: 14px;
-  padding-left: 11px;
-  border-left: 2px solid var(--border-strong);
-  font-size: 0.85rem;
-  line-height: 1.55;
-  color: #93a3b9;
-}
-.mk-panel-letter {
-  margin-top: 12px;
-  padding: 13px 15px;
-  border-radius: var(--r-sm);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: rgba(0, 0, 0, 0.26);
-  font-family: var(--font-serif);
-  font-size: 0.93rem;
-  line-height: 1.62;
-  color: #dbe3ef;
-}
-.mk-panel-letter em {
-  display: block;
-  margin-top: 8px;
-  font-family: var(--font-sans);
-  font-style: normal;
-  font-size: 0.8rem;
-  color: #8fa0ba;
-}
 
 /* =========================================================================
    GROUND-PINNED TOKENS
 
-   These sections are dark in BOTH themes — the hero, the dark bands, the
-   government footer and banner all paint their own near-black ground. A token
-   that follows the THEME is wrong inside them: in the light theme the deeper
+   These sections are dark in BOTH themes — the dark bands, the government
+   footer and banner all paint their own near-black ground. A token that
+   follows the THEME is wrong inside them: in the light theme the deeper
    paper-gold would land on near-black and go muddy.
+
+   (The hero LEFT this family 2026-08-13, owner directive: it sits on the
+   page's own paper now and follows the theme.)
 
    Same lesson as the footer lockup: pin to the GROUND, not the theme.
    ========================================================================= */
-.mk-hero,
 .mk-band-dark,
 .gov-footer,
 .gov-banner {
@@ -1806,9 +2534,9 @@ label.lbl {
   /* Printers strip CSS backgrounds by default — which would put these
      surfaces' PINNED light-on-dark ink (white wordmark, pale gold) on bare
      white paper. Their dark ground is load-bearing, so ask for it exactly.
-     .nav is in this family since the pinned-dark-chrome directive. */
+     .nav is in this family since the pinned-dark-chrome directive; the hero
+     left it 2026-08-13 (light ground — prints fine unforced). */
   .nav,
-  .mk-hero,
   .mk-band-dark,
   .gov-footer,
   .gov-banner {

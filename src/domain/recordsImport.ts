@@ -139,6 +139,40 @@ export function parseRecordsCsv(csvText: string): RecordsImportParseResult {
   return { rows, errors, missingHeaders };
 }
 
+/**
+ * A title from a bare filename — for the ad-hoc "just drop files, no
+ * spreadsheet" upload path (no CSV row exists to carry one). Strips the
+ * extension and directory, and turns separators into spaces so
+ * "council_minutes-2026_06.pdf" reads as "council minutes 2026 06" rather
+ * than surfacing the raw filename as the record's title.
+ */
+export function titleFromFilename(filename: string): string {
+  const base = filename.split("/").pop() ?? filename;
+  const noExt = base.replace(/\.[a-zA-Z0-9]{1,8}$/, "");
+  const spaced = noExt.replace(/[_-]+/g, " ").trim();
+  return (spaced || base).slice(0, 300);
+}
+
+/**
+ * Synthesize a row for one directly-uploaded file — same shape a CSV row
+ * would produce, but with everything besides title/filename left for the
+ * auto-classification job (§6.5) to suggest once the file lands.
+ */
+export function rowFromUploadedFile(filename: string, rowNumber: number): ParsedRecordRow {
+  return {
+    rowNumber,
+    externalId: null,
+    title: titleFromFilename(filename),
+    summary: null,
+    date: null,
+    recordType: null,
+    tags: [],
+    keywords: [],
+    filename,
+    warnings: [],
+  };
+}
+
 /** The template an office can fill in — headers this parser recognizes. */
 export const RECORDS_CSV_TEMPLATE = [
   "external_id,title,summary,date,record_type,tags,keywords,filename",

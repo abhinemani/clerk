@@ -5,6 +5,7 @@
  * attestation, not a checkbox — it wants a name and a date.
  */
 import { useState, useTransition } from "react";
+import { statuteReviewIsStale } from "@/domain/statuteReview";
 import {
   recordStatuteReviewAction,
   setTransparencyLogAction,
@@ -35,6 +36,11 @@ export function CompliancePanel({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // Display-only recency check: a sign-off older than a legislative session
+  // shouldn't keep reading as a green check.
+  const reviewStale =
+    statute?.review != null && statuteReviewIsStale(statute.review.reviewedOn, new Date());
+
   return (
     <div className="stack" style={{ gap: 12 }}>
       {/* Statute profile + counsel sign-off */}
@@ -42,9 +48,15 @@ export function CompliancePanel({
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div className="panel-title">Statute profile</div>
           {statute?.review ? (
-            <span className="pill band-on_track" style={{ marginLeft: "auto" }}>
-              ✓ Reviewed by counsel
-            </span>
+            reviewStale ? (
+              <span className="pill band-due_soon" style={{ marginLeft: "auto" }}>
+                Counsel review over a year old — re-review due
+              </span>
+            ) : (
+              <span className="pill band-on_track" style={{ marginLeft: "auto" }}>
+                ✓ Reviewed by counsel
+              </span>
+            )
           ) : (
             <span className="pill band-due_soon" style={{ marginLeft: "auto" }}>
               Not yet reviewed by your counsel
@@ -73,12 +85,12 @@ export function CompliancePanel({
               </p>
             )}
 
-            {!statute.review && !showForm && (
+            {(!statute.review || reviewStale) && !showForm && (
               <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setShowForm(true)}>
-                Record counsel sign-off…
+                {statute.review ? "Re-record counsel sign-off…" : "Record counsel sign-off…"}
               </button>
             )}
-            {(showForm || statute.review) && !statute.review && (
+            {showForm && (!statute.review || reviewStale) && (
               <div className="stack" style={{ gap: 8, marginTop: 10 }}>
                 <div className="roster-grid">
                   <label style={{ display: "grid", gap: 4 }}>

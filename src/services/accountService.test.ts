@@ -9,9 +9,14 @@ import {
   completePasswordReset,
   createStaffUser,
   inviteStaffUser,
+  platformCreateStaffUser,
+  platformInviteStaffUser,
   provisionAgency,
   registerRequester,
+  renameAgency,
   requestPasswordReset,
+  resendStaffInvite,
+  revokeStaffSignIn,
   verifyRequesterEmail,
 } from "./accountService";
 import { submitRequest } from "./requestService";
@@ -86,11 +91,14 @@ describe("requester accounts", () => {
     // The verification link went out; burning it unlocks the history.
     const mail = deps.notifier.sent.find((m) => m.kind === "account_verify");
     expect(mail?.to).toBe("wei@example.com");
-    const verified = await verifyRequesterEmail(deps, tokenFromBody(mail!.body));
+    // Another tenant's portal cannot redeem it — and doesn't burn it.
+    expect(await verifyRequesterEmail(deps, AG2, tokenFromBody(mail!.body))).toBeNull();
+
+    const verified = await verifyRequesterEmail(deps, AG1, tokenFromBody(mail!.body));
     expect(verified?.emailVerifiedAt).not.toBeNull();
 
     // Tokens are single-use.
-    expect(await verifyRequesterEmail(deps, tokenFromBody(mail!.body))).toBeNull();
+    expect(await verifyRequesterEmail(deps, AG1, tokenFromBody(mail!.body))).toBeNull();
 
     const mine = await deps.repo.listRequestsByRequester(AG1, account.id);
     expect(mine.map((r) => r.id)).toContain(filed.id);
@@ -205,7 +213,18 @@ describe("staff accounts", () => {
       resetLinkBase: "http://x/riverton/reset",
     });
     const mail = deps.notifier.sent.find((m) => m.kind === "password_reset")!;
+    // A reset link is bound to the tenant that minted it: another agency's
+    // reset page rejects it without burning it.
+    expect(
+      await completePasswordReset(deps, {
+        agencyId: AG2,
+        rawToken: tokenFromBody(mail.body),
+        kind: "reset_staff",
+        password: "brand-new-pass1",
+      }),
+    ).toBe(false);
     const ok = await completePasswordReset(deps, {
+      agencyId: AG1,
       rawToken: tokenFromBody(mail.body),
       kind: "reset_staff",
       password: "brand-new-pass1",
@@ -231,6 +250,7 @@ describe("staff accounts", () => {
 
     const mail = deps.notifier.sent.find((m) => m.kind === "staff_invite")!;
     const ok = await completePasswordReset(deps, {
+      agencyId: AG1,
       rawToken: tokenFromBody(mail.body),
       kind: "staff_invite",
       password: "my-own-pass-1",
@@ -317,5 +337,124 @@ describe("provisionAgency — the multi-tenant front door (self-signup + console
         admin: { name: "A", email: "a@x.gov", password: "password-11" },
       }),
     ).rejects.toThrow(AccountError);
+  });
+});
+
+describe("platform console — city & user management", () => {
+  it("renames an agency's display name only, with an audit event; slug/state fixed", async () => {
+    const deps = makeDeps();
+    const renamed = await renameAgency(deps, { agencyId: AG1, name: "  City of Riverton  " });
+    expect(renamed.name).toBe("City of Riverton");
+    expect(renamed.slug).toBe("riverton");
+    expect(renamed.stateCode).toBe("CA");
+
+    const events = await deps.repo.listAdminEvents(AG1);
+    const ev = events.find((e) => e.kind === "agency_renamed");
+    expect(ev?.actorLabel).toBe("platform operator");
+    expect(ev?.summary).toContain('"Riverton" → "City of Riverton"');
+
+    await expect(renameAgency(deps, { agencyId: AG1, name: "   " })).rejects.toThrow(AccountError);
+    // A no-op rename appends nothing.
+    await renameAgency(deps, { agencyId: AG1, name: "City of Riverton" });
+    expect((await deps.repo.listAdminEvents(AG1)).filter((e) => e.kind === "agency_renamed")).toHaveLength(1);
+  });
+
+  it("adds staff to any tenant without a tenant actor, attributed to the operator", async () => {
+    const deps = makeDeps();
+    const created = await platformCreateStaffUser(deps, {
+      agencyId: AG1,
+      email: "Pat@Riverton.gov",
+      name: "Pat",
+      role: "coordinator",
+      password: "pat-pass-123",
+    });
+    expect(created.email).toBe("pat@riverton.gov");
+    expect(
+      await authenticateStaff(deps, { agencyId: AG1, email: "pat@riverton.gov", password: "pat-pass-123" }),
+    ).not.toBeNull();
+    // Tenant isolation: the account exists only where it was created.
+    expect(await deps.repo.findUserByEmail(AG2, "pat@riverton.gov")).toBeNull();
+
+    const ev = (await deps.repo.listAdminEvents(AG1)).find((e) => e.kind === "staff_created");
+    expect(ev?.actorLabel).toBe("platform operator");
+
+    // Same validation as the tenant path: dup emails and weak passwords refuse.
+    await expect(
+      platformCreateStaffUser(deps, { agencyId: AG1, email: "pat@riverton.gov", name: "P", role: "reviewer", password: "another-pass-1" }),
+    ).rejects.toThrow(/already exists/);
+    await expect(
+      platformCreateStaffUser(deps, { agencyId: AG1, email: "q@riverton.gov", name: "Q", role: "reviewer", password: "short" }),
+    ).rejects.toThrow(AccountError);
+  });
+
+  it("invites staff from the console; the link activates the account; re-send works until activation", async () => {
+    const deps = makeDeps();
+    const invited = await platformInviteStaffUser(deps, {
+      agencyId: AG1,
+      email: "lee@riverton.gov",
+      name: "Lee",
+      role: "responder",
+      inviteLinkBase: "http://x/riverton/reset",
+    });
+    expect(invited.passwordHash).toBeNull();
+    expect(deps.notifier.sent).toHaveLength(1);
+    expect(deps.notifier.sent[0]!.body).toContain("platform operator added you as responder");
+
+    // Re-send mints a fresh link and logs it.
+    await resendStaffInvite(deps, { agencyId: AG1, userId: invited.id, inviteLinkBase: "http://x/riverton/reset" });
+    expect(deps.notifier.sent).toHaveLength(2);
+    expect(
+      (await deps.repo.listAdminEvents(AG1)).find((e) => e.summary.includes("Invite re-sent")),
+    ).toBeTruthy();
+
+    // The newest link activates the account.
+    const token = tokenFromBody(deps.notifier.sent[1]!.body);
+    expect(
+      await completePasswordReset(deps, { agencyId: AG1, rawToken: token, kind: "staff_invite", password: "lee-pass-1234" }),
+    ).toBe(true);
+    expect(
+      await authenticateStaff(deps, { agencyId: AG1, email: "lee@riverton.gov", password: "lee-pass-1234" }),
+    ).not.toBeNull();
+
+    // Once activated, re-sending an invite is refused — that's a reset now.
+    await expect(
+      resendStaffInvite(deps, { agencyId: AG1, userId: invited.id, inviteLinkBase: "http://x/riverton/reset" }),
+    ).rejects.toThrow(/already activated/);
+  });
+
+  it("revokes sign-in by clearing the password, but never orphans a tenant's last admin", async () => {
+    const deps = makeDeps();
+    const admin = await makeAdmin(deps, AG1);
+    const reviewer = await platformCreateStaffUser(deps, {
+      agencyId: AG1,
+      email: "rev@riverton.gov",
+      name: "Rev",
+      role: "reviewer",
+      password: "rev-pass-1234",
+    });
+
+    // The only signable admin is protected.
+    await expect(revokeStaffSignIn(deps, { agencyId: AG1, userId: admin.id })).rejects.toThrow(/only admin/);
+
+    // Non-admins revoke fine; the row survives, sign-in dies.
+    const revoked = await revokeStaffSignIn(deps, { agencyId: AG1, userId: reviewer.id });
+    expect(revoked.passwordHash).toBeNull();
+    expect(
+      await authenticateStaff(deps, { agencyId: AG1, email: "rev@riverton.gov", password: "rev-pass-1234" }),
+    ).toBeNull();
+    expect((await deps.repo.listAdminEvents(AG1)).find((e) => e.kind === "signin_revoked")).toBeTruthy();
+
+    // With a second signable admin in place, the first can be revoked.
+    await platformCreateStaffUser(deps, {
+      agencyId: AG1,
+      email: "admin2@riverton.gov",
+      name: "Admin Two",
+      role: "admin",
+      password: "admin2-pass-1",
+    });
+    expect((await revokeStaffSignIn(deps, { agencyId: AG1, userId: admin.id })).passwordHash).toBeNull();
+
+    // Nothing to revoke twice.
+    await expect(revokeStaffSignIn(deps, { agencyId: AG1, userId: reviewer.id })).rejects.toThrow(/never activated/);
   });
 });

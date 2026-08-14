@@ -42,20 +42,55 @@ interchangeable (details in `public/brand/README.md`):
 them: it stands in for a **government's own** seal on tenant portals. Never
 put the product mark where an agency's seal belongs.
 
-**Both themes ship.** `:root` is light, the `prefers-color-scheme: dark`
-block overrides it, and every surface follows the visitor — including the
-marketing page, which is no longer dark-locked. Anything added to one theme
-needs its counterpart in the other, contrast-checked against that ground.
+**DARK-LOCKED (owner directive 2026-08-13, supersedes "both themes
+ship").** The dark palette is the product's one style on every screen,
+regardless of the visitor's OS preference: the dark token block in
+`globals.css` is scoped `@media screen` (unconditional on screens), and
+`tenantAccentCss` emits the dark-adjusted accent the same way. The light
+`:root` palette is NOT dead — it exists for exactly one consumer, PRINT,
+which always takes light values so reports and letters don't print as ink
+slabs. Do not re-introduce `prefers-color-scheme` gates; do not delete the
+light tokens either.
 
-**Pin to the GROUND, not the theme.** Swapping an asset on
-`prefers-color-scheme`, or letting a token flip with it, is only correct
-where the surface actually follows the visitor. Surfaces whose ground is
-fixed in *both* themes — the hero and footer on `--primary-deep`, the gov
-banner — must pin their brand tokens to the dark values instead; `globals.css`
-has a GROUND-PINNED TOKENS block for exactly this. This shipped as a bug
+**ONE deliberate amendment (owner directive 2026-08-14): ADMIN PLATES ARE
+CREAM.** On the tenant admin pages (`/app/admin/*`, wrapped in
+`.admin-paper` by the admin layout) the card/stat plates re-pin the LIGHT
+palette's tokens and paint as white/cream sheets — official documents on
+the dark desk. This is NOT a theme switch: the page ground, nav, rail,
+and on-ground headings stay dark; only the plates flip. The mirrored
+token block lives next to `.card-pad` in globals.css — if the light
+`:root` palette moves, move that block too. Do not "fix" the admin cards
+back to dark, and do not extend the treatment to other staff pages
+without an owner ask.
+
+**Pin to the GROUND, not the theme** remains the working principle — with
+every screen dark it is mostly moot day-to-day, but the GROUND-PINNED
+TOKENS block in `globals.css` stays (it is what keeps the nav/footer/gov
+chrome self-consistent in PRINT, where the page ground goes light), and
+the lesson stands if theming ever returns. This shipped as a bug
 twice: a navy wordmark landing on near-black, then gold ornament going pale
 yellow on a dark band. If you add a theme-reactive asset or token, first ask
 what the ground under it does.
+
+**The app's surface language (owner-directed, 2026-08-14, all in
+globals.css, all print-guarded):** the LIT GROUND (body lighting rig —
+vignette, gold dawn, slate key light, plum ember + floor glow, hatch,
+grain, vertical falloff; viewport-fixed), the ENGRAVED-PLATE card system
+(gold corner bracket on `.card-pad`, letterhead tick on `.panel-title`,
+base rule under `.stat-num`, hatch in the slab), and `.civic-hero` header
+bands on public pages. The marketing page speaks the same grammar:
+`.mk-eyebrow::before` gold bar on every eyebrow, `.mk-stat-n::after`
+base rule under stat numerals. These are system-level: new pages inherit
+them by using the standard classes — don't re-create per-page texture,
+and don't strip the ornaments to "simplify".
+
+**Homepage copy is LEAN by owner directive (2026-08-14, two rounds):**
+headlines carry the argument; card bodies are ONE sentence; stat
+sub-lines are fragments; section subs are one line. When editing the
+homepage, cut before you add — re-inflating the copy reverts an explicit
+owner call. Claims and numbers must stay checkable against the codebase,
+and the TESTIMONIALS keep their "illustrative, not customer quotes"
+framing until real ones exist.
 
 Status colors (overdue/due/ok) and the AI teal are **functional, not brand**.
 The board does not speak to them and they stay as tuned.
@@ -94,12 +129,21 @@ correspondence drafting, hybrid answer box, and the portal requester agent.
 phase 2: file-drop/HTTP/Socrata connectors, reviewed mode, and per-dataset
 standing publication; phase 3 (row store, tabular answers) is gated on real
 usage.
-`docs/agentic-horizon.md` is **Phase 5 — autonomous agents. Do not build or
-wire Bucket B**; the §16.1 agent framework in `src/agents/` (definitions,
-action tiers, budgets, harness) is built and tested but stays dormant until
-real-user proof, per the owner. Keep new work compatible: log agent-replayable
-events to request_events, and gate externally-visible actions at the action
-layer so tiers can bolt on later.
+**The gates are RELEASED (owner, 2026-08-13): Phase 5 (agentic-horizon
+Bucket B) and connected-sources phase 3 are both buildable.** The §16.1
+agent framework in `src/agents/` (definitions, action tiers, budgets,
+harness) is the substrate — Bucket B agents are configurations over it
+(allowlists + budgets), not new architecture. The guardrails are NOT
+relaxed: action tiers stay enforced in code (Tier 3 can never be
+configured autonomous, the forbidden set stands), every agent action lands
+in the append-only log, and invariant 9 still means no agent flips
+internal→public — agents propose, a named human publishes.
+**Live so far:** B1 (disclosure librarian) and B3 (appeal packets); the
+§16.2 checkpoint/steering surface (`/app/agents` — parked runs, per-step
+approvals, resume through the harness); and the learning loop v1
+(docs/learning-loop.md — "plays"). Next per HANDOFF: B2/B4, then the
+fulfillment agent (enum migration → eval golden set → planner behind a
+per-agency flag).
 
 ## Stack (do not substitute without asking)
 Next.js App Router + TypeScript (strict), Drizzle on **embedded PGlite by
@@ -143,6 +187,18 @@ path.
   Never put min/max bounds on numeric fields in a pipeline schema — the API
   rejects them silently (see HANDOFF gotcha 9); clamp on read.
 - Fees/payments were removed on purpose — do not re-add.
+- Learning loop ("plays", docs/learning-loop.md): `request_plays` is a
+  nightly FULL-REBUILD materialized aggregate of the append-only record —
+  never mutate play rows incrementally, never add a second consult path.
+  Learned-route confidence is capped at 0.9 IN CODE (explicit routing
+  rules own 1.0). `archive_miss` deflection rows are demand signal, never
+  ROI — every deflection count must exclude them.
+- Agent steering (§16.2/§16.3): checkpoint approval is PER-STEP
+  (`approvedByUserId` on the plan step), never per-run; forbidden actions
+  ignore approvals entirely. Deadline-agent capabilities read only their
+  step's `input` + injected deps (no closures over sweep-time state) so
+  persisted plans resume across processes — keep that rule for any agent
+  whose runs persist.
 - Connected-source standing publication: an attestation makes FUTURE slices
   be born public, never flips an existing internal document (that direction
   is invariant 9's). `classifyNewSlice()` in connectedSourceService is the

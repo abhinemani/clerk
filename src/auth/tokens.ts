@@ -32,15 +32,30 @@ export async function mintToken(
   return { raw, entity };
 }
 
-/** Validate + burn a token. Returns null for unknown/expired/used/wrong-kind. */
+/**
+ * Validate + burn a token. Returns null for unknown/expired/used/wrong-kind —
+ * and for a token minted by ANOTHER agency: redemption is tenant-scoped like
+ * every other data access, so a link only works on the portal that issued it.
+ * A wrong-agency presentation does NOT burn the token (nothing was redeemed;
+ * the link still works where it belongs).
+ */
 export async function consumeToken(
   deps: ServiceDeps,
   raw: string,
   kind: AuthTokenKind,
+  agencyId: string,
 ): Promise<AuthTokenEntity | null> {
-  if (!raw) return null;
+  if (!raw || !agencyId) return null;
   const token = await deps.repo.findAuthTokenByHash(hashToken(raw));
-  if (!token || token.kind !== kind || token.usedAt || token.expiresAt < deps.now()) return null;
+  if (
+    !token ||
+    token.kind !== kind ||
+    token.agencyId !== agencyId ||
+    token.usedAt ||
+    token.expiresAt < deps.now()
+  ) {
+    return null;
+  }
   await deps.repo.markAuthTokenUsed(token.id, deps.now());
   return token;
 }

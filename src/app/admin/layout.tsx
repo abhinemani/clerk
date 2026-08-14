@@ -31,6 +31,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </span>
           </Link>
           <nav className="nav-links" aria-label="Primary">
+            <Link href="/admin" className="nav-link">
+              Agencies
+            </Link>
+            <Link href="/admin/people" className="nav-link">
+              People
+            </Link>
             <Link href="/" className="nav-link">
               Marketing site
             </Link>

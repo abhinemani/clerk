@@ -14,8 +14,8 @@ import { ensureAgency } from "@/lib/bootstrap";
 import { trackByPublicId } from "@/lib/live";
 import { registerRequester, AccountError } from "@/services/accountService";
 import { defaultDeps } from "@/services/deps";
+import { submitAndDispatch } from "@/services/intakeService";
 import type { RequesterType } from "@/services/repository";
-import { submitRequest } from "@/services/requestService";
 
 async function resolveAgencyId(slug: string): Promise<string | null> {
   // The demo agency bootstraps itself on first use; every other tenant is
@@ -50,7 +50,10 @@ export async function fileRequest(input: {
     const signedInRequester =
       u && u.kind === "requester" && u.agencySlug === input.agencySlug ? u : null;
 
-    const request = await submitRequest(deps, {
+    // The whole filing chain (submitRequest + routing rules + play routing +
+    // triage job + duplicate check) lives in intakeService so the requester
+    // API's file_request rides the exact same path as this form.
+    const request = await submitAndDispatch(deps, {
       agencyId,
       rawText,
       requester: signedInRequester
@@ -61,58 +64,6 @@ export async function fileRequest(input: {
             type: input.type,
           },
     });
-
-    // Deterministic routing rules first (explicit agency policy, no model):
-    // matches become proposal cards, and — with auto-dispatch on — the
-    // department tasks go out before the resident leaves the page. Advisory
-    // failure only; filing never blocks on it.
-    try {
-      const { applyAgencyRoutingRules } = await import("@/services/taskService");
-      await applyAgencyRoutingRules(deps, { agencyId, requestId: request.id, rawText });
-    } catch (e) {
-      console.error("routing rules failed", e);
-    }
-
-    // AI proposes off the request path: queue intake triage (§6.1). The job
-    // no-ops without ANTHROPIC_API_KEY.
-    const { getJobQueue } = await import("@/jobs/queue");
-    getJobQueue().enqueue("intake_triage", { agencyId, requestId: request.id });
-
-    // Duplicate & related detection (§6.2): lexical similarity against the
-    // agency's other requests, recorded as an ai_action event the staff
-    // detail page renders. Advisory only — a failure never blocks filing.
-    try {
-      const { findDuplicates } = await import("@/ai/dedup/duplicates");
-      const others = (await deps.repo.listRequests(agencyId)).filter((r) => r.id !== request.id);
-      const matches = await findDuplicates(
-        rawText,
-        others.map((r) => ({ id: r.id, publicId: r.publicId, text: r.interpretedScope ?? r.rawText })),
-        { threshold: 0.35, limit: 3 },
-      );
-      if (matches.length > 0) {
-        const byId = new Map(others.map((r) => [r.id, r]));
-        await deps.repo.appendEvent({
-          id: deps.genId(),
-          agencyId,
-          requestId: request.id,
-          kind: "ai_action",
-          actorUserId: null,
-          summary: `Possible duplicate of ${matches.map((m) => m.publicId).join(", ")}`,
-          payload: {
-            pipeline: "duplicate_check",
-            matches: matches.map((m) => ({
-              requestId: m.id,
-              publicId: m.publicId,
-              similarity: Math.round(m.similarity * 100) / 100,
-              status: byId.get(m.id)?.status ?? "unknown",
-            })),
-          },
-          createdAt: deps.now(),
-        });
-      }
-    } catch (e) {
-      console.error("duplicate check failed", e);
-    }
 
     return { ok: true, publicId: request.publicId, dueAtISO: request.statutoryDueAt?.toISOString() ?? null };
   } catch (e) {
@@ -449,7 +400,7 @@ export async function checkAlreadyReleasedAction(agencySlug: string, text: strin
  */
 export async function logDeflectionAction(input: {
   agencySlug: string;
-  kind: "download" | "scope_down";
+  kind: "download" | "scope_down" | "archive_miss";
   query?: string;
   documentId?: string;
 }): Promise<void> {
@@ -527,6 +478,30 @@ export async function portalSignOut(agencySlug: string): Promise<void> {
   await signOut({ redirectTo: `/${agencySlug}` });
 }
 
+/**
+ * "Lost your tracking number?" Always "succeeds" outwardly — the numbers
+ * only ever travel to the address the requests were filed under.
+ */
+export async function trackingReminderAction(input: {
+  agencySlug: string;
+  email: string;
+}): Promise<void> {
+  try {
+    const repo = await getRepository();
+    const agency = await repo.getAgencyBySlug(input.agencySlug);
+    if (!agency) return;
+    const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+    const { sendTrackingReminder } = await import("@/services/requestService");
+    await sendTrackingReminder(defaultDeps(repo), {
+      agencyId: agency.id,
+      email: input.email,
+      trackLinkBase: `${baseUrl}/${input.agencySlug}/track`,
+    });
+  } catch (e) {
+    console.error("trackingReminder failed", e); // still silent to the caller
+  }
+}
+
 /** Start a self-service reset. Always "succeeds" — no account enumeration. */
 export async function forgotPasswordAction(input: {
   agencySlug: string;
@@ -557,8 +532,13 @@ export async function resetPasswordAction(input: {
   password: string;
 }): Promise<AuthResult> {
   try {
+    // Scope redemption to the agency whose reset page this is — a link minted
+    // by one tenant must not be redeemable through another tenant's page.
+    const agencyId = await resolveAgencyId(input.agencySlug);
+    if (!agencyId) return { ok: false, error: "That link is invalid or expired — request a new one." };
     const { completePasswordReset } = await import("@/services/accountService");
     const ok = await completePasswordReset(defaultDeps(await getRepository()), {
+      agencyId,
       rawToken: input.token,
       kind: input.kind,
       password: input.password,
@@ -593,5 +573,43 @@ async function credentialsSignIn(input: {
       return { ok: false, error: "That email and password combination didn't match." };
     }
     throw e; // NEXT_REDIRECT — success; let Next complete the redirect
+  }
+}
+
+// --- release verification (docs/release-verification.md) --------------------
+
+export type VerifyReleaseActionResult =
+  | { ok: true; verified: true; filename: string; releasedAt: string; requestPublicId: string | null }
+  | { ok: true; verified: false; reason: "invalid_hash" | "no_match" }
+  | { ok: false; error: string };
+
+/**
+ * Check a sha-256 against the agency's release record. The hash arrives
+ * computed in the visitor's browser — the file itself never travels. Plays
+ * dead when the agency hasn't published the surface.
+ */
+export async function verifyReleaseAction(
+  agencySlug: string,
+  hash: string,
+): Promise<VerifyReleaseActionResult> {
+  try {
+    const repo = await getRepository();
+    const agency = await repo.getAgencyBySlug(agencySlug);
+    if (!agency || agency.settings?.releaseVerification?.enabled !== true) {
+      return { ok: false, error: "Verification is not available for this office." };
+    }
+    const { verifyReleaseChecksum } = await import("@/services/releaseVerificationService");
+    const result = await verifyReleaseChecksum(repo, { agencyId: agency.id, hash });
+    if (!result.verified) return { ok: true, verified: false, reason: result.reason };
+    return {
+      ok: true,
+      verified: true,
+      filename: result.filename,
+      releasedAt: result.releasedAt,
+      requestPublicId: result.requestPublicId,
+    };
+  } catch (e) {
+    console.error("verifyRelease failed", e);
+    return { ok: false, error: "Verification failed. Please try again." };
   }
 }

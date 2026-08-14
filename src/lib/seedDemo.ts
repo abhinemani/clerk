@@ -106,6 +106,12 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
         reviewedOn: "2026-07-01",
         note: "Confirmed against the 2026 legislative session.",
       },
+      // Requester API + MCP demo (docs/requester-api.md): point an MCP client
+      // at /api/v1/riverton/mcp and the whole machine surface is live.
+      requesterApi: { enabled: true, filingEnabled: true },
+      // Release verification demo (docs/release-verification.md): the seeded
+      // release below makes /riverton/authenticity verifiable out of the box.
+      releaseVerification: { enabled: true },
     },
   });
   // Deterministic routing rules — file "pothole repairs on Elm St" in the
@@ -313,6 +319,18 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
       ],
     });
     await acceptTaskRecords(deps, { agencyId, taskId: task.id, actorUserId: admin.id });
+
+    // The incident report carries a retention schedule inside the 30-day
+    // warning window, so the retention-destruction warning (command center
+    // card + nightly sweep) has a live demo moment: an open request whose
+    // responsive record is about to be destroyed on schedule.
+    const reviewDocs = await repo.listRequestDocuments(agencyId, incidentRequest.id);
+    const incidentDoc = reviewDocs.find((d) => d.filename === REDACTION_DEMO.documentName);
+    if (incidentDoc) {
+      await repo.updateDocument(agencyId, incidentDoc.id, {
+        retentionUntil: new Date(Date.now() + 21 * 86_400_000),
+      });
+    }
   }
 
   // Registering with the same email claims the filed request into the account.

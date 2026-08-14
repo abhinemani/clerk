@@ -55,10 +55,22 @@ export async function releaseHoldsForClosedRequest(
   const openRequests = (await repo.listRequests(input.agencyId)).filter(
     (r) => r.closedAt == null && r.id !== input.requestId,
   );
+  // One batch read for every open request's review set — the old shape ran
+  // one query per open request, serially, on every close. Grouping preserves
+  // the original walk order (newest request first wins the re-point).
+  const docsByRequest = new Map<string, string[]>(); // requestId -> documentIds
+  for (const pair of await repo.listRequestDocumentsForRequests(
+    input.agencyId,
+    openRequests.map((r) => r.id),
+  )) {
+    const arr = docsByRequest.get(pair.requestId);
+    if (arr) arr.push(pair.document.id);
+    else docsByRequest.set(pair.requestId, [pair.document.id]);
+  }
   const stillNeeded = new Map<string, string>(); // documentId -> publicId
   for (const r of openRequests) {
-    for (const d of await repo.listRequestDocuments(input.agencyId, r.id)) {
-      if (!stillNeeded.has(d.id)) stillNeeded.set(d.id, r.publicId);
+    for (const docId of docsByRequest.get(r.id) ?? []) {
+      if (!stillNeeded.has(docId)) stillNeeded.set(docId, r.publicId);
     }
   }
 

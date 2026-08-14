@@ -157,13 +157,14 @@ export function accentForDarkTheme(input: string): string | null {
 }
 
 /**
- * CSS for a tenant accent, correct in BOTH themes. Light theme takes the
- * stored accent verbatim (white-ink-guarded at save). Dark theme swaps
- * --primary/--primary-hover for the lightness-adjusted variant; --primary-deep
- * keeps the stored accent in both themes, because it is only ever a GROUND
- * under white ink — the very thing checkAccentColor guarantees. The dark
- * block is screen-only so printing gets the light values, matching how
- * globals.css scopes its own dark theme.
+ * CSS for a tenant accent under the DARK-LOCKED style (owner directive
+ * 2026-08-13). Screens always take the lightness-adjusted variant — the
+ * stored accent passed the white-ink guard, which makes it dark, which
+ * makes it unreadable as text on the dark paper. The base declaration keeps
+ * the stored accent verbatim for the one surface that still uses the light
+ * palette: PRINT (the screen-scoped block overrides it everywhere else).
+ * --primary-deep keeps the stored accent always, because it is only ever a
+ * GROUND under white ink — the very thing checkAccentColor guarantees.
  *
  * Returns null for anything that is not a valid stored accent — the caller
  * renders no style tag at all rather than an unvetted string (this is the
@@ -177,7 +178,7 @@ export function tenantAccentCss(input: string): string | null {
   const darkHover = accentForDarkTheme(hslLift(dark, 0.07))!;
   return (
     `.tenant-accent{--primary:${accent};--primary-deep:${accent};--primary-hover:${accent};}` +
-    `@media screen and (prefers-color-scheme:dark){` +
+    `@media screen{` +
     `.tenant-accent{--primary:${dark};--primary-hover:${darkHover};--primary-deep:${accent};}` +
     `}` +
     // The nav's ground is pinned dark in BOTH themes (globals.css chrome

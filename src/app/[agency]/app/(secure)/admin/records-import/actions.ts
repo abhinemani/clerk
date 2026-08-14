@@ -10,7 +10,7 @@
 import { revalidatePath } from "next/cache";
 import { openZipArchive } from "@/adapters/textExtract";
 import { staffAction } from "@/auth/actionWrapper";
-import { parseRecordsCsv, type RecordsImportRowError } from "@/domain/recordsImport";
+import { parseRecordsCsv, rowFromUploadedFile, type RecordsImportRowError } from "@/domain/recordsImport";
 import { importRecords, type ImportFile } from "@/services/recordsImportService";
 import {
   PublicationError,
@@ -20,6 +20,8 @@ import {
 
 const MAX_ROWS = 2000;
 const MAX_ZIP_BYTES = 25 * 1024 * 1024; // matches the server-action body limit
+const MAX_UPLOAD_FILES = 40;
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // per batch, same ceiling as the ZIP path
 
 export interface RecordsPreview {
   ok: true;
@@ -163,6 +165,60 @@ export const runRecordsImportAction = staffAction(
   },
 );
 
+/**
+ * Ad-hoc upload: no CSV, no ZIP — just files, for an office with a folder to
+ * digitize rather than a spreadsheet to prepare. Synthesizes one row per file
+ * (rowFromUploadedFile) and rides the SAME pipeline as the CSV+ZIP path —
+ * virus scan, extraction, PII pre-scan, internal-only landing — so this is a
+ * thinner front door onto proven code, not a second import path to maintain.
+ */
+export const quickUploadAction = staffAction(
+  { roles: ["admin"], fallback: "Upload failed." },
+  async (
+    { staff, deps, agencySlug },
+    formData: FormData,
+  ): Promise<
+    | { ok: true; imported: number; failed: { rowNumber: number; reason: string }[] }
+    | ActionError
+  > => {
+    const uploads = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+    if (uploads.length === 0) return { ok: false, error: "Choose one or more files first." };
+    if (uploads.length > MAX_UPLOAD_FILES) {
+      return { ok: false, error: `Keep it to ${MAX_UPLOAD_FILES} files at a time (split larger batches).` };
+    }
+    const totalBytes = uploads.reduce((sum, f) => sum + f.size, 0);
+    if (totalBytes > MAX_UPLOAD_BYTES) {
+      return { ok: false, error: "That batch is over 25 MB total — split it into smaller uploads." };
+    }
+
+    const rows = uploads.map((f, i) => rowFromUploadedFile(f.name, i + 1));
+    const files = new Map<string, ImportFile>();
+    for (const f of uploads) {
+      files.set(f.name, { bytes: Buffer.from(await f.arrayBuffer()), mimeType: f.type || null });
+    }
+
+    const { getBlobStore } = await import("@/adapters/blobStore");
+    const { getVirusScanner } = await import("@/adapters/virusScan");
+    const result = await importRecords(
+      { ...deps, blobStore: getBlobStore(), virusScanner: getVirusScanner() },
+      { agencyId: staff.agencyId, actorUserId: staff.userId, rows, files },
+    );
+
+    const { getJobQueue } = await import("@/jobs/queue");
+    if (result.imported.length > 0) {
+      getJobQueue().enqueue("classify_documents", {
+        agencyId: staff.agencyId,
+        documentIds: result.imported.map((r) => r.documentId),
+      });
+      getJobQueue().enqueue("embed_document_chunks", { agencyId: staff.agencyId });
+    }
+
+    revalidatePath(`/${agencySlug}/app/admin/data`);
+    revalidatePath(`/${agencySlug}/app/records`);
+    return { ok: true, imported: result.imported.length, failed: result.failed };
+  },
+);
+
 // --- source management (§4) --------------------------------------------------
 
 export const updateSourcePolicyAction = staffAction(
@@ -178,7 +234,7 @@ export const updateSourcePolicyAction = staffAction(
       trust: input.trust,
       defaultClassification: input.defaultClassification,
     });
-    revalidatePath(`/${agencySlug}/app/admin/records-import`);
+    revalidatePath(`/${agencySlug}/app/admin/data`);
     return { ok: true };
   },
 );
@@ -191,7 +247,7 @@ export const rotateSourceKeyAction = staffAction(
       actorUserId: staff.userId,
       sourceId,
     });
-    revalidatePath(`/${agencySlug}/app/admin/records-import`);
+    revalidatePath(`/${agencySlug}/app/admin/data`);
     return { ok: true, ingestKey };
   },
 );

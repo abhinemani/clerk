@@ -207,7 +207,7 @@ export function RequestWorkspace(props: {
     <div className="ws-grid">
       {/* Center — the working area: department tasks */}
       <div className="stack" style={{ gap: 18 }}>
-        <div>
+        <div id="dept-tasks" style={{ scrollMarginTop: 56 }}>
           <h2 style={{ fontSize: "1.15rem" }}>Department tasks</h2>
           <p className="muted" style={{ fontSize: "0.9rem", marginTop: 2 }}>
             Each task is a scoped ask to the department that holds the records. You dispatch; they

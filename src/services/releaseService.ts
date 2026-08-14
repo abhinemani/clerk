@@ -256,6 +256,16 @@ export async function releaseRequest(
     createdAt: now,
   });
 
+  {
+    const { emitStatusWebhook } = await import("./statusApiService");
+    await emitStatusWebhook(deps, {
+      agencyId: input.agencyId,
+      publicId: request.publicId,
+      event: "status_changed",
+      to: finalStatus,
+    });
+  }
+
   // Deliver the response letter to the requester (recorded in the outbox).
   const requester = request.requesterId ? await repo.getRequester(input.agencyId, request.requesterId) : null;
   if (requester?.email) {
@@ -397,6 +407,15 @@ export async function denyRequest(deps: ServiceDeps, input: DenyRequestInput): P
     payload: { from: request.status, to: "denied", exemptions: exemptions.map((e) => e.citation) },
     createdAt: now,
   });
+  {
+    const { emitStatusWebhook } = await import("./statusApiService");
+    await emitStatusWebhook(deps, {
+      agencyId: input.agencyId,
+      publicId: request.publicId,
+      event: "status_changed",
+      to: "denied",
+    });
+  }
   await repo.appendEvent({
     id: deps.genId(),
     agencyId: input.agencyId,
@@ -574,6 +593,16 @@ export async function fulfillByReference(
     query: request.interpretedScope ?? request.rawText,
     documentId: doc.id,
   });
+
+  {
+    const { emitStatusWebhook } = await import("./statusApiService");
+    await emitStatusWebhook(deps, {
+      agencyId: input.agencyId,
+      publicId: request.publicId,
+      event: "status_changed",
+      to: "fulfilled",
+    });
+  }
 
   return { request: updated, letter, requesterNotified: requester?.email != null };
 }

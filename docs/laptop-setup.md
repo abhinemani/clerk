@@ -225,6 +225,21 @@ admin page displays the exact path to hand your IT department).
 
 ---
 
+## Part D¾ — platform console on a real deployment (only when one goes live)
+
+The `/admin` console (the cross-tenant operator surface) refuses the demo
+credentials in production — sign-in stays disabled until you set both vars.
+Tenant portals and staff workspaces don't need this. **PASTE** into the
+deployment's environment settings (e.g. Railway → your service → Variables),
+with your own email and `openssl rand -base64 24` for the password:
+
+```
+PLATFORM_ADMIN_EMAIL=you@your-domain.gov
+PLATFORM_ADMIN_PASSWORD=REPLACE-run: openssl rand -base64 24
+```
+
+---
+
 ## Part E — fresh laptop from zero (~10 min, no accounts)
 
 **PASTE, top to bottom:**

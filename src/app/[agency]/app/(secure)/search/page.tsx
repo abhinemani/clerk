@@ -50,7 +50,7 @@ export default async function RecordsSearchPage({
   }
 
   return (
-    <div className="wrap" style={{ paddingBlock: "28px 8px", maxWidth: 860 }}>
+    <div className="wrap" style={{ paddingBlock: "var(--page-top-snug) 8px", maxWidth: 860 }}>
       <Link
         href={target ? `/${slug}/app/requests/${target.id}` : `/${slug}/app`}
         className="muted"
@@ -93,6 +93,20 @@ export default async function RecordsSearchPage({
           Search
         </button>
       </form>
+
+      {query.length < 2 && (
+        <div className="card card-pad" style={{ marginTop: 16 }}>
+          <div className="panel-title">What this finds</div>
+          <ul className="muted" style={{ fontSize: "0.9rem", margin: "8px 0 0", paddingLeft: 18, display: "grid", gap: 4 }}>
+            <li>Street names, vendors, case numbers, people — anywhere in a record&apos;s text.</li>
+            <li>Filenames and metadata (record type, tags, dates) — even for records without extracted text.</li>
+            <li>
+              Working a request? Open it and press <strong>Find records</strong> — results can then
+              be attached straight to its review set.
+            </li>
+          </ul>
+        </div>
+      )}
 
       {query.length >= 2 && (
         <div style={{ marginTop: 16 }}>

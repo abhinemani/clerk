@@ -55,7 +55,7 @@ export default async function AgencyLayout({
   const accentCss = b.accentColor ? tenantAccentCss(b.accentColor) : null;
 
   return (
-    <div className={accentCss ? "tenant-accent" : undefined}>
+    <div className={`agency-shell${accentCss ? " tenant-accent" : ""}`}>
       {accentCss && <style>{accentCss}</style>}
       <a href="#main" className="skip-link">
         Skip to content
@@ -118,6 +118,11 @@ export default async function AgencyLayout({
                 {agency.settings?.publicRequestLog === true && (
                   <li>
                     <Link href={`/${agency.slug}/log`}>Public request log</Link>
+                  </li>
+                )}
+                {agency.settings?.releaseVerification?.enabled === true && (
+                  <li>
+                    <Link href={`/${agency.slug}/authenticity`}>Verify a released document</Link>
                   </li>
                 )}
                 <li>

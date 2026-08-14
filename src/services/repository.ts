@@ -7,6 +7,7 @@
  * agency-scoped; the in-memory adapter enforces the same tenant isolation the DB
  * layer must (a cross-agency read returns null, never another tenant's row).
  */
+import type { AgentBudgetLimits, AgentBudgetSpend, AgentPlanState, PlayStats } from "@/db/schema";
 import type { RequestStatus } from "@/domain/requestLifecycle";
 import type { TaskStatus } from "@/domain/taskWorkflow";
 import type { RoutingRule, WorkflowSettings } from "@/domain/workflow";
@@ -17,6 +18,9 @@ import type { RoutingRule, WorkflowSettings } from "@/domain/workflow";
 export interface AgencySettings {
   publicRequestLog?: boolean;
   statuteReview?: { reviewedBy: string; reviewedOn: string; note?: string };
+  statusApi?: { enabled: boolean; webhookUrl?: string | null };
+  requesterApi?: { enabled: boolean; filingEnabled?: boolean };
+  releaseVerification?: { enabled: boolean };
 }
 
 /** Per-tenant identity — mirrors the schema's AgencyBranding. All optional. */
@@ -216,13 +220,68 @@ export interface DocumentEntity {
   createdAt: Date;
 }
 
+/**
+ * A learned demand cluster with its resolution statistics (docs/
+ * learning-loop.md). Rows are a nightly-rebuilt materialized aggregate —
+ * replaced wholesale per agency, never mutated row-by-row.
+ */
+export interface PlayEntity {
+  id: string;
+  agencyId: string;
+  topic: string;
+  keywords: string[];
+  stats: PlayStats;
+  episodeCount: number;
+  rebuiltAt: Date;
+  createdAt: Date;
+}
+
+/** DB enum agent_type — the five §16.1 agents (Phase-5 additions need a migration). */
+export type PersistedAgentType =
+  | "fulfillment"
+  | "deadline"
+  | "release_prep"
+  | "ingest_steward"
+  | "requester_side";
+
+export type AgentRunStatus =
+  | "planning"
+  | "running"
+  | "paused"
+  | "awaiting_checkpoint"
+  | "completed"
+  | "exhausted"
+  | "failed"
+  | "cancelled";
+
+/** A persisted agent run (§16.2) — resumable, interruptible, human-steerable. */
+export interface AgentRunEntity {
+  id: string;
+  agencyId: string;
+  agentType: PersistedAgentType;
+  requestId: string | null;
+  status: AgentRunStatus;
+  goal: string;
+  plan: AgentPlanState | null;
+  budgetLimits: AgentBudgetLimits | null;
+  budgetSpend: AgentBudgetSpend | null;
+  /** Null = system/cron initiated (e.g. the nightly deadline sweep). */
+  startedByUserId: string | null;
+  pausedByUserId?: string | null;
+  handoffNote: string | null;
+  lastStepAt: Date | null;
+  createdAt: Date;
+}
+
 export interface DeflectionEntity {
   id: string;
   agencyId: string;
   /** "download" (satisfied without filing), "scope_down" (narrowed a request),
-      or "answered_by_link" (a FILED request closed by citing already-public
-      records — production avoided, not filing). */
-  kind: "download" | "scope_down" | "answered_by_link";
+      "answered_by_link" (a FILED request closed by citing already-public
+      records — production avoided, not filing), or "archive_miss" (searched,
+      found nothing, filed anyway — unmet demand, 0 hours avoided; the
+      disclosure librarian's raw signal, not an ROI event). */
+  kind: "download" | "scope_down" | "answered_by_link" | "archive_miss";
   query: string | null;
   documentId: string | null;
   estimatedStaffHoursAvoided: number;
@@ -402,10 +461,14 @@ export interface Repository {
   /** Every tenant — platform-operator console only; never expose per-agency. */
   listAgencies(): Promise<Agency[]>;
   createAgency(a: Agency): Promise<Agency>;
-  /** Settings-only patch (workflow policy etc.) — identity fields are fixed. */
+  /**
+   * Settings patch (workflow policy etc.) plus display name — the slug and
+   * stateCode stay fixed (URLs and statute obligations must never drift
+   * under an edit; a mis-provisioned agency is re-created, not renamed).
+   */
   updateAgency(
     agencyId: string,
-    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
+    patch: Partial<Pick<Agency, "name" | "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
   ): Promise<Agency>;
 
   findRequesterByEmail(agencyId: string, email: string): Promise<Requester | null>;
@@ -458,6 +521,21 @@ export interface Repository {
   setRequestEmbedding(agencyId: string, id: string, embedding: number[]): Promise<void>;
   /** Every stored ask vector for the agency (ids + vectors only). */
   listRequestEmbeddings(agencyId: string): Promise<{ id: string; embedding: number[] }[]>;
+  /** One request's stored ask vector, or null if the backfill hasn't reached it. */
+  getRequestEmbedding(agencyId: string, id: string): Promise<number[] | null>;
+  /**
+   * Top-k stored ask vectors by cosine similarity to queryVec — ranking done
+   * in the database (HNSW index) instead of loading every vector into JS.
+   * `interpretedOnly` restricts to human-reviewed requests (precedent
+   * retrieval); `excludeRequestId` drops the query's own row.
+   */
+  searchRequestEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    opts: { limit: number; excludeRequestId?: string; interpretedOnly?: boolean },
+  ): Promise<{ id: string; similarity: number }[]>;
+  /** Requests the embed backfill has not reached yet — the lexical-fallback set. */
+  listRequestsWithoutEmbedding(agencyId: string): Promise<RequestEntity[]>;
 
   listDirectory(agencyId: string): Promise<DirectoryEntry[]>;
   getDirectoryEntry(agencyId: string, id: string): Promise<DirectoryEntry | null>;
@@ -494,6 +572,8 @@ export interface Repository {
   listPublicDocuments(agencyId: string): Promise<DocumentEntity[]>;
   /** Every document in the agency corpus — STAFF surfaces only (§6.4). */
   listDocuments(agencyId: string): Promise<DocumentEntity[]>;
+  /** Documents with a retention schedule or a legal hold — the retention sweep's working set. */
+  listDocumentsUnderRetention(agencyId: string): Promise<DocumentEntity[]>;
   createDocument(doc: DocumentEntity): Promise<DocumentEntity>;
   getDocument(agencyId: string, id: string): Promise<DocumentEntity | null>;
   /**
@@ -531,9 +611,36 @@ export interface Repository {
   listDocumentIdsWithBodyChunks(agencyId: string): Promise<string[]>;
   /** Public docs that already have embeddings — the vector half of hybrid search. */
   listPublicDocumentEmbeddings(agencyId: string): Promise<{ id: string; embedding: number[] }[]>;
+  /**
+   * Top-k body chunks (chunk 1+) by cosine similarity, ranked in the
+   * database. STAFF surfaces only — chunks cover internal documents.
+   */
+  searchBodyChunkEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    limit: number,
+  ): Promise<{ documentId: string; chunkIndex: number; content: string; similarity: number }[]>;
+  /**
+   * Top-k archive-entry vectors (chunk 0) by cosine similarity. Hard-scoped
+   * to classification='public' in the query — invariant 3 at the query
+   * layer, same rule as listPublicDocumentEmbeddings.
+   */
+  searchPublicDocumentEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    limit: number,
+  ): Promise<{ id: string; similarity: number }[]>;
   /** Attach a document to a request's review set (§5 requestDocuments). */
   linkRequestDocument(agencyId: string, requestId: string, documentId: string): Promise<void>;
   listRequestDocuments(agencyId: string, requestId: string): Promise<DocumentEntity[]>;
+  /**
+   * Review-set documents for MANY requests in one query — the batch shape
+   * for anything that used to call listRequestDocuments in a loop.
+   */
+  listRequestDocumentsForRequests(
+    agencyId: string,
+    requestIds: string[],
+  ): Promise<Array<{ requestId: string; document: DocumentEntity }>>;
   /** The release (if any) whose frozen artifact list contains this document. */
   findReleaseContainingDocument(agencyId: string, documentId: string): Promise<ReleaseEntity | null>;
   /**
@@ -550,14 +657,41 @@ export interface Repository {
   /** One decision per (request, document); re-deciding replaces. */
   upsertReview(r: ReviewEntity): Promise<ReviewEntity>;
   listReviews(agencyId: string, requestId: string): Promise<ReviewEntity[]>;
+  /** Every review decision in the agency — reporting counts exemption citations from here. */
+  listAgencyReviews(agencyId: string): Promise<ReviewEntity[]>;
 
   createRelease(r: ReleaseEntity): Promise<ReleaseEntity>;
   listReleases(agencyId: string, requestId: string): Promise<ReleaseEntity[]>;
+  /** Every release the agency has ever made, newest first — the verification
+   *  register's read (docs/release-verification.md). */
+  listAllReleases(agencyId: string): Promise<ReleaseEntity[]>;
   /** Release by id — resolves an archive entry back to its frozen artifacts. */
   getReleaseById(agencyId: string, releaseId: string): Promise<ReleaseEntity | null>;
 
   appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity>;
   listDeflections(agencyId: string): Promise<DeflectionEntity[]>;
+
+  // Learning loop (docs/learning-loop.md): plays are replaced wholesale
+  // per agency by the nightly rebuild — full-replace semantics on purpose,
+  // so the store can never drift from the record it summarizes.
+  replaceAgencyPlays(agencyId: string, rows: PlayEntity[]): Promise<void>;
+  listPlays(agencyId: string): Promise<PlayEntity[]>;
+
+  // Agent runs (§16.2): persisted plan state so runs are resumable and a
+  // human can steer any run from the UI. All reads agency-scoped.
+  createAgentRun(r: AgentRunEntity): Promise<AgentRunEntity>;
+  getAgentRun(agencyId: string, id: string): Promise<AgentRunEntity | null>;
+  updateAgentRun(
+    agencyId: string,
+    id: string,
+    patch: Partial<
+      Pick<
+        AgentRunEntity,
+        "status" | "plan" | "budgetSpend" | "handoffNote" | "lastStepAt" | "pausedByUserId"
+      >
+    >,
+  ): Promise<AgentRunEntity>;
+  listAgentRuns(agencyId: string): Promise<AgentRunEntity[]>;
 
   // Durable job queue (deployment-scoped — payloads carry agency ids).
   createJob(j: JobRecord): Promise<JobRecord>;
@@ -662,6 +796,20 @@ export class NotFoundError extends Error {
 
 // --- in-memory adapter -----------------------------------------------------
 
+/** Cosine similarity — the in-memory mirror of the DB's `<=>` ranking. */
+function cosineSim(a: number[], b: number[]): number {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i]! * b[i]!;
+    na += a[i]! * a[i]!;
+    nb += b[i]! * b[i]!;
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
 export class InMemoryRepository implements Repository {
   private agencies = new Map<string, Agency>();
   private requesters = new Map<string, Requester>();
@@ -702,11 +850,12 @@ export class InMemoryRepository implements Repository {
   }
   async updateAgency(
     agencyId: string,
-    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
+    patch: Partial<Pick<Agency, "name" | "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
   ) {
     const a = this.agencies.get(agencyId);
     if (!a) throw new NotFoundError("Agency", agencyId);
     const updated = { ...a, ...patch };
+    if (patch.name == null) updated.name = a.name; // name is non-null — an absent patch never blanks it
     this.agencies.set(agencyId, updated);
     return updated;
   }
@@ -840,6 +989,31 @@ export class InMemoryRepository implements Repository {
     }
     return out;
   }
+  async getRequestEmbedding(agencyId: string, id: string) {
+    const r = this.requests.get(id);
+    if (!r || r.agencyId !== agencyId) return null; // tenant isolation
+    return this.requestEmbeddings.get(id) ?? null;
+  }
+  async searchRequestEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    opts: { limit: number; excludeRequestId?: string; interpretedOnly?: boolean },
+  ) {
+    const out: { id: string; similarity: number }[] = [];
+    for (const [id, embedding] of this.requestEmbeddings) {
+      if (id === opts.excludeRequestId) continue;
+      const r = this.requests.get(id);
+      if (!r || r.agencyId !== agencyId) continue;
+      if (opts.interpretedOnly && r.interpretedScope == null) continue;
+      out.push({ id, similarity: cosineSim(queryVec, embedding) });
+    }
+    return out.sort((a, b) => b.similarity - a.similarity).slice(0, opts.limit);
+  }
+  async listRequestsWithoutEmbedding(agencyId: string) {
+    return [...this.requests.values()]
+      .filter((r) => r.agencyId === agencyId && !this.requestEmbeddings.has(r.id))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>) {
     const r = await this.getRequest(agencyId, id);
     if (!r) throw new NotFoundError("Request", id);
@@ -951,6 +1125,12 @@ export class InMemoryRepository implements Repository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  async listDocumentsUnderRetention(agencyId: string) {
+    return [...this.documents.values()]
+      .filter((d) => d.agencyId === agencyId && (d.retentionUntil != null || d.legalHoldReason != null))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
   private requestDocs: { agencyId: string; requestId: string; documentId: string }[] = [];
   private reviews = new Map<string, ReviewEntity>();
   private releases: ReleaseEntity[] = [];
@@ -1015,6 +1195,22 @@ export class InMemoryRepository implements Repository {
     }
     return out;
   }
+  async searchBodyChunkEmbeddings(agencyId: string, queryVec: number[], limit: number) {
+    const scored = (await this.listBodyChunkEmbeddings(agencyId)).map((c) => ({
+      documentId: c.documentId,
+      chunkIndex: c.chunkIndex,
+      content: c.content,
+      similarity: cosineSim(queryVec, c.embedding),
+    }));
+    return scored.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+  }
+  async searchPublicDocumentEmbeddings(agencyId: string, queryVec: number[], limit: number) {
+    const scored = (await this.listPublicDocumentEmbeddings(agencyId)).map((e) => ({
+      id: e.id,
+      similarity: cosineSim(queryVec, e.embedding),
+    }));
+    return scored.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+  }
   async findReleaseContainingDocument(agencyId: string, documentId: string) {
     return (
       this.releases.find(
@@ -1043,6 +1239,16 @@ export class InMemoryRepository implements Repository {
       .map((l) => this.documents.get(l.documentId))
       .filter((d): d is DocumentEntity => d != null);
   }
+  async listRequestDocumentsForRequests(agencyId: string, requestIds: string[]) {
+    const wanted = new Set(requestIds);
+    const out: Array<{ requestId: string; document: DocumentEntity }> = [];
+    for (const l of this.requestDocs) {
+      if (l.agencyId !== agencyId || !wanted.has(l.requestId)) continue;
+      const document = this.documents.get(l.documentId);
+      if (document) out.push({ requestId: l.requestId, document });
+    }
+    return out;
+  }
 
   private messages: MessageEntity[] = [];
 
@@ -1068,6 +1274,9 @@ export class InMemoryRepository implements Repository {
       (r) => r.agencyId === agencyId && r.requestId === requestId,
     );
   }
+  async listAgencyReviews(agencyId: string) {
+    return [...this.reviews.values()].filter((r) => r.agencyId === agencyId);
+  }
 
   async createRelease(r: ReleaseEntity) {
     this.releases.push(r);
@@ -1075,6 +1284,11 @@ export class InMemoryRepository implements Repository {
   }
   async listReleases(agencyId: string, requestId: string) {
     return this.releases.filter((r) => r.agencyId === agencyId && r.requestId === requestId);
+  }
+  async listAllReleases(agencyId: string) {
+    return this.releases
+      .filter((r) => r.agencyId === agencyId)
+      .sort((a, b) => b.releasedAt.getTime() - a.releasedAt.getTime());
   }
   async getReleaseById(agencyId: string, releaseId: string) {
     return this.releases.find((r) => r.agencyId === agencyId && r.id === releaseId) ?? null;
@@ -1086,6 +1300,52 @@ export class InMemoryRepository implements Repository {
   }
   async listDeflections(agencyId: string) {
     return this.deflections.filter((d) => d.agencyId === agencyId);
+  }
+
+  private plays: PlayEntity[] = [];
+
+  async replaceAgencyPlays(agencyId: string, rows: PlayEntity[]) {
+    this.plays = [
+      ...this.plays.filter((p) => p.agencyId !== agencyId),
+      ...rows.filter((p) => p.agencyId === agencyId),
+    ];
+  }
+  async listPlays(agencyId: string) {
+    return this.plays
+      .filter((p) => p.agencyId === agencyId)
+      .sort((a, b) => b.episodeCount - a.episodeCount);
+  }
+
+  private agentRuns = new Map<string, AgentRunEntity>();
+
+  async createAgentRun(r: AgentRunEntity) {
+    this.agentRuns.set(r.id, { ...r });
+    return r;
+  }
+  async getAgentRun(agencyId: string, id: string) {
+    const run = this.agentRuns.get(id);
+    return run && run.agencyId === agencyId ? run : null;
+  }
+  async updateAgentRun(
+    agencyId: string,
+    id: string,
+    patch: Partial<
+      Pick<
+        AgentRunEntity,
+        "status" | "plan" | "budgetSpend" | "handoffNote" | "lastStepAt" | "pausedByUserId"
+      >
+    >,
+  ) {
+    const run = await this.getAgentRun(agencyId, id);
+    if (!run) throw new NotFoundError("AgentRun", id);
+    const updated = { ...run, ...patch };
+    this.agentRuns.set(id, updated);
+    return updated;
+  }
+  async listAgentRuns(agencyId: string) {
+    return [...this.agentRuns.values()]
+      .filter((r) => r.agencyId === agencyId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   private jobs = new Map<string, JobRecord>();

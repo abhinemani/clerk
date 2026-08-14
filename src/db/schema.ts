@@ -417,6 +417,10 @@ export const requests = pgTable(
     unique("requests_agency_public_id_unique").on(t.agencyId, t.publicId),
     index("requests_agency_status_idx").on(t.agencyId, t.status),
     index("requests_due_idx").on(t.statutoryDueAt),
+    // Every tenant list reads "where agency_id order by created_at desc".
+    index("requests_agency_created_idx").on(t.agencyId, t.createdAt),
+    // ANN index for stored-ask-vector top-k (dedup, precedents).
+    index("requests_embedding_hnsw_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ],
 );
 
@@ -506,7 +510,10 @@ export const tasks = pgTable(
     pushbackNotes: text("pushback_notes"),
     ...timestamps,
   },
-  (t) => [index("tasks_request_idx").on(t.requestId)],
+  (t) => [
+    index("tasks_request_idx").on(t.requestId),
+    index("tasks_agency_idx").on(t.agencyId),
+  ],
 );
 
 /**
@@ -622,6 +629,7 @@ export const documents = pgTable(
   (t) => [
     index("documents_agency_class_idx").on(t.agencyId, t.classification),
     index("documents_agency_record_type_idx").on(t.agencyId, t.recordType),
+    index("documents_agency_created_idx").on(t.agencyId, t.createdAt),
     // Idempotency on connector re-push (§9.1): re-push updates in place.
     unique("documents_source_external_unique").on(t.sourceId, t.externalSystemId),
   ],
@@ -649,6 +657,9 @@ export const documentChunks = pgTable(
   (t) => [
     unique("document_chunks_doc_index_unique").on(t.documentId, t.chunkIndex),
     index("document_chunks_document_idx").on(t.documentId),
+    index("document_chunks_agency_idx").on(t.agencyId),
+    // ANN index for chunk-vector top-k (staff records search, archive search).
+    index("document_chunks_embedding_hnsw_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ],
 );
 
@@ -669,7 +680,11 @@ export const requestDocuments = pgTable(
     }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.requestId, t.documentId] })],
+  (t) => [
+    primaryKey({ columns: [t.requestId, t.documentId] }),
+    // The publication anti-join and attached-docs lookups correlate on document_id.
+    index("request_documents_document_idx").on(t.documentId),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -723,7 +738,10 @@ export const reviews = pgTable(
     }),
     ...timestamps,
   },
-  (t) => [unique("reviews_request_document_unique").on(t.requestId, t.documentId)],
+  (t) => [
+    unique("reviews_request_document_unique").on(t.requestId, t.documentId),
+    index("reviews_agency_idx").on(t.agencyId),
+  ],
 );
 
 // Per-page redaction region (§5 Redaction, §6.5). Coordinates normalized 0..1.
@@ -1057,9 +1075,54 @@ export const agentRuns = pgTable(
   ],
 );
 
+/**
+ * request_plays — the learning loop's distilled knowledge (docs/
+ * learning-loop.md). Each row is one learned cluster of demand ("towing
+ * contracts", "bodycam footage") with the statistics of how the office
+ * actually resolved it: routes, exemptions, timing, outcomes. Rebuilt
+ * NIGHTLY as a full materialized aggregate of the append-only record —
+ * never incrementally mutated, so it can't drift from the truth it
+ * summarizes. Consulted deterministically at intake; its route confidence
+ * feeds the existing auto-dispatch gate (never at 1.0 — explicit rules own
+ * that).
+ */
+export const requestPlays = pgTable(
+  "request_plays",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    /** Human label built from the cluster's strongest terms. */
+    topic: text("topic").notNull(),
+    /** Term profile the intake matcher compares new asks against. */
+    keywords: jsonb("keywords").$type<string[]>().notNull(),
+    stats: jsonb("stats").$type<PlayStats>().notNull(),
+    episodeCount: integer("episode_count").notNull(),
+    rebuiltAt: timestamp("rebuilt_at", { withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (t) => [index("request_plays_agency_idx").on(t.agencyId)],
+);
+
 // ---------------------------------------------------------------------------
 // Shared JSONB payload types (kept here so schema is the single source of truth)
 // ---------------------------------------------------------------------------
+
+/** Aggregated resolution knowledge for one learned demand cluster. */
+export interface PlayStats {
+  /** Departments that actually produced the records, by share (desc). */
+  routes: { departmentId: string | null; department: string; share: number }[];
+  /** Exemption labels cited in reviews, by count (desc). */
+  exemptions: { label: string; count: number }[];
+  /** Terminal statuses → counts (fulfilled, partially_fulfilled, denied, …). */
+  outcomes: Record<string, number>;
+  medianDaysToClose: number | null;
+  /** Share of episodes that took a statutory extension. */
+  extensionRate: number;
+  /** Precedent request publicIds, newest first (display + prompt context). */
+  samplePublicIds: string[];
+}
 
 export interface AgentBudgetLimits {
   maxToolCalls: number;
@@ -1086,6 +1149,13 @@ export interface AgentPlanStep {
   disposition?: "autonomous" | "requires_human" | "forbidden";
   output?: unknown;
   note?: string;
+  /**
+   * Named human who approved THIS step at a checkpoint (§16.3 "one approval
+   * releases"). A requires_human step executes on resume only when this is
+   * set; the approval is scoped to the single step, never the run. Forbidden
+   * actions ignore it — nothing approves those.
+   */
+  approvedByUserId?: string;
 }
 
 export interface AgentPlanState {
@@ -1115,6 +1185,30 @@ export interface AgencySettings {
    * Recorded by the agency admin; display-only everywhere else.
    */
   statuteReview?: { reviewedBy: string; reviewedOn: string; note?: string };
+  /**
+   * Requester status API (agentic-horizon §16.4 first brick, opt-in):
+   * GET /api/v1/{slug}/requests/{publicId} serves the tracker's
+   * requester-safe projection; webhookUrl (https) receives a ping on every
+   * status change / extension. Ping-style on purpose: the POST carries only
+   * tracking-number-level facts, and subscribers verify against the status
+   * API — so there is no signing secret to store.
+   */
+  statusApi?: { enabled: boolean; webhookUrl?: string | null };
+  /**
+   * Requester API + MCP server (docs/requester-api.md, opt-in): the machine
+   * door onto the portal's PUBLIC surface — archive search, record reads,
+   * status by tracking number, and (separately gated) filing. Everything it
+   * serves is a projection of what the portal already shows anyone; enabling
+   * it never widens what a requester can see (invariant 3 unmoved).
+   */
+  requesterApi?: { enabled: boolean; filingEnabled?: boolean };
+  /**
+   * Public release verification (docs/release-verification.md, opt-in):
+   * /[slug]/authenticity lets anyone holding a released file confirm it is
+   * byte-identical to what the agency shipped (invariant 8's checksums,
+   * projected), plus a register of public releases' checksums.
+   */
+  releaseVerification?: { enabled: boolean };
 }
 
 /**
@@ -1216,6 +1310,7 @@ export const allTables = {
   authTokens,
   agentRuns,
   publicIdCounters,
+  requestPlays,
   jobs,
   publicationDecisions,
   instanceMeta,

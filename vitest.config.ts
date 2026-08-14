@@ -38,6 +38,9 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["src/**/*.test.ts", "evals/**/*.test.ts"],
+    // Strips inherited service env vars (real keys must never reach the
+    // offline suite); no-op under RUN_LIVE_EVALS. See vitest.setup.ts.
+    setupFiles: ["./vitest.setup.ts"],
   },
   resolve: {
     alias: {

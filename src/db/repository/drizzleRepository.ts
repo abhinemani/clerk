@@ -7,12 +7,13 @@
  * Tenant isolation is enforced in every read: queries AND `agency_id` in, and a
  * row from another agency is invisible.
  */
-import { and, asc, desc, eq, isNull, lt, lte, ne, notExists, notLike, or, sql } from "drizzle-orm";
+import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, notExists, notLike, or, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import {
   adminEvents,
   agencies,
   agencyDirectory,
+  agentRuns,
   authTokens,
   deflections,
   deliveries,
@@ -24,6 +25,7 @@ import {
   publicationDecisions,
   publicIdCounters,
   releases,
+  requestPlays,
   requestDocuments,
   requestEvents,
   requesters,
@@ -39,6 +41,7 @@ import {
   NotFoundError,
   type AdminEventEntity,
   type Agency,
+  type AgentRunEntity,
   type AuthTokenEntity,
   type DeflectionEntity,
   type DeliveryEntity,
@@ -49,6 +52,7 @@ import {
   type JobRecord,
   type JobStatus,
   type MessageEntity,
+  type PlayEntity,
   type PublicationDecisionRow,
   type PublicationState,
   type ReleaseEntity,
@@ -92,9 +96,10 @@ export class DrizzleRepository implements Repository {
   }
   async updateAgency(
     agencyId: string,
-    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
+    patch: Partial<Pick<Agency, "name" | "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
   ): Promise<Agency> {
     const set: Record<string, unknown> = {};
+    if (patch.name != null && patch.name.trim()) set.name = patch.name;
     if ("workflowSettings" in patch) set.workflowSettings = patch.workflowSettings ?? null;
     if ("defaultRoutingRules" in patch) set.defaultRoutingRules = patch.defaultRoutingRules ?? null;
     if ("branding" in patch) set.branding = patch.branding ?? null;
@@ -382,6 +387,49 @@ export class DrizzleRepository implements Repository {
       (r: { id: string; embedding: number[] | null }): r is { id: string; embedding: number[] } =>
         r.embedding != null,
     );
+  }
+  async getRequestEmbedding(agencyId: string, id: string): Promise<number[] | null> {
+    const [row] = await this.db
+      .select({ embedding: requests.embedding })
+      .from(requests)
+      .where(tenantWhere(requests.agencyId, agencyId, eq(requests.id, id)))
+      .limit(1);
+    return row?.embedding ?? null;
+  }
+  async searchRequestEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    opts: { limit: number; excludeRequestId?: string; interpretedOnly?: boolean },
+  ): Promise<{ id: string; similarity: number }[]> {
+    // ORDER BY the distance expression directly so the HNSW index drives the
+    // scan; the agency/null filters post-filter its candidates.
+    const distance = cosineDistance(requests.embedding, queryVec);
+    const rows = await this.db
+      .select({ id: requests.id, similarity: sql<number>`1 - (${distance})` })
+      .from(requests)
+      .where(
+        tenantWhere(
+          requests.agencyId,
+          agencyId,
+          sql`${requests.embedding} is not null`,
+          ...(opts.excludeRequestId ? [ne(requests.id, opts.excludeRequestId)] : []),
+          ...(opts.interpretedOnly ? [isNotNull(requests.interpretedScope)] : []),
+        ),
+      )
+      .orderBy(distance)
+      .limit(opts.limit);
+    return rows.map((r: { id: string; similarity: number | string }) => ({
+      id: r.id,
+      similarity: Number(r.similarity),
+    }));
+  }
+  async listRequestsWithoutEmbedding(agencyId: string): Promise<RequestEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(requests)
+      .where(tenantWhere(requests.agencyId, agencyId, isNull(requests.embedding)))
+      .orderBy(desc(requests.createdAt));
+    return rows.map((r: typeof requests.$inferSelect) => this.toRequest(r));
   }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>): Promise<RequestEntity> {
     const set: Record<string, unknown> = {};
@@ -728,6 +776,21 @@ export class DrizzleRepository implements Repository {
       .select()
       .from(documents)
       .where(eq(documents.agencyId, agencyId))
+      .orderBy(desc(documents.createdAt));
+    return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
+  }
+
+  async listDocumentsUnderRetention(agencyId: string): Promise<DocumentEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .where(
+        tenantWhere(
+          documents.agencyId,
+          agencyId,
+          or(isNotNull(documents.retentionUntil), isNotNull(documents.legalHoldReason)),
+        ),
+      )
       .orderBy(desc(documents.createdAt));
     return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
   }
@@ -1285,6 +1348,65 @@ export class DrizzleRepository implements Repository {
           : [],
     );
   }
+  async searchBodyChunkEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    limit: number,
+  ): Promise<{ documentId: string; chunkIndex: number; content: string; similarity: number }[]> {
+    const distance = cosineDistance(documentChunks.embedding, queryVec);
+    const rows = await this.db
+      .select({
+        documentId: documentChunks.documentId,
+        chunkIndex: documentChunks.chunkIndex,
+        content: documentChunks.content,
+        similarity: sql<number>`1 - (${distance})`,
+      })
+      .from(documentChunks)
+      .where(
+        tenantWhere(
+          documentChunks.agencyId,
+          agencyId,
+          sql`${documentChunks.chunkIndex} > 0`,
+          sql`${documentChunks.embedding} is not null`,
+        ),
+      )
+      .orderBy(distance)
+      .limit(limit);
+    return rows.map(
+      (r: { documentId: string; chunkIndex: number; content: string; similarity: number | string }) => ({
+        documentId: r.documentId,
+        chunkIndex: r.chunkIndex,
+        content: r.content,
+        similarity: Number(r.similarity),
+      }),
+    );
+  }
+  async searchPublicDocumentEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    limit: number,
+  ): Promise<{ id: string; similarity: number }[]> {
+    const distance = cosineDistance(documentChunks.embedding, queryVec);
+    const rows = await this.db
+      .select({ id: documentChunks.documentId, similarity: sql<number>`1 - (${distance})` })
+      .from(documentChunks)
+      .innerJoin(documents, eq(documentChunks.documentId, documents.id))
+      .where(
+        tenantWhere(
+          documentChunks.agencyId,
+          agencyId,
+          eq(documents.classification, "public"), // invariant 3 at the query layer
+          eq(documentChunks.chunkIndex, 0),
+          sql`${documentChunks.embedding} is not null`,
+        ),
+      )
+      .orderBy(distance)
+      .limit(limit);
+    return rows.map((r: { id: string; similarity: number | string }) => ({
+      id: r.id,
+      similarity: Number(r.similarity),
+    }));
+  }
   async listDocumentIdsWithBodyChunks(agencyId: string): Promise<string[]> {
     const rows = await this.db
       .selectDistinct({ documentId: documentChunks.documentId })
@@ -1360,6 +1482,22 @@ export class DrizzleRepository implements Repository {
     return rows.map((r: { doc: typeof documents.$inferSelect }) => this.toDocument(r.doc));
   }
 
+  async listRequestDocumentsForRequests(
+    agencyId: string,
+    requestIds: string[],
+  ): Promise<Array<{ requestId: string; document: DocumentEntity }>> {
+    if (requestIds.length === 0) return [];
+    const rows = await this.db
+      .select({ requestId: requestDocuments.requestId, doc: documents })
+      .from(requestDocuments)
+      .innerJoin(documents, eq(requestDocuments.documentId, documents.id))
+      .where(tenantWhere(documents.agencyId, agencyId, inArray(requestDocuments.requestId, requestIds)));
+    return rows.map((r: { requestId: string; doc: typeof documents.$inferSelect }) => ({
+      requestId: r.requestId,
+      document: this.toDocument(r.doc),
+    }));
+  }
+
   async upsertReview(r: ReviewEntity): Promise<ReviewEntity> {
     // .returning() so a re-decide reports the STORED row — on conflict the
     // original row (and id) survives; returning the input would fabricate an
@@ -1409,6 +1547,22 @@ export class DrizzleRepository implements Repository {
       createdAt: r.createdAt,
     }));
   }
+  async listAgencyReviews(agencyId: string): Promise<ReviewEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(reviews)
+      .where(tenantWhere(reviews.agencyId, agencyId));
+    return rows.map((r: typeof reviews.$inferSelect) => ({
+      id: r.id,
+      agencyId: r.agencyId,
+      requestId: r.requestId,
+      documentId: r.documentId,
+      decision: r.decision,
+      exemptionLabel: r.exemptionLabel,
+      decidedByUserId: r.decidedByUserId ?? "",
+      createdAt: r.createdAt,
+    }));
+  }
 
   async createRelease(r: ReleaseEntity): Promise<ReleaseEntity> {
     await this.db.insert(releases).values({
@@ -1428,6 +1582,24 @@ export class DrizzleRepository implements Repository {
       .select()
       .from(releases)
       .where(tenantWhere(releases.agencyId, agencyId, eq(releases.requestId, requestId)));
+    return rows.map((r: typeof releases.$inferSelect) => ({
+      id: r.id,
+      agencyId: r.agencyId,
+      requestId: r.requestId,
+      artifacts: (r.artifacts ?? []) as ReleaseEntity["artifacts"],
+      responseLetter: r.responseLetter,
+      visibility: r.visibility,
+      approvedByUserId: r.approvedByUserId,
+      releasedAt: r.releasedAt,
+    }));
+  }
+
+  async listAllReleases(agencyId: string): Promise<ReleaseEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(releases)
+      .where(tenantWhere(releases.agencyId, agencyId))
+      .orderBy(desc(releases.releasedAt));
     return rows.map((r: typeof releases.$inferSelect) => ({
       id: r.id,
       agencyId: r.agencyId,
@@ -1482,5 +1654,120 @@ export class DrizzleRepository implements Repository {
       estimatedStaffHoursAvoided: d.estimatedStaffHoursAvoided ?? 0,
       createdAt: d.createdAt,
     }));
+  }
+
+  // --- learning loop (docs/learning-loop.md) -------------------------------
+
+  async replaceAgencyPlays(agencyId: string, rows: PlayEntity[]): Promise<void> {
+    await this.db.delete(requestPlays).where(eq(requestPlays.agencyId, agencyId));
+    const mine = rows.filter((p) => p.agencyId === agencyId);
+    if (mine.length === 0) return;
+    await this.db.insert(requestPlays).values(
+      mine.map((p) => ({
+        id: p.id,
+        agencyId: p.agencyId,
+        topic: p.topic,
+        keywords: p.keywords,
+        stats: p.stats,
+        episodeCount: p.episodeCount,
+        rebuiltAt: p.rebuiltAt,
+        createdAt: p.createdAt,
+      })),
+    );
+  }
+
+  async listPlays(agencyId: string): Promise<PlayEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(requestPlays)
+      .where(eq(requestPlays.agencyId, agencyId))
+      .orderBy(desc(requestPlays.episodeCount));
+    return rows.map((p: typeof requestPlays.$inferSelect) => ({
+      id: p.id,
+      agencyId: p.agencyId,
+      topic: p.topic,
+      keywords: p.keywords ?? [],
+      stats: p.stats,
+      episodeCount: p.episodeCount,
+      rebuiltAt: p.rebuiltAt,
+      createdAt: p.createdAt,
+    }));
+  }
+
+  // --- agent runs (§16.2) --------------------------------------------------
+
+  private toAgentRun(r: typeof agentRuns.$inferSelect): AgentRunEntity {
+    return {
+      id: r.id,
+      agencyId: r.agencyId,
+      agentType: r.agentType as AgentRunEntity["agentType"],
+      requestId: r.requestId,
+      status: r.status as AgentRunEntity["status"],
+      goal: r.goal,
+      plan: r.plan ?? null,
+      budgetLimits: r.budgetLimits ?? null,
+      budgetSpend: r.budgetSpend ?? null,
+      startedByUserId: r.startedByUserId,
+      pausedByUserId: r.pausedByUserId,
+      handoffNote: r.handoffNote,
+      lastStepAt: r.lastStepAt,
+      createdAt: r.createdAt,
+    };
+  }
+
+  async createAgentRun(r: AgentRunEntity): Promise<AgentRunEntity> {
+    await this.db.insert(agentRuns).values({
+      id: r.id,
+      agencyId: r.agencyId,
+      agentType: r.agentType,
+      requestId: r.requestId,
+      status: r.status,
+      goal: r.goal,
+      plan: r.plan,
+      budgetLimits: r.budgetLimits,
+      budgetSpend: r.budgetSpend,
+      startedByUserId: r.startedByUserId,
+      handoffNote: r.handoffNote,
+      lastStepAt: r.lastStepAt,
+      createdAt: r.createdAt,
+    });
+    return r;
+  }
+
+  async getAgentRun(agencyId: string, id: string): Promise<AgentRunEntity | null> {
+    const [row] = await this.db
+      .select()
+      .from(agentRuns)
+      .where(and(eq(agentRuns.agencyId, agencyId), eq(agentRuns.id, id)))
+      .limit(1);
+    return row ? this.toAgentRun(row) : null;
+  }
+
+  async updateAgentRun(
+    agencyId: string,
+    id: string,
+    patch: Partial<
+      Pick<
+        AgentRunEntity,
+        "status" | "plan" | "budgetSpend" | "handoffNote" | "lastStepAt" | "pausedByUserId"
+      >
+    >,
+  ): Promise<AgentRunEntity> {
+    const [row] = await this.db
+      .update(agentRuns)
+      .set(patch)
+      .where(and(eq(agentRuns.agencyId, agencyId), eq(agentRuns.id, id)))
+      .returning();
+    if (!row) throw new NotFoundError("AgentRun", id);
+    return this.toAgentRun(row);
+  }
+
+  async listAgentRuns(agencyId: string): Promise<AgentRunEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.agencyId, agencyId))
+      .orderBy(desc(agentRuns.createdAt));
+    return rows.map((r: typeof agentRuns.$inferSelect) => this.toAgentRun(r));
   }
 }

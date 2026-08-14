@@ -134,6 +134,72 @@ describe("dispatchTask — responder heads-up (department-scoped accounts)", () 
   });
 });
 
+describe("dispatchTask — notifier failures never unwind the dispatch", () => {
+  async function setupWithResponders() {
+    const ctx = await setup();
+    await ctx.repo.createDepartment({ id: "dept-pw", agencyId: "ag-1", name: "Public Works", defaultResponderEmails: [] });
+    await ctx.repo.createUser({ id: "u-sam", agencyId: "ag-1", email: "sam@riverton.gov", name: "Sam Iyer", role: "responder", passwordHash: "x" });
+    await ctx.repo.createUser({ id: "u-lee", agencyId: "ag-1", email: "lee@riverton.gov", name: "Lee Park", role: "responder", passwordHash: "x" });
+    await ctx.repo.setUserDepartments("ag-1", "u-sam", ["dept-pw"]);
+    await ctx.repo.setUserDepartments("ag-1", "u-lee", ["dept-pw"]);
+    return ctx;
+  }
+
+  it("a throwing relay on the dept email: task created, failure logged, responders still notified", async () => {
+    const ctx = await setupWithResponders();
+    const inner = ctx.notifier;
+    ctx.deps.notifier = {
+      send: async (msg) => {
+        if (msg.kind === "task_dispatch") throw new Error("relay down");
+        return inner.send(msg);
+      },
+    };
+    const task = await dispatchTask(ctx.deps, {
+      agencyId: "ag-1",
+      requestId: ctx.requestId,
+      departmentId: "dept-pw",
+      departmentName: "Public Works",
+      departmentEmail: "mbell@riverton.gov",
+      scopeText: "s",
+    });
+    expect(task.id).toBeTruthy(); // the dispatch survived
+
+    const events = await ctx.repo.listEvents("ag-1", ctx.requestId);
+    const failedDelivery = events.find((e) => e.kind === "delivery" && e.payload?.failed === true);
+    expect(failedDelivery?.summary).toContain("FAILED");
+    expect(failedDelivery?.payload?.error).toBe("relay down");
+    // The responder loop still ran.
+    expect(inner.sent.filter((m) => m.kind === "task_responder_notice")).toHaveLength(2);
+  });
+
+  it("one bad responder address doesn't stop the others; the event says who failed", async () => {
+    const ctx = await setupWithResponders();
+    const inner = ctx.notifier;
+    ctx.deps.notifier = {
+      send: async (msg) => {
+        if (msg.to === "sam@riverton.gov") throw new Error("mailbox full");
+        return inner.send(msg);
+      },
+    };
+    await dispatchTask(ctx.deps, {
+      agencyId: "ag-1",
+      requestId: ctx.requestId,
+      departmentId: "dept-pw",
+      departmentName: "Public Works",
+      departmentEmail: "mbell@riverton.gov",
+      scopeText: "s",
+    });
+    const notices = inner.sent.filter((m) => m.kind === "task_responder_notice");
+    expect(notices.map((m) => m.to)).toEqual(["lee@riverton.gov"]);
+
+    const events = await ctx.repo.listEvents("ag-1", ctx.requestId);
+    const headsUp = events.find((e) => e.summary.includes("Heads-up"));
+    expect(headsUp?.summary).toContain("1 failed");
+    expect(headsUp?.payload?.to).toEqual(["lee@riverton.gov"]);
+    expect(headsUp?.payload?.failed).toEqual(["sam@riverton.gov"]);
+  });
+});
+
 describe("remindResponder", () => {
   it("sends a reminder and logs it as a delivery", async () => {
     const { deps, notifier, repo, requestId } = await setup();

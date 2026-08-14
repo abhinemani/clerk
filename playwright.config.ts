@@ -43,6 +43,22 @@ export default defineConfig({
       SEED_DEMO: "true",
       APP_BASE_URL: `http://localhost:${PORT}`,
       AUTH_SECRET: "e2e-smoke-secret",
+      // The smoke is offline by contract, but this env block MERGES into the
+      // shell's — a machine (or cloud session) carrying real keys would boot
+      // the server onto live providers. Blank them explicitly; every factory
+      // treats empty as unset. Same guard as vitest.setup.ts.
+      ANTHROPIC_API_KEY: "",
+      VOYAGE_API_KEY: "",
+      ELASTICSEARCH_URL: "",
+      DATABASE_URL: "",
+      S3_ENDPOINT: "",
+      CLAMAV_HOST: "",
+      TESSERACT_PATH: "",
+      OCR_ENDPOINT: "",
+      EMAIL_FROM: "",
+      POSTMARK_SERVER_TOKEN: "",
+      RESEND_API_KEY: "",
+      INBOUND_EMAIL_TOKEN: "",
     },
   },
 });

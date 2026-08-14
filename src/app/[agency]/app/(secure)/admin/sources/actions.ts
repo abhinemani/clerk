@@ -35,7 +35,7 @@ export const registerConnectedSourceAction = staffAction(
       kind: input.kind,
       config: input.config,
     });
-    revalidatePath(`/${agencySlug}/app/admin/sources`);
+    revalidatePath(`/${agencySlug}/app/admin/data`);
     return { ok: true, dropDir };
   },
 );
@@ -54,7 +54,7 @@ export const attestDatasetAction = staffAction(
       sourceId: input.sourceId,
       dataset: input.dataset,
     });
-    revalidatePath(`/${agencySlug}/app/admin/sources`);
+    revalidatePath(`/${agencySlug}/app/admin/data`);
     return { ok: true, byName: attestation.byName };
   },
 );
@@ -68,7 +68,7 @@ export const revokeAttestationAction = staffAction(
       sourceId: input.sourceId,
       dataset: input.dataset,
     });
-    revalidatePath(`/${agencySlug}/app/admin/sources`);
+    revalidatePath(`/${agencySlug}/app/admin/data`);
     return { ok: true };
   },
 );
@@ -94,7 +94,7 @@ export const syncConnectedSourceNowAction = staffAction(
     for (const documentId of result.touchedIds) {
       getJobQueue().enqueue("embed_document_chunks", { agencyId: staff.agencyId, documentId });
     }
-    revalidatePath(`/${agencySlug}/app/admin/sources`);
+    revalidatePath(`/${agencySlug}/app/admin/data`);
     revalidatePath(`/${agencySlug}/app/records`);
     return { ok: true, result };
   },
@@ -109,7 +109,7 @@ export const setConnectedSourcePausedAction = staffAction(
       sourceId: input.sourceId,
       paused: input.paused,
     });
-    revalidatePath(`/${agencySlug}/app/admin/sources`);
+    revalidatePath(`/${agencySlug}/app/admin/data`);
     return { ok: true };
   },
 );
@@ -122,7 +122,7 @@ export const deleteConnectedSourceAction = staffAction(
       actorUserId: staff.userId,
       sourceId,
     });
-    revalidatePath(`/${agencySlug}/app/admin/sources`);
+    revalidatePath(`/${agencySlug}/app/admin/data`);
     return { ok: true };
   },
 );

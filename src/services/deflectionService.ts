@@ -11,6 +11,7 @@ const HOURS_AVOIDED: Record<DeflectionEntity["kind"], number> = {
   download: 1.5, // a full request that never needed to be filed
   scope_down: 0.5, // a request that got narrower/faster
   answered_by_link: 1.0, // a filed request answered by citation, not production
+  archive_miss: 0, // NOT a deflection — unmet demand recorded for the librarian
 };
 
 export async function logDeflection(
@@ -36,7 +37,8 @@ export interface DeflectionSummary {
 }
 
 export async function deflectionSummary(deps: ServiceDeps, agencyId: string): Promise<DeflectionSummary> {
-  const all = await deps.repo.listDeflections(agencyId);
+  // Misses are demand signal, not deflections — they never count toward ROI.
+  const all = (await deps.repo.listDeflections(agencyId)).filter((d) => d.kind !== "archive_miss");
   return {
     count: all.length,
     downloads: all.filter((d) => d.kind === "download").length,

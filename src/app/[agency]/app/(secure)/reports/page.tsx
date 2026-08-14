@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getRepository } from "@/db/createRepository";
 import { getAgencyForSlug } from "@/lib/live";
 import { liveComplianceDataset } from "@/lib/reportingData";
+import { transparencyImpact, type TransparencyImpact } from "@/services/transparencyImpactService";
 import { DEFLECTIONS_YTD, reportingDataset } from "@/lib/reportingDemo";
 import { complianceReport } from "@/reporting/metrics";
-import { metricsCsv } from "@/reporting/csv";
+import { complianceReportCsv } from "@/reporting/csv";
 import { DownloadButton } from "../../../../_components/DownloadButton";
 
 export const dynamic = "force-dynamic";
@@ -20,26 +22,29 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
     ? await liveComplianceDataset(agency.id).then(({ records, deflections }) => complianceReport(records, deflections))
     : complianceReport(reportingDataset(), DEFLECTIONS_YTD);
 
+  // The north-star section (docs/transparency-impact.md) — live agencies
+  // only; the unseeded demo fixture has no deflection/publication history.
+  let impact: TransparencyImpact | null = null;
+  if (agency.id) {
+    impact = await transparencyImpact(await getRepository(), agency.id, new Date());
+  }
+  const maxImpact = impact
+    ? Math.max(...impact.monthly.map((m) => Math.max(m.requests, m.deflections)), 1)
+    : 1;
+
   const months = Object.entries(report.volumeByMonth).sort(([a], [b]) => a.localeCompare(b));
   const maxMonth = Math.max(...months.map(([, c]) => c), 1);
   const types = Object.entries(report.volumeByRequesterType).sort(([, a], [, b]) => b - a);
   const maxType = Math.max(...types.map(([, c]) => c), 1);
 
-  const csv = metricsCsv([
-    ["reporting_period", "2026 YTD"],
-    ["total_requests", report.total],
-    ["closed", report.closed],
-    ["open", report.open],
-    ["on_time_rate", report.onTimeRate.toFixed(3)],
-    ["median_days_to_close", report.daysToClose.median],
-    ["p90_days_to_close", report.daysToClose.p90],
-    ["extension_usage_rate", report.extensionUsageRate.toFixed(3)],
-    ["deflections", report.deflections],
-    ...report.exemptionFrequency.map((e) => [`exemption:${e.label}`, e.count] as [string, number]),
-  ]);
+  // Demo fixture only — live agencies download from the annual-report.csv
+  // route so the artifact always reflects the database at click time.
+  const demoCsv = agency.id
+    ? null
+    : complianceReportCsv(report, { agencyName: agency.name, periodLabel: "2026 YTD" });
 
   return (
-    <div className="wrap" style={{ paddingBlock: "36px" }}>
+    <div className="wrap" style={{ paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Command center
       </Link>
@@ -49,7 +54,13 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Compliance report · 2026</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <DownloadButton filename="brandeis-compliance-2026.csv" content={csv} label="Download CSV" />
+          {agency.id ? (
+            <a href={`/${slug}/app/reports/annual-report.csv`} className="btn btn-sm">
+              Download CSV
+            </a>
+          ) : (
+            demoCsv && <DownloadButton filename="brandeis-compliance-2026.csv" content={demoCsv} label="Download CSV" />
+          )}
           {agency.id && (
             <a href={`/${slug}/app/reports/annual-report.pdf`} className="btn btn-sm">
               Download PDF
@@ -130,8 +141,98 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
               {e.label} · {e.count}
             </span>
           ))}
+          {report.exemptionFrequency.length === 0 && (
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              No exemptions cited yet — every release so far has gone out unredacted and
+              unwithheld. Citations appear here as review decisions record them.
+            </p>
+          )}
         </div>
       </div>
+
+      {impact && (
+        <>
+          <h2 style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8 }}>
+            Transparency impact
+          </h2>
+          <p className="muted" style={{ fontSize: "0.9rem", marginBottom: 12, maxWidth: 620 }}>
+            The number this platform exists to move: requests that never needed filing, because
+            the records were already public. Archive misses never count as savings — they are
+            unmet demand.
+          </p>
+
+          <div className="stat-row" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+            <div className="stat">
+              <div className="stat-num" style={{ color: "var(--ai)" }}>{impact.totals.hoursAvoidedAllTime}</div>
+              <div className="stat-label">Staff-hours avoided, all time</div>
+            </div>
+            <div className="stat">
+              <div className="stat-num">{impact.totals.deflectionsAllTime}</div>
+              <div className="stat-label">Requests deflected</div>
+            </div>
+            <div className="stat">
+              <div className="stat-num">{impact.totals.publishedRecords}</div>
+              <div className="stat-label">Records in the public archive</div>
+            </div>
+          </div>
+
+          <div className="card card-pad" style={{ marginTop: 16 }}>
+            <div className="panel-title">Requests vs. deflections, last 6 months</div>
+            <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+              {impact.monthly.map((m) => (
+                <div key={m.month} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span className="mono muted" style={{ fontSize: "0.8rem", width: 58 }}>{m.month}</span>
+                  <div style={{ flex: 1, display: "grid", gap: 3 }}>
+                    <div style={{ background: "var(--surface-3)", borderRadius: "var(--r-pill)", height: 8 }}>
+                      <div style={{ width: `${(m.requests / maxImpact) * 100}%`, height: "100%", background: "var(--primary)", borderRadius: "var(--r-pill)" }} />
+                    </div>
+                    <div style={{ background: "var(--surface-3)", borderRadius: "var(--r-pill)", height: 8 }}>
+                      <div style={{ width: `${(m.deflections / maxImpact) * 100}%`, height: "100%", background: "var(--ai)", borderRadius: "var(--r-pill)" }} />
+                    </div>
+                  </div>
+                  <span className="muted" style={{ fontSize: "0.78rem", width: 190, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    {m.requests} filed · {m.deflections} deflected
+                    {m.recordsPublished > 0 ? ` · ${m.recordsPublished} published` : ""}
+                    {m.archiveMisses > 0 ? ` · ${m.archiveMisses} misses` : ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="muted" style={{ fontSize: "0.78rem", marginTop: 10 }}>
+              Top bar: requests filed. Bottom bar: requests deflected (answered by the archive
+              instead). The goal is the bottom bar growing at the top bar&apos;s expense.
+            </p>
+          </div>
+
+          {impact.opportunities.length > 0 && (
+            <div className="card card-pad" style={{ marginTop: 16 }}>
+              <div className="panel-title">What publishing next would be worth</div>
+              <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 12 }}>
+                {impact.opportunities.map((o, i) => (
+                  <li key={i} style={{ display: "grid", gap: 4 }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: 600 }}>{o.topic}</span>
+                      <span className="pill" style={{ color: "var(--ai)" }}>≈ {o.projectedHours}h / quarter</span>
+                      <Link
+                        href={`/${slug}/app/search?q=${encodeURIComponent(o.keywords.join(" "))}`}
+                        className="btn btn-sm"
+                      >
+                        Find the records
+                      </Link>
+                    </div>
+                    <span className="muted" style={{ fontSize: "0.8rem" }}>{o.basis}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="muted" style={{ fontSize: "0.78rem", marginTop: 10 }}>
+                Projections are deliberately conservative (citation-answer rate, not full
+                productions) and every number traces to the request log. Publishing any record
+                is a named human&apos;s call, made per record.
+              </p>
+            </div>
+          )}
+        </>
+      )}
 
       <p className="muted" style={{ fontSize: "0.82rem", marginTop: 18 }}>
         Maps to the state&apos;s mandated annual FOIA report. Printable summary + per-request

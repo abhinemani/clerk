@@ -34,6 +34,5 @@ COPY --from=build /app ./
 # The one writable path: database + blobs, owned by the unprivileged user.
 RUN mkdir -p /data && chown -R node:node /data
 USER node
-VOLUME /data
 EXPOSE 3000
 CMD ["npm", "start"]

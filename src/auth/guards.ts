@@ -3,6 +3,7 @@
  * the authorized principal or redirects to the right sign-in page — always the
  * agency's own (multi-tenant: there is no global login).
  */
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getRepository } from "@/db/createRepository";
@@ -57,6 +58,27 @@ export const ALL_STAFF_ROLES: StaffRole[] = [
  * "responder" (or ALL_STAFF_ROLES). New coordinator pages are safe by default.
  */
 export async function requireStaff(agencySlug: string, roles?: StaffRole[]): Promise<StaffSession> {
+  // The authenticate-and-load half is request-cached (layout + page + nested
+  // components each call this guard); the ROLE check stays per-call — pages
+  // pass different `roles` lists and each must enforce its own.
+  const { dbUser, tokenName, tokenSlug } = await loadStaffPrincipal(agencySlug);
+  if (!roles && dbUser.role === "responder") redirect(`/${agencySlug}/app/tasks`);
+  if (roles && !roles.includes(dbUser.role)) {
+    redirect(dbUser.role === "responder" ? `/${agencySlug}/app/tasks` : `/${agencySlug}/app`);
+  }
+
+  return {
+    userId: dbUser.id,
+    agencyId: dbUser.agencyId,
+    agencySlug: tokenSlug,
+    role: dbUser.role,
+    name: dbUser.name ?? tokenName,
+    email: dbUser.email,
+  };
+}
+
+/** Session decode + DB authority re-read, once per request per slug. */
+const loadStaffPrincipal = cache(async (agencySlug: string) => {
   const session = await auth();
   const u = session?.user;
   if (!u || u.kind !== "staff" || u.agencySlug !== agencySlug || !u.role) {
@@ -67,20 +89,11 @@ export async function requireStaff(agencySlug: string, roles?: StaffRole[]): Pro
   const repo = await getRepository();
   const dbUser = await repo.getUser(u.agencyId!, u.id);
   if (!dbUser) redirect(`/${agencySlug}/app/login`); // account removed
-  if (!roles && dbUser.role === "responder") redirect(`/${agencySlug}/app/tasks`);
-  if (roles && !roles.includes(dbUser.role)) {
-    redirect(dbUser.role === "responder" ? `/${agencySlug}/app/tasks` : `/${agencySlug}/app`);
-  }
-
-  return {
-    userId: dbUser.id,
-    agencyId: dbUser.agencyId,
-    agencySlug: u.agencySlug!,
-    role: dbUser.role,
-    name: dbUser.name ?? u.name ?? null,
-    email: dbUser.email,
-  };
-}
+  // No password on file = sign-in was revoked (a session can only exist if a
+  // password once did) — the old token grants nothing, effective immediately.
+  if (!dbUser.passwordHash) redirect(`/${agencySlug}/app/login`);
+  return { dbUser, tokenName: u.name ?? null, tokenSlug: u.agencySlug! };
+});
 
 /** Signed-in requester of this agency's portal. */
 export async function requireRequester(agencySlug: string): Promise<RequesterSession> {
@@ -112,9 +125,9 @@ export async function requirePlatformAdmin(): Promise<void> {
  * "Signed in as X" from a stale cookie the guards would reject, and the
  * chrome lies about a session that grants nothing.
  */
-export async function sessionUser() {
+export const sessionUser = cache(async () => {
   const session = await auth();
   const u = session?.user ?? null;
   if (!u) return null;
   return (await instanceMatches(u.inst)) ? u : null;
-}
+});

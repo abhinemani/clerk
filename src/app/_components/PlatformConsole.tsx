@@ -5,9 +5,13 @@ import { branding } from "@/config/branding";
 import {
   createAgencyAction,
   linkDirectoryPeerAction,
+  platformAddStaff,
+  platformResendInvite,
   platformResetPassword,
+  platformRevokeSignIn,
   platformSetStaffRole,
   platformSignIn,
+  renameAgencyAction,
 } from "../admin/actions";
 import { Avatar } from "./ui";
 
@@ -166,6 +170,74 @@ export function CreateAgencyForm() {
   );
 }
 
+// --- agency identity --------------------------------------------------------
+
+/**
+ * Display-name editor. Slug and state are shown but not editable — URLs and
+ * statute obligations never drift under a rename (accountService.renameAgency
+ * enforces the same rule server-side).
+ */
+export function RenameAgencyForm({
+  agencyId,
+  agencySlug,
+  currentName,
+}: {
+  agencyId: string;
+  agencySlug: string;
+  currentName: string;
+}) {
+  const [name, setName] = useState(currentName);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const dirty = name.trim() !== currentName && name.trim().length > 0;
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!dirty) return;
+        setError(null);
+        setNotice(null);
+        startTransition(async () => {
+          const r = await renameAgencyAction({ agencyId, agencySlug, name });
+          if (!r.ok) setError(r.error);
+          else setNotice("Agency renamed — the change is logged in the agency's activity.");
+        });
+      }}
+      className="stack"
+      style={{ gap: 8 }}
+    >
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <label className="lbl" htmlFor="agency-rename" style={{ minWidth: 0 }}>
+          Display name
+        </label>
+        <input
+          id="agency-rename"
+          className="field"
+          style={{ flex: 1, minWidth: 220, maxWidth: 380 }}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={pending}
+        />
+        <button className="btn btn-sm btn-primary" type="submit" disabled={pending || !dirty}>
+          {pending ? "Saving…" : "Rename"}
+        </button>
+      </div>
+      {error && (
+        <p className="pill band-overdue" role="alert" style={{ justifySelf: "start" }}>
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="pill band-on_track" style={{ justifySelf: "start" }}>
+          {notice}
+        </p>
+      )}
+    </form>
+  );
+}
+
 // --- per-tenant account management ----------------------------------------
 
 export interface PlatformStaffRow {
@@ -239,23 +311,64 @@ export function PlatformStaffTable({
                   </option>
                 ))}
               </select>
-              <button
-                className="btn btn-sm"
-                disabled={pending}
-                onClick={() => {
-                  const password = window.prompt(`New password for ${u.email} (min 8 chars):`);
-                  if (!password) return;
-                  setError(null);
-                  setNotice(null);
-                  startTransition(async () => {
-                    const r = await platformResetPassword({ agencyId, agencySlug, userId: u.id, password });
-                    if (!r.ok) setError(r.error);
-                    else setNotice(`Password reset for ${u.email}.`);
-                  });
-                }}
-              >
-                Reset password
-              </button>
+              {u.hasPassword ? (
+                <>
+                  <button
+                    className="btn btn-sm"
+                    disabled={pending}
+                    onClick={() => {
+                      const password = window.prompt(`New password for ${u.email} (min 8 chars):`);
+                      if (!password) return;
+                      setError(null);
+                      setNotice(null);
+                      startTransition(async () => {
+                        const r = await platformResetPassword({ agencyId, agencySlug, userId: u.id, password });
+                        if (!r.ok) setError(r.error);
+                        else setNotice(`Password reset for ${u.email}.`);
+                      });
+                    }}
+                  >
+                    Reset password
+                  </button>
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    disabled={pending}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          `Revoke sign-in for ${u.email}? Their password is cleared and any open session ends immediately. The account and its history stay; restore access with a reset or a new invite.`,
+                        )
+                      )
+                        return;
+                      setError(null);
+                      setNotice(null);
+                      startTransition(async () => {
+                        const r = await platformRevokeSignIn({ agencyId, agencySlug, userId: u.id });
+                        if (!r.ok) setError(r.error);
+                        else setNotice(`Sign-in revoked for ${u.email}.`);
+                      });
+                    }}
+                  >
+                    Revoke sign-in
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="btn btn-sm"
+                  disabled={pending}
+                  onClick={() => {
+                    setError(null);
+                    setNotice(null);
+                    startTransition(async () => {
+                      const r = await platformResendInvite({ agencyId, agencySlug, userId: u.id });
+                      if (!r.ok) setError(r.error);
+                      else setNotice(`Invite re-sent to ${u.email} (delivered via the agency's outbox).`);
+                    });
+                  }}
+                >
+                  Re-send invite
+                </button>
+              )}
             </li>
           ))}
           {rows.length === 0 && (
@@ -266,6 +379,104 @@ export function PlatformStaffTable({
         </ul>
       </div>
     </div>
+  );
+}
+
+/**
+ * Add a staff member to this tenant from the console — the operator's version
+ * of the tenant admin's form. Password blank ⇒ invite link via the outbox.
+ */
+export function PlatformAddStaffForm({ agencyId, agencySlug }: { agencyId: string; agencySlug: string }) {
+  const empty = { email: "", name: "", role: "responder" as (typeof ROLES)[number], password: "" };
+  const [form, setForm] = useState(empty);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError(null);
+        setNotice(null);
+        startTransition(async () => {
+          const r = await platformAddStaff({
+            agencyId,
+            agencySlug,
+            email: form.email,
+            name: form.name,
+            role: form.role,
+            password: form.password || undefined,
+          });
+          if (!r.ok) {
+            setError(r.error);
+            return;
+          }
+          setNotice(
+            form.password
+              ? `${form.email} can sign in now at /${agencySlug}/app/login.`
+              : `Invite sent to ${form.email} via the agency's outbox — the link sets their password.`,
+          );
+          setForm(empty);
+        });
+      }}
+      className="card card-pad stack"
+      style={{ gap: 12 }}
+    >
+      <div className="panel-title">Add a staff member</div>
+      <div className="pc-staff-grid">
+        <div className="stack" style={{ gap: 6 }}>
+          <label className="lbl" htmlFor="ps-name">
+            Name
+          </label>
+          <input id="ps-name" className="field" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+        </div>
+        <div className="stack" style={{ gap: 6 }}>
+          <label className="lbl" htmlFor="ps-email">
+            Email
+          </label>
+          <input id="ps-email" type="email" className="field" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+        </div>
+        <div className="stack" style={{ gap: 6 }}>
+          <label className="lbl" htmlFor="ps-role">
+            Role
+          </label>
+          <select id="ps-role" className="field" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as (typeof ROLES)[number] }))}>
+            {ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="stack" style={{ gap: 6 }}>
+          <label className="lbl" htmlFor="ps-pass">
+            Password <span className="muted">(blank = email an invite)</span>
+          </label>
+          <input id="ps-pass" type="text" className="field" minLength={8} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+        </div>
+      </div>
+      {error && (
+        <p className="pill band-overdue" role="alert" style={{ justifySelf: "start" }}>
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="pill band-on_track" style={{ justifySelf: "start" }}>
+          {notice}
+        </p>
+      )}
+      <div>
+        <button className="btn btn-sm btn-primary" type="submit" disabled={pending}>
+          {pending ? "Adding…" : "Add staff member"}
+        </button>
+      </div>
+      <style>{`
+        .pc-staff-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        @media (max-width: 860px) { .pc-staff-grid { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 560px) { .pc-staff-grid { grid-template-columns: 1fr; } }
+      `}</style>
+    </form>
   );
 }
 

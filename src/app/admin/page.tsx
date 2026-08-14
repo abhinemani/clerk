@@ -89,7 +89,7 @@ export default async function PlatformHome() {
   );
 
   return (
-    <div className="wrap" style={{ maxWidth: 920, paddingBlock: "36px 48px" }}>
+    <div className="wrap" style={{ maxWidth: 920, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
           <span className="eyebrow">Platform console</span>
@@ -97,11 +97,16 @@ export default async function PlatformHome() {
             This deployment
           </h1>
         </div>
-        <form action={platformSignOut}>
-          <button className="btn btn-sm btn-ghost" type="submit">
-            Sign out
-          </button>
-        </form>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link href="/admin/people" className="btn btn-sm">
+            Search people
+          </Link>
+          <form action={platformSignOut}>
+            <button className="btn btn-sm btn-ghost" type="submit">
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Deployment health — the number that matters is Overdue. */}

@@ -4,7 +4,9 @@ import { requirePlatformAdmin } from "@/auth/guards";
 import { getRepository } from "@/db/createRepository";
 import {
   DirectoryPeerLinks,
+  PlatformAddStaffForm,
   PlatformStaffTable,
+  RenameAgencyForm,
   type DirectoryLinkRow,
   type PlatformStaffRow,
 } from "../../_components/PlatformConsole";
@@ -24,12 +26,13 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
   if (!agency) notFound();
 
   const now = new Date();
-  const [users, requesters, requests, directory, allAgencies] = await Promise.all([
+  const [users, requesters, requests, directory, allAgencies, adminEvents] = await Promise.all([
     repo.listUsers(agency.id),
     repo.listRequesters(agency.id),
     repo.listRequests(agency.id),
     repo.listDirectory(agency.id),
     repo.listAgencies(),
+    repo.listAdminEvents(agency.id, 20),
   ]);
   const requestCountByRequester = new Map<string, number>();
   for (const r of requests) {
@@ -66,7 +69,7 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="wrap" style={{ maxWidth: 920, paddingBlock: "36px 48px" }}>
+    <div className="wrap" style={{ maxWidth: 920, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href="/admin" className="muted" style={{ fontSize: "0.9rem" }}>
         ← All agencies
       </Link>
@@ -116,8 +119,21 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
         </div>
       </div>
 
+      <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 10 }}>Agency identity</h2>
+      <div className="card card-pad stack" style={{ gap: 10 }}>
+        <RenameAgencyForm agencyId={agency.id} agencySlug={agency.slug} currentName={agency.name} />
+        <p className="muted" style={{ fontSize: "0.8rem", margin: 0 }}>
+          The URL slug (<span className="mono">/{agency.slug}</span>) and statute profile (
+          {agency.stateCode}) are fixed — portal links and legal deadlines never change under a
+          rename. Seal, accent color, and office contact are the agency admin&apos;s own settings.
+        </p>
+      </div>
+
       <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 10 }}>Staff accounts</h2>
-      <PlatformStaffTable agencyId={agency.id} agencySlug={agency.slug} rows={staffRows} />
+      <div className="stack" style={{ gap: 14 }}>
+        <PlatformStaffTable agencyId={agency.id} agencySlug={agency.slug} rows={staffRows} />
+        <PlatformAddStaffForm agencyId={agency.id} agencySlug={agency.slug} />
+      </div>
 
       <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 10 }}>
         Referral directory — tenant links
@@ -155,6 +171,34 @@ export default async function PlatformAgencyPage({ params }: { params: Promise<{
           {residentAccounts.length === 0 && (
             <li className="muted" style={{ padding: 16 }}>
               No registered resident accounts yet.
+            </li>
+          )}
+        </ul>
+      </div>
+
+      <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 10 }}>
+        Recent activity{" "}
+        <span className="muted" style={{ fontWeight: 400, fontSize: "0.85rem" }}>
+          · append-only audit — operator actions land here too
+        </span>
+      </h2>
+      <div className="card" style={{ overflow: "hidden" }}>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {adminEvents.map((e) => (
+            <li
+              key={e.id}
+              style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "10px 16px", borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}
+            >
+              <span className="tag">{e.kind.replace(/_/g, " ")}</span>
+              <span style={{ fontSize: "0.9rem", flex: 1, minWidth: 200 }}>{e.summary}</span>
+              <span className="muted" style={{ fontSize: "0.78rem" }}>
+                {e.actorLabel} · {e.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </span>
+            </li>
+          ))}
+          {adminEvents.length === 0 && (
+            <li className="muted" style={{ padding: 14, fontSize: "0.9rem" }}>
+              No admin activity recorded yet.
             </li>
           )}
         </ul>

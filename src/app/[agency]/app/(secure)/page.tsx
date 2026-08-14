@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { getRepository } from "@/db/createRepository";
 import { decisionsFor, getWorkspace, outstandingTasks, workloadFor } from "@/lib/live";
 import { deadlineRisk, byRiskDesc } from "@/domain/deadlineRisk";
+import { documentsAtRetentionRisk, type RetentionStatus } from "@/domain/retention";
+import { mineDemandPatterns, type DemandPattern } from "@/domain/demandPatterns";
+import { demandSignalsFrom } from "@/domain/transparencyImpact";
 import { isAssignableRole } from "@/domain/workflow";
 import { matchesQueueFilters, parseQueueFilters, hasActiveFilters } from "@/domain/queueFilters";
 import { runDeadlineSweep } from "@/agents/deadlineAgent";
@@ -98,23 +101,47 @@ export default async function Queue({
   // is a dead end.
   const availableStatuses = [...new Set(allOpen.map((r) => r.status))].sort();
   let assignableStaff: { id: string; name: string }[] = [];
-  if (ws.source === "live" && ws.agencyId) {
-    const repo = await getRepository();
-    assignableStaff = (await repo.listUsers(ws.agencyId))
-      .filter((u) => isAssignableRole(u.role))
-      .map((u) => ({ id: u.id, name: u.name ?? u.email }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
 
   // Honest numbers: computed from the live DB, or the fixture's story numbers
   // when we're showing the unseeded demo. "—" beats a made-up percentage.
   let onTimeLabel = "94%";
   let deflectionsLabel = "41";
+  // Agency-wide retention warnings (same computation as the nightly sweep) —
+  // a record destroyed on schedule while requested is the unrecoverable one.
+  let retentionRisk: { filename: string; status: RetentionStatus }[] = [];
+  // Repeated-demand patterns (same computation as the librarian's nightly
+  // sweep) — proposals only; publishing stays a named human's act.
+  let demandPatterns: DemandPattern[] = [];
+  // Agent runs parked at a human checkpoint — the /app/agents badge.
+  let parkedAgentRuns = 0;
   if (ws.source === "live" && ws.agencyId) {
+    // One parallel batch — these reads are independent, and awaiting them in
+    // sequence made the dashboard a five-stage waterfall.
     const repo = await getRepository();
-    const deflections = await repo.listDeflections(ws.agencyId);
+    const [users, agentRuns, retentionDocs, deflections, allRequests] = await Promise.all([
+      repo.listUsers(ws.agencyId),
+      repo.listAgentRuns(ws.agencyId),
+      repo.listDocumentsUnderRetention(ws.agencyId),
+      repo.listDeflections(ws.agencyId),
+      repo.listRequests(ws.agencyId),
+    ]);
+    assignableStaff = users
+      .filter((u) => isAssignableRole(u.role))
+      .map((u) => ({ id: u.id, name: u.name ?? u.email }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    parkedAgentRuns = agentRuns.filter((r) => r.status === "awaiting_checkpoint").length;
+    retentionRisk = documentsAtRetentionRisk(retentionDocs, ws.now).map(({ doc, status }) => ({
+      filename: doc.filename ?? doc.id,
+      status,
+    }));
     const monthStart = new Date(ws.now.getFullYear(), ws.now.getMonth(), 1);
-    deflectionsLabel = String(deflections.filter((d) => d.createdAt >= monthStart).length);
+    // archive_miss rows are demand signal, not deflections — never ROI.
+    deflectionsLabel = String(
+      deflections.filter((d) => d.kind !== "archive_miss" && d.createdAt >= monthStart).length,
+    );
+    // Shared signal builder (domain/transparencyImpact) — the reports page's
+    // impact section mines the same signals, so the two can never diverge.
+    demandPatterns = mineDemandPatterns(demandSignalsFrom(allRequests, deflections), { now: ws.now });
 
     const closedRequests = ws.requests.filter((r) => r.closedAt != null);
     onTimeLabel = closedRequests.length
@@ -123,28 +150,19 @@ export default async function Queue({
   }
 
   return (
-    <div className="wrap" style={{ paddingBlock: "36px" }}>
+    <div className="wrap" style={{ paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
           <span className="eyebrow">{ws.agencyName} · Records oversight</span>
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Command center</h1>
         </div>
+        {/* Navigation lives in the persistent StaffNav rail now — the header
+            keeps only what the rail can't say: a parked-agents alert and the
+            session controls. */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Link href={`/${slug}/app/search`} className="btn btn-sm">
-            Records search
-          </Link>
-          <Link href={`/${slug}/app/records`} className="btn btn-sm">
-            Records queue
-          </Link>
-          <Link href={`/${slug}/app/reports`} className="btn btn-sm">
-            Compliance report →
-          </Link>
-          <Link href={`/${slug}/app/outbox`} className="btn btn-sm">
-            Outbox
-          </Link>
-          {staff.role === "admin" && (
-            <Link href={`/${slug}/app/admin`} className="btn btn-sm">
-              Manage staff
+          {parkedAgentRuns > 0 && (
+            <Link href={`/${slug}/app/agents`} className="btn btn-sm" style={{ borderColor: "var(--due)" }}>
+              ⏸ {parkedAgentRuns} agent run{parkedAgentRuns === 1 ? "" : "s"} awaiting approval
             </Link>
           )}
           <span className="muted hide-sm" style={{ fontSize: "0.9rem" }}>
@@ -194,6 +212,70 @@ export default async function Queue({
           <div className="stat-label">Deflections this month</div>
         </div>
       </div>
+
+      {/* Retention warnings — surfaced before anything is destroyed on
+          schedule, because that mistake has no undo. Display only: placing a
+          hold stays a named human's act on the request page. */}
+      {retentionRisk.length > 0 && (
+        <div className="card card-pad" style={{ marginTop: 20, borderColor: "var(--due)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="panel-title">⚠ Records nearing scheduled destruction</div>
+            <span className="pill band-due_soon">{retentionRisk.length}</span>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0", display: "grid", gap: 6 }}>
+            {retentionRisk.slice(0, 6).map((d, i) => (
+              <li key={i} style={{ fontSize: "0.88rem", display: "flex", gap: 8, alignItems: "baseline" }}>
+                <span className="mono" style={{ fontSize: "0.8rem" }}>{d.filename}</span>
+                <span className="muted" style={{ fontSize: "0.8rem" }}>{d.status.label}</span>
+              </li>
+            ))}
+            {retentionRisk.length > 6 && (
+              <li className="muted" style={{ fontSize: "0.8rem" }}>…and {retentionRisk.length - 6} more</li>
+            )}
+          </ul>
+          <p className="muted" style={{ fontSize: "0.8rem", marginTop: 8 }}>
+            If any of these are responsive to an open request, place a legal hold from that
+            request&apos;s page before the schedule runs out. Documents already under a hold are not
+            listed — a hold is the protection working.
+          </p>
+        </div>
+      )}
+
+      {/* Disclosure librarian (Phase 5 B1): repeated demand the archive isn't
+          answering. Proposals only — publishing a record is, and stays, a
+          named human's act (invariant 9). */}
+      {demandPatterns.length > 0 && (
+        <div className="card card-pad" style={{ marginTop: 20, borderColor: "var(--ai-border, var(--border))" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="panel-title">Proactive disclosure opportunities</div>
+            <span className="pill">{demandPatterns.length}</span>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0", display: "grid", gap: 8 }}>
+            {demandPatterns.map((p, i) => (
+              <li key={i} style={{ fontSize: "0.88rem", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 600 }}>{p.topic}</span>
+                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                  {p.requests > 0 ? `${p.requests} request${p.requests === 1 ? "" : "s"}` : null}
+                  {p.queries > 0 ? ` · ${p.queries} search${p.queries === 1 ? "" : "es"}` : null}
+                  {p.misses > 0 ? ` · ${p.misses} unanswered` : null}
+                  {p.refs.length > 0 ? ` · ${p.refs.slice(0, 3).join(", ")}` : null}
+                </span>
+                <Link
+                  href={`/${slug}/app/search?q=${encodeURIComponent(p.keywords.join(" "))}`}
+                  className="btn btn-sm"
+                >
+                  Find the records
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="muted" style={{ fontSize: "0.8rem", marginTop: 8 }}>
+            Repeated asks the public archive isn&apos;t answering (from requests, searches, and
+            misses over the last 90 days). Publishing anything is your call, made per record —
+            the librarian only points at the demand.
+          </p>
+        </div>
+      )}
 
       {/* Two-up: what needs a leader's decision today + department workload */}
       <div className="cc-grid" style={{ marginTop: 20 }}>
