@@ -226,10 +226,7 @@ export default function MarketingHome() {
                       <SparkIcon />
                       {branding.productName}
                     </span>
-                    <p>
-                      Yes — three inspection reports for 400 Main St are already public. No request
-                      needed:
-                    </p>
+                    <p>Yes — already public, no request needed:</p>
                     <div className="mk-chat-record">
                       Inspection report · 400 Main St
                       <em>Released June 2025 · PDF · with 2 more from 2024</em>
@@ -243,7 +240,7 @@ export default function MarketingHome() {
                       <SparkIcon />
                       {branding.productName}
                     </span>
-                    <p>That record isn&apos;t published yet, so I&apos;ve drafted a request for you:</p>
+                    <p>Not published yet — I&apos;ve drafted a request for you:</p>
                     <div className="mk-chat-record">
                       &ldquo;Police incident report, June 2025 vehicle damage at 400 Main St.&rdquo;
                       <em>Filed as PR-2026-00184 · response due Mar 14, per Cal. Gov. Code § 7922.535</em>
@@ -251,8 +248,8 @@ export default function MarketingHome() {
                   </div>
                 </div>
                 <div className="mk-chat-foot">
-                  Every answer cites the public archive. Every filed request arrives triaged, and a{" "}
-                  <strong>named human</strong> decides what goes out.
+                  Every answer cites the public archive; a <strong>named human</strong> decides what
+                  goes out.
                 </div>
               </div>
               <p className="mk-panel-note">
