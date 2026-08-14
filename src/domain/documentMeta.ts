@@ -108,6 +108,16 @@ export const documentMetaSchema = z
     /** Present exactly on connected-source dataset slices. */
     connectedSource: connectedSourceStampSchema.optional(),
     /**
+     * Phase-3 row store bookkeeping for a dataset slice: how many rows the
+     * slice's CSV holds and whether the store has ALL of them. `complete:
+     * false` (connector truncation or the storage cap) makes tabular answers
+     * REFUSE this dataset — a count over partial rows would be confidently
+     * wrong, which is the one failure mode phase 3 must never have.
+     */
+    rowStore: z
+      .object({ rows: z.number(), complete: z.boolean() })
+      .optional(),
+    /**
      * ASK ALIASES — the plain-language questions this record has actually
      * answered (docs/answer-first.md). Appended when a request that this
      * document satisfied is fulfilled, so the archive slowly learns the

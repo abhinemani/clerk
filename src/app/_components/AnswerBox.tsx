@@ -11,6 +11,8 @@ import {
   type PriorAnswerCard,
 } from "../[agency]/actions";
 import { ConnectedDataTag } from "./ConnectedDataBadge";
+import { TabularAnswerCard } from "./TabularAnswerCard";
+import type { TabularAnswer } from "@/domain/tabularAnswer";
 import { SparkIcon } from "./ui";
 
 interface AgentTurn {
@@ -41,6 +43,9 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
   /** Prior requests whose released records may already answer this. Fetched
    *  only when the archive comes up empty — the moment before filing. */
   const [priorAnswers, setPriorAnswers] = useState<PriorAnswerCard[]>([]);
+  /** Phase-3 tabular answer — actual rows when the query anchors to ONE
+   *  connected dataset with a complete row store; null = refused upstream. */
+  const [table, setTable] = useState<TabularAnswer | null>(null);
   const [searching, setSearching] = useState(false);
   const [downloaded, setDownloaded] = useState<string | null>(null);
   const seq = useRef(0);
@@ -97,6 +102,7 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
   useEffect(() => {
     if (!asked || chatting) {
       setResults([]);
+      setTable(null);
       return;
     }
     const mine = ++seq.current;
@@ -108,6 +114,7 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
         setResults(found.items);
         setWindowNote(found.window);
         setAskMatches(new Set(found.matchedByAsk));
+        setTable(found.table);
         // Nothing published matches. Before offering a form, check whether an
         // earlier request already produced the answer.
         if (found.items.length === 0) {
@@ -348,6 +355,7 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
                   records are included.
                 </div>
               )}
+              {table && <TabularAnswerCard table={table} />}
               <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {results.map((r) => (
                   <li

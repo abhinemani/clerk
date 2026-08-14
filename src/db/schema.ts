@@ -1115,6 +1115,43 @@ export const requestPlays = pgTable(
 );
 
 /**
+ * dataset_rows — connected-sources phase 3 (docs/connected-sources.md): the
+ * structured row store behind tabular answers. Each row is ONE record of a
+ * synced dataset slice, a pure projection of the slice document's CSV —
+ * replaced wholesale per document on every sync/backfill (the request_plays
+ * full-replace idiom), so the store can never drift from the document the
+ * named human actually published. Publicness is NOT stored here: requester
+ * queries join documents and filter classification='public' in the query
+ * layer (invariant 3), so a slice flipping classification instantly governs
+ * its rows with no second bookkeeping path.
+ */
+export const datasetRows = pgTable(
+  "dataset_rows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => documents.id, { onDelete: "cascade" }),
+    dataset: text("dataset").notNull(),
+    period: text("period").notNull(),
+    /** Position within the slice — keeps display order stable. */
+    rowIndex: integer("row_index").notNull(),
+    /** The day this row covers (YYYY-MM-DD; the slice's recordDate when the
+        row's own date field is absent/unparseable). Sortable as text. */
+    recordDate: text("record_date").notNull(),
+    data: jsonb("data").$type<Record<string, string>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("dataset_rows_agency_dataset_idx").on(t.agencyId, t.dataset, t.recordDate),
+    index("dataset_rows_document_idx").on(t.documentId),
+  ],
+);
+
+/**
  * demo_requests — walkthrough requests from the marketing site's primary CTA.
  *
  * PLATFORM-LEVEL, so no agency_id: whoever fills this in has no tenant yet —

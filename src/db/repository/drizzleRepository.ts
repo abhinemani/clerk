@@ -15,6 +15,7 @@ import {
   agencyDirectory,
   agentRuns,
   authTokens,
+  datasetRows,
   deflections,
   deliveries,
   demoRequests,
@@ -44,6 +45,7 @@ import {
   type Agency,
   type AgentRunEntity,
   type AuthTokenEntity,
+  type DatasetRowEntity,
   type DeflectionEntity,
   type DemoRequestEntity,
   type DeliveryEntity,
@@ -1731,6 +1733,102 @@ export class DrizzleRepository implements Repository {
       rebuiltAt: p.rebuiltAt,
       createdAt: p.createdAt,
     }));
+  }
+
+  // --- dataset row store (connected-sources phase 3) -----------------------
+
+  private toDatasetRow(r: typeof datasetRows.$inferSelect): DatasetRowEntity {
+    return {
+      id: r.id,
+      agencyId: r.agencyId,
+      documentId: r.documentId,
+      dataset: r.dataset,
+      period: r.period,
+      rowIndex: r.rowIndex,
+      recordDate: r.recordDate,
+      data: r.data ?? {},
+      createdAt: r.createdAt,
+    };
+  }
+
+  async replaceDatasetRows(agencyId: string, documentId: string, rows: DatasetRowEntity[]): Promise<void> {
+    await this.db
+      .delete(datasetRows)
+      .where(and(eq(datasetRows.agencyId, agencyId), eq(datasetRows.documentId, documentId)));
+    const mine = rows.filter((r) => r.agencyId === agencyId && r.documentId === documentId);
+    if (mine.length === 0) return;
+    // Batched insert; slices can carry tens of thousands of rows and one
+    // VALUES list that long overflows the wire protocol.
+    const BATCH = 2000;
+    for (let i = 0; i < mine.length; i += BATCH) {
+      await this.db.insert(datasetRows).values(
+        mine.slice(i, i + BATCH).map((r) => ({
+          id: r.id,
+          agencyId: r.agencyId,
+          documentId: r.documentId,
+          dataset: r.dataset,
+          period: r.period,
+          rowIndex: r.rowIndex,
+          recordDate: r.recordDate,
+          data: r.data,
+          createdAt: r.createdAt,
+        })),
+      );
+    }
+  }
+
+  async searchPublicDatasetRows(
+    agencyId: string,
+    opts: { dataset: string; from?: string; to?: string; limit: number },
+  ): Promise<{ rows: DatasetRowEntity[]; total: number }> {
+    // Invariant 3 lives HERE: the join to documents filters
+    // classification='public' in the query, not in any caller.
+    const conditions = [
+      eq(datasetRows.agencyId, agencyId),
+      eq(datasetRows.dataset, opts.dataset),
+      eq(documents.classification, "public"),
+      ...(opts.from ? [sql`${datasetRows.recordDate} >= ${opts.from}`] : []),
+      ...(opts.to ? [sql`${datasetRows.recordDate} <= ${opts.to}`] : []),
+    ];
+    const [rows, totals] = await Promise.all([
+      this.db
+        .select({ row: datasetRows })
+        .from(datasetRows)
+        .innerJoin(documents, eq(datasetRows.documentId, documents.id))
+        .where(and(...conditions))
+        .orderBy(asc(datasetRows.recordDate), asc(datasetRows.rowIndex))
+        .limit(opts.limit),
+      this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(datasetRows)
+        .innerJoin(documents, eq(datasetRows.documentId, documents.id))
+        .where(and(...conditions)),
+    ]);
+    return {
+      rows: rows.map((r: { row: typeof datasetRows.$inferSelect }) => this.toDatasetRow(r.row)),
+      total: totals[0]?.n ?? 0,
+    };
+  }
+
+  async listPublicDatasetRowsForDocument(
+    agencyId: string,
+    documentId: string,
+    limit: number,
+  ): Promise<DatasetRowEntity[]> {
+    const rows = await this.db
+      .select({ row: datasetRows })
+      .from(datasetRows)
+      .innerJoin(documents, eq(datasetRows.documentId, documents.id))
+      .where(
+        and(
+          eq(datasetRows.agencyId, agencyId),
+          eq(datasetRows.documentId, documentId),
+          eq(documents.classification, "public"),
+        ),
+      )
+      .orderBy(asc(datasetRows.rowIndex))
+      .limit(limit);
+    return rows.map((r: { row: typeof datasetRows.$inferSelect }) => this.toDatasetRow(r.row));
   }
 
   // --- agent runs (§16.2) --------------------------------------------------

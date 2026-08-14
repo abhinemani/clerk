@@ -253,12 +253,40 @@ export async function searchArchiveAction(agencySlug: string, query: string) {
   const { searchArchiveDetailed } = await import("@/lib/archive");
   const r = await searchArchiveDetailed(agencySlug, query);
   const { describeRange } = await import("@/domain/dateQuery");
+  const window = r.range ? { label: describeRange(r.range), subject: r.subject } : null;
+
+  // Phase 3 (docs/connected-sources.md): when the hits anchor to exactly one
+  // connected dataset with a complete row store, answer with the actual rows.
+  // Best-effort and refusal-heavy by design — null means "no table", and the
+  // ordinary slice results below it still render.
+  let table = null;
+  try {
+    const [{ getRepository }, { findTabularAnswer }, { defaultDeps }] = await Promise.all([
+      import("@/db/createRepository"),
+      import("@/services/tabularAnswerService"),
+      import("@/services/deps"),
+    ]);
+    const repo = await getRepository();
+    const agency = await repo.getAgencyBySlug(agencySlug);
+    if (agency) {
+      table = await findTabularAnswer(defaultDeps(repo), {
+        agencyId: agency.id,
+        query,
+        items: r.items,
+        rangeLabel: window?.label ?? null,
+      });
+    }
+  } catch (e) {
+    console.error("tabular answer failed — search results stand alone", e);
+  }
+
   return {
     items: r.items,
     // Say out loud that a window was applied. A filter the user cannot see is
     // indistinguishable from a corpus that is missing records.
-    window: r.range ? { label: describeRange(r.range), subject: r.subject } : null,
+    window,
     matchedByAsk: r.matchedByAsk,
+    table,
   };
 }
 

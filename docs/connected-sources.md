@@ -6,8 +6,9 @@ HTTP + Socrata connectors and standing publication with all four rails —
 verified in a browser against Chicago's **live** open-data portal
 (`data.cityofchicago.org/ygr5-vcbg`, 2,520 real rows in one monthly slice)
 plus a file-drop source exercising auto-publish, schema-drift revocation,
-and PII quarantine end to end. Phase 3 (structured row store, tabular
-answers) stays gated on real usage.
+and PII quarantine end to end. **Phase 3 SHIPPED 2026-08-14** (gate released
+by the owner 2026-08-13): structured row store + tabular answers — see
+"Phase 3 as built" at the end of this doc.
 
 All decision points are resolved — they were marked ⚑ for the owner per
 CLAUDE.md (anything that changes what a requester can see gets asked, not
@@ -266,5 +267,46 @@ deletions are all named-actor admin events.
      the column shape the human saw; `classifyNewSlice()` is the whole
      publicness decision in one pure function, which is what the invariant
      tests point at.
-3. **Structured row store + tabular slice answers**, only if real usage
-   shows document-granularity answers falling short.
+3. ~~**Structured row store + tabular slice answers**~~ **SHIPPED
+   2026-08-14** — see below.
+
+## Phase 3 as built (2026-08-14)
+
+**The row store** (`dataset_rows`, migration 0017) is a pure projection of
+each slice document's CSV — replaced wholesale per document on sync (the
+request_plays full-replace idiom), so it can never drift from what the
+named human actually published. Sync also backfills: any slice with a
+`connectedSource` stamp but no `rowStore` bookkeeping gets its rows
+materialized from `extractedText` on the next sync run, so upgrades
+converge without a special job. Each slice doc carries
+`metadata.rowStore = { rows, complete }`; `complete: false` (connector
+truncation, or the 50k-row storage cap) keeps a 1,000-row preview and
+nothing more. Rows are dated by the connector's configured `dateField`
+when a row's own value parses, else by the slice's recordDate (file-drop
+sources have no dateField — month granularity is what they honestly know).
+
+**Publicness**: rows carry no classification. The requester-facing queries
+(`searchPublicDatasetRows`, `listPublicDatasetRowsForDocument`) join
+`documents` and filter `classification='public'` IN THE QUERY (invariant 3,
+conformance-tested with marker strings) — a slice flipping public/internal
+instantly governs its rows with no second bookkeeping path.
+
+**Tabular answers**: `composeTabularAnswer` (src/domain/tabularAnswer.ts,
+pure) + `findTabularAnswer` (service gate). REFUSAL-WHEN-UNSURE IS THE
+DESIGN — a wrong table is confidently wrong, so every uncertain branch
+returns null and the ordinary slice results stand alone:
+- the search's connected hits must anchor to exactly ONE dataset;
+- every public slice of that dataset must have a COMPLETE row store;
+- question terms must connect to the data — terms naming the dataset/its
+  columns calibrate, terms matching cell values filter the rows, a term
+  matching nothing refuses (calendar words like a stranded "june" are
+  time vocabulary, never filters);
+- a filtered count requires the full row set in hand (no under-counts
+  from a partial page); the unfiltered count is the store's exact total.
+
+Every answer carries a `basis` string (the computeDueDate idiom): what was
+counted, from which source, over which window, synced when. Rendered by
+`TabularAnswerCard` in the answer box (above the slice results, with the
+standard automated-answer flag; the table scrolls in its own box) and as a
+"Data preview" table on the slice permalink. Displaying a table logs no
+deflection (house rule: only downloads/filings log).

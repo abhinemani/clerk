@@ -183,6 +183,24 @@ export function periodOfRow(row: DataRow, dateField: string): string | null {
   return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/**
+ * The specific day a row covers (YYYY-MM-DD), for the phase-3 row store.
+ * Same tolerant parsing as periodOfRow; anything unparseable takes the
+ * fallback (the slice's own recordDate) rather than a guess — a row is never
+ * dated more precisely than the evidence supports.
+ */
+export function rowRecordDate(row: DataRow, dateField: string | undefined, fallback: string): string {
+  const raw = dateField ? (row[dateField] ?? "").trim() : "";
+  if (!raw) return fallback;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(raw);
+  if (us) return `${us[3]}-${us[1]!.padStart(2, "0")}-${us[2]!.padStart(2, "0")}`;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return fallback;
+  return parsed.toISOString().slice(0, 10);
+}
+
 /** Group rows into monthly slices — the unit a "June 2026" record covers. */
 export function rowsToSlices(
   dataset: string,

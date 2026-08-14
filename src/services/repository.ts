@@ -239,6 +239,25 @@ export interface PlayEntity {
   createdAt: Date;
 }
 
+/**
+ * One record of a synced dataset slice (connected-sources phase 3) — a pure
+ * projection of the slice document's CSV, replaced wholesale per document.
+ * Carries no classification of its own: visibility is the slice document's,
+ * enforced where rows are queried.
+ */
+export interface DatasetRowEntity {
+  id: string;
+  agencyId: string;
+  documentId: string;
+  dataset: string;
+  period: string;
+  rowIndex: number;
+  /** YYYY-MM-DD — the row's own date when parseable, else the slice's. */
+  recordDate: string;
+  data: Record<string, string>;
+  createdAt: Date;
+}
+
 /** DB enum agent_type — the five §16.1 agents plus the Phase-5 agents
  *  (migration 0014). Append-only: never remove or rename a shipped value. */
 export type PersistedAgentType =
@@ -707,6 +726,28 @@ export interface Repository {
   // so the store can never drift from the record it summarizes.
   replaceAgencyPlays(agencyId: string, rows: PlayEntity[]): Promise<void>;
   listPlays(agencyId: string): Promise<PlayEntity[]>;
+
+  // Connected-sources phase 3 (docs/connected-sources.md): the dataset row
+  // store — a full-replace-per-document projection of each synced slice.
+  replaceDatasetRows(agencyId: string, documentId: string, rows: DatasetRowEntity[]): Promise<void>;
+  /**
+   * Requester-facing row search. PUBLIC-ONLY BY CONSTRUCTION: the query
+   * joins documents and filters classification='public' in the query layer
+   * (invariant 3) — a slice's rows appear and disappear with the slice's own
+   * classification, no second bookkeeping. Range bounds compare recordDate
+   * lexically (YYYY-MM-DD). Rows ordered recordDate then rowIndex; `total`
+   * counts every match, not just the returned page.
+   */
+  searchPublicDatasetRows(
+    agencyId: string,
+    opts: { dataset: string; from?: string; to?: string; limit: number },
+  ): Promise<{ rows: DatasetRowEntity[]; total: number }>;
+  /** Rows of ONE slice document, same public-only rule (permalink preview). */
+  listPublicDatasetRowsForDocument(
+    agencyId: string,
+    documentId: string,
+    limit: number,
+  ): Promise<DatasetRowEntity[]>;
 
   // Agent runs (§16.2): persisted plan state so runs are resumable and a
   // human can steer any run from the UI. All reads agency-scoped.
@@ -1357,6 +1398,45 @@ export class InMemoryRepository implements Repository {
     return this.plays
       .filter((p) => p.agencyId === agencyId)
       .sort((a, b) => b.episodeCount - a.episodeCount);
+  }
+
+  private datasetRows: DatasetRowEntity[] = [];
+
+  async replaceDatasetRows(agencyId: string, documentId: string, rows: DatasetRowEntity[]) {
+    this.datasetRows = [
+      ...this.datasetRows.filter((r) => r.documentId !== documentId),
+      ...rows.filter((r) => r.agencyId === agencyId && r.documentId === documentId),
+    ];
+  }
+
+  /** The public gate, mirrored from the Drizzle join (invariant 3). */
+  private isPublicDoc(documentId: string): boolean {
+    return this.documents.get(documentId)?.classification === "public";
+  }
+
+  async searchPublicDatasetRows(
+    agencyId: string,
+    opts: { dataset: string; from?: string; to?: string; limit: number },
+  ) {
+    const matches = this.datasetRows
+      .filter(
+        (r) =>
+          r.agencyId === agencyId &&
+          r.dataset === opts.dataset &&
+          this.isPublicDoc(r.documentId) &&
+          (!opts.from || r.recordDate >= opts.from) &&
+          (!opts.to || r.recordDate <= opts.to),
+      )
+      .sort((a, b) => a.recordDate.localeCompare(b.recordDate) || a.rowIndex - b.rowIndex);
+    return { rows: matches.slice(0, opts.limit), total: matches.length };
+  }
+
+  async listPublicDatasetRowsForDocument(agencyId: string, documentId: string, limit: number) {
+    if (!this.isPublicDoc(documentId)) return [];
+    return this.datasetRows
+      .filter((r) => r.agencyId === agencyId && r.documentId === documentId)
+      .sort((a, b) => a.rowIndex - b.rowIndex)
+      .slice(0, limit);
   }
 
   private agentRuns = new Map<string, AgentRunEntity>();

@@ -653,6 +653,85 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect((await repo.listPlays(AG2)).length).toBe(1);
     });
 
+    it("dataset rows: full-replace per document; requester reads are PUBLIC-ONLY in the query (invariant 3)", async () => {
+      const rowOf = (
+        agencyId: string,
+        documentId: string,
+        i: number,
+        recordDate: string,
+        data: Record<string, string>,
+        dataset = "street-sweeping",
+      ) => ({
+        id: uid(),
+        agencyId,
+        documentId,
+        dataset,
+        period: recordDate.slice(0, 7),
+        rowIndex: i,
+        recordDate,
+        data,
+        createdAt: new Date("2026-08-13T00:00:00Z"),
+      });
+
+      const pubJune = await repo.createDocument(docOf({ classification: "public" }));
+      const pubJuly = await repo.createDocument(docOf({ classification: "public" }));
+      const internal = await repo.createDocument(docOf()); // stays internal
+      const foreign = await repo.createDocument(docOf({ agencyId: AG2, classification: "public" }));
+
+      await repo.replaceDatasetRows(AG1, pubJune.id, [
+        rowOf(AG1, pubJune.id, 0, "2026-06-02", { street: "Oak Ave" }),
+        rowOf(AG1, pubJune.id, 1, "2026-06-09", { street: "Mill Rd" }),
+      ]);
+      await repo.replaceDatasetRows(AG1, pubJuly.id, [
+        rowOf(AG1, pubJuly.id, 0, "2026-07-07", { street: "Oak Ave" }),
+      ]);
+      await repo.replaceDatasetRows(AG1, internal.id, [
+        rowOf(AG1, internal.id, 0, "2026-06-15", { street: "CONF-INTERNAL-MARKER" }),
+      ]);
+      await repo.replaceDatasetRows(AG2, foreign.id, [
+        rowOf(AG2, foreign.id, 0, "2026-06-20", { street: "CONF-FOREIGN-MARKER" }),
+      ]);
+
+      // Public-only, ordered by recordDate then rowIndex, exact totals.
+      const all = await repo.searchPublicDatasetRows(AG1, { dataset: "street-sweeping", limit: 10 });
+      expect(all.total).toBe(3);
+      expect(all.rows.map((r) => r.recordDate)).toEqual(["2026-06-02", "2026-06-09", "2026-07-07"]);
+      // The internal slice's marker never surfaces, in any shape (invariant 3).
+      expect(JSON.stringify(all.rows)).not.toContain("CONF-INTERNAL-MARKER");
+      // Tenant isolation (invariant 2).
+      expect(JSON.stringify(all.rows)).not.toContain("CONF-FOREIGN-MARKER");
+
+      // Range bounds are inclusive and total counts past the page limit.
+      const june = await repo.searchPublicDatasetRows(AG1, {
+        dataset: "street-sweeping",
+        from: "2026-06-01",
+        to: "2026-06-30",
+        limit: 1,
+      });
+      expect(june.total).toBe(2);
+      expect(june.rows).toHaveLength(1);
+      expect(june.rows[0]!.data.street).toBe("Oak Ave");
+
+      // Per-document preview obeys the same public gate.
+      expect(await repo.listPublicDatasetRowsForDocument(AG1, internal.id, 10)).toEqual([]);
+      const preview = await repo.listPublicDatasetRowsForDocument(AG1, pubJune.id, 10);
+      expect(preview.map((r) => r.rowIndex)).toEqual([0, 1]);
+
+      // Full replace: re-projecting a slice leaves exactly the new rows.
+      await repo.replaceDatasetRows(AG1, pubJune.id, [
+        rowOf(AG1, pubJune.id, 0, "2026-06-02", { street: "Replaced St" }),
+      ]);
+      const after = await repo.searchPublicDatasetRows(AG1, { dataset: "street-sweeping", limit: 10 });
+      expect(after.total).toBe(2);
+      expect(after.rows.some((r) => r.data.street === "Replaced St")).toBe(true);
+      expect(after.rows.some((r) => r.data.street === "Mill Rd")).toBe(false);
+
+      // A slice flipping public → its rows appear with no row-side writes.
+      await repo.setDocumentClassification(AG1, internal.id, "public");
+      const opened = await repo.searchPublicDatasetRows(AG1, { dataset: "street-sweeping", limit: 10 });
+      expect(JSON.stringify(opened.rows)).toContain("CONF-INTERNAL-MARKER");
+    });
+
     it("agent runs: create + get + update + list, all tenant-scoped (§16.2)", async () => {
       const run = await repo.createAgentRun({
         id: uid(),

@@ -7,9 +7,10 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**1012 tests pass (+5 skipped), typecheck clean** (counts as of the newest
-2026-08-14 learning-loop-v2 entry; e2e last ran fresh 4/4 at the
-portal-mobile build — no spec touches the paths changed since).
+**1031 tests pass (+5 skipped), typecheck clean** (counts as of the newest
+2026-08-14 connected-sources-phase-3 entry; e2e last ran fresh 4/4 at the
+portal-mobile build — the connectedSources spec's paths still pass through
+the same sync entrypoints).
 
 ## START HERE (next session)
 
@@ -75,7 +76,56 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, fourteenth build of the window):
+**NEWEST (2026-08-14, cloud session, fifteenth build of the window):
+CONNECTED-SOURCES PHASE 3 — the row store and tabular answers (HANDOFF
+candidate #4; docs/connected-sources.md "Phase 3 as built").** The answer
+box now answers "street cleanings for the last 3 months" with the actual
+rows — count, table, provenance — not just the slice documents.
+- **Migration 0017: `dataset_rows`** — one row per record of a synced
+  slice, a PURE PROJECTION of the slice document's CSV, replaced wholesale
+  per document on sync (the request_plays full-replace idiom — it can
+  never drift from what the named human published). Sync also BACKFILLS:
+  any slice with a `connectedSource` stamp but no `rowStore` bookkeeping
+  gets rows materialized from `extractedText` on the next sync, so
+  existing deployments converge with no special job. Slice docs carry
+  `metadata.rowStore = { rows, complete }`; incomplete slices (connector
+  truncation or the 50k storage cap) keep a 1k-row preview only. Rows date
+  by the connector's `dateField` when the cell parses, else the slice's
+  recordDate (file drops have no dateField — month-end is what they
+  honestly know).
+- **INVARIANT 3 IN THE QUERY: rows carry no classification.** The
+  requester-facing port methods (`searchPublicDatasetRows`,
+  `listPublicDatasetRowsForDocument`) JOIN documents and filter
+  classification='public' in SQL; conformance tests plant marker strings
+  on internal and cross-tenant slices and assert they never surface, and
+  that a slice flipping public exposes its rows with zero row-side writes.
+- **Tabular answers, refusal-first**: `composeTabularAnswer` (pure) +
+  `findTabularAnswer` (service gate). Refusals are the design — wrong
+  tables are confidently wrong: needs exactly ONE anchored dataset; every
+  public slice complete; question terms must connect to the data
+  (naming/column terms calibrate, cell-matching terms filter with exact
+  counts, calendar words like a stranded "june" are never filters, and
+  unconnected terms REFUSE when they outnumber connected ones — one stray
+  synonym like "cleanings" must not kill a clearly-labeled answer);
+  filtered counts require the full row set (no partial-page under-counts);
+  unfiltered counts are the store's exact SQL total. Every answer carries
+  a `basis` string (computeDueDate idiom).
+- **Surfaces**: `TabularAnswerCard` in the answer box (above slice
+  results, automated-answer flag, table scrolls in its own box — the
+  page never scrolls sideways) and a "Data preview" table on the slice
+  permalink. Displaying a table logs NO deflection (house rule).
+- **Browser-verified** (gotcha 11, fresh-seeded :3400): "street cleanings
+  for the last 3 months" → "6 rows in Street Sweeping" with the parsed
+  window and "counted from 2 published slices" — the unpublished August
+  slice excluded in the browser, not just in tests; permalink preview
+  renders real cells; **no horizontal overflow at 390px** on either
+  surface; staff request page + play card still render (the learning-v2
+  UI delta rides this same session's verification). Screenshots
+  delivered. 1031 offline tests (+19), typecheck clean. No laptop-setup
+  change (no env vars/keys/services — said out loud per the push
+  contract).
+
+**PREVIOUS (2026-08-14, cloud session, fourteenth build of the window):
 LEARNING LOOP V2 — plays match by meaning, scaffold letters, and ride the
 triage prompt (HANDOFF candidate #3, all three sub-items;
 docs/learning-loop.md "v2 as built").**

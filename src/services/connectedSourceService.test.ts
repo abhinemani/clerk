@@ -283,6 +283,111 @@ describe("pause / resume / delete", () => {
    PHASE 2 — standing publication and its four rails.
    ========================================================================== */
 
+describe("row store (phase 3)", () => {
+  it("sync materializes each slice's rows, dated by the row's own date field, and stamps rowStore", async () => {
+    const { repo, deps } = ctx();
+    await deps.repo.createUser(ADMIN);
+    // HTTP kind so the config carries a dateField (file drop strips config —
+    // its rows date by period end, which is the honest granularity there).
+    const { source } = await registerConnectedSource(deps, {
+      agencyId: "ag-1",
+      actorUserId: "u-dana",
+      name: "City open data",
+      kind: "dataset_http",
+      config: {
+        url: "https://data.riverton.gov/sweeping.csv",
+        dataset: "street-sweeping",
+        dateField: "date",
+      },
+    });
+    await syncConnectedSource(deps, { agencyId: "ag-1", sourceId: source.id }, createMemoryConnector(SWEEPING));
+
+    const june = (await repo.listDocuments("ag-1")).find((d) => d.externalSystemId === "street-sweeping:2026-06")!;
+    expect(readDocumentMeta(june).rowStore).toEqual({ rows: 1, complete: true });
+
+    // Rows are invisible while the slice is internal (invariant 3)…
+    const closed = await repo.searchPublicDatasetRows("ag-1", { dataset: "street-sweeping", limit: 10 });
+    expect(closed.total).toBe(0);
+
+    // …and appear the moment a named human publishes, with the row's OWN
+    // date (2026-06-06), not just the slice's period end.
+    await repo.setDocumentClassification("ag-1", june.id, "public");
+    const open = await repo.searchPublicDatasetRows("ag-1", { dataset: "street-sweeping", limit: 10 });
+    expect(open.total).toBe(1);
+    expect(open.rows[0]!.recordDate).toBe("2026-06-06");
+    expect(open.rows[0]!.data).toEqual({ date: "2026-06-06", route: "South" });
+  });
+
+  it("backfills slices that predate the row store from their stored CSV text", async () => {
+    const { repo, deps } = ctx();
+    const source = await registered(deps);
+    // A pre-phase-3 slice: connectedSource stamp, no rowStore key.
+    await repo.createDocument({
+      id: "doc-old",
+      agencyId: "ag-1",
+      sourceId: source.id,
+      externalSystemId: "street-sweeping:2026-04",
+      filename: "street-sweeping.2026-04.csv",
+      classification: "public",
+      recordType: "dataset",
+      processingStatus: "ready",
+      extractedText: "date,route\n2026-04-03,East\n2026-04-17,West",
+      metadata: {
+        title: "Street Sweeping — 2026-04",
+        recordDate: "2026-04-30",
+        connectedSource: {
+          sourceId: source.id,
+          sourceName: "City open data",
+          dataset: "street-sweeping",
+          period: "2026-04",
+          checksum: "cafe",
+          syncedAt: "2026-05-01T00:00:00.000Z",
+        },
+      },
+      createdAt: new Date("2026-05-01T00:00:00Z"),
+    });
+
+    // A sync that pulls nothing new still converges the store.
+    await syncConnectedSource(deps, { agencyId: "ag-1", sourceId: source.id }, createMemoryConnector([]));
+
+    const doc = (await repo.listDocuments("ag-1")).find((d) => d.id === "doc-old")!;
+    expect(readDocumentMeta(doc).rowStore).toEqual({ rows: 2, complete: true });
+    const rows = await repo.listPublicDatasetRowsForDocument("ag-1", "doc-old", 10);
+    expect(rows.map((r) => r.data.route)).toEqual(["East", "West"]);
+    // A file-drop source names no date column, so rows date by the slice's
+    // own recordDate — month granularity, which is what the slice honestly
+    // knows. (An HTTP/Socrata backfill uses its configured dateField.)
+    expect(rows[0]!.recordDate).toBe("2026-04-30");
+  });
+
+  it("a connector-truncated slice stores preview rows marked INCOMPLETE — tabular answers must refuse it", async () => {
+    const { repo, deps } = ctx();
+    const source = await registered(deps);
+    const truncatedConnector = {
+      async listDatasets() {
+        return [{ dataset: "street-sweeping", periods: ["2026-06"] }];
+      },
+      async fetchSlice() {
+        return {
+          dataset: "street-sweeping",
+          period: "2026-06",
+          recordDate: "2026-06-30",
+          csv: Buffer.from("date,route\n2026-06-06,South", "utf8"),
+          filename: "street-sweeping.2026-06.csv",
+          columns: ["date", "route"],
+          truncated: true, // the 100k SoQL cap hit — the slice is partial
+        };
+      },
+      async probe() {
+        return { ok: true };
+      },
+    };
+    await syncConnectedSource(deps, { agencyId: "ag-1", sourceId: source.id }, truncatedConnector);
+    const doc = (await repo.listDocuments("ag-1")).find((d) => d.sourceId === source.id)!;
+    expect(readDocumentMeta(doc).rowStore).toEqual({ rows: 1, complete: false });
+  });
+});
+
 describe("classifyNewSlice — the whole publicness decision, in one place", () => {
   const attestation = {
     byUserId: "u-dana",

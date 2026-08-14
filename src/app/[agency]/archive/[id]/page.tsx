@@ -38,6 +38,25 @@ export default async function ArchiveRecordPage({
   const textLines = record.extractedText?.split("\n") ?? [];
   const PREVIEW_LINES = 400;
 
+  // Phase 3 (docs/connected-sources.md): a dataset slice previews as an
+  // actual table from the row store. The port method is public-only in the
+  // query layer (invariant 3) — same rule as the page itself.
+  let dataPreview: { columns: string[]; rows: string[][] } | null = null;
+  // agency.id is null on the unseeded demo fixture — no store to read there.
+  if (record.connectedSource && agency.id) {
+    try {
+      const { getRepository } = await import("@/db/createRepository");
+      const repo = await getRepository();
+      const rows = await repo.listPublicDatasetRowsForDocument(agency.id, record.id, 40);
+      if (rows.length > 0) {
+        const columns = [...new Set(rows.flatMap((r) => Object.keys(r.data)))];
+        dataPreview = { columns, rows: rows.map((r) => columns.map((c) => r.data[c] ?? "")) };
+      }
+    } catch (e) {
+      console.error("data preview failed — text rendition stands alone", e);
+    }
+  }
+
   return (
     <div className="wrap" style={{ paddingBlock: "var(--page-top) var(--page-bottom)", maxWidth: 820 }}>
       <Link href={`/${slug}/archive`} className="muted" style={{ fontSize: "0.9rem" }}>
@@ -88,6 +107,62 @@ export default async function ArchiveRecordPage({
           </span>
         )}
       </div>
+
+      {dataPreview && (
+        <section style={{ marginTop: 28 }}>
+          <h2 style={{ fontSize: "1.05rem", marginBottom: 8 }}>
+            Data preview{" "}
+            <span className="muted" style={{ fontWeight: 400, fontSize: "0.85rem" }}>
+              · first {dataPreview.rows.length} rows of this slice
+            </span>
+          </h2>
+          <div className="card" style={{ overflowX: "auto", padding: "6px 12px" }}>
+            <table style={{ borderCollapse: "collapse", fontSize: "0.82rem", minWidth: "100%" }}>
+              <thead>
+                <tr>
+                  {dataPreview.columns.map((c) => (
+                    <th
+                      key={c}
+                      style={{
+                        textAlign: "left",
+                        padding: "6px 10px",
+                        borderBottom: "1px solid var(--border)",
+                        whiteSpace: "nowrap",
+                        color: "var(--muted)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {c}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dataPreview.rows.map((row, i) => (
+                  <tr key={i}>
+                    {row.map((cell, j) => (
+                      <td
+                        key={j}
+                        style={{
+                          padding: "5px 10px",
+                          borderBottom: "1px solid var(--border)",
+                          whiteSpace: "nowrap",
+                          maxWidth: 320,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                        title={cell}
+                      >
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {textLines.length > 0 && (
         <section style={{ marginTop: 28 }}>

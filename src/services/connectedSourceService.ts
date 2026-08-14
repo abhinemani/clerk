@@ -40,6 +40,9 @@ import {
   CONNECTOR_KIND_FILE_DROP,
   connectedDropDir,
   createConnector,
+  csvToRows,
+  periodEndDate,
+  rowRecordDate,
   validateConnectorConfig,
 } from "@/adapters/dataSource";
 import { blobKey, checksumOf, type BlobStore } from "@/adapters/blobStore";
@@ -47,7 +50,12 @@ import { assertUploadable, type VirusScanner } from "@/adapters/virusScan";
 import { scanPii, summarizePii } from "@/ai/redaction/piiScan";
 import { patchDocumentMeta, readDocumentMeta, type DocumentMeta } from "@/domain/documentMeta";
 import type { ServiceDeps } from "./deps";
-import { NotFoundError, type DocumentEntity, type SourceEntity } from "./repository";
+import {
+  NotFoundError,
+  type DatasetRowEntity,
+  type DocumentEntity,
+  type SourceEntity,
+} from "./repository";
 
 export type ConnectedDeps = ServiceDeps & { blobStore: BlobStore; virusScanner: VirusScanner };
 
@@ -374,6 +382,52 @@ function titleFor(dataset: string, period: string): string {
   return `${pretty} — ${period}`;
 }
 
+/* ---- phase 3: the dataset row store -------------------------------------- */
+
+/** Above this, a slice's rows aren't fully materialized — and an incomplete
+ *  store makes tabular answers REFUSE the dataset (partial counts lie). */
+const ROW_STORE_MAX_ROWS = 50_000;
+/** What an incomplete slice keeps anyway, so the permalink preview works. */
+const ROW_STORE_PREVIEW_ROWS = 1_000;
+
+/**
+ * Project a slice's CSV into row entities + the bookkeeping stamp the answer
+ * layer trusts. Pure over its inputs; the row store is always derivable from
+ * the document's own extractedText, which is what makes the backfill safe.
+ */
+function projectSliceRows(
+  deps: ServiceDeps,
+  input: {
+    agencyId: string;
+    documentId: string;
+    dataset: string;
+    period: string;
+    csvText: string;
+    /** The slice's recordDate — per-row fallback when its date field is unusable. */
+    sliceRecordDate: string;
+    dateField: string | undefined;
+    connectorTruncated: boolean;
+  },
+): { rows: DatasetRowEntity[]; stamp: { rows: number; complete: boolean } } {
+  const parsed = csvToRows(input.csvText);
+  const complete = !input.connectorTruncated && parsed.length <= ROW_STORE_MAX_ROWS;
+  const kept = complete ? parsed : parsed.slice(0, ROW_STORE_PREVIEW_ROWS);
+  return {
+    stamp: { rows: parsed.length, complete },
+    rows: kept.map((row, i) => ({
+      id: deps.genId(),
+      agencyId: input.agencyId,
+      documentId: input.documentId,
+      dataset: input.dataset,
+      period: input.period,
+      rowIndex: i,
+      recordDate: rowRecordDate(row, input.dateField, input.sliceRecordDate),
+      data: row,
+      createdAt: deps.now(),
+    })),
+  };
+}
+
 /**
  * Pull every slice the connector offers and land the changed ones as
  * documents. Never touches classification on existing rows; never deletes
@@ -410,6 +464,8 @@ export async function syncConnectedSource(
   // same run, before the revocation is persisted below.
   const liveAttestations = { ...readSourceConfig(source).attestations };
   const driftedDatasets = new Set<string>();
+  // Which column dates the rows (phase-3 row store); connector-level config.
+  const dateField = readSourceConfig(source).connector.dateField;
 
   try {
     const existingDocs = (await repo.listDocuments(input.agencyId)).filter(
@@ -467,10 +523,24 @@ export async function syncConnectedSource(
             ...(slice.truncated ? { truncated: true } : {}),
             ...(verdict.quarantined ? { quarantined: verdict.quarantined } : {}),
           };
+          // Phase 3: materialize the slice's rows (id hoisted so the row
+          // projection and the document agree even on the create path).
+          const docId = existing?.id ?? deps.genId();
+          const projection = projectSliceRows(deps, {
+            agencyId: input.agencyId,
+            documentId: docId,
+            dataset,
+            period,
+            csvText,
+            sliceRecordDate: slice.recordDate,
+            dateField,
+            connectorTruncated: slice.truncated === true,
+          });
           const freshMeta: Partial<DocumentMeta> = {
             title: titleFor(dataset, period),
             recordDate: slice.recordDate,
             connectedSource: stamp,
+            rowStore: projection.stamp,
             ...(findings.length > 0 ? { sensitivity: summarizePii(findings) } : {}),
             // Rail 1: an auto-published slice carries the attestation as its
             // publication decision, so the record itself names the human.
@@ -493,7 +563,7 @@ export async function syncConnectedSource(
           );
 
           const doc: DocumentEntity = {
-            id: existing?.id ?? deps.genId(),
+            id: docId,
             agencyId: input.agencyId,
             sourceId: source.id,
             externalSystemId,
@@ -524,6 +594,13 @@ export async function syncConnectedSource(
           };
           const { document, created } = await repo.upsertDocumentByExternalId(doc);
           result.touchedIds.push(document.id);
+          // Phase 3: rows follow the document, full-replace (an id drift on
+          // the upsert path would strand rows, so re-point at document.id).
+          await repo.replaceDatasetRows(
+            input.agencyId,
+            document.id,
+            projection.rows.map((r) => ({ ...r, documentId: document.id })),
+          );
           if (created) {
             result.createdIds.push(document.id);
             result.created++;
@@ -560,6 +637,37 @@ export async function syncConnectedSource(
             reason: e instanceof Error ? e.message : "Sync failed for this slice.",
           });
         }
+      }
+    }
+
+    // Phase-3 backfill: slices that predate the row store — or were
+    // unchanged this run and therefore skipped — get their rows materialized
+    // from the stored CSV text. The row store is a pure projection of
+    // extractedText, so this converges in one pass and is safe to re-run.
+    // Best-effort per document: a bad slice must not fail the sync.
+    const touchedThisRun = new Set(result.touchedIds);
+    for (const doc of existingDocs) {
+      if (touchedThisRun.has(doc.id)) continue;
+      const meta = readDocumentMeta(doc);
+      const cs = meta.connectedSource;
+      if (!cs || meta.rowStore || !doc.extractedText) continue;
+      try {
+        const projection = projectSliceRows(deps, {
+          agencyId: input.agencyId,
+          documentId: doc.id,
+          dataset: cs.dataset,
+          period: cs.period,
+          csvText: doc.extractedText,
+          sliceRecordDate: meta.recordDate ?? periodEndDate(cs.period) ?? cs.period,
+          dateField,
+          connectorTruncated: cs.truncated === true,
+        });
+        await repo.replaceDatasetRows(input.agencyId, doc.id, projection.rows);
+        await repo.updateDocument(input.agencyId, doc.id, {
+          metadata: patchDocumentMeta(doc, { rowStore: projection.stamp }),
+        });
+      } catch (e) {
+        console.error(`row-store backfill failed for slice ${doc.id}`, e);
       }
     }
 
