@@ -200,6 +200,21 @@ export default function MarketingHome() {
                   Explore the live demo
                 </Link>
               </div>
+              {/* Proof row — anchors the column's foot (the old centered layout
+                  left this corner empty). Same checkable claims as the
+                  under-the-hood strip; a hero states them first, smaller. */}
+              <div className="mk-hero-proof" aria-label="Product facts">
+                {[
+                  ["5", "state statute profiles — data, not code"],
+                  ["100%", "of actions audit-logged, human and AI"],
+                  ["0", "external services required to run"],
+                ].map(([n, l]) => (
+                  <div key={l}>
+                    <div className="n">{n}</div>
+                    <div className="l">{l}</div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* The thesis, made concrete: a resident asks, the assistant
@@ -208,6 +223,7 @@ export default function MarketingHome() {
                 description: the bubbles are an illustration, not controls,
                 so assistive tech gets the summary instead of fake widgets. */}
             <div>
+              <div className="mk-chat-wrap">
               <div
                 className="mk-chat"
                 role="img"
@@ -251,6 +267,7 @@ export default function MarketingHome() {
                   Every answer cites the public archive; a <strong>named human</strong> decides what
                   goes out.
                 </div>
+              </div>
               </div>
               <p className="mk-panel-note">
                 Residents get answers in seconds — and so do their AI assistants, over MCP. Staff
