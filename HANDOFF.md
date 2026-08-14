@@ -77,6 +77,12 @@ is now a token scale, not ad-hoc numbers:
   tight bottoms but rise to the snug top. Marketing was already fluid
   (mk-hero clamp 64–108px; mk-section clamp 54–88px) — untouched.
   Future pages: use the tokens, never a literal.
+- **HERO CHAT COMPACTED (owner follow-up: "the image on the homepage
+  hero is too tall").** The chat illustration went 712→587px (hero
+  961→836) via tighter .mk-chat-* spacing (body gap/padding, bubble
+  padding, 0.92→0.88rem messages, head/foot padding) plus three copy
+  trims (bot replies and the chat foot each lost a line — records and
+  both story beats kept). Verified no overflow at 1440/390.
 - **THE MARKETING TIGHT SPOT (owner's actual complaint, follow-up):** the
   hero's vertical padding lived on `.mk-hero-inner` — the LEFT column
   only — so the right column's chat panel rode ~3px under the nav. The
