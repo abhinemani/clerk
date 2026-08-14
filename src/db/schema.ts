@@ -1184,6 +1184,13 @@ export interface AgencySettings {
    * it never widens what a requester can see (invariant 3 unmoved).
    */
   requesterApi?: { enabled: boolean; filingEnabled?: boolean };
+  /**
+   * Public release verification (docs/release-verification.md, opt-in):
+   * /[slug]/authenticity lets anyone holding a released file confirm it is
+   * byte-identical to what the agency shipped (invariant 8's checksums,
+   * projected), plus a register of public releases' checksums.
+   */
+  releaseVerification?: { enabled: boolean };
 }
 
 /**

@@ -117,7 +117,11 @@ load.
 
 ## 5. Trust you can verify
 
-- **Public release-verification log.** Releases are already checksummed
+- **Public release-verification log. ✅ v1 SHIPPED 2026-08-14
+  (docs/release-verification.md):** /{slug}/authenticity — browser-side
+  hashing, public register, sha256 on the status API. The CT-style
+  external append-only log remains future work, as the doc records.
+  Original case: releases are already checksummed
   (invariant 8) and appeal packets already carry sha-256. Publish those
   hashes to a public, append-only per-agency transparency log with a
   verify page: anyone — a court, a newsroom, a skeptic — can confirm the

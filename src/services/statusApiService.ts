@@ -20,6 +20,7 @@
  * Both are per-agency opt-in (settings.statusApi) — same posture as the
  * public transparency log.
  */
+import { verifiableSha256 } from "@/domain/releaseVerification";
 import { requestStatusLabel } from "@/lib/format";
 import type { ServiceDeps } from "./deps";
 import type { Repository } from "./repository";
@@ -33,8 +34,10 @@ export interface PublicRequestStatus {
   closedAt: string | null;
   extension: { days: number; reason: string; at: string } | null;
   timeline: { label: string; at: string }[];
-  /** Released files — the download gate re-enforces who may actually fetch. */
-  artifacts: { filename: string; url: string }[];
+  /** Released files — the download gate re-enforces who may actually fetch.
+   *  sha256 is the release fingerprint (invariant 8) when independently
+   *  verifiable, so machine clients can check bytes end-to-end. */
+  artifacts: { filename: string; url: string; sha256: string | null }[];
   forwardedTo: { agencyName: string; publicId: string } | null;
 }
 
@@ -72,7 +75,11 @@ export async function publicRequestStatus(
     artifacts = releases.flatMap((rel) =>
       rel.artifacts
         .filter((a) => a.documentId)
-        .map((a) => ({ filename: a.filename, url: `/${input.agencySlug}/files/${a.documentId}` })),
+        .map((a) => ({
+          filename: a.filename,
+          url: `/${input.agencySlug}/files/${a.documentId}`,
+          sha256: verifiableSha256(a.checksum),
+        })),
     );
   }
 

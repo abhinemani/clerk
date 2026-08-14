@@ -7,8 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**920 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-14 requester-API entry).
+**933 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-14 release-verification entry).
 
 ## START HERE (next session)
 
@@ -60,7 +60,37 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, same window as the board): REQUESTER
+**NEWEST (2026-08-14, cloud session, third build of the window): RELEASE
+VERIFICATION — big-ticket §5 is LIVE (docs/release-verification.md).**
+Item two of the owner's "one at a time, push and merge" run. Invariant 8's
+checksums, made public: anyone holding a released file can prove it is
+byte-identical to what the agency shipped.
+- **`/{slug}/authenticity`** (opt-in `settings.releaseVerification`, admin
+  card, footer link when on, /log 404-idiom when off): WebCrypto sha-256
+  IN THE VISITOR'S BROWSER — bytes never travel, only the digest; paste-a-
+  hash path for machines; honest no-match copy (a miss is not proof of
+  tampering). Below it, the register of PUBLIC releases with per-file
+  fingerprints. THE DESIGN LINE: verify searches every release
+  (possession of the bytes is the credential) but answers tracker-level
+  facts only; the register is public-visibility only. Placeholder
+  checksums (16-char stamps on metadata-only docs) can never verify and
+  render as "not independently verifiable".
+- **New port method `listAllReleases(agencyId)`** (newest first),
+  InMemory + Drizzle, conformance-tested per the CLAUDE.md rule.
+- **Status API artifacts now carry `sha256`** (verifiable digests only,
+  null otherwise) — machine clients verify end-to-end; flows through the
+  MCP get_request_status tool unchanged.
+- Domain (`releaseVerification.ts`) + service tested; Riverton seed
+  enables the page (the seeded release makes it verifiable out of the
+  box). 933 tests (+13), typecheck clean, 4/4 e2e. Browser-verified:
+  paste-hash ✓, downloaded-artifact-re-verify ✓, negative ✓, footer link
+  ✓ — screenshot delivered. Screenshot trap for the record: the LIT
+  GROUND is viewport-fixed, so Playwright fullPage stitches show a white
+  band below the first viewport — artifact, not a bug; check a scrolled
+  viewport shot before "fixing" it. No migration, no env vars, no
+  laptop-setup change.
+
+**PREVIOUS (2026-08-14, cloud session, same window as the board): REQUESTER
 API + MCP SERVER — big-ticket §2's first slice is LIVE
 (docs/requester-api.md).** The owner said "do one at a time and push and
 merge as you do"; this is item one, chosen per the board's shortlist

@@ -41,7 +41,7 @@ export interface ToolRequestStatus {
   closedAt: string | null;
   extension: { days: number; reason: string; at: string } | null;
   timeline: { label: string; at: string }[];
-  artifacts: { filename: string; url: string }[];
+  artifacts: { filename: string; url: string; sha256: string | null }[];
   forwardedTo: { agencyName: string; publicId: string } | null;
 }
 

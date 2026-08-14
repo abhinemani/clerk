@@ -1475,6 +1475,24 @@ export class DrizzleRepository implements Repository {
     }));
   }
 
+  async listAllReleases(agencyId: string): Promise<ReleaseEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(releases)
+      .where(tenantWhere(releases.agencyId, agencyId))
+      .orderBy(desc(releases.releasedAt));
+    return rows.map((r: typeof releases.$inferSelect) => ({
+      id: r.id,
+      agencyId: r.agencyId,
+      requestId: r.requestId,
+      artifacts: (r.artifacts ?? []) as ReleaseEntity["artifacts"],
+      responseLetter: r.responseLetter,
+      visibility: r.visibility,
+      approvedByUserId: r.approvedByUserId,
+      releasedAt: r.releasedAt,
+    }));
+  }
+
   async getReleaseById(agencyId: string, releaseId: string): Promise<ReleaseEntity | null> {
     const [r] = await this.db
       .select()
