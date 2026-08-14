@@ -7,8 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**980 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-14 portal-mobile entry; e2e run fresh at that build).
+**983 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (counts as
+of the newest 2026-08-14 signup-email entry; e2e last run fresh at the
+portal-mobile build before it).
 
 ## START HERE (next session)
 
@@ -70,7 +71,48 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, eleventh build of the window): THE
+**NEWEST (2026-08-14, cloud session, twelfth build of the window): THE
+GOV-EMAIL SIGNUP GATE IS GONE (owner: "users shouldn't need to have gov
+emails to register").** `/signup` refused anything that wasn't
+.gov/.mil/state-local .us, which turned away real records offices —
+school districts, joint-powers authorities, libraries, tribal
+governments, and every `@cityof*.org` jurisdiction — at the front door.
+The check itself is unchanged and still correct; what changed is what it
+does with a `false`.
+- **`isGovernmentEmail` is now a LABEL, not a gate.** Anyone can register.
+  The function stays exactly as tested (lookalikes included) and rides the
+  audit trail instead of the door. `src/domain/signupPolicy.ts` carries
+  the reasoning; its test file now asserts the under-count cases
+  (`@marlinusd.org`, `@…-transit-authority.com`) so nobody re-reads
+  `false` as "fake".
+- **The strict door is opt-IN, not opt-out.** `SIGNUP_ALLOW_ANY_EMAIL`
+  (which meant "loosen it") is retired — any deployment that had it set
+  to true now gets that behaviour by default, so nothing breaks.
+  `SIGNUP_REQUIRE_GOV_EMAIL=true` restores the old refusal. **The form's
+  copy follows the server**: the help line under Work email reads "Any
+  address works — a .gov isn't required" normally and names the
+  restriction on a deployment that opted in (`page.tsx` reads the env and
+  passes `requireGovEmail`). Never print one rule and enforce another.
+- **What guards the open door now**: the rate limiter (3/client/hour, 10
+  deployment-wide — unchanged, but it is load-bearing now), tenant
+  isolation from row one (a junk tenant is junk in its own box), and
+  VISIBILITY — `provisionAgency` takes an optional `origin`
+  (`console` | `self_signup` + `govEmail`), so the append-only
+  `agency_created` event reads "Agency self-registered with admin … (non-
+  government email)" with `actorLabel: "self-service signup"`. Console
+  provisioning is byte-identical to before (`origin: "console"`, no
+  `govEmail` key). That event already renders on `/admin/[slug]`, so the
+  operator can see and delete a squatter.
+- **Verified in a browser** (gotcha 11): signed up "Marlin Unified School
+  District" with `records@marlinusd.org` → tenant live at
+  `/marlin-unified-school-district`, ingest key shown once. Then
+  restarted with `SIGNUP_REQUIRE_GOV_EMAIL=true` and a gmail address →
+  refused with the honest copy, and the help line flipped to match.
+  983 tests pass, typecheck clean. `.env.example` + `docs/laptop-setup.md`
+  (Part D¾) updated in the same commit — the runbook now tells the owner
+  who may open a tenant and which single variable changes it.
+
+**PREVIOUS (2026-08-14, cloud session, eleventh build of the window): THE
 PORTAL ON A PHONE — header collapse, the chips are gone, and the answer
 box becomes a CHAT (owner, from the live demo site: "the header is too
 tight and falls on top of itself … there are pills under the input box we
@@ -1948,12 +1990,16 @@ Also complete:
   machine ON PURPOSE (no milestone emails/auto-assign for a bulk history
   load; a row can be born "fulfilled"). One `note` event per row names
   the importer.
-- **Signup trust & safety** (2026-08-04 latest): self-signup requires a
-  GOVERNMENT email (.gov/.mil/state-local .us — `isGovernmentEmail` in
-  src/domain/signupPolicy.ts, lookalike-tested) unless
-  `SIGNUP_ALLOW_ANY_EMAIL=true` (self-hosted/demo); fixed-window rate limit
-  (3/client/hour, 10 deployment-wide, in-memory). Both env vars documented
-  in .env.example. Verified live: gmail signup refused with honest copy.
+- **Signup trust & safety** (2026-08-14 latest): self-signup takes ANY
+  email — no government domain required (owner call; see the newest entry).
+  `isGovernmentEmail` (.gov/.mil/state-local .us, src/domain/signupPolicy.ts,
+  lookalike-tested) survives as a LABEL on the `agency_created` admin event,
+  not a gate. Guards: fixed-window rate limit (3/client/hour, 10
+  deployment-wide, in-memory), tenant isolation, and operator visibility of
+  self-registrations. `SIGNUP_REQUIRE_GOV_EMAIL=true` opts a deployment back
+  into the strict door (and the form's copy follows it);
+  `SIGNUP_ALLOW_ANY_EMAIL` is retired — that behaviour is the default now.
+  Verified live both ways.
 - **Per-tenant branding** (2026-08-04 latest): `agencies.branding` jsonb
   (column existed since 0000, unused — no migration). Office name, contact
   email, address, hours, ACCENT COLOR (contrast-guarded: white ink must

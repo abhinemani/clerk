@@ -461,6 +461,13 @@ export async function provisionAgency(
     slug: string;
     stateCode: string;
     admin: { name: string; email: string; password: string };
+    /**
+     * How this tenant walked in. Self-signup requires no government email
+     * (signupPolicy.ts), so the audit trail carries who provisioned it and
+     * whether the admin address was on a government domain — that visibility
+     * is what replaced the old door.
+     */
+    origin?: { kind: "console" | "self_signup"; govEmail?: boolean };
   },
 ): Promise<{ agency: Agency; admin: UserEntity; ingestKey: string }> {
   const slug = input.slug.trim().toLowerCase();
@@ -501,13 +508,22 @@ export async function provisionAgency(
     defaultClassification: "public",
   });
 
+  const selfSignup = input.origin?.kind === "self_signup";
   await deps.repo.appendAdminEvent({
     id: deps.genId(),
     agencyId: agency.id,
     kind: "agency_created",
-    actorLabel: "platform operator",
-    summary: `Agency provisioned with admin ${admin.email}`,
-    payload: { slug: agency.slug, stateCode: agency.stateCode },
+    actorLabel: selfSignup ? "self-service signup" : "platform operator",
+    summary: selfSignup
+      ? `Agency self-registered with admin ${admin.email}` +
+        (input.origin?.govEmail === false ? " (non-government email)" : "")
+      : `Agency provisioned with admin ${admin.email}`,
+    payload: {
+      slug: agency.slug,
+      stateCode: agency.stateCode,
+      origin: input.origin?.kind ?? "console",
+      ...(input.origin?.govEmail == null ? {} : { govEmail: input.origin.govEmail }),
+    },
     createdAt: deps.now(),
   });
   return { agency, admin, ingestKey };
