@@ -15,7 +15,7 @@ export default async function RegisterPage({
   if (!agency) notFound();
 
   return (
-    <div className="wrap" style={{ maxWidth: 480, paddingBlock: "48px" }}>
+    <div className="wrap" style={{ maxWidth: 480, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${agency.slug}`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Back to portal
       </Link>

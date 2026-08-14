@@ -149,7 +149,7 @@ export default async function Queue({
   }
 
   return (
-    <div className="wrap" style={{ paddingBlock: "36px" }}>
+    <div className="wrap" style={{ paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
           <span className="eyebrow">{ws.agencyName} · Records oversight</span>

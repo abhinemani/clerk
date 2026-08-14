@@ -104,6 +104,17 @@
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
   --wrap: 1120px;
+
+  /* VERTICAL RHYTHM (owner, 2026-08-14 spacing pass): one scale on the 8px
+     grid, replacing the ad-hoc 28/36/40/48px page paddings. --page-top is
+     the air between the sticky chrome (banner + nav + rail) and the first
+     line of content — under ~48px it reads cramped beneath two stacked
+     bars. --page-bottom is deliberately larger: pages should exhale before
+     the footer, not stop. --page-top-snug is for workbenches (request
+     detail, redaction studio, search) that keep tools high on purpose. */
+  --page-top: 56px;
+  --page-top-snug: 40px;
+  --page-bottom: 88px;
 }
 
 /* DARK-LOCKED (owner directive 2026-08-13): the dark style IS the product's

@@ -44,7 +44,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
     : complianceReportCsv(report, { agencyName: agency.name, periodLabel: "2026 YTD" });
 
   return (
-    <div className="wrap" style={{ paddingBlock: "36px" }}>
+    <div className="wrap" style={{ paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Command center
       </Link>

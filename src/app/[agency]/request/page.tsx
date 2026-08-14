@@ -22,7 +22,7 @@ export default async function RequestPage({
       : null;
 
   return (
-    <div className="wrap" style={{ maxWidth: 720, paddingBlock: "40px" }}>
+    <div className="wrap" style={{ maxWidth: 720, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${agency.slug}`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Back to portal
       </Link>

@@ -89,7 +89,7 @@ export default async function PlatformHome() {
   );
 
   return (
-    <div className="wrap" style={{ maxWidth: 920, paddingBlock: "36px 48px" }}>
+    <div className="wrap" style={{ maxWidth: 920, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
           <span className="eyebrow">Platform console</span>

@@ -38,7 +38,7 @@ export default function SignupPage() {
       </div>
 
       <main id="main">
-        <div className="wrap" style={{ maxWidth: 640, paddingBlock: "48px 64px" }}>
+        <div className="wrap" style={{ maxWidth: 640, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
           {/* Dark-locked (owner directive 2026-08-13): --paper is dark on
               every screen now, so the dark rev is the only lockup. */}
           <img

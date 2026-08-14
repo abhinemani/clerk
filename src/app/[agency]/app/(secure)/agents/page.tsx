@@ -61,7 +61,7 @@ export default async function AgentRunsPage({ params }: { params: Promise<{ agen
   const rest = runs.filter((r) => r.status !== "awaiting_checkpoint");
 
   return (
-    <div className="wrap" style={{ maxWidth: 860, paddingBlock: "36px" }}>
+    <div className="wrap" style={{ maxWidth: 860, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
           <span className="eyebrow">Records oversight · Agents</span>

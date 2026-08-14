@@ -61,7 +61,30 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, fifth build of the window): HOMEPAGE
+**NEWEST (2026-08-14, cloud session, sixth build of the window): THE
+SPACING PASS (owner: "spacing from the header to the first line of
+content is too tight… make all the spacing correct").** Vertical rhythm
+is now a token scale, not ad-hoc numbers:
+- **globals.css `:root` gains `--page-top: 56px` / `--page-top-snug:
+  40px` / `--page-bottom: 88px`** (8px grid; top gives real air under the
+  two stacked sticky bars, bottom is deliberately larger so pages exhale
+  before the footer; snug is for workbenches that keep tools high).
+- **Every page container swept onto the tokens** (~30 files): the ad-hoc
+  28/36/40/48/56px inline `paddingBlock`s on staff pages, portal pages,
+  auth pages, platform console, and the civic-hero pages (hero inner
+  wraps take --page-top; below-hero content takes the snug top). The
+  workbenches (request detail, redaction studios, search) keep their
+  tight bottoms but rise to the snug top. Marketing was already fluid
+  (mk-hero clamp 64–108px; mk-section clamp 54–88px) — untouched.
+  Future pages: use the tokens, never a literal.
+- 937 tests, typecheck clean, 4/4 e2e. Browser-verified across command
+  center, admin, reports, tasks, archive, authenticity, request form.
+  FLAKE WATCH: mailboxImport.spec failed once again this window (the
+  "Import a mailbox export" visibility timeout, pre-existing — recorded
+  at the release-verification build too), passed on re-run both times;
+  if it recurs, bump that expect's timeout rather than chasing ghosts.
+
+**PREVIOUS (2026-08-14, cloud session, fifth build of the window): HOMEPAGE
 REDESIGN AROUND THE NEW FEATURES + ADMIN GOES OFFICIAL CREAM (both owner
 asks: "redesign the homepage… logo stays the same" / "main divs for the
 admin pages should have a white/cream background… more official").**

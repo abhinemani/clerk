@@ -28,7 +28,7 @@ export default async function DirectoryPage({ params }: { params: Promise<{ agen
   }));
 
   return (
-    <div className="wrap" style={{ maxWidth: 900, paddingBlock: "36px" }}>
+    <div className="wrap" style={{ maxWidth: 900, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${slug}/app/admin`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Staff accounts
       </Link>

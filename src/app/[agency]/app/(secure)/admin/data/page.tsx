@@ -95,7 +95,7 @@ export default async function DataAndFilesPage({ params }: { params: Promise<{ a
   });
 
   return (
-    <div className="wrap" style={{ maxWidth: 880, paddingBlock: "36px 48px" }}>
+    <div className="wrap" style={{ maxWidth: 880, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${slug}/app/admin`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Administration
       </Link>

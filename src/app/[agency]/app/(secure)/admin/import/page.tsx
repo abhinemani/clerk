@@ -13,7 +13,7 @@ export default async function LegacyImportPage({ params }: { params: Promise<{ a
   await requireStaff(slug, ["admin"]);
 
   return (
-    <div className="wrap" style={{ maxWidth: 820, paddingBlock: "36px" }}>
+    <div className="wrap" style={{ maxWidth: 820, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${slug}/app/admin`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Staff accounts
       </Link>

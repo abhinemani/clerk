@@ -18,7 +18,7 @@ export default async function ResetPage({
   const tokenKind = kind as "reset_requester" | "reset_staff" | "staff_invite";
 
   return (
-    <div className="wrap" style={{ maxWidth: 480, paddingBlock: "48px" }}>
+    <div className="wrap" style={{ maxWidth: 480, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <span className="eyebrow">{agency.name}</span>
       <h1 style={{ fontSize: "1.8rem", marginTop: 8, marginBottom: 8, fontWeight: 600 }}>
         {tokenKind === "staff_invite" ? "Activate your staff account" : "Choose a new password"}

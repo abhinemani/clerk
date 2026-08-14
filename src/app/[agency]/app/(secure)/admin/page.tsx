@@ -93,7 +93,7 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
     : null;
 
   return (
-    <div className="wrap" style={{ maxWidth: 820, paddingBlock: "36px 48px" }}>
+    <div className="wrap" style={{ maxWidth: 820, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link href={`/${slug}/app`} className="muted" style={{ fontSize: "0.9rem" }}>
         ← Command center
       </Link>

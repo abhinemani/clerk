@@ -16,7 +16,7 @@ export default async function ForgotPage({
   const principal = staff ? "staff" : "requester";
 
   return (
-    <div className="wrap" style={{ maxWidth: 480, paddingBlock: "48px" }}>
+    <div className="wrap" style={{ maxWidth: 480, paddingBlock: "var(--page-top) var(--page-bottom)" }}>
       <Link
         href={principal === "staff" ? `/${agency.slug}/app/login` : `/${agency.slug}/login`}
         className="muted"
