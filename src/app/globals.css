@@ -1322,7 +1322,9 @@ label.lbl {
 .mk-hero-inner {
   position: relative;
   z-index: 1;
-  padding-block: clamp(64px, 9vw, 108px) clamp(52px, 7vw, 84px);
+  /* Vertical padding lives on .mk-hero-grid, NOT here (owner, 2026-08-14:
+     the chat panel sat nearly flush under the nav) — padding on this left
+     column only let the right column ride to the section's top edge. */
   max-width: 880px;
 }
 
@@ -2000,6 +2002,9 @@ label.lbl {
   grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.8fr);
   gap: clamp(28px, 5vw, 64px);
   align-items: center;
+  /* The hero's breathing room, on the GRID so both columns get it — the
+     headline and the chat panel clear the nav together. */
+  padding-block: clamp(64px, 9vw, 108px) clamp(52px, 7vw, 84px);
 }
 /* Grid items may never dictate width — a nowrap span inside the chat once
    forced the whole hero past a phone viewport. */

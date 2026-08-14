@@ -77,6 +77,13 @@ is now a token scale, not ad-hoc numbers:
   tight bottoms but rise to the snug top. Marketing was already fluid
   (mk-hero clamp 64–108px; mk-section clamp 54–88px) — untouched.
   Future pages: use the tokens, never a literal.
+- **THE MARKETING TIGHT SPOT (owner's actual complaint, follow-up):** the
+  hero's vertical padding lived on `.mk-hero-inner` — the LEFT column
+  only — so the right column's chat panel rode ~3px under the nav. The
+  padding moved to `.mk-hero-grid` (both columns clear the nav together;
+  measured 108px chat-top gap at 1440, 90px stacked at 1000, 64px at
+  390, no overflow). If a hero column is ever added/split again, keep
+  the padding on the GRID.
 - 937 tests, typecheck clean, 4/4 e2e. Browser-verified across command
   center, admin, reports, tasks, archive, authenticity, request form.
   FLAKE WATCH: mailboxImport.spec failed once again this window (the
