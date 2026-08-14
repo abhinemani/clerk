@@ -61,7 +61,39 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, fourth build of the window):
+**NEWEST (2026-08-14, cloud session, fifth build of the window): HOMEPAGE
+REDESIGN AROUND THE NEW FEATURES + ADMIN GOES OFFICIAL CREAM (both owner
+asks: "redesign the homepage… logo stays the same" / "main divs for the
+admin pages should have a white/cream background… more official").**
+- **Homepage** (`src/app/page.tsx`, logo/lockup untouched): the abstract
+  "What it costs" ROI-stat band is REPLACED by "The agent era" (same plum
+  band, texture map intact) — the three shipped differentiators as a trio
+  (portal speaks MCP · releases anyone can verify · fewer requests,
+  measured) closing with the literal endpoint (`/api/v1/riverton/mcp`)
+  so a skeptic can check from a terminal. Roster grew 6→8 (clean 2×4):
+  the disclosure librarian and the appeal packet builder. Deflect/Defend
+  pillar bodies absorb the measured-report and fingerprint claims (still
+  one sentence each — the LEAN rule held; page structure note at the top
+  of page.tsx updated). Hero panel-note now carries the MCP line; footer
+  gains "Verify a released document". Hero headline/copy untouched — the
+  new sections make it literal. Every claim checkable (5 statute
+  profiles re-verified; MCP path is live on the seed).
+- **ADMIN PLATES ARE CREAM (CLAUDE.md brand section records this as the
+  one dark-lock amendment — read it before "fixing" anything).** New
+  `admin/layout.tsx` wraps `/app/admin/*` in `.admin-paper`; globals.css
+  (next to `.card-pad`) re-pins the LIGHT palette's tokens onto
+  `.card`/`.stat` inside it and paints cream sheets (ink hatch, lit top
+  edge, real drop shadow onto the dark ground). NOT a theme switch: page
+  ground/nav/rail/on-ground headings stay dark. Mechanism is the house
+  token-re-pin idiom (the .nav pin); if the light :root palette moves,
+  move that block too. Admin components turned out fully token-driven —
+  zero per-component fixes needed.
+- 937 tests, typecheck clean, 4/4 e2e. Browser-verified: homepage beats
+  (agent-era band, 8-card roster, MCP endpoint line, footer link) and
+  cream plates on /app/admin + /app/admin/data — screenshots delivered.
+  No migration, no env vars, no laptop-setup change.
+
+**PREVIOUS (2026-08-14, cloud session, fourth build of the window):
 TRANSPARENCY IMPACT — big-ticket §6's first slice is LIVE
 (docs/transparency-impact.md).** Item three of the "one at a time" run:
 the north-star metric on the page. /app/reports gains a "Transparency

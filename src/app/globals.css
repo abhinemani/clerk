@@ -567,6 +567,85 @@ h3 {
       radial-gradient(ellipse 55% 40% at 50% 6%, var(--primary-tint), transparent 72%);
   }
 }
+/* =========================================================================
+   OFFICIAL PAPER — admin plates (owner directive 2026-08-14: "the main divs
+   for the admin pages should have a white/cream background … more official").
+   NOT a theme switch and NOT a dark-lock exception at page level: the admin
+   pages keep the dark lit ground, nav, and section headings; only the
+   card/stat PLATES flip to cream — official documents laid on the desk.
+
+   Mechanism is the house token-re-pin idiom (same as the .nav dark pin):
+   the LIGHT :root palette's values, mirrored verbatim onto the plates so
+   every token-reading style inside them (text, pills, fields, buttons,
+   ornaments) resolves light without knowing why. IF THE LIGHT :ROOT PALETTE
+   MOVES, MOVE THIS BLOCK TOO. Print needs nothing: these are the light
+   values print already uses.
+   ========================================================================= */
+.admin-paper .card,
+.admin-paper .stat {
+  --paper: #f7f7f5;
+  --surface: #ffffff;
+  --surface-2: #efefec;
+  --surface-3: #e5e5e1;
+  --border: #dededa;
+  --border-strong: #c7c7c1;
+  --ink: #0f141a;
+  --ink-2: #2a313c;
+  --muted: #5f6672;
+  --primary: #2a313c;
+  --primary-deep: #0f141a;
+  --primary-hover: #3d4653;
+  --primary-ink: #ffffff;
+  --primary-tint: #eaebee;
+  --maroon: #9c4a2c;
+  --maroon-btn: #9c4a2c;
+  --maroon-tint: #f7efeb;
+  --accent: #9c4a2c;
+  --gold: #b8860b; /* gold goes DEEP on paper — ornament rule, brand section */
+  --plum: #4b2a45;
+  --ai: #0e6b84;
+  --ai-tint: #e9f7fb;
+  --overdue: #b42318;
+  --overdue-bg: #fef3f2;
+  --overdue-border: #fecdca;
+  --due: #b54708;
+  --due-bg: #fffaeb;
+  --due-border: #fde3a7;
+  --ok: #067647;
+  --ok-bg: #ecfdf3;
+  --ok-border: #a9e5c3;
+  --focus: #2c5488;
+  --shadow-sm: 0 1px 2px rgba(24, 26, 31, 0.05);
+  --shadow: 0 1px 2px rgba(24, 26, 31, 0.05), 0 4px 12px -4px rgba(24, 26, 31, 0.09);
+  --shadow-lg: 0 12px 32px -8px rgba(24, 26, 31, 0.16);
+  color: var(--ink);
+}
+@media screen {
+  /* The dark glass-slab card background is explicit hexes (above), so the
+     plates need their own paint, not just tokens: cream sheet, engraver's
+     hatch in ink at whisper volume, a lit top edge, and a real drop onto
+     the dark ground so the sheet reads as sitting ON the desk. */
+  .admin-paper .card {
+    background:
+      repeating-linear-gradient(45deg, rgba(15, 20, 26, 0.02) 0 1px, transparent 1px 10px),
+      linear-gradient(180deg, #ffffff, #f3f2ee);
+    border-color: rgba(15, 20, 26, 0.16);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 14px 34px -16px rgba(0, 0, 0, 0.7);
+  }
+  .admin-paper .stat {
+    background:
+      repeating-linear-gradient(45deg, rgba(15, 20, 26, 0.016) 0 1px, transparent 1px 10px),
+      linear-gradient(180deg, #fbfaf8, #efeeea);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+  .admin-paper .stat-row {
+    background: rgba(15, 20, 26, 0.25);
+    border-color: rgba(247, 247, 245, 0.25);
+  }
+}
+
 .card-pad {
   position: relative;
   padding: 22px;

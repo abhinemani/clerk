@@ -52,6 +52,17 @@ which always takes light values so reports and letters don't print as ink
 slabs. Do not re-introduce `prefers-color-scheme` gates; do not delete the
 light tokens either.
 
+**ONE deliberate amendment (owner directive 2026-08-14): ADMIN PLATES ARE
+CREAM.** On the tenant admin pages (`/app/admin/*`, wrapped in
+`.admin-paper` by the admin layout) the card/stat plates re-pin the LIGHT
+palette's tokens and paint as white/cream sheets — official documents on
+the dark desk. This is NOT a theme switch: the page ground, nav, rail,
+and on-ground headings stay dark; only the plates flip. The mirrored
+token block lives next to `.card-pad` in globals.css — if the light
+`:root` palette moves, move that block too. Do not "fix" the admin cards
+back to dark, and do not extend the treatment to other staff pages
+without an owner ask.
+
 **Pin to the GROUND, not the theme** remains the working principle — with
 every screen dark it is mostly moot day-to-day, but the GROUND-PINNED
 TOKENS block in `globals.css` stays (it is what keeps the nav/footer/gov
