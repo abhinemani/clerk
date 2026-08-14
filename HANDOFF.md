@@ -30,7 +30,10 @@ Phase 5 agents (docs/agentic-horizon.md Bucket B) are buildable.
 Guardrails unchanged: tiers enforced in code, invariant 9 untouched —
 agents propose, a named human publishes.
 
-**Build candidates, in rough priority order:**
+**Build candidates, in rough priority order** (the strategy layer above
+this queue — the "what would make Brandeis special" bets — lives in
+`docs/big-ticket.md`; graduate items from there into this list, not
+straight into a build):
 1. **Fulfillment agent path** (the biggest thing left; see the 2026-08-13
    checkpoint-surface entry): (a) migration adding Phase-5 values to the
    DB `agent_type` enum, (b) scope-decomposition golden set in the eval
@@ -57,7 +60,30 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session): SESSION-START HOOK — fresh cloud
+**NEWEST (2026-08-14, cloud session): THE BIG-TICKET BOARD —
+`docs/big-ticket.md`, the strategy list the owner asked to start
+("not just what's in the handoff file — what would make this app
+special").** Docs-only window. Seven bets, each grounded on existing
+substrate: (1) cross-tenant network plays — shared play library,
+exemption-practice benchmarking, comparative compliance stats (needs a
+NEW aggregation invariant before any code); (2) both sides of §16.4 —
+requester API + MCP server on the portal-agent/status-API safe surface,
+cross-tenant requester identity + newsroom workspace, B7 as the
+defensive half; (3) custodial connectors — connected-sources turned
+inward at the agency's own mail/DMS/drive systems, sequenced after
+fulfillment-agent v1 and B5; (4) audio/video (bodycam) redaction as the
+category win + B2 run forward as redact-everywhere memory; (5) public
+release-verification log riding invariant 8's checksums; (6) the
+transparency autopilot — deflection/publication converged into one
+surface with requests-per-resident as the north-star metric; (7) the
+statute layer as public infrastructure (50-state counsel-verified
+profiles, requester "know your rights"). Opinionated shortlist in the
+doc: requester API/MCP, the network plays, A/V redaction — with
+fulfillment agent v1 still first regardless. HANDOFF's build-candidate
+queue stays authoritative; the board feeds it. No code, no migration,
+no laptop-setup change (nothing owner-facing beyond reading the doc).
+
+**PREVIOUS (2026-08-14, cloud session): SESSION-START HOOK — fresh cloud
 containers now `npm install` before the session begins** (`.claude/hooks/
 session-start.sh`, registered in `.claude/settings.json`; web-only,
 synchronous, idempotent). Fixes the "vitest: not found" cold-start this
