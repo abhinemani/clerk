@@ -7,8 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**894 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-14 UX-pass entry — e2e re-run that session).
+**920 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-14 requester-API entry).
 
 ## START HERE (next session)
 
@@ -60,7 +60,60 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session): THE BIG-TICKET BOARD —
+**NEWEST (2026-08-14, cloud session, same window as the board): REQUESTER
+API + MCP SERVER — big-ticket §2's first slice is LIVE
+(docs/requester-api.md).** The owner said "do one at a time and push and
+merge as you do"; this is item one, chosen per the board's shortlist
+(best timing-to-effort). A resident's or newsroom's AI assistant can now
+do the whole requester loop against an agency portal, over REST or MCP.
+- **Opt-in**: `settings.requesterApi = { enabled, filingEnabled }` (jsonb,
+  NO migration), new admin card "Requester API & MCP server" next to the
+  status-API card (`RequesterApiPanel` + `setRequesterApiAction`, admin
+  event `requester_api_changed`). Absent ⇒ every route 404-plays-dead
+  (status-API idiom). Riverton seed enables both.
+- **REST** (`/api/v1/{slug}/…`): `GET /archive?q=` (the portal's
+  `searchArchiveDetailed` projection — invariant 3 lives in the query
+  layer, unchanged), `POST /requests` (filing; separately gated +
+  rate-limited), and the EXISTING status route's gate widened to
+  `statusApi.enabled || requesterApi.enabled` (a machine-filed request
+  must be machine-checkable without a second toggle).
+- **MCP** (`POST /api/v1/{slug}/mcp`): stateless streamable-HTTP,
+  HAND-ROLLED JSON-RPC in `src/mcp/server.ts` (~150 lines, no SDK
+  dependency — self-contained first). Tools subset only: initialize /
+  ping / tools/list / tools/call; notifications → 202; batching refused
+  (dropped in protocol 2025-06-18); GET → 405 (no SSE, allowed by spec).
+  Tools (`src/mcp/requesterTools.ts`, deps-injected): search_records,
+  get_record (text truncated at 6k), get_request_status, and
+  file_request registered ONLY when filingEnabled. Tool-execution
+  failures are isError RESULTS; only protocol misuse is a JSON-RPC error.
+- **ONE FILING PATH, REFACTOR WORTH KNOWING**: the portal action's whole
+  intake chain (submitRequest → routing rules → play routing → triage
+  job → duplicate check) moved to `intakeService.submitAndDispatch`;
+  the portal action and the API's `fileViaApi` both call it, so a second
+  front door can never fork the chain. Enqueue has a test-seam override
+  (emitStatusWebhook idiom). Filing rate limit reuses SignupRateLimiter
+  (5/hr per slug+client-IP, 200/hr global, in-memory — signup posture).
+- **Verified live** (fresh-seeded :3400 server — note SEED_DEMO=true is
+  what seeds settings; bare ensureAgency bootstrap does NOT): full MCP
+  handshake, search hit on the connected-source slice, file_request →
+  PR-2026-00004 with the real CA 10-day deadline, status by tracking
+  number, bellmar (not opted in) 404s; REST filing 201 + archive search;
+  browser-verified the admin card AND the portal form still filing
+  (PR-2026-00006) through the refactored chain — screenshots delivered.
+- 920 tests (+26: mcp/server, mcp/requesterTools, requesterApiService),
+  typecheck clean, 4/4 e2e (one connectedSources flake observed across
+  runs — "0 new, 1 unchanged" when the periodic sync sweep beats the
+  spec's manual Sync-now click; pre-existing race, clean 4/4 on re-run.
+  Container needed the chromium headless-shell shim again: the pinned
+  chromium_headless_shell-1234 path was hand-assembled from the installed
+  1194 build — container state, not repo state). No model calls, no auth/keys ON PURPOSE (anonymous-
+  public surface; the doc's non-goals say when to revisit). No
+  laptop-setup change (no env vars, no owner steps — opt-in is in-app).
+  Gotcha hit: the cloud container carries a real VOYAGE_API_KEY, so a
+  seeded dev server's archive search calls live Voyage and can 429 —
+  degrades to keyword-only by design, but don't mistake it for a bug.
+
+**PREVIOUS (2026-08-14, cloud session): THE BIG-TICKET BOARD —
 `docs/big-ticket.md`, the strategy list the owner asked to start
 ("not just what's in the handoff file — what would make this app
 special").** Docs-only window. Seven bets, each grounded on existing

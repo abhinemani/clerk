@@ -19,6 +19,7 @@ export interface AgencySettings {
   publicRequestLog?: boolean;
   statuteReview?: { reviewedBy: string; reviewedOn: string; note?: string };
   statusApi?: { enabled: boolean; webhookUrl?: string | null };
+  requesterApi?: { enabled: boolean; filingEnabled?: boolean };
 }
 
 /** Per-tenant identity — mirrors the schema's AgencyBranding. All optional. */

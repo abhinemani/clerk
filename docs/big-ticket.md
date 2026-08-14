@@ -49,7 +49,12 @@ The strategic-horizon bet says machine-to-machine requests are coming.
 The status API + webhooks (shipped 2026-08-13) is brick one. Be the first
 platform standing on BOTH sides of that future:
 
-- **Requester API + MCP server.** File, track, and receive over a public
+- **Requester API + MCP server. ✅ v1 SHIPPED 2026-08-14
+  (docs/requester-api.md):** archive search, record reads, status, and
+  gated filing over REST + a stateless MCP endpoint per agency — the safe
+  surface exactly as argued below. Remaining from this bet: the
+  cross-tenant requester identity + newsroom workspace (next paragraph).
+  Original case: file, track, and receive over a public
   API — and expose it as an MCP server so a journalist's (or resident's)
   agent can do the whole loop conversationally. "FOIA over MCP" is a
   headline nobody else can write today, and the portal requester agent
