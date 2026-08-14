@@ -1242,7 +1242,22 @@ label.lbl {
   font-weight: 800;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  /* Accent, not gold: eyebrows are text, and gold is never text on paper. */
+}
+/* The letterhead tick at marketing scale: a gold bar opens every eyebrow —
+   gold as ORNAMENT (never text), same grammar as the app's panel titles. */
+.mk-eyebrow::before {
+  content: "";
+  display: inline-block;
+  width: 26px;
+  height: 3px;
+  margin-right: 10px;
+  vertical-align: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 22%, transparent));
+}
+.mk-eyebrow {
+  /* Accent, not gold: eyebrows are TEXT, and gold is never text on paper.
+     The ::before bar above is the sanctioned gold — ornament, not letters. */
   color: var(--accent);
 }
 .mk-display {
@@ -1489,6 +1504,17 @@ label.lbl {
   font-weight: 600;
   color: var(--primary);
   letter-spacing: -0.02em;
+}
+/* Engraved base rule under marketing stat numerals — same grammar as the
+   app's .stat-num. */
+.mk-stat-n::after {
+  content: "";
+  display: block;
+  width: 26px;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--gold) 70%, transparent);
 }
 .mk-stat-l {
   margin-top: 9px;

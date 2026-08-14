@@ -57,7 +57,24 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session): THE UX PASS — owner-directed
+**NEWEST (2026-08-14, cloud session, after the UX pass): HOMEPAGE — gold
+bars + copy rewrite (owner: "the gold bars help and we need those on the
+homepage. Also the copy is terrible").** Ornament: `.mk-eyebrow::before`
+gold bar on every eyebrow and `.mk-stat-n::after` base rule under both
+stat strips (globals.css — gold stays ORNAMENT, never text; the eyebrow
+text itself stays accent). Copy: same six-beat structure, same claims,
+no invented numbers — hero is now "Fewer requests. Faster responses.
+Decisions you can defend." with a lede that opens on "Most records
+requests ask for something that's already public"; problem head "More
+requests. The same one person. Still by hand."; pillars head "Three
+jobs. One system. No new headcount."; quote body ends "Two years later,
+the log reads like a defense exhibit."; closing eyebrow "An afternoon,
+not a procurement." TESTIMONIALS untouched (the illustrative disclaimer
+wording matters). Browser-verified full-page, screenshots delivered;
+894 tests, typecheck clean. Owner reviewed screenshots pre-push; merge
+to main awaits their word.
+
+**PREVIOUS (2026-08-14, cloud session): THE UX PASS — owner-directed
 design/flow review, then all seven findings built in one window.**
 Browser-verified before AND after (screenshots delivered to the owner).
 - **StaffNav rail** (`_components/StaffNav.tsx`, mounted in the (secure)

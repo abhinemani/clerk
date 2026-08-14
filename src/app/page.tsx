@@ -26,15 +26,15 @@ import { BrandLockup, BrandMarkRaster, SparkIcon } from "./_components/ui";
 const PROBLEMS = [
   {
     h: "Staffing hasn't kept pace",
-    d: "One person runs most records offices — often less than one, wedged between other duties. Volume keeps climbing. Headcount doesn't.",
+    d: "Most records offices are one person — often a fraction of one, wedged between other duties. Volume climbs every year. Headcount doesn't.",
   },
   {
     h: "AI is driving the volume up",
-    d: "The tools that make government easier to reach also make it trivial to file more requests, broader ones, worded by something other than the person who wants the record. Volume stopped tracking need a while ago.",
+    d: "Request tools now write the requests: more of them, broader, worded by software instead of the person who wants the record. Volume stopped tracking need.",
   },
   {
     h: "Most of what's public was never published",
-    d: "The record that answers the question is usually already public. It's just nowhere a resident can find it. So a search-shaped question becomes a request a person has to process.",
+    d: "The answer usually exists and is already public — sitting where no resident can find it. So a question becomes a case number, and a person has to work it.",
   },
 ];
 
@@ -43,13 +43,13 @@ const PILLARS = [
     n: "01",
     t: "Deflect",
     h: "Answer before they file",
-    d: "Ask in plain language. The answer box searches everything you've already released — keyword and semantic together — and hands over the document in seconds. Many requests end as a download, not a case file.",
+    d: "Residents ask in plain language. The answer box searches everything you've released — keyword and meaning together — and hands over the document in seconds. A request that ends as a download never touches your desk.",
   },
   {
     n: "02",
     t: "Fulfill",
     h: "Run every request on rails",
-    d: "AI triage drafts the scope and routing. Departments respond from a no-login link or a reply-all email. The clock is computed from your state's law, and every extension records why it was granted.",
+    d: "Triage drafts the scope and routing the moment a request lands. Departments answer from a no-login link or a plain email reply. The clock comes from your state's law, and every extension records its reason.",
   },
   {
     n: "03",
@@ -166,18 +166,17 @@ export default function MarketingHome() {
                 For city clerks, county counsel, and records officers
               </span>
               <h1 className="mk-display">
-                FOIA should be easier.
+                Fewer requests. Faster responses.
                 <br />
-                <span className="mk-accent">For everyone who touches a request.</span>
+                <span className="mk-accent">Decisions you can defend.</span>
               </h1>
               <hr className="letterhead-rule" aria-hidden />
               <p className="mk-lede">
-                A resident wants a document, not a case number. A one-person office wants one less
-                thing to track by hand. Counsel wants a decision they can defend two years later.
-                None of that happens by itself today — most of it still runs on paper and memory.{" "}
-                {branding.productName} runs it instead: triage, routing, records gathered, response
-                drafted, the statutory deadline computed the moment a request is filed. A named
-                human signs off before anything goes out.
+                Most records requests ask for something that&apos;s already public.{" "}
+                {branding.productName} answers those on the spot, straight from your archive — no
+                case file, no wait. Everything else arrives triaged, routed, and on the statutory
+                clock, with every AI draft held for a named human&apos;s sign-off. Your office
+                decides. The software does the chasing.
               </p>
               <div style={{ display: "flex", gap: 12, marginTop: 32, flexWrap: "wrap" }}>
                 <Link href="/signup" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
@@ -256,12 +255,9 @@ export default function MarketingHome() {
           <div className="wrap mk-section">
             <div className="mk-head">
               <span className="mk-eyebrow">The problem</span>
-              <h2 className="mk-h2">
-                Public records offices are being asked to do more, with less, mostly by hand.
-              </h2>
+              <h2 className="mk-h2">More requests. The same one person. Still by hand.</h2>
               <p className="mk-sub">
-                None of this is a staffing failure in any one office. It&apos;s three trends landing
-                on the same desk at once.
+                Not a failure of any one office — three trends landing on the same desk at once.
               </p>
             </div>
             <div className="mk-trio mk-reveal">
@@ -283,9 +279,9 @@ export default function MarketingHome() {
               <span className="mk-eyebrow" style={{ color: "var(--accent)" }}>
                 How we help
               </span>
-              <h2 className="mk-h2">One system, three jobs your office is short-staffed for.</h2>
+              <h2 className="mk-h2">Three jobs. One system. No new headcount.</h2>
               <p className="mk-sub">
-                Most records software only handles the middle job. The requests you never receive, and
+                Most records software does only the middle job. The requests you never receive and
                 the decisions you defend years later — that&apos;s where the real cost lives.
               </p>
             </div>
@@ -317,9 +313,9 @@ export default function MarketingHome() {
               </div>
               <p className="mk-quote-t">AI proposes. Staff disposes.</p>
               <p className="mk-quote-b">
-                Every AI output is a reviewable draft — an Accept / Edit / Dismiss card in front of a
-                named human. Nothing legally significant leaves the building on model authority. The
-                audit log reads like a defense exhibit, not a liability.
+                Every AI output is a draft on a card — Accept, Edit, or Dismiss — in front of a
+                named human. Nothing legally significant leaves the building on model authority. Two
+                years later, the log reads like a defense exhibit.
               </p>
               <hr className="letterhead-rule" aria-hidden style={{ marginInline: "auto" }} />
             </div>
@@ -337,9 +333,9 @@ export default function MarketingHome() {
               </span>
               <h2 className="mk-h2">A request is never just the letter that comes back.</h2>
               <p className="mk-sub">
-                It&apos;s staff hours pulled off other duties. A clock that runs whether or not
-                anyone&apos;s free to work on it. And if something&apos;s missed, a decision someone
-                has to defend later. That&apos;s what {branding.productName} takes off your desk.
+                It&apos;s staff hours pulled off other duties, a clock that runs whether or not
+                anyone is free, and — if something&apos;s missed — a decision someone has to defend
+                later. That&apos;s what {branding.productName} takes off your desk.
               </p>
             </div>
             <div className="mk-stats mk-reveal">
@@ -364,8 +360,8 @@ export default function MarketingHome() {
               </span>
               <h2 className="mk-h2">How the tech works</h2>
               <p className="mk-sub">
-                {branding.productName} puts an AI worker at each stage of the request lifecycle. Each
-                one drafts. A named staffer decides. Here&apos;s the whole roster — no fine print.
+                An AI worker at every stage of a request. Each one drafts; a named staffer decides.
+                Here&apos;s the whole roster — no fine print.
               </p>
             </div>
             <div className="mk-stats mk-reveal" style={{ marginTop: 44, marginBottom: 44 }}>
@@ -474,7 +470,7 @@ export default function MarketingHome() {
         <section className="mk-band-dark">
           <div className="wrap mk-section">
             <div className="mk-cta">
-              <span className="mk-eyebrow">Start where it is cheapest to start</span>
+              <span className="mk-eyebrow">An afternoon, not a procurement</span>
               <h2 className="mk-h2" style={{ marginTop: 14 }}>
                 Stand up a records office in an afternoon.
               </h2>
