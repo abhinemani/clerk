@@ -20,6 +20,7 @@ export interface AgencySettings {
   statuteReview?: { reviewedBy: string; reviewedOn: string; note?: string };
   statusApi?: { enabled: boolean; webhookUrl?: string | null };
   requesterApi?: { enabled: boolean; filingEnabled?: boolean };
+  releaseVerification?: { enabled: boolean };
 }
 
 /** Per-tenant identity — mirrors the schema's AgencyBranding. All optional. */
@@ -615,6 +616,9 @@ export interface Repository {
 
   createRelease(r: ReleaseEntity): Promise<ReleaseEntity>;
   listReleases(agencyId: string, requestId: string): Promise<ReleaseEntity[]>;
+  /** Every release the agency has ever made, newest first — the verification
+   *  register's read (docs/release-verification.md). */
+  listAllReleases(agencyId: string): Promise<ReleaseEntity[]>;
   /** Release by id — resolves an archive entry back to its frozen artifacts. */
   getReleaseById(agencyId: string, releaseId: string): Promise<ReleaseEntity | null>;
 
@@ -1168,6 +1172,11 @@ export class InMemoryRepository implements Repository {
   }
   async listReleases(agencyId: string, requestId: string) {
     return this.releases.filter((r) => r.agencyId === agencyId && r.requestId === requestId);
+  }
+  async listAllReleases(agencyId: string) {
+    return this.releases
+      .filter((r) => r.agencyId === agencyId)
+      .sort((a, b) => b.releasedAt.getTime() - a.releasedAt.getTime());
   }
   async getReleaseById(agencyId: string, releaseId: string) {
     return this.releases.find((r) => r.agencyId === agencyId && r.id === releaseId) ?? null;

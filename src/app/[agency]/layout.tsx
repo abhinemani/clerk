@@ -120,6 +120,11 @@ export default async function AgencyLayout({
                     <Link href={`/${agency.slug}/log`}>Public request log</Link>
                   </li>
                 )}
+                {agency.settings?.releaseVerification?.enabled === true && (
+                  <li>
+                    <Link href={`/${agency.slug}/authenticity`}>Verify a released document</Link>
+                  </li>
+                )}
                 <li>
                   <Link href={`/${agency.slug}/app`}>Staff workspace</Link>
                 </li>

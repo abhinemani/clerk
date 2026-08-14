@@ -11,6 +11,7 @@ import { BrandingPanel } from "../../../../_components/BrandingPanel";
 import { CompliancePanel, type StatuteVM } from "../../../../_components/CompliancePanel";
 import { StatusApiPanel } from "../../../../_components/StatusApiPanel";
 import { RequesterApiPanel } from "../../../../_components/RequesterApiPanel";
+import { ReleaseVerificationPanel } from "../../../../_components/ReleaseVerificationPanel";
 import { effectiveWorkflowSettings } from "@/domain/workflow";
 import { computeSetupStatus } from "@/domain/setupChecklist";
 import { getStateProfile } from "@/statute/profiles";
@@ -261,6 +262,12 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
             agencySettings.requesterApi?.enabled === true &&
             agencySettings.requesterApi?.filingEnabled !== false
           }
+        />
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <ReleaseVerificationPanel
+          agencySlug={slug}
+          enabled={agencySettings.releaseVerification?.enabled === true}
         />
       </div>
 

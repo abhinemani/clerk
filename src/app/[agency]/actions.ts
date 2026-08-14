@@ -575,3 +575,41 @@ async function credentialsSignIn(input: {
     throw e; // NEXT_REDIRECT — success; let Next complete the redirect
   }
 }
+
+// --- release verification (docs/release-verification.md) --------------------
+
+export type VerifyReleaseActionResult =
+  | { ok: true; verified: true; filename: string; releasedAt: string; requestPublicId: string | null }
+  | { ok: true; verified: false; reason: "invalid_hash" | "no_match" }
+  | { ok: false; error: string };
+
+/**
+ * Check a sha-256 against the agency's release record. The hash arrives
+ * computed in the visitor's browser — the file itself never travels. Plays
+ * dead when the agency hasn't published the surface.
+ */
+export async function verifyReleaseAction(
+  agencySlug: string,
+  hash: string,
+): Promise<VerifyReleaseActionResult> {
+  try {
+    const repo = await getRepository();
+    const agency = await repo.getAgencyBySlug(agencySlug);
+    if (!agency || agency.settings?.releaseVerification?.enabled !== true) {
+      return { ok: false, error: "Verification is not available for this office." };
+    }
+    const { verifyReleaseChecksum } = await import("@/services/releaseVerificationService");
+    const result = await verifyReleaseChecksum(repo, { agencyId: agency.id, hash });
+    if (!result.verified) return { ok: true, verified: false, reason: result.reason };
+    return {
+      ok: true,
+      verified: true,
+      filename: result.filename,
+      releasedAt: result.releasedAt,
+      requestPublicId: result.requestPublicId,
+    };
+  } catch (e) {
+    console.error("verifyRelease failed", e);
+    return { ok: false, error: "Verification failed. Please try again." };
+  }
+}

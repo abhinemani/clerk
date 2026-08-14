@@ -538,3 +538,43 @@ export async function setRequesterApiAction(input: {
     return { ok: false, error: "Could not update the setting." };
   }
 }
+
+/**
+ * Public release verification (docs/release-verification.md): publishes
+ * /[slug]/authenticity — invariant 8's checksums, projected. Read-only and
+ * safe by construction (verification requires holding the exact bytes),
+ * but the agency decides when to show the surface.
+ */
+export async function setReleaseVerificationAction(input: {
+  agencySlug: string;
+  enabled: boolean;
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+
+    const agency = await repo.getAgency(agencyId);
+    await repo.updateAgency(agencyId, {
+      settings: {
+        ...(agency?.settings ?? {}),
+        releaseVerification: { enabled: input.enabled },
+      },
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "release_verification_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: input.enabled
+        ? "Release verification page ENABLED"
+        : "Release verification page disabled",
+      payload: { enabled: input.enabled },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    revalidatePath(`/${input.agencySlug}/authenticity`);
+    return { ok: true };
+  } catch (e) {
+    console.error("setReleaseVerification failed", e);
+    return { ok: false, error: "Could not update the setting." };
+  }
+}

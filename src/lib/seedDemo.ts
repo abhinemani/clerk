@@ -109,6 +109,9 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
       // Requester API + MCP demo (docs/requester-api.md): point an MCP client
       // at /api/v1/riverton/mcp and the whole machine surface is live.
       requesterApi: { enabled: true, filingEnabled: true },
+      // Release verification demo (docs/release-verification.md): the seeded
+      // release below makes /riverton/authenticity verifiable out of the box.
+      releaseVerification: { enabled: true },
     },
   });
   // Deterministic routing rules — file "pothole repairs on Elm St" in the

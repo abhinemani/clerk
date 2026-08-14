@@ -450,6 +450,17 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect((await repo.listReleases(AG1, r.id)).map((x) => x.id)).toEqual([release.id]);
     });
 
+    it("releases: agency-wide list, newest first, tenant-scoped", async () => {
+      const r1 = await repo.createRequest(requestOf());
+      const r2 = await repo.createRequest(requestOf());
+      const older = await repo.createRelease({ id: uid(), agencyId: AG1, requestId: r1.id, artifacts: [{ blobRef: "k1", filename: "a.pdf", checksum: "c1" }], responseLetter: null, visibility: "public", approvedByUserId: USER1, releasedAt: new Date("2026-01-01T00:00:00Z") });
+      const newer = await repo.createRelease({ id: uid(), agencyId: AG1, requestId: r2.id, artifacts: [{ blobRef: "k2", filename: "b.pdf", checksum: "c2" }], responseLetter: null, visibility: "private", approvedByUserId: USER1, releasedAt: new Date("2026-06-01T00:00:00Z") });
+      const all = await repo.listAllReleases(AG1);
+      const mine = all.filter((x) => x.id === older.id || x.id === newer.id);
+      expect(mine.map((x) => x.id)).toEqual([newer.id, older.id]); // newest first
+      expect((await repo.listAllReleases(AG2)).some((x) => x.id === older.id || x.id === newer.id)).toBe(false);
+    });
+
     it("deflections: append + tenant-scoped list", async () => {
       const d = await repo.appendDeflection({ id: uid(), agencyId: AG1, kind: "download", query: "q", documentId: null, estimatedStaffHoursAvoided: 1.5, createdAt: new Date() });
       expect((await repo.listDeflections(AG1)).some((x) => x.id === d.id)).toBe(true);
