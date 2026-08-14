@@ -23,7 +23,7 @@
  * external services still gets "someone asked this before".
  */
 import type { ServiceDeps } from "./deps";
-import type { DocumentEntity, RequestEntity } from "./repository";
+import type { DocumentEntity, ReleaseEntity, RequestEntity } from "./repository";
 import { getSearchIndex, type IndexedDoc } from "@/adapters/searchIndex";
 import { readDocumentMeta } from "@/domain/documentMeta";
 import {
@@ -107,12 +107,29 @@ export async function findPriorAnswers(
     candidate: RequestMatchCandidate;
   }> = [];
 
-  for (const r of answered) {
-    const [docs, releases] = await Promise.all([
-      repo.listRequestDocuments(input.agencyId, r.id),
-      repo.listReleases(input.agencyId, r.id),
-    ]);
-    if (releases.length === 0) continue;
+  // Two batch reads for the whole answered set — the shape this replaces
+  // awaited two queries PER answered request, serially, on a public
+  // pre-filing path (thousands of round-trips at modest corpus size).
+  const releasesByRequest = new Map<string, ReleaseEntity[]>();
+  for (const rel of await repo.listAllReleases(input.agencyId)) {
+    const arr = releasesByRequest.get(rel.requestId);
+    if (arr) arr.push(rel);
+    else releasesByRequest.set(rel.requestId, [rel]);
+  }
+  const withReleases = answered.filter((r) => releasesByRequest.has(r.id));
+  const docsByRequest = new Map<string, DocumentEntity[]>();
+  for (const pair of await repo.listRequestDocumentsForRequests(
+    input.agencyId,
+    withReleases.map((r) => r.id),
+  )) {
+    const arr = docsByRequest.get(pair.requestId);
+    if (arr) arr.push(pair.document);
+    else docsByRequest.set(pair.requestId, [pair.document]);
+  }
+
+  for (const r of withReleases) {
+    const docs = docsByRequest.get(r.id) ?? [];
+    const releases = releasesByRequest.get(r.id)!;
 
     // A requester may only ever be shown records that are public in their own
     // right. Both gates matter: the release had to be public AND the document

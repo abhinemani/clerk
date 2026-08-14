@@ -180,6 +180,12 @@ export interface RequestDetail {
   departments: DeptVM[];
   request: RequestVM;
   timeline: TimelineEvent[];
+  /** Live path only: the raw rows the VMs were built from, so the detail
+   *  page doesn't re-query what this loader already read. */
+  raw?: {
+    request: import("@/services/repository").RequestEntity;
+    events: import("@/services/repository").EventEntity[];
+  };
 }
 
 /**
@@ -208,6 +214,7 @@ export async function getRequestDetail(slug: string, id: string): Promise<Reques
       departments: deptVMs,
       request: toRequestVM(request, tasks, new Map(deptVMs.map((d) => [d.id, d])), requester, now),
       timeline: events.map(toTimelineEvent),
+      raw: { request, events },
     };
   }
 

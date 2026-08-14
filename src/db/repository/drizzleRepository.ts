@@ -7,7 +7,7 @@
  * Tenant isolation is enforced in every read: queries AND `agency_id` in, and a
  * row from another agency is invisible.
  */
-import { and, asc, desc, eq, isNotNull, isNull, lt, lte, ne, notExists, notLike, or, sql } from "drizzle-orm";
+import { and, asc, cosineDistance, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, notExists, notLike, or, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import {
   adminEvents,
@@ -387,6 +387,49 @@ export class DrizzleRepository implements Repository {
       (r: { id: string; embedding: number[] | null }): r is { id: string; embedding: number[] } =>
         r.embedding != null,
     );
+  }
+  async getRequestEmbedding(agencyId: string, id: string): Promise<number[] | null> {
+    const [row] = await this.db
+      .select({ embedding: requests.embedding })
+      .from(requests)
+      .where(tenantWhere(requests.agencyId, agencyId, eq(requests.id, id)))
+      .limit(1);
+    return row?.embedding ?? null;
+  }
+  async searchRequestEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    opts: { limit: number; excludeRequestId?: string; interpretedOnly?: boolean },
+  ): Promise<{ id: string; similarity: number }[]> {
+    // ORDER BY the distance expression directly so the HNSW index drives the
+    // scan; the agency/null filters post-filter its candidates.
+    const distance = cosineDistance(requests.embedding, queryVec);
+    const rows = await this.db
+      .select({ id: requests.id, similarity: sql<number>`1 - (${distance})` })
+      .from(requests)
+      .where(
+        tenantWhere(
+          requests.agencyId,
+          agencyId,
+          sql`${requests.embedding} is not null`,
+          ...(opts.excludeRequestId ? [ne(requests.id, opts.excludeRequestId)] : []),
+          ...(opts.interpretedOnly ? [isNotNull(requests.interpretedScope)] : []),
+        ),
+      )
+      .orderBy(distance)
+      .limit(opts.limit);
+    return rows.map((r: { id: string; similarity: number | string }) => ({
+      id: r.id,
+      similarity: Number(r.similarity),
+    }));
+  }
+  async listRequestsWithoutEmbedding(agencyId: string): Promise<RequestEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(requests)
+      .where(tenantWhere(requests.agencyId, agencyId, isNull(requests.embedding)))
+      .orderBy(desc(requests.createdAt));
+    return rows.map((r: typeof requests.$inferSelect) => this.toRequest(r));
   }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>): Promise<RequestEntity> {
     const set: Record<string, unknown> = {};
@@ -1305,6 +1348,65 @@ export class DrizzleRepository implements Repository {
           : [],
     );
   }
+  async searchBodyChunkEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    limit: number,
+  ): Promise<{ documentId: string; chunkIndex: number; content: string; similarity: number }[]> {
+    const distance = cosineDistance(documentChunks.embedding, queryVec);
+    const rows = await this.db
+      .select({
+        documentId: documentChunks.documentId,
+        chunkIndex: documentChunks.chunkIndex,
+        content: documentChunks.content,
+        similarity: sql<number>`1 - (${distance})`,
+      })
+      .from(documentChunks)
+      .where(
+        tenantWhere(
+          documentChunks.agencyId,
+          agencyId,
+          sql`${documentChunks.chunkIndex} > 0`,
+          sql`${documentChunks.embedding} is not null`,
+        ),
+      )
+      .orderBy(distance)
+      .limit(limit);
+    return rows.map(
+      (r: { documentId: string; chunkIndex: number; content: string; similarity: number | string }) => ({
+        documentId: r.documentId,
+        chunkIndex: r.chunkIndex,
+        content: r.content,
+        similarity: Number(r.similarity),
+      }),
+    );
+  }
+  async searchPublicDocumentEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    limit: number,
+  ): Promise<{ id: string; similarity: number }[]> {
+    const distance = cosineDistance(documentChunks.embedding, queryVec);
+    const rows = await this.db
+      .select({ id: documentChunks.documentId, similarity: sql<number>`1 - (${distance})` })
+      .from(documentChunks)
+      .innerJoin(documents, eq(documentChunks.documentId, documents.id))
+      .where(
+        tenantWhere(
+          documentChunks.agencyId,
+          agencyId,
+          eq(documents.classification, "public"), // invariant 3 at the query layer
+          eq(documentChunks.chunkIndex, 0),
+          sql`${documentChunks.embedding} is not null`,
+        ),
+      )
+      .orderBy(distance)
+      .limit(limit);
+    return rows.map((r: { id: string; similarity: number | string }) => ({
+      id: r.id,
+      similarity: Number(r.similarity),
+    }));
+  }
   async listDocumentIdsWithBodyChunks(agencyId: string): Promise<string[]> {
     const rows = await this.db
       .selectDistinct({ documentId: documentChunks.documentId })
@@ -1378,6 +1480,22 @@ export class DrizzleRepository implements Repository {
       .innerJoin(documents, eq(requestDocuments.documentId, documents.id))
       .where(tenantWhere(documents.agencyId, agencyId, eq(requestDocuments.requestId, requestId)));
     return rows.map((r: { doc: typeof documents.$inferSelect }) => this.toDocument(r.doc));
+  }
+
+  async listRequestDocumentsForRequests(
+    agencyId: string,
+    requestIds: string[],
+  ): Promise<Array<{ requestId: string; document: DocumentEntity }>> {
+    if (requestIds.length === 0) return [];
+    const rows = await this.db
+      .select({ requestId: requestDocuments.requestId, doc: documents })
+      .from(requestDocuments)
+      .innerJoin(documents, eq(requestDocuments.documentId, documents.id))
+      .where(tenantWhere(documents.agencyId, agencyId, inArray(requestDocuments.requestId, requestIds)));
+    return rows.map((r: { requestId: string; doc: typeof documents.$inferSelect }) => ({
+      requestId: r.requestId,
+      document: this.toDocument(r.doc),
+    }));
   }
 
   async upsertReview(r: ReviewEntity): Promise<ReviewEntity> {

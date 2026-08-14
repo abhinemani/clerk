@@ -521,6 +521,21 @@ export interface Repository {
   setRequestEmbedding(agencyId: string, id: string, embedding: number[]): Promise<void>;
   /** Every stored ask vector for the agency (ids + vectors only). */
   listRequestEmbeddings(agencyId: string): Promise<{ id: string; embedding: number[] }[]>;
+  /** One request's stored ask vector, or null if the backfill hasn't reached it. */
+  getRequestEmbedding(agencyId: string, id: string): Promise<number[] | null>;
+  /**
+   * Top-k stored ask vectors by cosine similarity to queryVec — ranking done
+   * in the database (HNSW index) instead of loading every vector into JS.
+   * `interpretedOnly` restricts to human-reviewed requests (precedent
+   * retrieval); `excludeRequestId` drops the query's own row.
+   */
+  searchRequestEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    opts: { limit: number; excludeRequestId?: string; interpretedOnly?: boolean },
+  ): Promise<{ id: string; similarity: number }[]>;
+  /** Requests the embed backfill has not reached yet — the lexical-fallback set. */
+  listRequestsWithoutEmbedding(agencyId: string): Promise<RequestEntity[]>;
 
   listDirectory(agencyId: string): Promise<DirectoryEntry[]>;
   getDirectoryEntry(agencyId: string, id: string): Promise<DirectoryEntry | null>;
@@ -596,9 +611,36 @@ export interface Repository {
   listDocumentIdsWithBodyChunks(agencyId: string): Promise<string[]>;
   /** Public docs that already have embeddings — the vector half of hybrid search. */
   listPublicDocumentEmbeddings(agencyId: string): Promise<{ id: string; embedding: number[] }[]>;
+  /**
+   * Top-k body chunks (chunk 1+) by cosine similarity, ranked in the
+   * database. STAFF surfaces only — chunks cover internal documents.
+   */
+  searchBodyChunkEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    limit: number,
+  ): Promise<{ documentId: string; chunkIndex: number; content: string; similarity: number }[]>;
+  /**
+   * Top-k archive-entry vectors (chunk 0) by cosine similarity. Hard-scoped
+   * to classification='public' in the query — invariant 3 at the query
+   * layer, same rule as listPublicDocumentEmbeddings.
+   */
+  searchPublicDocumentEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    limit: number,
+  ): Promise<{ id: string; similarity: number }[]>;
   /** Attach a document to a request's review set (§5 requestDocuments). */
   linkRequestDocument(agencyId: string, requestId: string, documentId: string): Promise<void>;
   listRequestDocuments(agencyId: string, requestId: string): Promise<DocumentEntity[]>;
+  /**
+   * Review-set documents for MANY requests in one query — the batch shape
+   * for anything that used to call listRequestDocuments in a loop.
+   */
+  listRequestDocumentsForRequests(
+    agencyId: string,
+    requestIds: string[],
+  ): Promise<Array<{ requestId: string; document: DocumentEntity }>>;
   /** The release (if any) whose frozen artifact list contains this document. */
   findReleaseContainingDocument(agencyId: string, documentId: string): Promise<ReleaseEntity | null>;
   /**
@@ -753,6 +795,20 @@ export class NotFoundError extends Error {
 }
 
 // --- in-memory adapter -----------------------------------------------------
+
+/** Cosine similarity — the in-memory mirror of the DB's `<=>` ranking. */
+function cosineSim(a: number[], b: number[]): number {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i]! * b[i]!;
+    na += a[i]! * a[i]!;
+    nb += b[i]! * b[i]!;
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
 
 export class InMemoryRepository implements Repository {
   private agencies = new Map<string, Agency>();
@@ -932,6 +988,31 @@ export class InMemoryRepository implements Repository {
       if (r && r.agencyId === agencyId) out.push({ id, embedding });
     }
     return out;
+  }
+  async getRequestEmbedding(agencyId: string, id: string) {
+    const r = this.requests.get(id);
+    if (!r || r.agencyId !== agencyId) return null; // tenant isolation
+    return this.requestEmbeddings.get(id) ?? null;
+  }
+  async searchRequestEmbeddings(
+    agencyId: string,
+    queryVec: number[],
+    opts: { limit: number; excludeRequestId?: string; interpretedOnly?: boolean },
+  ) {
+    const out: { id: string; similarity: number }[] = [];
+    for (const [id, embedding] of this.requestEmbeddings) {
+      if (id === opts.excludeRequestId) continue;
+      const r = this.requests.get(id);
+      if (!r || r.agencyId !== agencyId) continue;
+      if (opts.interpretedOnly && r.interpretedScope == null) continue;
+      out.push({ id, similarity: cosineSim(queryVec, embedding) });
+    }
+    return out.sort((a, b) => b.similarity - a.similarity).slice(0, opts.limit);
+  }
+  async listRequestsWithoutEmbedding(agencyId: string) {
+    return [...this.requests.values()]
+      .filter((r) => r.agencyId === agencyId && !this.requestEmbeddings.has(r.id))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
   async updateRequest(agencyId: string, id: string, patch: Partial<RequestEntity>) {
     const r = await this.getRequest(agencyId, id);
@@ -1114,6 +1195,22 @@ export class InMemoryRepository implements Repository {
     }
     return out;
   }
+  async searchBodyChunkEmbeddings(agencyId: string, queryVec: number[], limit: number) {
+    const scored = (await this.listBodyChunkEmbeddings(agencyId)).map((c) => ({
+      documentId: c.documentId,
+      chunkIndex: c.chunkIndex,
+      content: c.content,
+      similarity: cosineSim(queryVec, c.embedding),
+    }));
+    return scored.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+  }
+  async searchPublicDocumentEmbeddings(agencyId: string, queryVec: number[], limit: number) {
+    const scored = (await this.listPublicDocumentEmbeddings(agencyId)).map((e) => ({
+      id: e.id,
+      similarity: cosineSim(queryVec, e.embedding),
+    }));
+    return scored.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+  }
   async findReleaseContainingDocument(agencyId: string, documentId: string) {
     return (
       this.releases.find(
@@ -1141,6 +1238,16 @@ export class InMemoryRepository implements Repository {
       .filter((l) => l.agencyId === agencyId && l.requestId === requestId)
       .map((l) => this.documents.get(l.documentId))
       .filter((d): d is DocumentEntity => d != null);
+  }
+  async listRequestDocumentsForRequests(agencyId: string, requestIds: string[]) {
+    const wanted = new Set(requestIds);
+    const out: Array<{ requestId: string; document: DocumentEntity }> = [];
+    for (const l of this.requestDocs) {
+      if (l.agencyId !== agencyId || !wanted.has(l.requestId)) continue;
+      const document = this.documents.get(l.documentId);
+      if (document) out.push({ requestId: l.requestId, document });
+    }
+    return out;
   }
 
   private messages: MessageEntity[] = [];

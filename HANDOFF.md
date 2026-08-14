@@ -7,8 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**943 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-14 platform-console entry; e2e run fresh at that build).
+**949 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-14 performance-pass entry; e2e run fresh at that build).
 
 ## START HERE (next session)
 
@@ -50,7 +50,8 @@ straight into a build):
    full window; wrong-table answers are confidently wrong, so provenance
    and refusal-when-unsure are load-bearing from day one.
 5. **Hybrid staff search** (per-chunk embeddings at ingest; service
-   signature ready) + the intake-dedup stored-vector perf item.
+   signature ready). (~~intake-dedup stored-vector perf item~~ — done;
+   dedup + precedent ranking now run as SQL top-k, see newest entry.)
 6. **Mobile pass + animation review** — the UX pass verified desktop
    width only, reduced-motion only. Also: redaction-studio trio (redo,
    bar→log-card, redact-everywhere), backup/restore runbook.
@@ -60,7 +61,70 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, seventh build of the window): THE
+**NEWEST (2026-08-14, cloud session, eighth build of the window):
+PERFORMANCE PASS — vector search moved into the database, N+1 hot paths
+batched, app-layer waterfalls collapsed (owner: "are there ways to
+optimize the code?" → audit, then "yes do that").** No intended behavior
+change anywhere; every path keeps its degradation story.
+- **Migration 0013**: HNSW indexes on `requests.embedding` and
+  `document_chunks.embedding` (pgvector `vector_cosine_ops`; PGlite's
+  wasm pgvector builds them fine — the conformance suite proves the
+  migration), plus btree for the queries that actually run:
+  `requests`/`documents` `(agency_id, created_at)`, `tasks`/`reviews`/
+  `document_chunks` `(agency_id)`, `request_documents (document_id)`.
+- **The port grew top-k vector search** (both adapters + conformance
+  tests): `searchRequestEmbeddings` (opts: excludeRequestId /
+  interpretedOnly), `searchBodyChunkEmbeddings`,
+  `searchPublicDocumentEmbeddings` (public scope enforced IN the query —
+  invariant 3 exactly as the list method), `getRequestEmbedding`,
+  `listRequestsWithoutEmbedding`, and batch
+  `listRequestDocumentsForRequests`. Drizzle ranks with `<=>` ORDER BY
+  LIMIT; InMemory mirrors with JS cosine; conformance asserts identical
+  ranking, filters, and tenant scoping.
+- **Call sites rank in the store now instead of loading every vector into
+  JS**: `findDuplicateRequests` + `findResolvedPrecedents`
+  (similarRequestsService — the lexical fallback for unembedded rows
+  survives via `listRequestsWithoutEmbedding`; a filing with no vector of
+  its own still falls back to full lexical), staff records search's chunk
+  half (recordsSearchService), and the archive search vector half.
+- **N+1s batched**: `archive.ts toItems` resolves releases from ONE
+  `listAllReleases` map (was `getReleaseById` per release-born doc on
+  every archive render, search, and answer-box keystroke);
+  `priorAnswerService` scopes from two batch reads (was TWO serial
+  queries per answered request on the public pre-filing path);
+  `retentionService` close-path reconciliation is one batch read (walk
+  order preserved — the re-point still names the newest open request).
+- **App layer**: `requireStaff`/`sessionUser` are request-cached (React
+  `cache`; the role check stays per-call so pages still enforce their own
+  lists), the command center's five serial reads run as one Promise.all,
+  and the request detail page reuses the loader's raw request + events
+  (`getRequestDetail` now returns `raw`) and folds its ~nine serial
+  stages into one parallel batch — the archive match (an embedding call)
+  is off the critical path, and the release approver comes from the
+  already-loaded staff list. DATABASE_URL pool: `max: 1` → `PG_POOL_MAX`
+  (default 10; still 1 on Vercel where the platform fans out instances).
+  `.env.example` documents it; laptop-setup deliberately untouched — no
+  owner hands needed, defaults apply.
+- **Stale item corrected** in the gotchas: the "intake dedup re-embeds
+  the corpus via findDuplicates" note described code that no longer runs
+  (`findDuplicates` survives only as a fixture for hybrid.test.ts).
+- **Parked from the same audit** (mechanical follow-ups, none blocking):
+  platform-console per-tenant count queries (6×N on /admin),
+  reportingData's per-denied-request listEvents fan-out + period filters,
+  connectedSourceService's per-source whole-corpus load, the nightly
+  sweep's repeated listAgencies/listRequests reads (register.ts),
+  caseLearning's per-request tasks/reviews rescan (bucket into Maps),
+  redact-visual's full-PDF re-decode per page image, embedRequestsJob
+  batching (embedJob's BATCH=64 idiom), queue idle backoff, piiScan
+  resolveOverlaps single-pass sweep, next/image for the 222KB lockups.
+- Verified: typecheck clean, **949 offline tests** (+6 new conformance),
+  **4/4 e2e green**. Container needed the chromium headless-shell shim
+  AGAIN, new flavor: Playwright wanted `chromium_headless_shell-1234/`
+  `chrome-headless-shell-linux64/chrome-headless-shell`; symlinked it to
+  the installed 1194 `chrome-linux/headless_shell`. Container state, not
+  repo state.
+
+**PREVIOUS (2026-08-14, cloud session, seventh build of the window): THE
 PLATFORM CONSOLE GROWS UP — cities & users manageable end-to-end (owner:
 "map out and build a robust admin interface where I / admin can manage
 cities, users etc").** The /admin operator console had health + onboarding
@@ -2047,10 +2111,12 @@ and appeal-defense packet builder first). Bucket A is fully wired.
   cluster; the S3/MinIO adapter has never round-tripped against live MinIO.
   (Both on the laptop-setup verification-debt list.)
 - ~~`requests.embedding` unwritten; phase 4 unbuilt~~ — BOTH DONE
-  (2026-08-13 late night, see newest entry). Remaining phase-4 wish:
-  the intake dedup in `[agency]/actions.ts` still re-embeds the whole
-  request corpus per filing via findDuplicates — it should read the same
-  stored vectors the precedent path uses. Small perf win, any session.
+  (2026-08-13 late night, see newest entry). ~~Remaining phase-4 wish: the
+  intake dedup re-embeds the corpus via findDuplicates~~ — was ALREADY
+  stale when re-audited 2026-08-14 (the live path had moved to
+  `findDuplicateRequests` over stored vectors; `findDuplicates` survives
+  only as a test fixture for hybrid.test.ts), and the perf pass (newest
+  entry) pushed dedup/precedent ranking into SQL top-k besides.
 - Connected data sources: **phases 1 AND 2 SHIPPED** (see the newest
   entry). Phase 3 (structured row store + tabular answers) stays gated on
   real usage. The Playwright e2e for the loop now exists

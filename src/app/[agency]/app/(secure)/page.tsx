@@ -101,13 +101,6 @@ export default async function Queue({
   // is a dead end.
   const availableStatuses = [...new Set(allOpen.map((r) => r.status))].sort();
   let assignableStaff: { id: string; name: string }[] = [];
-  if (ws.source === "live" && ws.agencyId) {
-    const repo = await getRepository();
-    assignableStaff = (await repo.listUsers(ws.agencyId))
-      .filter((u) => isAssignableRole(u.role))
-      .map((u) => ({ id: u.id, name: u.name ?? u.email }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
 
   // Honest numbers: computed from the live DB, or the fixture's story numbers
   // when we're showing the unseeded demo. "—" beats a made-up percentage.
@@ -122,22 +115,30 @@ export default async function Queue({
   // Agent runs parked at a human checkpoint — the /app/agents badge.
   let parkedAgentRuns = 0;
   if (ws.source === "live" && ws.agencyId) {
+    // One parallel batch — these reads are independent, and awaiting them in
+    // sequence made the dashboard a five-stage waterfall.
     const repo = await getRepository();
-    parkedAgentRuns = (await repo.listAgentRuns(ws.agencyId)).filter(
-      (r) => r.status === "awaiting_checkpoint",
-    ).length;
-    retentionRisk = documentsAtRetentionRisk(
-      await repo.listDocumentsUnderRetention(ws.agencyId),
-      ws.now,
-    ).map(({ doc, status }) => ({ filename: doc.filename ?? doc.id, status }));
-    const deflections = await repo.listDeflections(ws.agencyId);
+    const [users, agentRuns, retentionDocs, deflections, allRequests] = await Promise.all([
+      repo.listUsers(ws.agencyId),
+      repo.listAgentRuns(ws.agencyId),
+      repo.listDocumentsUnderRetention(ws.agencyId),
+      repo.listDeflections(ws.agencyId),
+      repo.listRequests(ws.agencyId),
+    ]);
+    assignableStaff = users
+      .filter((u) => isAssignableRole(u.role))
+      .map((u) => ({ id: u.id, name: u.name ?? u.email }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    parkedAgentRuns = agentRuns.filter((r) => r.status === "awaiting_checkpoint").length;
+    retentionRisk = documentsAtRetentionRisk(retentionDocs, ws.now).map(({ doc, status }) => ({
+      filename: doc.filename ?? doc.id,
+      status,
+    }));
     const monthStart = new Date(ws.now.getFullYear(), ws.now.getMonth(), 1);
     // archive_miss rows are demand signal, not deflections — never ROI.
     deflectionsLabel = String(
       deflections.filter((d) => d.kind !== "archive_miss" && d.createdAt >= monthStart).length,
     );
-
-    const allRequests = await repo.listRequests(ws.agencyId);
     // Shared signal builder (domain/transparencyImpact) — the reports page's
     // impact section mines the same signals, so the two can never diverge.
     demandPatterns = mineDemandPatterns(demandSignalsFrom(allRequests, deflections), { now: ws.now });

@@ -399,6 +399,102 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect(await repo.listDocumentIdsWithBodyChunks(AG1)).toContain(internal.id);
     });
 
+    it("vector search: request top-k ranks by cosine, honors filters, stays tenant-scoped", async () => {
+      // Fresh agency so vectors from other tests can't skew rankings.
+      const AG = uid();
+      await repo.createAgency({ id: AG, slug: `conf-vec-${AG.slice(0, 8)}`, name: "Vec", stateCode: "CA", observedHolidays: [] });
+      const dim = schema.EMBEDDING_DIMENSIONS;
+      const vec = (seed: number) => Array.from({ length: dim }, (_, i) => (i === seed ? 1 : 0));
+      // Equal parts of two axes — cosine 1/√2 ≈ 0.707 against either axis.
+      const blend = (a: number, b: number) =>
+        Array.from({ length: dim }, (_, i) => (i === a || i === b ? Math.SQRT1_2 : 0));
+
+      const exact = await repo.createRequest(requestOf({ agencyId: AG }));
+      const near = await repo.createRequest(requestOf({ agencyId: AG }));
+      const triaged = await repo.createRequest(requestOf({ agencyId: AG, interpretedScope: "scoped" }));
+      const unembedded = await repo.createRequest(requestOf({ agencyId: AG }));
+      await repo.setRequestEmbedding(AG, exact.id, vec(1));
+      await repo.setRequestEmbedding(AG, near.id, blend(1, 2));
+      await repo.setRequestEmbedding(AG, triaged.id, blend(1, 3));
+
+      expect(await repo.getRequestEmbedding(AG, exact.id)).toEqual(vec(1));
+      expect(await repo.getRequestEmbedding(AG, unembedded.id)).toBeNull();
+      expect(await repo.getRequestEmbedding(AG2, exact.id)).toBeNull(); // tenant isolation
+
+      const hits = await repo.searchRequestEmbeddings(AG, vec(1), { limit: 10 });
+      expect(hits.map((h) => h.id).slice(0, 1)).toEqual([exact.id]);
+      expect(hits[0]!.similarity).toBeCloseTo(1, 5);
+      const nearHit = hits.find((h) => h.id === near.id);
+      expect(nearHit?.similarity).toBeCloseTo(Math.SQRT1_2, 5);
+      expect(hits.some((h) => h.id === unembedded.id)).toBe(false);
+
+      const excluded = await repo.searchRequestEmbeddings(AG, vec(1), { limit: 10, excludeRequestId: exact.id });
+      expect(excluded.some((h) => h.id === exact.id)).toBe(false);
+      const interpreted = await repo.searchRequestEmbeddings(AG, vec(1), { limit: 10, interpretedOnly: true });
+      expect(interpreted.map((h) => h.id)).toEqual([triaged.id]);
+      expect((await repo.searchRequestEmbeddings(AG, vec(1), { limit: 1 })).length).toBe(1);
+      // Cross-tenant: none of this agency's rows may surface (shared repo — assert containment).
+      const other = await repo.searchRequestEmbeddings(AG2, vec(1), { limit: 100 });
+      expect(other.some((h) => [exact.id, near.id, triaged.id].includes(h.id))).toBe(false);
+
+      const missing = await repo.listRequestsWithoutEmbedding(AG);
+      expect(missing.map((r) => r.id)).toEqual([unembedded.id]);
+    });
+
+    it("vector search: chunk + public-doc top-k rank in the store, public scope enforced", async () => {
+      const AG = uid();
+      await repo.createAgency({ id: AG, slug: `conf-vecd-${AG.slice(0, 8)}`, name: "VecD", stateCode: "CA", observedHolidays: [] });
+      const dim = schema.EMBEDDING_DIMENSIONS;
+      const vec = (seed: number) => Array.from({ length: dim }, (_, i) => (i === seed ? 1 : 0));
+      const blend = (a: number, b: number) =>
+        Array.from({ length: dim }, (_, i) => (i === a || i === b ? Math.SQRT1_2 : 0));
+
+      const pub = await repo.createDocument(docOf({ agencyId: AG, classification: "public" }));
+      const pubNear = await repo.createDocument(docOf({ agencyId: AG, classification: "public" }));
+      const internal = await repo.createDocument(docOf({ agencyId: AG }));
+      await repo.setDocumentEmbedding(AG, pub.id, vec(1), "pub");
+      await repo.setDocumentEmbedding(AG, pubNear.id, blend(1, 2), "pub-near");
+      await repo.setDocumentEmbedding(AG, internal.id, vec(1), "int");
+
+      const pubHits = await repo.searchPublicDocumentEmbeddings(AG, vec(1), 10);
+      // An internal doc with a PERFECT score must still be invisible (invariant 3).
+      expect(pubHits.some((h) => h.id === internal.id)).toBe(false);
+      expect(pubHits.map((h) => h.id)).toEqual([pub.id, pubNear.id]);
+      expect(pubHits[0]!.similarity).toBeCloseTo(1, 5);
+      expect(pubHits[1]!.similarity).toBeCloseTo(Math.SQRT1_2, 5);
+
+      await repo.setDocumentBodyChunks(AG, internal.id, [
+        { content: "exact passage", embedding: vec(5) },
+        { content: "near passage", embedding: blend(5, 6) },
+      ]);
+      const chunkHits = await repo.searchBodyChunkEmbeddings(AG, vec(5), 10);
+      // Chunk 0 (the archive-entry vector) must never surface as a body chunk.
+      expect(chunkHits.every((h) => h.chunkIndex > 0)).toBe(true);
+      expect(chunkHits.map((h) => h.content)).toEqual(["exact passage", "near passage"]);
+      expect(chunkHits[0]!.similarity).toBeCloseTo(1, 5);
+      expect((await repo.searchBodyChunkEmbeddings(AG, vec(5), 1)).length).toBe(1);
+      const otherChunks = await repo.searchBodyChunkEmbeddings(AG2, vec(5), 100);
+      expect(otherChunks.some((h) => h.documentId === internal.id)).toBe(false);
+    });
+
+    it("request documents: batch lookup returns (requestId, document) pairs, tenant-scoped", async () => {
+      const r1 = await repo.createRequest(requestOf());
+      const r2 = await repo.createRequest(requestOf());
+      const r3 = await repo.createRequest(requestOf());
+      const d1 = await repo.createDocument(docOf());
+      const d2 = await repo.createDocument(docOf());
+      await repo.linkRequestDocument(AG1, r1.id, d1.id);
+      await repo.linkRequestDocument(AG1, r2.id, d2.id);
+
+      const pairs = await repo.listRequestDocumentsForRequests(AG1, [r1.id, r2.id, r3.id]);
+      const byRequest = new Map(pairs.map((p) => [p.requestId, p.document.id]));
+      expect(byRequest.get(r1.id)).toBe(d1.id);
+      expect(byRequest.get(r2.id)).toBe(d2.id);
+      expect(pairs.some((p) => p.requestId === r3.id)).toBe(false);
+      expect(await repo.listRequestDocumentsForRequests(AG1, [])).toEqual([]);
+      expect(await repo.listRequestDocumentsForRequests(AG2, [r1.id])).toEqual([]);
+    });
+
     // --- messages / reviews / releases / deflections -------------------------
 
     it("messages: thread lists oldest-first, tenant-scoped", async () => {

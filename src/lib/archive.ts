@@ -8,7 +8,7 @@ import { DEMO_AGENCY, DEMO_RELEASES, searchPublicReleases } from "@/lib/demo";
 import { getRepository } from "@/db/createRepository";
 import { readDocumentMeta } from "@/domain/documentMeta";
 import { parseDateQuery, withinRange, type DateRange } from "@/domain/dateQuery";
-import type { DocumentEntity, Repository } from "@/services/repository";
+import type { DocumentEntity, ReleaseEntity, Repository } from "@/services/repository";
 
 export interface ArchiveItem {
   id: string;
@@ -88,10 +88,32 @@ export async function resolveArchiveDownloadUrl(
   return artifact?.documentId ? `/${slug}/files/${artifact.documentId}` : null;
 }
 
+/** The map-based twin of resolveArchiveDownloadUrl — same rules, no query. */
+function resolveDownloadUrlFromMap(
+  slug: string,
+  d: DocumentEntity,
+  releaseById: Map<string, ReleaseEntity>,
+): string | null {
+  if (d.blobRef && d.byteSize != null) return `/${slug}/files/${d.id}`;
+  const releaseId = readDocumentMeta(d).releaseId;
+  if (!releaseId) return null;
+  const release = releaseById.get(releaseId);
+  if (!release || release.visibility !== "public") return null;
+  const artifact = release.artifacts.find((a) => a.documentId);
+  return artifact?.documentId ? `/${slug}/files/${artifact.documentId}` : null;
+}
+
 async function toItems(repo: Repository, agencyId: string, slug: string, docs: DocumentEntity[]) {
-  return Promise.all(
-    docs.map(async (d) => toArchiveItem(d, await resolveArchiveDownloadUrl(repo, agencyId, slug, d))),
+  // ONE release query for the whole listing. The old shape awaited
+  // getReleaseById per release-born doc — an N+1 every archive render,
+  // search, and answer-box keystroke paid.
+  const needsReleases = docs.some(
+    (d) => !(d.blobRef && d.byteSize != null) && readDocumentMeta(d).releaseId != null,
   );
+  const releaseById = needsReleases
+    ? new Map((await repo.listAllReleases(agencyId)).map((r) => [r.id, r] as const))
+    : new Map<string, ReleaseEntity>();
+  return docs.map((d) => toArchiveItem(d, resolveDownloadUrlFromMap(slug, d, releaseById)));
 }
 
 /** Everything this tenant has released, newest first. */
@@ -182,22 +204,19 @@ export async function searchArchiveDetailed(
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
 
-  // Vector half — only over docs the backfill job has embedded.
+  // Vector half — top-k ranked in the store (HNSW), not by loading every
+  // vector into JS. Over-fetch because the date window (itemById) filters
+  // AFTER the similarity ranking.
   let vector: { id: string; sim: number }[] = [];
   try {
-    const embeddings = await repo.listPublicDocumentEmbeddings(agency.id);
-    if (embeddings.length > 0) {
-      const [{ getEmbeddingProvider }, { cosine }] = await Promise.all([
-        import("@/ai/search/voyage"),
-        import("@/ai/search/embeddings"),
-      ]);
-      const [qVec] = await getEmbeddingProvider().embed([q]);
-      vector = embeddings
-        .filter((e) => itemById.has(e.id)) // public corpus only, by construction
-        .map((e) => ({ id: e.id, sim: cosine(qVec!, e.embedding) }))
-        .filter((x) => x.sim > 0)
-        .sort((a, b) => b.sim - a.sim)
-        .slice(0, 10);
+    const [{ getEmbeddingProvider }] = await Promise.all([import("@/ai/search/voyage")]);
+    const [qVec] = await getEmbeddingProvider().embed([q]);
+    if (qVec) {
+      vector = (await repo.searchPublicDocumentEmbeddings(agency.id, qVec, 50))
+        .filter((x) => itemById.has(x.id)) // date window + public corpus, by construction
+        .filter((x) => x.similarity > 0)
+        .slice(0, 10)
+        .map((x) => ({ id: x.id, sim: x.similarity }));
     }
   } catch (e) {
     console.error("archive vector search failed — keyword results only", e);

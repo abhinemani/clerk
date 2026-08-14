@@ -417,6 +417,10 @@ export const requests = pgTable(
     unique("requests_agency_public_id_unique").on(t.agencyId, t.publicId),
     index("requests_agency_status_idx").on(t.agencyId, t.status),
     index("requests_due_idx").on(t.statutoryDueAt),
+    // Every tenant list reads "where agency_id order by created_at desc".
+    index("requests_agency_created_idx").on(t.agencyId, t.createdAt),
+    // ANN index for stored-ask-vector top-k (dedup, precedents).
+    index("requests_embedding_hnsw_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ],
 );
 
@@ -506,7 +510,10 @@ export const tasks = pgTable(
     pushbackNotes: text("pushback_notes"),
     ...timestamps,
   },
-  (t) => [index("tasks_request_idx").on(t.requestId)],
+  (t) => [
+    index("tasks_request_idx").on(t.requestId),
+    index("tasks_agency_idx").on(t.agencyId),
+  ],
 );
 
 /**
@@ -622,6 +629,7 @@ export const documents = pgTable(
   (t) => [
     index("documents_agency_class_idx").on(t.agencyId, t.classification),
     index("documents_agency_record_type_idx").on(t.agencyId, t.recordType),
+    index("documents_agency_created_idx").on(t.agencyId, t.createdAt),
     // Idempotency on connector re-push (§9.1): re-push updates in place.
     unique("documents_source_external_unique").on(t.sourceId, t.externalSystemId),
   ],
@@ -649,6 +657,9 @@ export const documentChunks = pgTable(
   (t) => [
     unique("document_chunks_doc_index_unique").on(t.documentId, t.chunkIndex),
     index("document_chunks_document_idx").on(t.documentId),
+    index("document_chunks_agency_idx").on(t.agencyId),
+    // ANN index for chunk-vector top-k (staff records search, archive search).
+    index("document_chunks_embedding_hnsw_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ],
 );
 
@@ -669,7 +680,11 @@ export const requestDocuments = pgTable(
     }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.requestId, t.documentId] })],
+  (t) => [
+    primaryKey({ columns: [t.requestId, t.documentId] }),
+    // The publication anti-join and attached-docs lookups correlate on document_id.
+    index("request_documents_document_idx").on(t.documentId),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -723,7 +738,10 @@ export const reviews = pgTable(
     }),
     ...timestamps,
   },
-  (t) => [unique("reviews_request_document_unique").on(t.requestId, t.documentId)],
+  (t) => [
+    unique("reviews_request_document_unique").on(t.requestId, t.documentId),
+    index("reviews_agency_idx").on(t.agencyId),
+  ],
 );
 
 // Per-page redaction region (§5 Redaction, §6.5). Coordinates normalized 0..1.

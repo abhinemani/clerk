@@ -121,29 +121,50 @@ export default async function RequestDetail({
     exemptions: string[];
     samples: string[];
   } | null = null;
-  if (detail.source === "live") {
+  if (detail.source === "live" && detail.raw) {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
-    const agencyRow = await repo.getAgency(staff.agencyId);
+    // The loader already read the raw request + events — reuse, don't re-query.
+    const rawRequest = detail.raw.request;
+    const events = detail.raw.events;
+    const [{ consultPlays }, { defaultDeps }, { searchArchive }] = await Promise.all([
+      import("@/services/learningService"),
+      import("@/services/deps"),
+      import("@/lib/archive"),
+    ]);
+    // ONE parallel batch — every read here is independent, and the archive
+    // match (which includes an embedding call) used to serialize behind six
+    // other awaits before first paint.
+    const [agencyRow, docs, reviews, releases, msgs, staffUsers, directory, playMatch, archiveItems, requesterRow] =
+      await Promise.all([
+        repo.getAgency(staff.agencyId),
+        repo.listRequestDocuments(staff.agencyId, r.id),
+        repo.listReviews(staff.agencyId, r.id),
+        repo.listReleases(staff.agencyId, r.id),
+        repo.listMessages(staff.agencyId, r.id),
+        repo.listUsers(staff.agencyId),
+        repo.listDirectory(staff.agencyId),
+        consultPlays(defaultDeps(repo), {
+          agencyId: staff.agencyId,
+          text: rawRequest.interpretedScope ?? rawRequest.rawText,
+        }),
+        // Already public? (see archiveMatches above.) Failure must not block
+        // the page — same degradation as before, just off the critical path.
+        r.closedAt == null
+          ? searchArchive(slug, r.interpretedScope || r.rawText).catch((e) => {
+              console.error("archive match for request detail failed", e);
+              return [];
+            })
+          : Promise.resolve([]),
+        r.closedAt == null && rawRequest.requesterId
+          ? repo.getRequester(staff.agencyId, rawRequest.requesterId)
+          : Promise.resolve(null),
+      ]);
     const profile = agencyRow ? getStateProfile(agencyRow.stateCode) : null;
     exemptionOptions =
       profile?.exemptions.map((e) => ({ citation: e.statuteSection, label: e.shortLabel })) ?? [];
-    const [docs, reviews, releases, msgs, staffUsers, events, rawRequest] = await Promise.all([
-      repo.listRequestDocuments(staff.agencyId, r.id),
-      repo.listReviews(staff.agencyId, r.id),
-      repo.listReleases(staff.agencyId, r.id),
-      repo.listMessages(staff.agencyId, r.id),
-      repo.listUsers(staff.agencyId),
-      repo.listEvents(staff.agencyId, r.id),
-      repo.getRequest(staff.agencyId, r.id),
-    ]);
-    if (rawRequest) {
-      const { consultPlays } = await import("@/services/learningService");
-      const { defaultDeps } = await import("@/services/deps");
-      const match = await consultPlays(defaultDeps(repo), {
-        agencyId: staff.agencyId,
-        text: rawRequest.interpretedScope ?? rawRequest.rawText,
-      });
+    {
+      const match = playMatch;
       if (match) {
         const { stats } = match.play;
         playVM = {
@@ -247,7 +268,6 @@ export default async function RequestDetail({
       heldCount = reviewSet.filter((d) => retentionStatus(d, now).state === "held").length;
     }
     {
-      const directory = await repo.listDirectory(staff.agencyId);
       referTargets = directory.map((d) => ({
         id: d.id,
         name: d.name,
@@ -271,29 +291,19 @@ export default async function RequestDetail({
         };
       }
       if (r.closedAt == null) {
-        try {
-          const { searchArchive } = await import("@/lib/archive");
-          archiveMatches = (await searchArchive(slug, r.interpretedScope || r.rawText))
-            .slice(0, 3)
-            .map((it) => ({
-              id: it.id,
-              title: it.title,
-              dateLabel: it.date,
-              downloadUrl: it.downloadUrl,
-              // Connected-source provenance: the named human answering by
-              // link should know they are citing SYNCED data and how fresh
-              // it is (docs/connected-sources.md).
-              syncedFrom: it.connectedSource
-                ? `${it.connectedSource.sourceName}, last synced ${it.connectedSource.syncedAt.slice(0, 10)}`
-                : null,
-            }));
-        } catch (e) {
-          console.error("archive match for request detail failed", e);
-        }
-        if (rawRequest?.requesterId) {
-          const req = await repo.getRequester(staff.agencyId, rawRequest.requesterId);
-          requesterHasEmail = req?.email != null;
-        }
+        archiveMatches = archiveItems.slice(0, 3).map((it) => ({
+          id: it.id,
+          title: it.title,
+          dateLabel: it.date,
+          downloadUrl: it.downloadUrl,
+          // Connected-source provenance: the named human answering by
+          // link should know they are citing SYNCED data and how fresh
+          // it is (docs/connected-sources.md).
+          syncedFrom: it.connectedSource
+            ? `${it.connectedSource.sourceName}, last synced ${it.connectedSource.syncedAt.slice(0, 10)}`
+            : null,
+        }));
+        requesterHasEmail = requesterRow?.email != null;
       }
       // Phase-2 custodian suggestion: the latest run's top proposal pre-selects
       // the Refer panel. The card only proposes — staff still click Refer.
@@ -315,7 +325,8 @@ export default async function RequestDetail({
     }
     const rel = releases[0];
     if (rel) {
-      const approver = await repo.getUser(staff.agencyId, rel.approvedByUserId);
+      // The staff list is already in hand — no point-read for the approver.
+      const approver = staffUsers.find((u) => u.id === rel.approvedByUserId) ?? null;
       releaseVM = {
         released: rel.artifacts.length,
         visibility: rel.visibility,

@@ -64,24 +64,23 @@ async function searchBodyChunks(
   byId: Map<string, DocumentEntity>,
 ): Promise<{ documentId: string; snippet: string; similarity: number }[]> {
   try {
-    const chunks = await repo.listBodyChunkEmbeddings(agencyId);
-    if (chunks.length === 0) return [];
-    const [{ getEmbeddingProvider }, { cosine }] = await Promise.all([
-      import("@/ai/search/voyage"),
-      import("@/ai/search/embeddings"),
-    ]);
+    const { getEmbeddingProvider } = await import("@/ai/search/voyage");
     const [qVec] = await getEmbeddingProvider().embed([query]);
     if (!qVec) return [];
+
+    // Top chunks ranked in the store (HNSW top-k), not by loading every
+    // vector into JS. Over-fetch so best-per-document still yields 20 docs
+    // when one document dominates the chunk ranking.
+    const chunks = await repo.searchBodyChunkEmbeddings(agencyId, qVec, 100);
 
     // Best chunk per document — a document is as relevant as its strongest passage.
     const best = new Map<string, { snippet: string; similarity: number }>();
     for (const c of chunks) {
       if (!byId.has(c.documentId)) continue; // filtered out (e.g. burned artifact)
-      const similarity = cosine(qVec, c.embedding);
-      if (similarity <= 0) continue;
+      if (c.similarity <= 0) continue;
       const prev = best.get(c.documentId);
-      if (!prev || similarity > prev.similarity) {
-        best.set(c.documentId, { snippet: c.content.slice(0, 220).trim(), similarity });
+      if (!prev || c.similarity > prev.similarity) {
+        best.set(c.documentId, { snippet: c.content.slice(0, 220).trim(), similarity: c.similarity });
       }
     }
     return [...best.entries()]
