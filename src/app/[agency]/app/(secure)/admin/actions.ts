@@ -499,3 +499,42 @@ export async function setStatusApiAction(input: {
     return { ok: false, error: "Could not update the setting." };
   }
 }
+
+/**
+ * Requester API + MCP server (docs/requester-api.md). Serves only
+ * requester-safe projections of the public surface; filing is the one write
+ * and gets its own toggle because a machine can file faster than a form.
+ */
+export async function setRequesterApiAction(input: {
+  agencySlug: string;
+  enabled: boolean;
+  filingEnabled: boolean;
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+
+    const agency = await repo.getAgency(agencyId);
+    await repo.updateAgency(agencyId, {
+      settings: {
+        ...(agency?.settings ?? {}),
+        requesterApi: { enabled: input.enabled, filingEnabled: input.filingEnabled },
+      },
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "requester_api_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: input.enabled
+        ? `Requester API ENABLED (filing ${input.filingEnabled ? "on" : "off"})`
+        : "Requester API disabled",
+      payload: { enabled: input.enabled, filingEnabled: input.filingEnabled },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    return { ok: true };
+  } catch (e) {
+    console.error("setRequesterApi failed", e);
+    return { ok: false, error: "Could not update the setting." };
+  }
+}

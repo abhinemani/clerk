@@ -1176,6 +1176,14 @@ export interface AgencySettings {
    * API — so there is no signing secret to store.
    */
   statusApi?: { enabled: boolean; webhookUrl?: string | null };
+  /**
+   * Requester API + MCP server (docs/requester-api.md, opt-in): the machine
+   * door onto the portal's PUBLIC surface — archive search, record reads,
+   * status by tracking number, and (separately gated) filing. Everything it
+   * serves is a projection of what the portal already shows anyone; enabling
+   * it never widens what a requester can see (invariant 3 unmoved).
+   */
+  requesterApi?: { enabled: boolean; filingEnabled?: boolean };
 }
 
 /**

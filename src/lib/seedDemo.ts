@@ -106,6 +106,9 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
         reviewedOn: "2026-07-01",
         note: "Confirmed against the 2026 legislative session.",
       },
+      // Requester API + MCP demo (docs/requester-api.md): point an MCP client
+      // at /api/v1/riverton/mcp and the whole machine surface is live.
+      requesterApi: { enabled: true, filingEnabled: true },
     },
   });
   // Deterministic routing rules — file "pothole repairs on Elm St" in the

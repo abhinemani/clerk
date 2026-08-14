@@ -14,8 +14,8 @@ import { ensureAgency } from "@/lib/bootstrap";
 import { trackByPublicId } from "@/lib/live";
 import { registerRequester, AccountError } from "@/services/accountService";
 import { defaultDeps } from "@/services/deps";
+import { submitAndDispatch } from "@/services/intakeService";
 import type { RequesterType } from "@/services/repository";
-import { submitRequest } from "@/services/requestService";
 
 async function resolveAgencyId(slug: string): Promise<string | null> {
   // The demo agency bootstraps itself on first use; every other tenant is
@@ -50,7 +50,10 @@ export async function fileRequest(input: {
     const signedInRequester =
       u && u.kind === "requester" && u.agencySlug === input.agencySlug ? u : null;
 
-    const request = await submitRequest(deps, {
+    // The whole filing chain (submitRequest + routing rules + play routing +
+    // triage job + duplicate check) lives in intakeService so the requester
+    // API's file_request rides the exact same path as this form.
+    const request = await submitAndDispatch(deps, {
       agencyId,
       rawText,
       requester: signedInRequester
@@ -61,71 +64,6 @@ export async function fileRequest(input: {
             type: input.type,
           },
     });
-
-    // Deterministic routing rules first (explicit agency policy, no model):
-    // matches become proposal cards, and — with auto-dispatch on — the
-    // department tasks go out before the resident leaves the page. Advisory
-    // failure only; filing never blocks on it.
-    try {
-      const { applyAgencyRoutingRules } = await import("@/services/taskService");
-      await applyAgencyRoutingRules(deps, { agencyId, requestId: request.id, rawText });
-    } catch (e) {
-      console.error("routing rules failed", e);
-    }
-
-    // Learned routing second (docs/learning-loop.md): the agency's own
-    // resolved history as a play match — precedent stats as a card, and
-    // an earned-confidence route into the same auto-dispatch gate (whose
-    // tasks-already-exist guard keeps this advisory when a rule fired).
-    // Deterministic, no model; advisory failure only.
-    try {
-      const { applyPlayRouting } = await import("@/services/learningService");
-      await applyPlayRouting(deps, { agencyId, requestId: request.id, rawText });
-    } catch (e) {
-      console.error("play routing failed", e);
-    }
-
-    // AI proposes off the request path: queue intake triage (§6.1). The job
-    // no-ops without ANTHROPIC_API_KEY.
-    const { getJobQueue } = await import("@/jobs/queue");
-    getJobQueue().enqueue("intake_triage", { agencyId, requestId: request.id });
-
-    // Duplicate & related detection (§6.2) on STORED ask vectors — the
-    // request's own vector was written moments ago in submitRequest, so the
-    // common case costs zero embed calls; rows without vectors degrade to
-    // token overlap inside the service. Advisory only — a failure never
-    // blocks filing.
-    try {
-      const { findDuplicateRequests } = await import("@/services/similarRequestsService");
-      const matches = await findDuplicateRequests(deps, {
-        agencyId,
-        requestId: request.id,
-        text: rawText,
-        limit: 3,
-      });
-      if (matches.length > 0) {
-        await deps.repo.appendEvent({
-          id: deps.genId(),
-          agencyId,
-          requestId: request.id,
-          kind: "ai_action",
-          actorUserId: null,
-          summary: `Possible duplicate of ${matches.map((m) => m.publicId).join(", ")}`,
-          payload: {
-            pipeline: "duplicate_check",
-            matches: matches.map((m) => ({
-              requestId: m.id,
-              publicId: m.publicId,
-              similarity: Math.round(m.similarity * 100) / 100,
-              status: m.status,
-            })),
-          },
-          createdAt: deps.now(),
-        });
-      }
-    } catch (e) {
-      console.error("duplicate check failed", e);
-    }
 
     return { ok: true, publicId: request.publicId, dueAtISO: request.statutoryDueAt?.toISOString() ?? null };
   } catch (e) {

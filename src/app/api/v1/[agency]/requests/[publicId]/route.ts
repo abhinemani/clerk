@@ -22,7 +22,11 @@ export async function GET(
   const repo = await getRepository();
   const agency = await repo.getAgencyBySlug(slug);
   if (!agency) return Response.json({ error: "unknown_agency" }, { status: 404 });
-  if (agency.settings?.statusApi?.enabled !== true) {
+  // Two opt-ins open this door: the status API itself, or the requester API
+  // (whose file_request hands out these very URLs — a request filed by
+  // machine must be checkable by machine without a second toggle).
+  const settings = agency.settings;
+  if (settings?.statusApi?.enabled !== true && settings?.requesterApi?.enabled !== true) {
     return Response.json({ error: "not_found" }, { status: 404 }); // opt-in: plays dead when off
   }
 

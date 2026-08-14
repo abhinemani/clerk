@@ -10,6 +10,7 @@ import { DepartmentManager, type DepartmentRow } from "../../../../_components/D
 import { BrandingPanel } from "../../../../_components/BrandingPanel";
 import { CompliancePanel, type StatuteVM } from "../../../../_components/CompliancePanel";
 import { StatusApiPanel } from "../../../../_components/StatusApiPanel";
+import { RequesterApiPanel } from "../../../../_components/RequesterApiPanel";
 import { effectiveWorkflowSettings } from "@/domain/workflow";
 import { computeSetupStatus } from "@/domain/setupChecklist";
 import { getStateProfile } from "@/statute/profiles";
@@ -250,6 +251,16 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
           agencySlug={slug}
           enabled={agencySettings.statusApi?.enabled === true}
           webhookUrl={agencySettings.statusApi?.webhookUrl ?? null}
+        />
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <RequesterApiPanel
+          agencySlug={slug}
+          enabled={agencySettings.requesterApi?.enabled === true}
+          filingEnabled={
+            agencySettings.requesterApi?.enabled === true &&
+            agencySettings.requesterApi?.filingEnabled !== false
+          }
         />
       </div>
 
