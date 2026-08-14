@@ -95,6 +95,15 @@ Known not-done from the review: mobile pass (still unverified at small
 widths) and scroll-animation review (shots were reduced-motion). No
 schema change, no laptop-setup change. 894 tests, typecheck clean, 4/4
 e2e.
+**Follow-up, same window — CARD ORNAMENT SYSTEM (owner: "visual elements
+on the divs so they don't seem boring").** The engraved-plate language,
+all in globals.css so every existing card inherits it: gold corner
+bracket on every `.card-pad` (in the padding zone — never collides with
+content), the letterhead tick before every `.panel-title` (same ornament
+grammar as the marketing eyebrows), a gold base rule under `.stat-num`
+numerals, and the engraver's hatch layered into the card/stat slab
+gradients. Print-guarded (ornaments display:none in print). Browser-
+verified on the command center and the request detail page.
 
 **PREVIOUS (2026-08-13, cloud session): THE LEARNING LOOP — resolved
 requests now make the platform structurally smarter (docs/learning-loop.md,

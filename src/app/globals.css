@@ -510,15 +510,37 @@ h3 {
   }
   .card {
     /* Glass slab with a LIT top edge — the inset highlight is what makes a
-       dark card read as material instead of a flatter shade of dark. */
-    background: linear-gradient(180deg, rgba(50, 58, 72, 0.62), rgba(20, 26, 34, 0.95));
+       dark card read as material instead of a flatter shade of dark. The
+       hatch layer under the gradient is the engraver's texture at card
+       scale (owner, 2026-08-14: "visual elements on the divs"). */
+    background:
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 10px),
+      linear-gradient(180deg, rgba(52, 60, 75, 0.66), rgba(20, 26, 34, 0.95));
     border-color: rgba(255, 255, 255, 0.11);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
       0 14px 34px -18px rgba(0, 0, 0, 0.65);
   }
+  /* Engraved-plate corner: a gold bracket in the padding zone of every
+     padded card — the plate-maker's mark that keeps a grid of dark slabs
+     from reading as identical rectangles. Sits inside the 22px padding so
+     it never collides with content. */
+  .card-pad::after {
+    content: "";
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    width: 15px;
+    height: 15px;
+    border-top: 1px solid color-mix(in srgb, var(--gold) 42%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--gold) 42%, transparent);
+    border-top-right-radius: 7px;
+    pointer-events: none;
+  }
   .stat {
-    background: linear-gradient(180deg, rgba(34, 41, 52, 0.97), rgba(19, 24, 31, 0.97));
+    background:
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 10px),
+      linear-gradient(180deg, rgba(34, 41, 52, 0.97), rgba(19, 24, 31, 0.97));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
   .stat-row {
@@ -539,6 +561,7 @@ h3 {
   }
 }
 .card-pad {
+  position: relative;
   padding: 22px;
 }
 .panel-title {
@@ -547,6 +570,35 @@ h3 {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--primary);
+}
+/* The letterhead tick: every panel opens with a short gold rule — the same
+   ornament grammar as the marketing eyebrows, at panel scale. */
+.panel-title::before {
+  content: "";
+  display: inline-block;
+  width: 13px;
+  height: 2px;
+  margin-right: 8px;
+  vertical-align: 3px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 18%, transparent));
+}
+/* Annual-report numerals get an engraved base rule. */
+.stat-num::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 2px;
+  margin-top: 6px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--gold) 55%, transparent);
+}
+@media print {
+  .panel-title::before,
+  .card-pad::after,
+  .stat-num::after {
+    display: none;
+  }
 }
 
 /* ---- pills / bands ---- */
