@@ -7,8 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**949 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-14 performance-pass entry; e2e run fresh at that build).
+**980 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-14 portal-mobile entry; e2e run fresh at that build).
 
 ## START HERE (next session)
 
@@ -57,16 +57,76 @@ straight into a build):
 5. **Hybrid staff search** (per-chunk embeddings at ingest; service
    signature ready). (~~intake-dedup stored-vector perf item~~ — done;
    dedup + precedent ranking now run as SQL top-k, see newest entry.)
-6. **Mobile pass + animation review** — the UX pass verified desktop
-   width only, reduced-motion only. Also: redaction-studio trio (redo,
-   bar→log-card, redact-everywhere), backup/restore runbook.
+6. **Mobile pass + animation review** — PARTLY DONE (newest entry: the
+   public portal and the staff shell are verified at 390px; the header,
+   `.stat-row`, and `.hide-sm` bugs are fixed system-wide). Still open:
+   the deep staff surfaces (queue, request workspace, redaction studio,
+   admin) at phone width, and the animation review — the UX pass ran
+   reduced-motion only. Also: redaction-studio trio (redo, bar→log-card,
+   redact-everywhere), backup/restore runbook.
 
 **Before every push** (full contract in CLAUDE.md): offline suite green,
 HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, tenth build of the window): HOMEPAGE
+**NEWEST (2026-08-14, cloud session, eleventh build of the window): THE
+PORTAL ON A PHONE — header collapse, the chips are gone, and the answer
+box becomes a CHAT (owner, from the live demo site: "the header is too
+tight and falls on top of itself … there are pills under the input box we
+don't need … the UI doesn't make it clear where to follow up to chat
+after you ask a question").** Three fixes plus two neighbours the phone
+screenshots exposed. Candidate #6 (mobile pass) is now partly paid down —
+the public portal and the staff shell are verified at 390px; the rest of
+the staff surfaces are not.
+- **The header.** The tenant/console bar (agency seal + name + four
+  links) had NO small-width rules at all — the marketing bar's collapse
+  is scoped to `.mk-topnav`. At 390px flex resolved the overflow by
+  shrinking the brand under its own text, so "Portal" sat ON "City of
+  Riverton" and "Sign in" ran off-screen. Now: `.nav-link` is
+  `white-space: nowrap`, the brand can't shrink below its content
+  (`min-width: 0` + one-line ellipsised agency name), links tighten at
+  ≤880px, and at ≤700px the bar breaks into two rows — identity above, a
+  horizontally SCROLLABLE link rail below (same pattern `.staff-nav-row`
+  has always used; wrapping would grow the sticky bar a row per link and
+  strand the active underline mid-stack). Scoped
+  `.nav:not(:has(.brand-lockup))` so the marketing bar keeps its own
+  collapse. `.wrap` now exposes `--gutter` so the rail can full-bleed by
+  negating it exactly.
+- **The chips are gone** (Free / No account needed / …) from the portal
+  hero. They sat between the question box and its answers.
+- **The answer box becomes a chat once a thread exists.** `chatting`
+  (thread non-empty AND the agent is up) now drives: composer moves OUT
+  of the page and DOCKS inside the thread card under the last turn,
+  magnifier → speech bubble, "Ask" → "Send →", placeholder → "Reply —
+  e.g. just 2024, or who signed it?", a "Records assistant" card header,
+  and a one-line "keep going, it remembers this conversation" foot. The
+  debounced archive search goes quiet in chat mode (a second results card
+  sprouting under the thread as you type a reply is the "this is a search
+  box" signal again). If the agent drops mid-thread, `chatting` goes
+  false: turns stay, composer reverts to search — no invitation to reply
+  to something that can't answer.
+- **Two inline-style-beats-class bugs found by the same screenshots.**
+  Every `.stat-row` sets its column count INLINE, so the ≤900px override
+  never applied — a phone got five 60px columns of clipped numerals. And
+  `.hide-sm` lost to an inline `display:inline-flex` on the gov banner's
+  signed-in block, giving a 3-line banner (sign-out still reachable: both
+  the account page and the console carry their own). Both overrides now
+  say `!important`, with the reason in the comment; `.stat-row` also goes
+  1-up at ≤560px, and the staff console drops its local copy of the rule.
+Offline suite green (980 pass / 5 skipped), typecheck clean, **4/4 e2e
+green** (this container ships chromium 1194 and the pinned Playwright
+wants 1234 — run e2e with a throwaway config that sets
+`launchOptions.executablePath: "/opt/pw-browsers/chromium"`; don't
+`playwright install`). Verified in a real browser per gotcha 11: portal +
+staff console at 390/700/1280, boxes measured with
+getBoundingClientRect (no overlap, `scrollWidth === clientWidth`), and
+chat mode screenshotted by temporarily seeding a thread — this session
+had no ANTHROPIC_API_KEY, so the live agent path is still unexercised
+here. Nothing owner-facing (no env/keys/services — laptop doc untouched,
+checked).
+
+**PREVIOUS (2026-08-14, cloud session, tenth build of the window): HOMEPAGE
 COPY — hero third beat + the quote band (owner ask: "Decisions you can
 defend" didn't land; the pitch is transparency made turnkey, and the
 namesake's line belongs on the page).** Two edits, `src/app/page.tsx`

@@ -266,7 +266,11 @@ h3 {
   width: 100%;
   max-width: var(--wrap);
   margin-inline: auto;
-  padding-inline: 24px;
+  /* One token for the gutter so a child can cancel it exactly (the nav's
+     scrollable link rail full-bleeds by negating it) — the phone width
+     re-declares --gutter, not the padding. */
+  --gutter: 24px;
+  padding-inline: var(--gutter);
 }
 .stack {
   display: flex;
@@ -374,6 +378,10 @@ h3 {
   align-items: center;
   gap: 12px;
   color: var(--ink);
+  /* Shrinkable but never below the seal: without min-width the flex line
+     resolves an overflowing bar by squeezing the brand under its own text,
+     which is how the agency name ended up UNDER the nav links (2026-08-14). */
+  min-width: 0;
 }
 .brand:hover {
   text-decoration: none;
@@ -382,12 +390,18 @@ h3 {
   display: flex;
   flex-direction: column;
   line-height: 1.16;
+  min-width: 0;
 }
 .brand-name .brand-agency {
   font-family: var(--font-serif);
   font-weight: 700;
   letter-spacing: -0.01em;
   font-size: 1.06rem;
+  /* One line, always. A wrapped agency name doubles the brand's height and
+     pushes the whole bar out of alignment on a phone. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .brand-name .brand-dept {
   font-size: 0.72rem;
@@ -410,6 +424,7 @@ h3 {
   color: var(--ink-2);
   font-weight: 500;
   font-size: 0.93rem;
+  white-space: nowrap; /* "Track a request" is one link, not two lines */
   border-bottom: 3px solid transparent;
   margin-bottom: -1px; /* overlap the nav border so the gold sits on it */
 }
@@ -422,6 +437,61 @@ h3 {
   color: var(--primary);
   font-weight: 600;
   border-bottom-color: var(--gold);
+}
+
+/* ---- the seal-and-name bars at small widths ----------------------------
+   Scoped to navs WITHOUT the brand lockup — i.e. the tenant portal (agency
+   seal + agency name + four links) and the platform console. The marketing
+   bar has its own collapse further down (it drops links, which survive as
+   hero CTAs); a tenant portal has nowhere to drop "Track a request" to, so
+   it keeps every link and changes shape instead.
+
+   Why it needs one at all: at 390px the seal, a two-line agency name, and
+   four links are roughly twice the viewport. Flex resolved that by
+   shrinking the brand under its own text and letting the links land on top
+   of the agency name — shipped, and visible on any phone.
+
+   Two steps: tighten the links first, then break to two rows — identity
+   above, links below on a scrollable rail (the same pattern as
+   .staff-nav-row, which has always done this). Scrolling beats wrapping:
+   a wrapped row grows the sticky bar by a full row per link, and the
+   active underline stops reading as "this page" once it's mid-stack. */
+@media (max-width: 880px) {
+  .nav:not(:has(.brand-lockup)) .nav-link {
+    padding: 0 10px;
+    font-size: 0.89rem;
+  }
+}
+@media (max-width: 700px) {
+  .nav:not(:has(.brand-lockup)) .nav-inner {
+    display: block; /* two rows; each sets its own height */
+    height: auto;
+  }
+  .nav:not(:has(.brand-lockup)) .brand {
+    display: flex;
+    min-height: 56px;
+    gap: 10px;
+  }
+  .nav:not(:has(.brand-lockup)) .nav-links {
+    margin-left: 0;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-top: 1px solid var(--border);
+    /* full-bleed the rail so a scrolled link runs to the screen edge
+       instead of stopping inside the wrap's gutter */
+    margin-inline: calc(var(--gutter) * -1);
+    padding-inline: var(--gutter);
+  }
+  .nav:not(:has(.brand-lockup)) .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+  .nav:not(:has(.brand-lockup)) .nav-link {
+    height: 46px;
+    padding: 0 12px;
+    border-bottom-width: 3px;
+    margin-bottom: -1px;
+  }
 }
 
 /* ---- buttons ---- */
@@ -1194,17 +1264,32 @@ label.lbl {
   }
 }
 
+/* Every .stat-row consumer sets its own column count INLINE (3, 4, 5 — it
+   varies by page), and an inline declaration outranks any selector here.
+   So the phone override has to shout, or it silently loses and a phone gets
+   five 60px columns of clipped numerals — which is exactly what shipped.
+   The one page that discovered this locally (the staff console) can drop its
+   own copy of the rule now. */
 @media (max-width: 900px) {
   .stat-row {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+@media (max-width: 560px) {
+  .stat-row {
+    grid-template-columns: 1fr !important;
   }
 }
 @media (max-width: 640px) {
   .wrap {
-    padding-inline: 16px;
+    --gutter: 16px;
   }
+  /* !important for the same reason .stat-row needs it: the one caller that
+     sets `display` inline (the banner's signed-in block) silently kept
+     rendering, and a three-line "Signed in as … Sign out" is exactly what a
+     phone has no room for. A utility named hide-sm must actually hide. */
   .hide-sm {
-    display: none;
+    display: none !important;
   }
 }
 

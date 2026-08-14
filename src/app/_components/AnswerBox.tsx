@@ -51,6 +51,12 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
   const [agentDown, setAgentDown] = useState(!aiEnabled);
 
   const asked = query.trim().length >= 3;
+  /** A conversation is open. From here the box is a CHAT composer, not a
+   *  search field — the first answer is the moment the affordance has to
+   *  change, or people read the reply and leave (owner, 2026-08-14). If the
+   *  agent went down mid-thread we fall back to search: the turns stay on
+   *  screen, but nothing invites a reply that can't be answered. */
+  const chatting = thread.length > 0 && aiEnabled && !agentDown;
 
   function ask() {
     const message = query.trim();
@@ -84,9 +90,12 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
     });
   }
 
-  // Debounced live search against the tenant's public corpus.
+  // Debounced live search against the tenant's public corpus. Silent once a
+  // conversation is open: the agent already searches that corpus, and a
+  // second results card sprouting under the thread as you type a follow-up
+  // reads as "your reply went to the search box".
   useEffect(() => {
-    if (!asked) {
+    if (!asked || chatting) {
       setResults([]);
       return;
     }
@@ -112,7 +121,7 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [query, asked, agencySlug]);
+  }, [query, asked, chatting, agencySlug]);
 
   function download(item: ArchiveItem) {
     setDownloaded(item.id);
@@ -131,46 +140,80 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
     }
   }
 
-  return (
-    <div>
-      <div style={{ position: "relative" }}>
-        <span
-          aria-hidden
-          style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}
-        >
-          <SearchIcon />
-        </span>
-        <input
-          className="field"
-          style={{ paddingLeft: 44, fontSize: "1.05rem", paddingBlock: 15, paddingRight: aiEnabled && !agentDown ? 84 : undefined }}
-          placeholder={
-            aiEnabled && !agentDown
+  const composer = (
+    <div style={{ position: "relative" }}>
+      <span
+        aria-hidden
+        style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}
+      >
+        {chatting ? <ReplyIcon /> : <SearchIcon />}
+      </span>
+      <input
+        className="field"
+        style={{
+          paddingLeft: 44,
+          fontSize: "1.05rem",
+          paddingBlock: 15,
+          paddingRight: aiEnabled && !agentDown ? 92 : undefined,
+        }}
+        placeholder={
+          chatting
+            ? "Reply — e.g. just 2024, or who signed it?"
+            : aiEnabled && !agentDown
               ? "Ask anything — e.g. how much did the Acme paving contract cost?"
               : "e.g. the Acme paving contract, 2024 council minutes…"
-          }
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") ask();
-          }}
-          aria-label="Search public records"
-          autoComplete="off"
-        />
-        {aiEnabled && !agentDown && (
-          <button
-            className="btn btn-sm btn-primary"
-            style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}
-            disabled={query.trim().length < 3 || asking}
-            onClick={ask}
-          >
-            Ask
-          </button>
-        )}
-      </div>
+        }
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") ask();
+        }}
+        aria-label={chatting ? "Reply to the records assistant" : "Search public records"}
+        autoComplete="off"
+      />
+      {aiEnabled && !agentDown && (
+        <button
+          className="btn btn-sm btn-primary"
+          style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}
+          disabled={query.trim().length < 3 || asking}
+          onClick={ask}
+        >
+          {chatting ? "Send" : "Ask"}
+          {chatting && <SendIcon />}
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Before the first question the composer leads the page. Once a
+          conversation exists it docks INSIDE the thread card below, where a
+          chat's reply box belongs — the box is never in two places at once. */}
+      {!chatting && composer}
 
       {/* The agent conversation (§6.7): answer → narrow → file. */}
       {thread.length > 0 && (
-        <div className="card" style={{ marginTop: 12, padding: "6px 0" }}>
+        <div className="card" style={{ marginTop: 12, padding: 0, overflow: "hidden", textAlign: "left" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 16px",
+              borderBottom: "1px solid var(--border)",
+              background: "var(--ai-tint)",
+              color: "var(--ai)",
+              fontWeight: 600,
+              fontSize: "0.86rem",
+            }}
+          >
+            <SparkIcon />
+            Records assistant
+            <span className="muted hide-sm" style={{ fontWeight: 400, marginLeft: "auto" }}>
+              Answers come from records this agency has already published
+            </span>
+          </div>
           {thread.map((turn, i) =>
             turn.role === "user" ? (
               <div key={i} style={{ padding: "10px 16px", display: "flex", gap: 8 }}>
@@ -246,11 +289,30 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
               <SparkIcon /> Checking the public archive…
             </div>
           )}
+
+          {/* The docked reply box — the whole point of the card being a card.
+              An answer with no visible way to respond reads as a finished
+              search result, and the next question gets typed nowhere. */}
+          {chatting && (
+            <div
+              style={{
+                borderTop: "1px solid var(--border)",
+                padding: "12px 14px 14px",
+                background: "var(--surface-2)",
+              }}
+            >
+              {composer}
+              <div className="muted" style={{ fontSize: "0.8rem", marginTop: 8 }}>
+                Keep going — the assistant remembers this conversation. Narrow the dates, ask who
+                signed it, or ask it to draft a request.
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {asked && (
-        <div className="card" style={{ marginTop: 12, overflow: "hidden" }}>
+      {asked && !chatting && (
+        <div className="card" style={{ marginTop: 12, overflow: "hidden", textAlign: "left" }}>
           {searching && results.length === 0 ? (
             <div className="muted" style={{ padding: "16px 20px", fontSize: "0.92rem" }}>
               Searching the public archive…
@@ -445,6 +507,24 @@ export function AnswerBox({ agencySlug, aiEnabled = false }: { agencySlug: strin
         </div>
       )}
     </div>
+  );
+}
+
+/** The composer's leading glyph in chat mode. A magnifier there is the bug
+ *  the owner reported: it says "search field" to someone who is mid-reply. */
+function ReplyIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 20.5l1.4-4a8.3 8.3 0 0 1-.9-3.8 8.4 8.4 0 0 1 8.4-8.2h.5a8.4 8.4 0 0 1 8.6 7z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+      <path d="M5 12h13M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
