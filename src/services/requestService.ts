@@ -545,6 +545,8 @@ export async function applyTriageDraft(
     redFlags?: string[];
     /** Phase 4: which resolved precedents the model saw (audit trail). */
     precedentPublicIds?: string[];
+    /** Learning-loop v2: the matched play whose stats rode the prompt. */
+    playTopic?: string;
   },
 ): Promise<RequestEntity> {
   const { repo } = deps;
@@ -572,6 +574,7 @@ export async function applyTriageDraft(
       redFlags: input.redFlags ?? [],
       // A grounded draft cites its grounding, like every other AI artifact.
       ...(input.precedentPublicIds?.length ? { precedents: input.precedentPublicIds } : {}),
+      ...(input.playTopic ? { playContext: input.playTopic } : {}),
     },
     createdAt: at,
   });

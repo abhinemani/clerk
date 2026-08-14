@@ -128,6 +128,7 @@ export default async function RequestDetail({
     topRoute: string | null;
     exemptions: string[];
     samples: string[];
+    matchedByMeaning: boolean;
   } | null = null;
   // Fulfillment agent v1 (spec §16.1): the button renders only when the
   // agency opted in (settings.fulfillmentAgent — demo tenant first).
@@ -158,6 +159,9 @@ export default async function RequestDetail({
         consultPlays(defaultDeps(repo), {
           agencyId: staff.agencyId,
           text: rawRequest.interpretedScope ?? rawRequest.rawText,
+          // Lets the v2 embedding fallback use this request's stored ask
+          // vector when the lexical pass misses a paraphrase.
+          requestId: rawRequest.id,
         }),
         // Already public? (see archiveMatches above.) Failure must not block
         // the page — same degradation as before, just off the critical path.
@@ -187,6 +191,7 @@ export default async function RequestDetail({
           topRoute: stats.routes[0] ? `${stats.routes[0].department} (${Math.round(stats.routes[0].share * 100)}%)` : null,
           exemptions: stats.exemptions.slice(0, 3).map((e) => e.label),
           samples: stats.samplePublicIds.filter((p) => p !== r.publicId).slice(0, 3),
+          matchedByMeaning: match.matchedBy === "meaning",
         };
       }
     }
@@ -725,6 +730,12 @@ export default async function RequestDetail({
               {playVM.samples.length > 0 && (
                 <div className="mono muted" style={{ fontSize: "0.76rem", marginTop: 6 }}>
                   Precedents: {playVM.samples.join(" · ")}
+                </div>
+              )}
+              {playVM.matchedByMeaning && (
+                <div className="muted" style={{ fontSize: "0.76rem", marginTop: 6 }}>
+                  Matched by meaning — this ask paraphrases the pattern rather
+                  than repeating its words.
                 </div>
               )}
             </div>

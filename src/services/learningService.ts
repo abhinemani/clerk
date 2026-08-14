@@ -17,8 +17,10 @@
  */
 import {
   buildPlays,
+  centroidOf,
   distillEpisode,
   matchPlay,
+  matchPlayByEmbedding,
   routingSuggestionFrom,
   type CaseEpisode,
   type PlayMatch,
@@ -32,13 +34,15 @@ export async function rebuildAgencyPlays(
   agencyId: string,
 ): Promise<{ plays: number; episodes: number }> {
   const { repo } = deps;
-  const [requests, tasks, reviews, departments] = await Promise.all([
+  const [requests, tasks, reviews, departments, askVectors] = await Promise.all([
     repo.listRequests(agencyId),
     repo.listAgencyTasks(agencyId),
     repo.listAgencyReviews(agencyId),
     repo.listDepartments(agencyId),
+    repo.listRequestEmbeddings(agencyId),
   ]);
   const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
+  const vectorByRequestId = new Map(askVectors.map((v) => [v.id, v.embedding]));
 
   const episodes: CaseEpisode[] = [];
   for (const request of requests) {
@@ -56,6 +60,14 @@ export async function rebuildAgencyPlays(
     keywords: p.keywords,
     stats: p.stats,
     episodeCount: p.episodeCount,
+    // v2: average the member asks' stored vectors so paraphrased future asks
+    // can match by meaning. Members without a vector just don't contribute;
+    // a play with no vectored member stays lexical-only, as in v1.
+    embedding: centroidOf(
+      p.memberRequestIds
+        .map((id) => vectorByRequestId.get(id))
+        .filter((v): v is number[] => Array.isArray(v) && v.length > 0),
+    ),
     rebuiltAt: deps.now(),
     createdAt: deps.now(),
   }));
@@ -63,14 +75,34 @@ export async function rebuildAgencyPlays(
   return { plays: rows.length, episodes: episodes.length };
 }
 
-/** Match a new ask against the agency's learned plays (read-only). */
+/**
+ * Match a new ask against the agency's learned plays (read-only).
+ *
+ * Two passes, lexical first: term overlap against the play keywords (v1,
+ * self-explaining), then — only when that misses and the caller names a
+ * request — cosine of the request's STORED ask vector against each play's
+ * centroid. Stored vectors only, never a live embed call: this runs on
+ * every request-page render and at intake, and both already have the
+ * vector `submitRequest` wrote. No key, no API, no latency — and with the
+ * deterministic fallback embedder the whole path stays offline-testable.
+ */
 export async function consultPlays(
   deps: ServiceDeps,
-  input: { agencyId: string; text: string },
+  input: { agencyId: string; text: string; requestId?: string },
 ): Promise<PlayMatch<PlayEntity> | null> {
   const plays = await deps.repo.listPlays(input.agencyId);
   if (plays.length === 0) return null;
-  return matchPlay(plays, input.text);
+  const lexical = matchPlay(plays, input.text);
+  if (lexical) return lexical;
+  if (!input.requestId) return null;
+  try {
+    const askVector = await deps.repo.getRequestEmbedding(input.agencyId, input.requestId);
+    if (!askVector) return null;
+    return matchPlayByEmbedding(plays, askVector);
+  } catch (e) {
+    console.error("embedding play match failed", e);
+    return null;
+  }
 }
 
 /**
@@ -83,7 +115,11 @@ export async function applyPlayRouting(
   deps: ServiceDeps,
   input: { agencyId: string; requestId: string; rawText: string },
 ): Promise<AutoDispatchResult & { suggested: number }> {
-  const match = await consultPlays(deps, { agencyId: input.agencyId, text: input.rawText });
+  const match = await consultPlays(deps, {
+    agencyId: input.agencyId,
+    text: input.rawText,
+    requestId: input.requestId,
+  });
   if (!match) return { suggested: 0, dispatched: 0, heldForReview: 0, reason: "no play matched" };
 
   const suggestion = routingSuggestionFrom(match.play);
@@ -102,6 +138,7 @@ export async function applyPlayRouting(
       pipeline: "play_routing",
       topic: match.play.topic,
       score: Math.round(match.score * 100) / 100,
+      matchedBy: match.matchedBy,
       episodes: match.play.episodeCount,
       medianDaysToClose: stats.medianDaysToClose,
       extensionRate: stats.extensionRate,

@@ -45,9 +45,38 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
     console.error("[jobs] precedent retrieval failed — triage proceeds without", e);
   }
 
+  // Learning-loop v2: the matched play's aggregate stats ride the prompt as
+  // structured calibration (docs/learning-loop.md). Same best-effort posture
+  // as precedents — a plays failure degrades, never blocks.
+  let play: import("@/ai/prompts/intakeTriage").PromptPlayContext | undefined;
+  let playTopic: string | undefined;
+  try {
+    const { consultPlays } = await import("@/services/learningService");
+    const match = await consultPlays(defaultDeps(repo), {
+      agencyId: payload.agencyId,
+      text: request.rawText,
+      requestId: request.id,
+    });
+    if (match) {
+      const { stats } = match.play;
+      const top = stats.routes[0];
+      play = {
+        topic: match.play.topic,
+        episodeCount: match.play.episodeCount,
+        topRoute: top ? { department: top.department, sharePct: Math.round(top.share * 100) } : null,
+        medianDaysToClose: stats.medianDaysToClose,
+        extensionRatePct: Math.round(stats.extensionRate * 100),
+        exemptions: stats.exemptions.slice(0, 3).map((e) => e.label),
+      };
+      playTopic = match.play.topic;
+    }
+  } catch (e) {
+    console.error("[jobs] play context lookup failed — triage proceeds without", e);
+  }
+
   const result = await runPipeline(
     intakeTriagePipeline,
-    { rawText: request.rawText, precedents },
+    { rawText: request.rawText, precedents, play },
     { modelClient },
   );
 
@@ -62,6 +91,7 @@ export async function runIntakeTriageJob(payload: JobPayloads["intake_triage"]):
     redFlags: result.output.statutory_red_flags,
     // Which precedents the model saw — auditability for a grounded draft.
     precedentPublicIds: precedents.map((p) => p.publicId),
+    playTopic,
   });
 
   const triaged = {

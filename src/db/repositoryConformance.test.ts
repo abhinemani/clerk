@@ -612,8 +612,10 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect((await repo.listDemoRequests(1)).length).toBe(1); // limit honored
     });
 
-    it("plays: full-replace per agency, tenant-scoped list", async () => {
-      const mk = (agencyId: string, topic: string, episodes: number) => ({
+    it("plays: full-replace per agency, tenant-scoped list, centroid round-trips", async () => {
+      const dim = schema.EMBEDDING_DIMENSIONS;
+      const centroid = Array.from({ length: dim }, (_, i) => (i === 0 ? 1 : 0));
+      const mk = (agencyId: string, topic: string, episodes: number, embedding: number[] | null = null) => ({
         id: uid(),
         agencyId,
         topic,
@@ -627,16 +629,20 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
           samplePublicIds: ["PR-1"],
         },
         episodeCount: episodes,
+        embedding,
         rebuiltAt: new Date(),
         createdAt: new Date(),
       });
 
-      await repo.replaceAgencyPlays(AG1, [mk(AG1, "towing contracts", 4), mk(AG1, "budget salaries", 2)]);
+      await repo.replaceAgencyPlays(AG1, [mk(AG1, "towing contracts", 4, centroid), mk(AG1, "budget salaries", 2)]);
       await repo.replaceAgencyPlays(AG2, [mk(AG2, "bodycam footage", 3)]);
 
       const ag1 = await repo.listPlays(AG1);
       expect(ag1.map((p) => p.topic)).toEqual(["towing contracts", "budget salaries"]); // episodeCount desc
       expect(ag1[0]!.stats.routes[0]!.department).toBe("Public Works");
+      // v2 centroid: present survives the round trip, absent stays null.
+      expect(ag1[0]!.embedding).toEqual(centroid);
+      expect(ag1[1]!.embedding).toBeNull();
       // Tenant isolation both ways (invariant 2).
       expect((await repo.listPlays(AG2)).map((p) => p.topic)).toEqual(["bodycam footage"]);
 

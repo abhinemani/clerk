@@ -1104,6 +1104,10 @@ export const requestPlays = pgTable(
     keywords: jsonb("keywords").$type<string[]>().notNull(),
     stats: jsonb("stats").$type<PlayStats>().notNull(),
     episodeCount: integer("episode_count").notNull(),
+    /** Centroid of the member episodes' stored ask vectors (v2, nullable —
+        plays rebuilt before any member had an embedding carry none). Matched
+        with a plain scan: ≤20 plays per agency, no index needed. */
+    embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
     rebuiltAt: timestamp("rebuilt_at", { withTimezone: true }).notNull(),
     ...timestamps,
   },

@@ -5,11 +5,19 @@
  *
  * 2026-08-13.1 — RAG'd triage (docs/answer-first.md phase 4): the user turn
  * may now carry resolved precedents — similar past requests and how this
- * office actually handled them. ⚠ EVAL DEBT: this version has not been
- * through `npm run eval` (no ANTHROPIC_API_KEY in the build environment);
- * running it is step one in docs/laptop-setup.md Part B.
+ * office actually handled them.
+ *
+ * 2026-08-14.1 — learning-loop v2 (docs/learning-loop.md): the user turn may
+ * also carry ONE matched play's aggregate stats (routes, median days,
+ * extension rate, exemptions) as structured calibration — numbers over the
+ * whole cluster, where precedents are individual examples. Same governance
+ * paragraph applies: calibration only, the raw text wins.
+ *
+ * ⚠ EVAL DEBT: neither 2026-08-13.1 nor this version has been through
+ * `npm run eval` (no ANTHROPIC_API_KEY in the build environments); running it
+ * is step one in docs/laptop-setup.md Part B.
  */
-export const INTAKE_TRIAGE_PROMPT_VERSION = "2026-08-13.1";
+export const INTAKE_TRIAGE_PROMPT_VERSION = "2026-08-14.1";
 
 export const INTAKE_TRIAGE_SYSTEM = `You are a records-intake analyst for a government public-records (FOIA) office. You classify an incoming public-records request so a human coordinator can act on it quickly.
 
@@ -26,7 +34,7 @@ Given the requester's raw text, produce a structured analysis:
 - likely_not_a_records_request: true if this reads as a service complaint, a general question, or a request for records to be created rather than existing records; include a suggested_redirect if so.
 - statutory_red_flags: sensitive regimes the request may implicate — e.g. "personnel_records", "ongoing_investigation", "juvenile_records", "medical_records", "attorney_client". These become banners for the coordinator; flag conservatively but do not miss obvious ones.
 
-The user turn may include HOW THIS OFFICE RESOLVED SIMILAR PAST REQUESTS. Use those precedents ONLY to calibrate: the office's vocabulary for record types, realistic complexity for asks like this one, and red-flag patterns that recurred. Precedents never override the request in front of you — interpreted_scope restates THIS request's text, never a precedent's scope, and a precedent that does not fit is to be ignored, not stretched. If precedents and the raw text disagree, the raw text wins.
+The user turn may include HOW THIS OFFICE RESOLVED SIMILAR PAST REQUESTS — as individual precedents, as aggregate statistics for the matched request pattern, or both. Use them ONLY to calibrate: the office's vocabulary for record types, realistic complexity for asks like this one, and red-flag patterns that recurred (an ask type whose past cases cited exemptions or took extensions is rarely trivial). Precedents and statistics never override the request in front of you — interpreted_scope restates THIS request's text, never a precedent's scope or the pattern's topic, and a precedent that does not fit is to be ignored, not stretched. If the history and the raw text disagree, the raw text wins.
 
 Return ONLY the structured JSON. Never include commentary about record contents.`;
 
@@ -56,14 +64,49 @@ export function formatPrecedents(precedents: PromptPrecedent[]): string {
     .join("\n");
 }
 
+/** The slice of a matched play the prompt renders (structural, like
+ *  PromptPrecedent — aggregate numbers where precedents are examples). */
+export interface PromptPlayContext {
+  topic: string;
+  episodeCount: number;
+  topRoute: { department: string; sharePct: number } | null;
+  medianDaysToClose: number | null;
+  extensionRatePct: number;
+  /** Exemption labels cited in past cases of this pattern, most common first. */
+  exemptions: string[];
+}
+
+export function formatPlayContext(play: PromptPlayContext): string {
+  const lines = [
+    `- Pattern: "${play.topic}" — ${play.episodeCount} resolved request(s)`,
+  ];
+  if (play.topRoute) {
+    lines.push(`  Fulfilled by: ${play.topRoute.department} in ${play.topRoute.sharePct}% of cases`);
+  }
+  if (play.medianDaysToClose != null) lines.push(`  Median days to close: ${play.medianDaysToClose}`);
+  lines.push(`  Took a statutory extension: ${play.extensionRatePct}% of cases`);
+  lines.push(
+    play.exemptions.length > 0
+      ? `  Exemptions cited before: ${play.exemptions.join(", ")}`
+      : `  Exemptions cited before: none`,
+  );
+  return lines.join("\n");
+}
+
 export function buildIntakeTriageUser(input: {
   rawText: string;
   precedents?: PromptPrecedent[];
+  play?: PromptPlayContext;
 }): string {
   const parts = [`Requester's raw request text:\n"""\n${input.rawText}\n"""`];
   if (input.precedents && input.precedents.length > 0) {
     parts.push(
       `How this office resolved similar past requests (calibration only — the raw text above governs):\n${formatPrecedents(input.precedents)}`,
+    );
+  }
+  if (input.play) {
+    parts.push(
+      `Aggregate statistics for this request pattern (calibration only — the raw text above governs):\n${formatPlayContext(input.play)}`,
     );
   }
   return parts.join("\n\n");

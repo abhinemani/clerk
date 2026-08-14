@@ -233,6 +233,8 @@ export interface PlayEntity {
   keywords: string[];
   stats: PlayStats;
   episodeCount: number;
+  /** Centroid of member asks' stored vectors (v2); null when no member had one. */
+  embedding: number[] | null;
   rebuiltAt: Date;
   createdAt: Date;
 }

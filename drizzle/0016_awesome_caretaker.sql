@@ -1,0 +1,1 @@
+ALTER TABLE "request_plays" ADD COLUMN "embedding" vector(1024);

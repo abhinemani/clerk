@@ -374,8 +374,41 @@ export async function draftReplyAction(input: {
       repo.listMessages(staff.agencyId, input.requestId),
     ]);
 
+    // Learning loop v2: a matched play upgrades BOTH branches — the keyless
+    // template becomes a history-grounded scaffold, and the keyed pipeline
+    // gets the same stats as structured context. Best-effort: a plays failure
+    // must never block drafting.
+    const playMatch = await (async () => {
+      try {
+        const { consultPlays } = await import("@/services/learningService");
+        const { defaultDeps } = await import("@/services/deps");
+        return await consultPlays(defaultDeps(repo), {
+          agencyId: staff.agencyId,
+          text: request.interpretedScope ?? request.rawText,
+          requestId: request.id,
+        });
+      } catch (e) {
+        console.error("play scaffold lookup failed", e);
+        return null;
+      }
+    })();
+
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
+      if (playMatch) {
+        // Deterministic scaffold from the office's own resolved history
+        // (domain/playScaffold.ts) — still a template, still staff-disposed.
+        const { composePlayScaffold } = await import("@/domain/playScaffold");
+        const scaffold = composePlayScaffold({
+          play: playMatch.play,
+          publicId: request.publicId,
+          agencyName: agency?.name ?? "Records Office",
+          requesterName: requester?.name,
+          rawText: request.rawText,
+          statutoryDueDate: request.statutoryDueAt?.toDateString() ?? null,
+        });
+        return { ok: true, ...scaffold, aiDrafted: false, warnings: [] };
+      }
       // Offline fallback: a serviceable template, clearly not model-drafted.
       const first = (requester?.name ?? "there").split(" ")[0];
       return {
@@ -409,6 +442,20 @@ export async function draftReplyAction(input: {
           request_as_filed: request.rawText,
           interpreted_scope: request.interpretedScope,
           statutory_due_date: request.statutoryDueAt?.toDateString() ?? null,
+          // Learning-loop context (a context-bag key, not a prompt change):
+          // measured history for this kind of ask, so the draft can ground
+          // its expectations in the office's own record.
+          similar_request_history: playMatch
+            ? {
+                topic: playMatch.play.topic,
+                resolved_similar_requests: playMatch.play.episodeCount,
+                top_route: playMatch.play.stats.routes[0]?.department ?? null,
+                median_days_to_close: playMatch.play.stats.medianDaysToClose,
+                extension_rate: playMatch.play.stats.extensionRate,
+                exemptions_cited_before: playMatch.play.stats.exemptions.slice(0, 3).map((e) => e.label),
+                note: "History, not commitments — never promise a response time from these numbers.",
+              }
+            : null,
           recent_thread: thread
             .filter((m) => m.direction !== "internal_note")
             .slice(-6)

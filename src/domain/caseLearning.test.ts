@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { RequestEntity, ReviewEntity, TaskEntity } from "@/services/repository";
 import {
   buildPlays,
+  centroidOf,
   distillEpisode,
   matchPlay,
+  matchPlayByEmbedding,
   routingSuggestionFrom,
   type CaseEpisode,
 } from "./caseLearning";
@@ -115,7 +117,13 @@ describe("matchPlay + routingSuggestionFrom", () => {
     const m = matchPlay(plays, "all towing contracts since January")!;
     expect(m.play.keywords).toContain("towing");
     expect(m.score).toBeGreaterThanOrEqual(0.5);
+    expect(m.matchedBy).toBe("terms");
     expect(matchPlay(plays, "zoning variance appeals")).toBeNull();
+  });
+
+  it("carries the member request ids so the rebuild can average their vectors", () => {
+    const towing = plays[0]!;
+    expect(towing.memberRequestIds.sort()).toEqual(["1", "2", "3"]);
   });
 
   it("earns confidence from evidence and never reaches the rules' 1.0", () => {
@@ -129,5 +137,56 @@ describe("matchPlay + routingSuggestionFrom", () => {
     // Even overwhelming evidence stays below explicit rules.
     const veteran = { ...towing, episodeCount: 40 };
     expect(routingSuggestionFrom(veteran)!.confidence).toBeLessThanOrEqual(0.9);
+  });
+});
+
+describe("centroidOf (v2)", () => {
+  it("averages and L2-normalizes member vectors", () => {
+    const c = centroidOf([
+      [1, 0],
+      [0, 1],
+    ])!;
+    // mean is [0.5, 0.5]; normalized to unit length.
+    expect(c[0]).toBeCloseTo(Math.SQRT1_2, 6);
+    expect(c[1]).toBeCloseTo(Math.SQRT1_2, 6);
+    expect(Math.hypot(...c)).toBeCloseTo(1, 6);
+  });
+
+  it("skips empty vectors and returns null when nothing usable remains", () => {
+    expect(centroidOf([])).toBeNull();
+    expect(centroidOf([[], []])).toBeNull();
+    expect(centroidOf([[], [3, 4]])).toEqual([0.6, 0.8]);
+  });
+
+  it("refuses mismatched dimensions rather than averaging garbage", () => {
+    expect(centroidOf([[1, 0], [1, 0, 0]])).toBeNull();
+  });
+
+  it("returns null for a zero centroid (opposed vectors cancel)", () => {
+    expect(centroidOf([[1, 0], [-1, 0]])).toBeNull();
+  });
+});
+
+describe("matchPlayByEmbedding (v2)", () => {
+  const towing = { topic: "towing", embedding: [1, 0, 0] };
+  const bodycam = { topic: "bodycam", embedding: [0, 1, 0] };
+  const lexicalOnly = { topic: "old play", embedding: null };
+
+  it("matches a paraphrase by vector similarity and says so", () => {
+    const m = matchPlayByEmbedding([towing, bodycam, lexicalOnly], [0.95, 0.05, 0])!;
+    expect(m.play.topic).toBe("towing");
+    expect(m.matchedBy).toBe("meaning");
+    expect(m.score).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it("stays conservative: below the 0.6 bar nothing matches", () => {
+    // ~45° off both centroids — cosine ≈ 0.7 to each would match, so use a
+    // vector far from both instead.
+    expect(matchPlayByEmbedding([towing, bodycam], [0.3, 0.3, 0.9])).toBeNull();
+  });
+
+  it("ignores plays without a centroid and empty ask vectors", () => {
+    expect(matchPlayByEmbedding([lexicalOnly], [1, 0, 0])).toBeNull();
+    expect(matchPlayByEmbedding([towing], [])).toBeNull();
   });
 });

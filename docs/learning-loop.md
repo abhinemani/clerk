@@ -1,7 +1,9 @@
 # The learning loop — resolved requests make the platform smarter
 
 Status: **v1 SHIPPED 2026-08-13** (owner-directed, same session as the
-Phase-5 gate release). Structural learning from the agency's own case
+Phase-5 gate release). **v2 SHIPPED 2026-08-14** — embedding-based play
+matching, per-play letter scaffolds, and play stats as structured triage
+prompt context (see "v2 as built" below). Structural learning from the agency's own case
 history — distinct from, and complementary to, the RAG precedents that
 already ride the triage/routing prompts (docs/answer-first.md phase 4).
 
@@ -95,12 +97,42 @@ PG via DATABASE_URL) — deliberately not a separate analytics store:
   written back to it except normal proposal-card events (invariant 5).
 - Tenant-scoped end to end; conformance-tested (invariant 2).
 
-## v2 candidates (build on demand)
+## v2 as built (2026-08-14)
 
-- Feed play stats into the triage/copilot prompts as structured
-  context (needs `npm run eval` per the prompt rule).
-- Embedding-based matching (stored ask vectors exist) when lexical
-  overlap misses paraphrases — lexical stays the fallback.
-- Response-letter scaffolds per play (drafts only, invariant 4).
+- **Embedding-based matching.** Each play row now stores a unit-length
+  centroid of its member episodes' stored ask vectors (`request_plays.
+  embedding`, migration 0016; computed in `rebuildAgencyPlays`, null when
+  no member has a vector). `consultPlays` runs lexical `matchPlay` first —
+  self-explaining, keeps v1 behavior — and only on a miss compares the new
+  request's STORED ask vector against the centroids
+  (`matchPlayByEmbedding`, cosine ≥ 0.6, the duplicate detector's bar).
+  Deliberately stored-vectors-only: no live embed call ever happens on
+  this path, so it stays deterministic, offline-testable, and free on
+  every page render. A meaning-match says so (`matchedBy: "meaning"`) in
+  the event payload and on the request-page card.
+- **Letter scaffolds per play.** `composePlayScaffold`
+  (src/domain/playScaffold.ts, pure) turns a matched play into a
+  history-grounded reply draft. It upgrades BOTH branches of
+  `draftReplyAction`: keyless, it replaces the generic template; keyed,
+  the same stats ride the correspondence pipeline's context bag as
+  `similar_request_history` (a context key — not a prompt-file change, so
+  no eval gate). Copy rule enforced by tests: history is stated as
+  history ("typically closed in about N days — that is our history, not a
+  commitment"); the only obligation stated is the statutory due date.
+  Drafts only, as ever — staff edits and sends (invariant 4).
+- **Play stats as triage prompt context.** `PromptPlayContext` (structural
+  slice, like `PromptPrecedent`) renders the matched play's aggregate
+  numbers into the intake-triage user turn; prompt version 2026-08-14.1
+  with the governance paragraph extended (statistics calibrate, the raw
+  text wins). Wired best-effort in `runIntakeTriageJob` next to precedent
+  retrieval; the applied-draft event records `playContext` for audit.
+  Golden set gained a calibration case and a contamination guard
+  (`play-stats-do-not-contaminate`). ⚠ Prompt-rule eval debt until a
+  keyed session runs `npm run eval`.
+
+## v2 candidates that remain (build on demand)
+
 - Proposal-feedback learning: accept/dismiss rates on play cards
   tuning the evidence discount.
+- Play stats in the copilot prompt (the copilot already sees the
+  play_routing event summary; the rich payload could follow).

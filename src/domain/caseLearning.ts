@@ -82,6 +82,9 @@ export interface Play {
   keywords: string[];
   episodeCount: number;
   stats: PlayStats;
+  /** Requests behind this cluster — lets the rebuild average their stored
+      ask vectors into a centroid. Not persisted on the play row. */
+  memberRequestIds: string[];
 }
 
 const OVERLAP_THRESHOLD = 0.5;
@@ -192,6 +195,7 @@ export function buildPlays(
       topic: keywords.slice(0, 3).join(" "),
       keywords,
       episodeCount: cluster.members.length,
+      memberRequestIds: cluster.members.map((e) => e.requestId),
       stats: {
         routes,
         exemptions: [...exemptionCounts.entries()]
@@ -211,24 +215,90 @@ export function buildPlays(
   return plays.sort((a, b) => b.episodeCount - a.episodeCount).slice(0, maxPlays);
 }
 
-export interface PlayMatch<P extends Play> {
+export interface PlayMatch<P> {
   play: P;
-  /** Overlap score of the new ask against the play's term profile (0–1). */
+  /** Overlap score of the new ask against the play's term profile (0–1),
+      or cosine similarity when matchedBy is "meaning". */
   score: number;
+  /** How the match was made: shared terms (v1) or ask-vector similarity
+      (v2 fallback for paraphrases the lexical pass misses). */
+  matchedBy: "terms" | "meaning";
 }
 
 /** Match a new ask against the learned clusters; null when nothing clears the bar. */
-export function matchPlay<P extends Play>(plays: P[], text: string): PlayMatch<P> | null {
+export function matchPlay<P extends Pick<Play, "keywords">>(plays: P[], text: string): PlayMatch<P> | null {
   const terms = demandTerms(text);
   if (terms.size === 0) return null;
   let best: PlayMatch<P> | null = null;
   for (const p of plays) {
     const score = overlap(terms, new Set(p.keywords));
     if (score >= OVERLAP_THRESHOLD && (best == null || score > best.score)) {
-      best = { play: p, score };
+      best = { play: p, score, matchedBy: "terms" };
     }
   }
   return best;
+}
+
+/**
+ * v2: embedding fallback for asks that paraphrase a known play without
+ * sharing its keywords ("when do the sweepers come down my street" vs
+ * "street sweeping schedule"). Deliberately conservative — the same 0.6
+ * cosine bar the duplicate detector uses for "these are the same ask" —
+ * because a wrong play match feeds a wrong routing suggestion. Lexical
+ * matching stays primary; call this only when matchPlay returns null.
+ */
+export const EMBEDDING_MATCH_THRESHOLD = 0.6;
+
+function cosineSim(a: readonly number[], b: readonly number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i]! * b[i]!;
+    na += a[i]! * a[i]!;
+    nb += b[i]! * b[i]!;
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+export function matchPlayByEmbedding<P extends { embedding?: number[] | null }>(
+  plays: P[],
+  askVector: readonly number[],
+): PlayMatch<P> | null {
+  if (askVector.length === 0) return null;
+  let best: PlayMatch<P> | null = null;
+  for (const p of plays) {
+    if (!p.embedding || p.embedding.length === 0) continue;
+    const score = Math.round(cosineSim(askVector, p.embedding) * 1000) / 1000;
+    if (score >= EMBEDDING_MATCH_THRESHOLD && (best == null || score > best.score)) {
+      best = { play: p, score, matchedBy: "meaning" };
+    }
+  }
+  return best;
+}
+
+/**
+ * Average the member asks' stored vectors into one L2-normalized centroid.
+ * Null when no member has a vector — the play then simply has no embedding
+ * and the lexical matcher carries it alone, same as v1.
+ */
+export function centroidOf(vectors: readonly (readonly number[])[]): number[] | null {
+  const usable = vectors.filter((v) => v.length > 0);
+  if (usable.length === 0) return null;
+  const dims = usable[0]!.length;
+  if (usable.some((v) => v.length !== dims)) return null;
+  const sum = new Array<number>(dims).fill(0);
+  for (const v of usable) for (let i = 0; i < dims; i++) sum[i]! += v[i]!;
+  let norm = 0;
+  for (let i = 0; i < dims; i++) {
+    sum[i]! /= usable.length;
+    norm += sum[i]! * sum[i]!;
+  }
+  norm = Math.sqrt(norm);
+  if (norm === 0) return null;
+  return sum.map((x) => x / norm);
 }
 
 /** Evidence needed before a play route reaches full (capped) confidence. */
@@ -249,7 +319,9 @@ export interface LearnedRoutingSuggestion {
  * that wants learned routes to auto-dispatch sets its threshold at or below
  * that, knowing the number is a measured agreement rate, not a model vibe.
  */
-export function routingSuggestionFrom(play: Play): LearnedRoutingSuggestion | null {
+export function routingSuggestionFrom(
+  play: Pick<Play, "topic" | "episodeCount" | "stats">,
+): LearnedRoutingSuggestion | null {
   const top = play.stats.routes[0];
   if (!top?.departmentId) return null;
   const evidence = Math.min(1, play.episodeCount / FULL_EVIDENCE_EPISODES);

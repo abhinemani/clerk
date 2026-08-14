@@ -1707,6 +1707,7 @@ export class DrizzleRepository implements Repository {
         keywords: p.keywords,
         stats: p.stats,
         episodeCount: p.episodeCount,
+        embedding: p.embedding ?? undefined,
         rebuiltAt: p.rebuiltAt,
         createdAt: p.createdAt,
       })),
@@ -1726,6 +1727,7 @@ export class DrizzleRepository implements Repository {
       keywords: p.keywords ?? [],
       stats: p.stats,
       episodeCount: p.episodeCount,
+      embedding: p.embedding ?? null,
       rebuiltAt: p.rebuiltAt,
       createdAt: p.createdAt,
     }));

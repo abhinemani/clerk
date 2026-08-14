@@ -7,13 +7,15 @@
  * not-a-request detection), not exact wording, so the eval is robust to phrasing.
  */
 import type { IntakeTriageOutput } from "@/ai/pipelines/intakeTriage";
-import type { PromptPrecedent } from "@/ai/prompts/intakeTriage";
+import type { PromptPlayContext, PromptPrecedent } from "@/ai/prompts/intakeTriage";
 
 export interface IntakeGoldenCase {
   id: string;
   rawText: string;
   /** RAG'd triage (phase 4): resolved precedents passed with the request. */
   precedents?: PromptPrecedent[];
+  /** Learning-loop v2: matched-play aggregate stats passed with the request. */
+  play?: PromptPlayContext;
   expect: {
     /** Record types that MUST appear (case-insensitive substring match). */
     recordTypesInclude?: string[];
@@ -107,6 +109,46 @@ export const INTAKE_GOLDEN: IntakeGoldenCase[] = [
       recordTypesInclude: ["contract"],
       complexityBand: "low",
       scopeExcludes: ["overtime", "police", "payroll"],
+    },
+  },
+
+  // --- Learning-loop v2: play stats calibrate, never contaminate ----------
+  {
+    // The aggregate history says this ask type repeatedly cited a personnel
+    // exemption and took extensions — an ask whose past cases look like that
+    // is not trivial, whatever the raw text's brevity suggests.
+    id: "play-stats-calibrate-complexity",
+    rawText: "All disciplinary files for the fire chief.",
+    play: {
+      topic: "disciplinary files personnel",
+      episodeCount: 8,
+      topRoute: { department: "Human Resources", sharePct: 88 },
+      medianDaysToClose: 21,
+      extensionRatePct: 63,
+      exemptions: ["Personnel records (Gov 6254(c))"],
+    },
+    expect: {
+      redFlagsInclude: ["personnel_records"],
+      complexityBand: "medium",
+    },
+  },
+  {
+    // The guardrail case: an unrelated play (bodycam footage) attached to a
+    // meeting-minutes ask must not bleed into scope or record types.
+    id: "play-stats-do-not-contaminate",
+    rawText: "Minutes from the March planning commission meeting, please.",
+    play: {
+      topic: "bodycam footage incident",
+      episodeCount: 6,
+      topRoute: { department: "Police Records", sharePct: 90 },
+      medianDaysToClose: 30,
+      extensionRatePct: 70,
+      exemptions: ["Ongoing investigation"],
+    },
+    expect: {
+      recordTypesInclude: ["minutes"],
+      complexityBand: "low",
+      scopeExcludes: ["bodycam", "police", "investigation"],
     },
   },
 ];

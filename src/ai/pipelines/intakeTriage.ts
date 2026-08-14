@@ -61,6 +61,8 @@ export interface IntakeTriageInput {
   rawText: string;
   /** Phase-4 precedents: how the office resolved similar past requests. */
   precedents?: import("../prompts/intakeTriage").PromptPrecedent[];
+  /** Learning-loop v2: aggregate stats for the matched request pattern. */
+  play?: import("../prompts/intakeTriage").PromptPlayContext;
 }
 
 export const intakeTriagePipeline: PipelineDefinition<IntakeTriageInput, IntakeTriageOutput> = {

@@ -79,7 +79,7 @@ live("intake triage — live scored run", () => {
         INTAKE_GOLDEN.map(async (gold) => {
           const res = await runPipeline(
             intakeTriagePipeline,
-            { rawText: gold.rawText, precedents: gold.precedents },
+            { rawText: gold.rawText, precedents: gold.precedents, play: gold.play },
             { modelClient: client },
           );
           return gradeCase(gold, res.output);

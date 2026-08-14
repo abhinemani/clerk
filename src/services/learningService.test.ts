@@ -161,5 +161,69 @@ describe("applyPlayRouting", () => {
     const match = await consultPlays(deps, { agencyId: AG1, text: "towing contracts request" });
     expect(match!.play.stats.medianDaysToClose).toBe(7);
     expect(match!.play.stats.samplePublicIds.length).toBeGreaterThan(0);
+    expect(match!.matchedBy).toBe("terms");
+  });
+});
+
+describe("embedding play matching (v2)", () => {
+  // A crude 3-dim "meaning space" — enough to prove the plumbing: the rebuild
+  // averages stored member vectors into a centroid and consultPlays falls back
+  // to it for paraphrases the keyword overlap misses.
+  const TOWING_DIRECTION = [0.9, 0.1, 0];
+
+  async function seedVectors(deps: ServiceDeps) {
+    for (let i = 0; i < 3; i++) {
+      await deps.repo.setRequestEmbedding(AG1, `req-${i}`, TOWING_DIRECTION);
+    }
+  }
+
+  it("rebuild stores a unit-length centroid of the members' ask vectors", async () => {
+    const deps = makeDeps();
+    await seedHistory(deps);
+    await seedVectors(deps);
+    await rebuildAgencyPlays(deps, AG1);
+
+    const play = (await deps.repo.listPlays(AG1))[0]!;
+    expect(play.embedding).not.toBeNull();
+    expect(Math.hypot(...play.embedding!)).toBeCloseTo(1, 6);
+  });
+
+  it("rebuild leaves the centroid null when no member has a vector — lexical-only, as v1", async () => {
+    const deps = makeDeps();
+    await seedHistory(deps);
+    await rebuildAgencyPlays(deps, AG1);
+    expect((await deps.repo.listPlays(AG1))[0]!.embedding).toBeNull();
+  });
+
+  it("consultPlays falls back to the stored ask vector for a paraphrase", async () => {
+    const deps = makeDeps();
+    await seedHistory(deps);
+    await seedVectors(deps);
+    await rebuildAgencyPlays(deps, AG1);
+
+    // No shared keywords with the play ("towing", "contracts"...), but a
+    // stored vector pointing the same way.
+    const req = await fileNewRequest(deps, "req-para", "when do the wreckers haul cars off my block");
+    await deps.repo.setRequestEmbedding(AG1, req.id, [0.88, 0.12, 0.02]);
+
+    const match = await consultPlays(deps, { agencyId: AG1, text: req.rawText, requestId: req.id });
+    expect(match).not.toBeNull();
+    expect(match!.matchedBy).toBe("meaning");
+    expect(match!.play.keywords).toContain("towing");
+
+    // Without the requestId there is no stored vector to consult — lexical
+    // miss stays a miss (no live embed call, by design).
+    expect(await consultPlays(deps, { agencyId: AG1, text: req.rawText })).toBeNull();
+  });
+
+  it("a dissimilar stored vector does not match — the 0.6 bar holds", async () => {
+    const deps = makeDeps();
+    await seedHistory(deps);
+    await seedVectors(deps);
+    await rebuildAgencyPlays(deps, AG1);
+
+    const req = await fileNewRequest(deps, "req-far", "library meeting room reservations policy");
+    await deps.repo.setRequestEmbedding(AG1, req.id, [0.1, 0.2, 0.97]);
+    expect(await consultPlays(deps, { agencyId: AG1, text: req.rawText, requestId: req.id })).toBeNull();
   });
 });

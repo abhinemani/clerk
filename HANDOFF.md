@@ -7,9 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**996 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (counts as
-of the newest 2026-08-14 marketing-CTA entry; e2e last run fresh at the
-portal-mobile build, and no spec touches the marketing page).
+**1012 tests pass (+5 skipped), typecheck clean** (counts as of the newest
+2026-08-14 learning-loop-v2 entry; e2e last ran fresh 4/4 at the
+portal-mobile build — no spec touches the paths changed since).
 
 ## START HERE (next session)
 
@@ -23,13 +23,17 @@ and a full UX/visual pass (staff nav rail, archive storefront, civic hero
 bands, engraved-plate card ornament, lit page ground). Nothing is
 half-built; every entry below was verified as described at its date.
 
-**ONE STANDING EVAL DEBT (new, 2026-08-14):** the fulfillment planner
-prompt (`src/ai/prompts/fulfillmentPlan.ts`, 2026-08-14.1) has not been
-through a live `npm run eval` — this cloud session had no
-ANTHROPIC_API_KEY. The golden set + grader ship and are unit-tested
-offline; a keyed session (laptop, or cloud after the ⚡ steps) should run
-`npm run eval` and record the fulfillment-plan scorecard here. The
-2026-08-13 intake-triage debt remains CLEARED.
+**TWO STANDING EVAL DEBTS (2026-08-14):** neither the fulfillment planner
+prompt (`src/ai/prompts/fulfillmentPlan.ts`, 2026-08-14.1) nor the
+intake-triage prompt (`src/ai/prompts/intakeTriage.ts`, 2026-08-14.1 —
+learning-loop v2 added play-stats context, see the newest entry) has been
+through a live `npm run eval` — the cloud sessions that built them had no
+ANTHROPIC_API_KEY. Golden sets + graders ship and are unit-tested offline
+(intake gained a play-calibration case and a play-contamination guard); a
+keyed session (laptop, or cloud after the ⚡ steps) should run
+`npm run eval` and record BOTH scorecards here. The 2026-08-13
+intake-triage debt for version 2026-08-13.1 was cleared, but the version
+has moved since.
 
 **GATES RELEASED (owner, 2026-08-13):** connected-sources phase 3 AND
 Phase 5 agents (docs/agentic-horizon.md Bucket B) are buildable.
@@ -71,7 +75,48 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, thirteenth build of the window): TWO
+**NEWEST (2026-08-14, cloud session, fourteenth build of the window):
+LEARNING LOOP V2 — plays match by meaning, scaffold letters, and ride the
+triage prompt (HANDOFF candidate #3, all three sub-items;
+docs/learning-loop.md "v2 as built").**
+- **Embedding play matching.** Migration 0016 (first since 0015):
+  `request_plays.embedding vector(1024)`, nullable — the rebuild averages
+  member episodes' STORED ask vectors into a unit centroid (`centroidOf`,
+  pure; members without vectors just don't contribute; no vectored member
+  ⇒ null ⇒ lexical-only, exactly v1). `consultPlays` is two-pass: lexical
+  `matchPlay` first, and only on a miss `matchPlayByEmbedding` against the
+  request's stored vector (cosine ≥ 0.6 — the duplicate detector's bar, on
+  purpose: a wrong play feeds a wrong routing suggestion). DESIGN LINE
+  WORTH KEEPING: stored vectors ONLY, never a live embed call — the path
+  runs on every request-page render and at intake, stays zero-key/zero-
+  latency, and the FakeEmbeddingProvider keeps it offline-testable.
+  `PlayMatch` gained `matchedBy: "terms" | "meaning"`; the play_routing
+  event payload and the "Similar past requests" card both say when a match
+  was by meaning.
+- **Letter scaffolds per play** (`src/domain/playScaffold.ts`, pure +
+  tested). `draftReplyAction` upgraded in BOTH branches: keyless, a
+  matched play replaces the generic template with a history-grounded
+  scaffold (typical route, median days, exemption heads-up); keyed, the
+  same stats ride the correspondence context bag as
+  `similar_request_history` — a context KEY, not a prompt-file change, so
+  no eval gate. Copy rule pinned by test: history is stated as history
+  ("that is our history, not a commitment"); the only obligation stated is
+  the statutory due date (the owner's no-SLA-promise rule, applied to
+  drafts).
+- **Play stats as triage prompt context.** `PromptPlayContext` structural
+  slice + `formatPlayContext`; intake-triage prompt bumped to 2026-08-14.1
+  with the governance paragraph extended (statistics calibrate, raw text
+  wins). Wired best-effort in `runIntakeTriageJob` beside precedents; the
+  applied-draft event records `playContext` for audit. Golden set +2
+  cases (calibration, contamination guard). ⚠ EVAL DEBT — see START HERE.
+- 1012 offline tests (+16), typecheck clean. Not browser-verified in this
+  container yet: UI deltas are one note line on the request card + the
+  scaffold body in the reply composer (both server-rendered); verify
+  alongside the next feature's browser pass this window. No laptop-setup
+  change (no new env vars/keys/services; the eval debt rides the existing
+  Part B instructions — said out loud per the push contract).
+
+**PREVIOUS (2026-08-14, cloud session, thirteenth build of the window): TWO
 CTAs ON THE MARKETING SITE — "Book a walkthrough" and "See it live"
 (owner: "we need two calls to action … request a demo that takes them to a
 scheduling form, and try it out that links to the live demo").** The
