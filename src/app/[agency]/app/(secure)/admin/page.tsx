@@ -122,7 +122,9 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
       </div>
 
       {/* Section index — one glance, one click to any lever. */}
-      <nav aria-label="Admin sections" style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0 22px" }}>
+      {/* Sticky below the workspace rail: this page is nine sections long,
+          so its index has to travel with the scroll to be a real index. */}
+      <nav aria-label="Admin sections" className="admin-section-nav">
         {sections.map((s) => (
           <a key={s.id} href={`#${s.id}`} className="tag" style={{ textDecoration: "none" }}>
             {s.label}

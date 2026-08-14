@@ -169,25 +169,13 @@ export default async function Queue({
           <span className="eyebrow">{ws.agencyName} · Records oversight</span>
           <h1 style={{ fontSize: "1.7rem", marginTop: 6 }}>Command center</h1>
         </div>
+        {/* Navigation lives in the persistent StaffNav rail now — the header
+            keeps only what the rail can't say: a parked-agents alert and the
+            session controls. */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Link href={`/${slug}/app/agents`} className="btn btn-sm">
-            Agents{parkedAgentRuns > 0 ? ` (${parkedAgentRuns} waiting)` : ""}
-          </Link>
-          <Link href={`/${slug}/app/search`} className="btn btn-sm">
-            Records search
-          </Link>
-          <Link href={`/${slug}/app/records`} className="btn btn-sm">
-            Records queue
-          </Link>
-          <Link href={`/${slug}/app/reports`} className="btn btn-sm">
-            Compliance report →
-          </Link>
-          <Link href={`/${slug}/app/outbox`} className="btn btn-sm">
-            Outbox
-          </Link>
-          {staff.role === "admin" && (
-            <Link href={`/${slug}/app/admin`} className="btn btn-sm">
-              Manage staff
+          {parkedAgentRuns > 0 && (
+            <Link href={`/${slug}/app/agents`} className="btn btn-sm" style={{ borderColor: "var(--due)" }}>
+              ⏸ {parkedAgentRuns} agent run{parkedAgentRuns === 1 ? "" : "s"} awaiting approval
             </Link>
           )}
           <span className="muted hide-sm" style={{ fontSize: "0.9rem" }}>

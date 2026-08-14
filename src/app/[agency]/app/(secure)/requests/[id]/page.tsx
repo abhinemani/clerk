@@ -418,6 +418,67 @@ export default async function RequestDetail({
         </div>
       </div>
 
+      {/* Next up — the page already knows the request's state; say what it
+          needs instead of making the coordinator scroll to discover it. */}
+      {detail.source === "live" &&
+        r.closedAt == null &&
+        (() => {
+          const openTasks = r.tasks.filter((t) => t.status !== "done" && t.status !== "cancelled");
+          const undecided = reviewDocs.filter((d) => !d.decision);
+          const next =
+            undecided.length > 0
+              ? {
+                  text: `${undecided.length} record${undecided.length === 1 ? "" : "s"} in the review set await${undecided.length === 1 ? "s" : ""} your release decisions.`,
+                  href: "#review-release",
+                  cta: "Review now",
+                }
+              : openTasks.length > 0
+                ? {
+                    text: `Waiting on ${openTasks.length} department task${openTasks.length === 1 ? "" : "s"}.`,
+                    href: "#dept-tasks",
+                    cta: "See tasks",
+                  }
+                : r.tasks.length === 0
+                  ? {
+                      text: "Not routed yet — dispatch it to the department that holds the records.",
+                      href: "#dept-tasks",
+                      cta: "Route it",
+                    }
+                  : reviewDocs.length === 0
+                    ? {
+                        text: "Department tasks are done but the review set is empty — find and attach the records.",
+                        href: `/${slug}/app/search?req=${r.id}`,
+                        cta: "Find records",
+                      }
+                    : !releaseVM
+                      ? {
+                          text: "Every record is decided — assemble the response and approve the release.",
+                          href: "#review-release",
+                          cta: "Go to release",
+                        }
+                      : null;
+          return next ? (
+            <div
+              className="card"
+              style={{
+                marginTop: 16,
+                padding: "12px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+                borderLeft: "3px solid var(--gold)",
+              }}
+            >
+              <span className="panel-title" style={{ margin: 0 }}>Next up</span>
+              <span style={{ fontSize: "0.92rem", flex: 1, minWidth: 220 }}>{next.text}</span>
+              <a href={next.href} className="btn btn-sm btn-primary">
+                {next.cta}
+              </a>
+            </div>
+          ) : null;
+        })()}
+
       <div className="detail-grid" style={{ marginTop: 20 }}>
         {/* Left — timeline, requester, immutable request */}
         <aside className="stack" style={{ gap: 16 }}>
@@ -709,7 +770,7 @@ export default async function RequestDetail({
           releaseVM ||
           r.status === "denied" ||
           (r.closedAt == null && canTransition(r.status, "denied"))) && (
-        <div style={{ marginTop: 24, maxWidth: 720 }}>
+        <div id="review-release" style={{ marginTop: 24, maxWidth: 720, scrollMarginTop: 56 }}>
           <ReviewRelease
             key={`${reviewDocs.map((d) => `${d.documentId}:${d.decision}`).join(",")}|${releaseVM ? "released" : "open"}|${r.status}`}
             agencySlug={slug}

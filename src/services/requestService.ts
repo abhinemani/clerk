@@ -578,3 +578,43 @@ export async function applyTriageDraft(
 
   return updated;
 }
+
+/**
+ * "Lost your tracking number?" — the anonymous requester's recovery path.
+ * Deliberately silent about whether the email is known (same no-enumeration
+ * rule as password reset): the response is identical either way, and the
+ * list of tracking numbers only ever travels TO the address the requests
+ * were filed under.
+ */
+export async function sendTrackingReminder(
+  deps: ServiceDeps,
+  input: { agencyId: string; email: string; trackLinkBase: string },
+): Promise<void> {
+  const email = input.email.trim().toLowerCase();
+  if (!email.includes("@")) return;
+  const requester = await deps.repo.findRequesterByEmail(input.agencyId, email);
+  if (!requester) return; // same outward behavior as success
+  const requests = await deps.repo.listRequestsByRequester(input.agencyId, requester.id);
+  if (requests.length === 0) return;
+
+  const newest = [...requests]
+    .sort((a, b) => (b.receivedAt ?? b.createdAt).getTime() - (a.receivedAt ?? a.createdAt).getTime())
+    .slice(0, 5);
+  const lines = newest.map(
+    (r) =>
+      `  ${r.publicId} — filed ${(r.receivedAt ?? r.createdAt).toISOString().slice(0, 10)} · ${r.status.replace(/_/g, " ")}\n  ${input.trackLinkBase}?id=${encodeURIComponent(r.publicId)}`,
+  );
+  await deps.notifier?.send({
+    agencyId: input.agencyId,
+    to: email,
+    subject: "Your records request tracking numbers",
+    body: [
+      `You asked for the tracking numbers of requests filed with this email address:`,
+      ``,
+      ...lines,
+      ``,
+      `If this wasn't you, you can ignore this message.`,
+    ].join("\n"),
+    kind: "requester_update",
+  });
+}

@@ -15,9 +15,18 @@ const SUBMIT_LABEL: Record<Mode, string> = {
  * One credentials form for all three flows. On success the server action
  * redirects; on failure it returns an error we render inline.
  */
-export function AuthForm({ agencySlug, mode }: { agencySlug: string; mode: Mode }) {
+export function AuthForm({
+  agencySlug,
+  mode,
+  initialEmail = "",
+}: {
+  agencySlug: string;
+  mode: Mode;
+  /** Prefill for the post-filing "create an account" nudge. */
+  initialEmail?: string;
+}) {
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();

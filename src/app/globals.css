@@ -792,6 +792,113 @@ label.lbl {
   font-weight: 600;
 }
 
+/* ---- page shell: footer pinned to the viewport bottom -----------------
+   Short pages (track, search) used to end mid-screen with bare ground
+   below the footer — the shell makes main flex-grow so the footer always
+   closes the page. Screen-only: print keeps natural flow. */
+@media screen {
+  .agency-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .agency-shell > main {
+    flex: 1 0 auto;
+  }
+}
+
+/* ---- civic hero band ---------------------------------------------------
+   The one lit moment each public page gets: the marketing bands' aurora
+   language at municipal volume — a soft gold bloom, a plum counter-wash,
+   and the gold seam underneath. Applies to page headers on portal
+   surfaces so the app reads as one designed system with the front door. */
+.civic-hero {
+  position: relative;
+  border-bottom: 1px solid color-mix(in srgb, var(--gold) 34%, transparent);
+  background:
+    radial-gradient(ellipse 56% 120% at 14% -20%, color-mix(in srgb, var(--gold) 13%, transparent), transparent 62%),
+    radial-gradient(ellipse 50% 130% at 88% -30%, color-mix(in srgb, var(--plum) 55%, transparent), transparent 60%),
+    linear-gradient(172deg, color-mix(in srgb, var(--paper-2) 82%, var(--plum) 6%) 0%, var(--paper) 92%);
+}
+.civic-hero::after {
+  /* the engraver's hatch, one notch above the body's */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.035) 0 1px,
+    transparent 1px 10px
+  );
+  pointer-events: none;
+}
+.civic-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- staff workspace nav ----------------------------------------------
+   The persistent second-level rail under the site header on every /app
+   page. Sticky so deep pages keep their exits in reach. */
+.staff-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.staff-nav-row {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.staff-nav-row::-webkit-scrollbar {
+  display: none;
+}
+.staff-nav-link {
+  padding: 9px 13px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--ink-2);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.staff-nav-link:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+.staff-nav-link.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--gold);
+}
+@media print {
+  .staff-nav {
+    display: none;
+  }
+}
+
+/* Admin page's section index — sticks just below the workspace rail so a
+   nine-section page always has its map in reach. */
+.admin-section-nav {
+  position: sticky;
+  top: 38px; /* directly under .staff-nav */
+  z-index: 30;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 0 22px;
+  padding: 8px 0;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(10px);
+}
+@media print {
+  .admin-section-nav {
+    display: none;
+  }
+}
+
 /* ---- government footer ---- */
 .gov-footer {
   margin-top: 72px;

@@ -129,6 +129,12 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
               {e.label} · {e.count}
             </span>
           ))}
+          {report.exemptionFrequency.length === 0 && (
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              No exemptions cited yet — every release so far has gone out unredacted and
+              unwithheld. Citations appear here as review decisions record them.
+            </p>
+          )}
         </div>
       </div>
 

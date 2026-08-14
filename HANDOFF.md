@@ -8,8 +8,7 @@ its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
 **894 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-13 learning-loop entry — e2e re-run that session, on a
-fresh DB proving migration 0012 applies at boot).
+newest 2026-08-14 UX-pass entry — e2e re-run that session).
 
 ## START HERE (next session)
 
@@ -51,7 +50,53 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, cloud session): THE LEARNING LOOP — resolved
+**NEWEST (2026-08-14, cloud session): THE UX PASS — owner-directed
+design/flow review, then all seven findings built in one window.**
+Browser-verified before AND after (screenshots delivered to the owner).
+- **StaffNav rail** (`_components/StaffNav.tsx`, mounted in the (secure)
+  layout): persistent sticky second-level nav on every /app page — Queue ·
+  Tasks · Records · Search · Agents · Reports · Outbox · Admin, gold
+  underline active state, Queue also active on /app/requests/*. The
+  command-center header dropped its button cluster (kept: a parked-agents
+  alert + session controls). Print-hidden.
+- **`.civic-hero` band** (globals.css): the marketing bands' aurora
+  language at municipal volume — gold bloom, plum counter-wash, stronger
+  hatch, gold seam. Applied to ARCHIVE and TRACK headers (portal home
+  already had its own treatment). This was the "app reads flat vs
+  marketing" fix.
+- **Archive rebuilt**: the AnswerBox now sits IN the archive hero (search,
+  cited answers, prior-answer matches, file fallback — the deflection
+  engine finally lives on its storefront). Card anatomy normalized: flex
+  cards with actions pinned to the foot, ONE primary action (Download when
+  bytes exist, else View record), "✦ AI summary" demoted to a card-foot
+  footnote, chips capped at 3 + date-first, real empty state.
+- **Track rebuilt + tracking-number recovery**: tracker inside the hero;
+  below it "Lost your tracking number?" — `sendTrackingReminder`
+  (requestService) emails the newest 5 publicIds + track links TO THE
+  FILING ADDRESS ONLY, silent either way (same no-enumeration posture as
+  password reset; kind "requester_update"). Sign-in / file-new links close
+  the page.
+- **Footer pinning**: `.agency-shell` flex column (screen-only) — short
+  pages no longer end mid-viewport with bare ground under the footer.
+- **Empty states**: reports' exemptions widget ("no exemptions cited yet —
+  every release unredacted"), records search pre-query "What this finds"
+  card.
+- **Request detail "Next up" banner**: state-computed single next action
+  (undecided review docs → open tasks → unrouted → empty review set →
+  ready to release), gold-edged, anchors to #dept-tasks /
+  #review-release / staff search prefill. Verified live: "1 record in the
+  review set awaits your release decisions → Review now".
+- **Admin section index is sticky** (`.admin-section-nav`, top 38px under
+  the rail) — the nine-section page keeps its map in reach.
+- **Post-filing account nudge**: confirmation card offers "Create an
+  account with <email>" → /register?email=… prefills AuthForm
+  (initialEmail prop).
+Known not-done from the review: mobile pass (still unverified at small
+widths) and scroll-animation review (shots were reduced-motion). No
+schema change, no laptop-setup change. 894 tests, typecheck clean, 4/4
+e2e.
+
+**PREVIOUS (2026-08-13, cloud session): THE LEARNING LOOP — resolved
 requests now make the platform structurally smarter (docs/learning-loop.md,
 new spec).** Owner ask: learning from the types of questions and answers,
 beyond RAG. Shipped v1:

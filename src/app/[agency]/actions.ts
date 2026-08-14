@@ -540,6 +540,30 @@ export async function portalSignOut(agencySlug: string): Promise<void> {
   await signOut({ redirectTo: `/${agencySlug}` });
 }
 
+/**
+ * "Lost your tracking number?" Always "succeeds" outwardly — the numbers
+ * only ever travel to the address the requests were filed under.
+ */
+export async function trackingReminderAction(input: {
+  agencySlug: string;
+  email: string;
+}): Promise<void> {
+  try {
+    const repo = await getRepository();
+    const agency = await repo.getAgencyBySlug(input.agencySlug);
+    if (!agency) return;
+    const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+    const { sendTrackingReminder } = await import("@/services/requestService");
+    await sendTrackingReminder(defaultDeps(repo), {
+      agencyId: agency.id,
+      email: input.email,
+      trackLinkBase: `${baseUrl}/${input.agencySlug}/track`,
+    });
+  } catch (e) {
+    console.error("trackingReminder failed", e); // still silent to the caller
+  }
+}
+
 /** Start a self-service reset. Always "succeeds" — no account enumeration. */
 export async function forgotPasswordAction(input: {
   agencySlug: string;
