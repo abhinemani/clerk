@@ -139,7 +139,10 @@ export function VisualRedactionStudio({
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 300px", gap: 16, alignItems: "start" }}>
+    // Layout lives in globals.css (.vrs-grid): the 300px act rail needs a
+    // real media query to stack under the canvas at phone width — two
+    // explicit grid tracks can never wrap on their own.
+    <div className="vrs-grid">
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
           <strong style={{ fontSize: "0.95rem" }}>{documentName}</strong>

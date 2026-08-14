@@ -180,9 +180,11 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
             <div className="panel-title">Requests vs. deflections, last 6 months</div>
             <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
               {impact.monthly.map((m) => (
-                <div key={m.month} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                // flexWrap + minWidth on the bars: at phone width the count
+                // line drops below the bars instead of crushing them.
+                <div key={m.month} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <span className="mono muted" style={{ fontSize: "0.8rem", width: 58 }}>{m.month}</span>
-                  <div style={{ flex: 1, display: "grid", gap: 3 }}>
+                  <div style={{ flex: 1, minWidth: 160, display: "grid", gap: 3 }}>
                     <div style={{ background: "var(--surface-3)", borderRadius: "var(--r-pill)", height: 8 }}>
                       <div style={{ width: `${(m.requests / maxImpact) * 100}%`, height: "100%", background: "var(--primary)", borderRadius: "var(--r-pill)" }} />
                     </div>
@@ -190,7 +192,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
                       <div style={{ width: `${(m.deflections / maxImpact) * 100}%`, height: "100%", background: "var(--ai)", borderRadius: "var(--r-pill)" }} />
                     </div>
                   </div>
-                  <span className="muted" style={{ fontSize: "0.78rem", width: 190, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                  <span className="muted" style={{ fontSize: "0.78rem", marginLeft: "auto", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                     {m.requests} filed · {m.deflections} deflected
                     {m.recordsPublished > 0 ? ` · ${m.recordsPublished} published` : ""}
                     {m.archiveMisses > 0 ? ` · ${m.archiveMisses} misses` : ""}

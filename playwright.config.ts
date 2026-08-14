@@ -25,6 +25,12 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
+    // The marketing page's scroll-reveal (CSS animation-timeline) starts
+    // sections at opacity 0; a context without this takes BLANK full-page
+    // screenshots and any future spec that asserts on below-the-fold
+    // content walks into it (HANDOFF gotcha 12's automation half).
+    // (This Playwright version only takes it via contextOptions.)
+    contextOptions: { reducedMotion: "reduce" },
   },
   webServer: {
     command: "npm run dev",

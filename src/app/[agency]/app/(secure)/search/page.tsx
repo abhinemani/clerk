@@ -77,11 +77,11 @@ export default async function RecordsSearchPage({
         </div>
       )}
 
-      <form method="GET" style={{ display: "flex", gap: 8 }}>
+      <form method="GET" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {target && <input type="hidden" name="req" value={target.id} />}
         <input
           className="field"
-          style={{ flex: 1 }}
+          style={{ flex: 1, minWidth: 220 }}
           type="search"
           name="q"
           defaultValue={query}

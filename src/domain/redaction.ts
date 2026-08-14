@@ -116,6 +116,33 @@ export function wordMatches(lines: readonly string[], word: string): RedactionSp
   return out;
 }
 
+/**
+ * Every occurrence of a SUBSTRING across the document — the geometry behind
+ * the studio's find box. Deliberately NOT wordMatches: find is a search
+ * tool, so "202" must highlight inside "2026-district-plan" and a phrase
+ * with spaces must match across words — over-matching is visible (the
+ * highlights are on screen) and the human picks what to redact. Case-
+ * insensitive; queries under 2 characters return nothing (a one-letter
+ * highlight storm helps nobody); occurrences never overlap (scan resumes
+ * past each match).
+ */
+export function substringMatches(lines: readonly string[], query: string): RedactionSpan[] {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+  const out: RedactionSpan[] = [];
+  lines.forEach((text, line) => {
+    const hay = text.toLowerCase();
+    let from = 0;
+    for (;;) {
+      const at = hay.indexOf(q, from);
+      if (at < 0) break;
+      out.push({ line, startCol: at, endCol: at + q.length });
+      from = at + q.length;
+    }
+  });
+  return out;
+}
+
 function clampSpan(len: number, s: RedactionSpan): { start: number; end: number } {
   const start = Math.max(0, Math.min(s.startCol, len));
   const end = Math.max(start, Math.min(s.endCol, len));

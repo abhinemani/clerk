@@ -104,6 +104,9 @@ export function DirectoryManager({ agencySlug, rows }: { agencySlug: string; row
   return (
     <div>
       <div className="card" style={{ overflow: "hidden" }}>
+        {/* QueueTable's idiom: the table scrolls in its own box on a phone —
+            the card must never force the page sideways. */}
+        <div style={{ overflowX: "auto" }}>
         <table className="queue">
           <thead>
             <tr>
@@ -168,11 +171,12 @@ export function DirectoryManager({ agencySlug, rows }: { agencySlug: string; row
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="card card-pad" style={{ marginTop: 14 }}>
         <div className="panel-title">{editing ? "Edit agency" : "Add an agency"}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 10, marginTop: 10 }}>
           <label style={{ display: "grid", gap: 4 }}>
             <span className="lbl">Name</span>
             <input

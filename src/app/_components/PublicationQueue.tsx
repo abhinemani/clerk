@@ -393,7 +393,7 @@ function PublishForm({
             onChange={(e) => setSummary(e.target.value)}
           />
         </label>
-        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
+        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))" }}>
           <label style={{ fontSize: "0.82rem" }}>
             Tags (comma-separated)
             <input className="field" style={{ width: "100%" }} value={tags} onChange={(e) => setTags(e.target.value)} />

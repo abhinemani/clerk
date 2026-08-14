@@ -782,6 +782,13 @@ h3 {
   color: var(--ink-2);
   white-space: nowrap;
 }
+/* Sentence-length notice/error banners reuse .pill as a <p> everywhere
+   (42 call sites). nowrap is right for the short status chips (spans) and
+   wrong for sentences — a long notice was the platform console's one
+   390px overflow. Let prose pills wrap. */
+p.pill {
+  white-space: normal;
+}
 .pill .dot {
   width: 6px;
   height: 6px;
@@ -1115,6 +1122,22 @@ label.lbl {
 @media print {
   .admin-section-nav {
     display: none;
+  }
+}
+
+/* Visual redaction studio: canvas + 300px act rail. Two explicit grid
+   tracks can never wrap, so the phone layout is a media query — the rail
+   stacks under the canvas (the canvas is the working surface; it wins the
+   viewport). Mirrors .detail-grid's collapse. */
+.vrs-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .vrs-grid {
+    grid-template-columns: 1fr;
   }
 }
 

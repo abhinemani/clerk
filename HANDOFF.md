@@ -7,10 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**1031 tests pass (+5 skipped), typecheck clean** (counts as of the newest
-2026-08-14 connected-sources-phase-3 entry; e2e last ran fresh 4/4 at the
-portal-mobile build — the connectedSources spec's paths still pass through
-the same sync entrypoints).
+**1036 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (counts
+as of the newest 2026-08-14 staff-mobile-pass entry; e2e ran fresh there).
 
 ## START HERE (next session)
 
@@ -45,38 +43,99 @@ agents propose, a named human publishes.
 this queue — the "what would make Brandeis special" bets — lives in
 `docs/big-ticket.md`; graduate items from there into this list, not
 straight into a build):
-1. **Fulfillment agent v2** (v1 SHIPPED 2026-08-14, newest entry): run
-   the live eval (the standing debt above), then grow the planner —
-   connector_search over connected sources, plan revision mid-run
-   (plan_update), per-item review-set curation instead of top-N, and the
-   B5 records map as routing context when it exists.
+1. **Fulfillment agent v2** (v1 SHIPPED 2026-08-14): run the live eval
+   (the standing debt above), then grow the planner — connector_search
+   over connected sources, plan revision mid-run (plan_update), per-item
+   review-set curation instead of top-N, and the B5 records map as
+   routing context when it exists.
 2. **B4 third-party notice steward** (differentiator; needs notice rules
    added to state profiles as data). B2 shipped 2026-08-14; its forward
    version — redact-everywhere memory (big-ticket §4) — is the natural
    follow-on.
-3. **Learning loop v2**: play stats as structured prompt context (REQUIRES
-   `npm run eval`), embedding-based play matching over stored ask vectors,
-   letter scaffolds per play.
-4. **Connected-sources phase 3** (row store / tabular answers) — its own
-   full window; wrong-table answers are confidently wrong, so provenance
-   and refusal-when-unsure are load-bearing from day one.
+3. ~~**Learning loop v2**~~ **SHIPPED 2026-08-14** (fourteenth build):
+   embedding matching, letter scaffolds, triage play context. Remaining
+   v2 candidates (feedback tuning, copilot payload) in
+   docs/learning-loop.md.
+4. ~~**Connected-sources phase 3**~~ **SHIPPED 2026-08-14** (fifteenth
+   build): row store + refusal-first tabular answers.
 5. **Hybrid staff search** (per-chunk embeddings at ingest; service
    signature ready). (~~intake-dedup stored-vector perf item~~ — done;
-   dedup + precedent ranking now run as SQL top-k, see newest entry.)
-6. **Mobile pass + animation review** — PARTLY DONE (newest entry: the
-   public portal and the staff shell are verified at 390px; the header,
-   `.stat-row`, and `.hide-sm` bugs are fixed system-wide). Still open:
-   the deep staff surfaces (queue, request workspace, redaction studio,
-   admin) at phone width, and the animation review — the UX pass ran
-   reduced-motion only. Also: redaction-studio trio (redo, bar→log-card,
-   redact-everywhere), backup/restore runbook.
+   dedup + precedent ranking now run as SQL top-k.)
+6. ~~**Mobile pass + animation review**~~ **DONE 2026-08-14** (sixteenth
+   build, newest entry): deep staff surfaces verified at 390px, animation
+   reviewed as far as this container's chromium executes it (one
+   current-Chrome look at the marketing scroll-reveal remains for a
+   laptop session), backup/restore runbook extended. The
+   redaction-studio trio (redo, bar→log-card, redact-everywhere) turned
+   out ALREADY SHIPPED in the studio — the candidate was stale; what was
+   actually missing (the untested find-scan, touch taps) shipped in the
+   same build.
 
 **Before every push** (full contract in CLAUDE.md): offline suite green,
 HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, fifteenth build of the window):
+**NEWEST (2026-08-14, cloud session, sixteenth build of the window): THE
+MOBILE PASS ON THE DEEP STAFF SURFACES + animation review + runbook
+(HANDOFF candidate #6, closing it).** Every deep staff surface is now
+verified no-horizontal-overflow at 390px in a real browser: command
+center, request workspace, BOTH redaction studios, staff search, reports,
+tasks, tenant admin (+data, +directory), agents, and the platform console.
+- **The fixes, each a named pattern:** the request header's 7-button
+  action row wraps (`flexWrap` — `.btn` stays nowrap, the ROW bends); the
+  visual studio's canvas + 300px act rail moved to `.vrs-grid` in
+  globals.css with a ≤900px collapse (two explicit grid tracks can never
+  wrap on their own); the TEXT studio's real culprit was subtler — a 1fr
+  grid track's implicit min-content minimum let `.doc`'s 540px min-width
+  widen the PAGE instead of scrolling inside `.page`; `.redact-grid > *
+  { min-width: 0 }` is the fix and the comment explains it; platform
+  console cards use `minmax(min(380px, 100%), 1fr)` (a hard 380px minimum
+  overflows a 390px phone); DirectoryManager's table got QueueTable's
+  overflow-x wrapper and its form grid went auto-fit, as did
+  PublicationQueue's; the reports bar rows wrap their count line under
+  the bars; staff search's form wraps. SYSTEM-LEVEL FIX: `p.pill {
+  white-space: normal }` — 42 call sites reuse `.pill` as sentence-length
+  notice banners and nowrap made any long notice an overflow (the
+  platform console's one break); status chips are spans and keep nowrap.
+- **Redaction studio**: the trio in the stale candidate (redo,
+  bar→log-card, redact-everywhere) was ALREADY SHIPPED — see the
+  corrected Tier-1.5 note. New here: the inline find-scan extracted to
+  `substringMatches` (domain/redaction.ts, tested incl. burns-clean;
+  deliberately substring-not-word semantics, documented), and the studio
+  converted to POINTER events: taps select bars/words on touch, and
+  pointercancel (browser claiming a touch-scroll) abandons the draft
+  selection rather than committing a smear. Precision drag-select stays a
+  mouse/pen gesture on purpose — phone posture is tap-to-review.
+- **Animation review** (the UX pass had only run reduced-motion): normal-
+  motion pass done as far as this container allows — chromium 1194
+  parses `animation-timeline: view()` but does NOT execute it, so the
+  reveal degrades to fully-visible here (the @supports gating doing its
+  job); nothing anywhere starts hidden, and page-bottom content is at
+  opacity 1 at normal motion. Gotcha 12 reconciled (its "real bug" half
+  was already fixed; the note was stale) and playwright.config.ts now
+  sets `contextOptions: { reducedMotion: "reduce" }` so no future spec
+  hits the blank-screenshot trap. STILL OWED: one look at the marketing
+  scroll-reveal on current Chrome (laptop) — this container can't render
+  it.
+- **Backup/restore runbook extended in place** (docs/operations.md): the
+  bare-laptop path (`.pgdata`/`.blobdata` are gitignored — a laptop that
+  only pushes code has NO data backup), CONNECTED_DROP_PATH added to the
+  state table (it's an inbox, no backup needed — reasoning recorded),
+  "what a restore legally means" (restoring rewinds the append-only log —
+  record the restore outside the system; retention/legal-hold interaction
+  — a restore can resurrect a purposely-destroyed document, re-deleting
+  is correct; invariant-8 checksums as the blob-half integrity check),
+  and off-host + encrypted copies (backups the fire can reach are notes).
+- 1036 offline tests (+5: substringMatches), typecheck clean, **4/4 e2e
+  green** (container needed the chromium headless-shell shim AGAIN —
+  1234→1194 symlink, mkdir -p first; container state, not repo state).
+  Browser-verified per gotcha 11 at 390px with getBoundingClientRect
+  overflow probes on every surface listed above, before/after screenshots
+  delivered. No laptop-setup change (no env vars/keys/services — said out
+  loud per the push contract).
+
+**PREVIOUS (2026-08-14, cloud session, fifteenth build of the window):
 CONNECTED-SOURCES PHASE 3 — the row store and tabular answers (HANDOFF
 candidate #4; docs/connected-sources.md "Phase 3 as built").** The answer
 box now answers "street cleanings for the last 3 months" with the actual
@@ -2369,11 +2428,17 @@ One volume (`clerk-data` → `/data`) holds DB + blobs. Optional env:
     `playwright` is not installed). Uploads over ~0.9MB fail, so capture at
     deviceScaleFactor 1 and slice tall pages.
 12. **Full-page screenshots come back BLANK for scroll-revealed sections**
-    unless the context sets `reducedMotion: "reduce"`. That is not just a
-    screenshot artifact — it means content genuinely starts at opacity 0 and
-    only appears on scroll, so anything that doesn't run the observer (print,
-    some crawlers) sees an empty page. Real bug, still unfixed; see the
-    print/OG gap noted in the newest entry.
+    unless the context sets `reducedMotion: "reduce"`. (RECONCILED
+    2026-08-14: the "real bug" half — print/crawlers seeing opacity 0 —
+    was FIXED when the reveal was scoped `screen and (prefers-reduced-
+    motion: no-preference)` + `@supports (animation-timeline: view())`;
+    an earlier entry recorded that but this gotcha wasn't updated. What
+    REMAINS is the automation trap, and playwright.config.ts now sets
+    `contextOptions: { reducedMotion: "reduce" }` so future specs don't
+    walk into it. Note for screenshot sessions: this container's chromium
+    1194 PARSES `animation-timeline: view()` but doesn't execute it, so
+    the reveal degrades to fully-visible here — verify actual scroll
+    animation on current Chrome, not in this container.)
 
 ## Next: the most important things to make this USEFUL (priority order)
 
@@ -2414,12 +2479,16 @@ records office runs Tuesday on this." Tiered by adoption impact.
 to write)**
 - ~~Referral phase 3~~ **SHIPPED** (see inventory above) — owner overrode the
   two-real-tenants trigger and decided consent = checkbox default OFF.
-- **Redaction studio, likely next asks** (owner cares about this surface;
-  cheap now that acts are centralized in `addAct`): a redo stack to pair with
-  undo; click an existing bar to jump to its log card (bars have
-  `pointer-events: none` today — needs a hit-test in `onDown` instead);
-  "redact this word everywhere" (compose `wordSpanAt` + the find-matches
-  scan — both pure and already tested).
+- ~~**Redaction studio, likely next asks**~~ ALL THREE WERE ALREADY BUILT
+  (audited 2026-08-14, sixteenth build): redo stack + keybindings, the
+  onDown hit-test that jumps to a bar's log card, and
+  redact-this-word-everywhere all ship in RedactionStudio.tsx — this note
+  and the build-candidate list had gone stale. The actually-missing bits
+  (the inline find-scan was untested; mouse-only events) shipped in that
+  build: `substringMatches` extracted to domain/redaction.ts with tests,
+  and the studio now uses pointer events (taps work on touch; a
+  browser-claimed scroll cancels a draft selection instead of committing
+  a smear).
 
 **Tier 2 — daily-work leverage**
 4. **Staff responsive-records search (§6.4).** SHIPPED (lexical): `/app/

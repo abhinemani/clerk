@@ -7,6 +7,7 @@ import {
   findLeaks,
   redactedValues,
   spansFromDragRect,
+  substringMatches,
   suggestRedactionsFromPii,
   wordMatches,
   wordSpanAt,
@@ -280,7 +281,7 @@ export function RedactionStudio({
     cardRefs.current.get(r.id)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
-  function onDown(e: React.MouseEvent) {
+  function onDown(e: React.PointerEvent) {
     if (finalized) return;
     const point = locate(e.clientX, e.clientY);
     const hit = redactionAt(point);
@@ -293,12 +294,20 @@ export function RedactionStudio({
     setSelection({ anchor: point, focus: point });
     setCaret(point);
   }
-  function onMove(e: React.MouseEvent) {
+  function onMove(e: React.PointerEvent) {
     if (!draggingRef.current) return;
     const point = locate(e.clientX, e.clientY);
     setSelection((prev) => (prev ? { ...prev, focus: point } : prev));
   }
-  function onUp(e?: React.MouseEvent) {
+  /** Touch scrolling fires pointercancel when the browser claims the gesture
+      — abandon the draft selection instead of committing a smear. On touch
+      the studio is tap-to-review (taps jump to cards, the keyboard path
+      works); precision drag-select stays a mouse/pen gesture on purpose. */
+  function onCancel() {
+    draggingRef.current = false;
+    setSelection(null);
+  }
+  function onUp(e?: React.PointerEvent) {
     if (!draggingRef.current) return;
     draggingRef.current = false;
     setSelection((prev) => {
@@ -459,23 +468,10 @@ export function RedactionStudio({
 
   const reviewedCount = initial.length - suggestions.length;
 
-  /** In-document search — highlights matches; "redact all" acts on every hit. */
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (q.length < 2) return [] as RedactionSpan[];
-    const found: RedactionSpan[] = [];
-    lines.forEach((text, line) => {
-      const hay = text.toLowerCase();
-      let from = 0;
-      for (;;) {
-        const at = hay.indexOf(q, from);
-        if (at < 0) break;
-        found.push({ line, startCol: at, endCol: at + q.length });
-        from = at + q.length;
-      }
-    });
-    return found;
-  }, [query, lines]);
+  /** In-document search — highlights matches; "redact all" acts on every hit.
+      Geometry lives in domain/redaction.ts (substringMatches) so the scan is
+      tested next to wordMatches, whose semantics it deliberately differs from. */
+  const matches = useMemo(() => substringMatches(lines, query), [query, lines]);
 
   function redactAllMatches() {
     addAct(matches, `find-${query.trim().toLowerCase()}`, defaultReason);
@@ -610,10 +606,11 @@ export function RedactionStudio({
           <div
             ref={docRef}
             className="doc"
-            onMouseDown={onDown}
-            onMouseMove={onMove}
-            onMouseUp={onUp}
-            onMouseLeave={onUp}
+            onPointerDown={onDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onPointerLeave={onUp}
+            onPointerCancel={onCancel}
             onDoubleClick={onDoubleClick}
             onKeyDown={onKeyDown}
             tabIndex={finalized ? -1 : 0}
@@ -928,6 +925,11 @@ export function RedactionStudio({
       <style>{`
         .redact-grid { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
         @media (max-width: 960px) { .redact-grid { grid-template-columns: 1fr; } }
+        /* A 1fr track's implicit minimum is min-content, and .doc's 540px
+           min-width + pre lines push that past a phone viewport — the page
+           then widens instead of scrolling inside .page. min-width: 0 is
+           what lets .page's own overflow-x: auto engage. */
+        .redact-grid > * { min-width: 0; }
         .page { background: #fff; border: 1px solid var(--border-strong); border-radius: var(--r);
           box-shadow: var(--shadow); padding: 28px 30px; overflow-x: auto; position: relative; }
         .page.finalized { background: #fbfbfa; }

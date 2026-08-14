@@ -9,6 +9,7 @@ import {
   findLeaks,
   redactedValues,
   spansFromDragRect,
+  substringMatches,
   suggestRedactionsFromPii,
   wordMatches,
   wordSpanAt,
@@ -215,5 +216,42 @@ describe("wordMatches — redact-this-word-everywhere geometry", () => {
   it("rejects empty and multi-word needles", () => {
     expect(wordMatches(doc, "")).toEqual([]);
     expect(wordMatches(doc, "Ann Walsh")).toEqual([]);
+  });
+});
+
+describe("substringMatches — the studio's find box (deliberately NOT wordMatches)", () => {
+  const doc = [
+    "Officer Reyes interviewed Ann Walsh at the scene.",
+    "See 2026-district-plan.pdf and the 2026 budget.",
+  ];
+
+  it("matches inside words and across word boundaries — find is a search tool", () => {
+    // "202" inside "2026-district-plan" AND inside "2026" — wordMatches
+    // would refuse both; the find box must not.
+    expect(substringMatches(doc, "202")).toEqual([
+      { line: 1, startCol: 4, endCol: 7 },
+      { line: 1, startCol: 35, endCol: 38 },
+    ]);
+    // Phrases with spaces match too.
+    expect(substringMatches(doc, "ann walsh")).toEqual([{ line: 0, startCol: 26, endCol: 35 }]);
+  });
+
+  it("ignores queries under 2 characters and trims whitespace", () => {
+    expect(substringMatches(doc, "a")).toEqual([]);
+    expect(substringMatches(doc, " ")).toEqual([]);
+    expect(substringMatches(doc, "  ann walsh  ")).toEqual([{ line: 0, startCol: 26, endCol: 35 }]);
+  });
+
+  it("occurrences never overlap — the scan resumes past each match", () => {
+    expect(substringMatches(["aaaa"], "aa")).toEqual([
+      { line: 0, startCol: 0, endCol: 2 },
+      { line: 0, startCol: 2, endCol: 4 },
+    ]);
+  });
+
+  it("its spans are burnable — redact-all leaves no residual", () => {
+    const hits = substringMatches(doc, "reyes");
+    const released = applyRedactions([...doc], hits);
+    expect(findLeaks(released, redactedValues(doc, hits))).toEqual([]);
   });
 });

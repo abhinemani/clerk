@@ -198,7 +198,9 @@ export default async function PlatformHome() {
       )}
 
       <h2 style={{ fontSize: "1.05rem", marginTop: 30, marginBottom: 12 }}>Agencies</h2>
-      <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))" }}>
+      {/* min(380px, 100%): a 390px phone is narrower than the 380px track +
+          gutters, and auto-fill can't shrink a hard minimum — it overflows. */}
+      <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fill, minmax(min(380px, 100%), 1fr))" }}>
         {rows.map(({ agency, open, overdue, total, staff, residents, peerLinks, setup }) => (
           <article key={agency.id} className="card card-pad hover-lift" style={{ display: "grid", gap: 12, alignContent: "start" }}>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>

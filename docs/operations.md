@@ -10,11 +10,33 @@ local blobs) and notes where managed Postgres / S3 differ.
 |---|---|---|
 | Database (requests, audit log, users, jobs) | `clerk-data` volume → `/data/pgdata` (PGlite) | Managed Postgres via `DATABASE_URL` |
 | Blobs (uploads, burned redactions, seals) | `clerk-data` volume → `/data/blobs` | S3/MinIO via `S3_*` env vars |
+| Connected-source file drop (inbound CSVs) | `CONNECTED_DROP_PATH` (default `.dropbox/` under the app dir; in-container under `/data` if you pointed it there) | — (it's an inbox: files already synced are also documents+blobs, so the drop dir itself needs no backup — anything unsynced there at crash time simply syncs when re-dropped) |
 | Secrets/config | `.env` | your secret manager |
 
 Everything the product guarantees (append-only audit, released artifacts,
-checksums) lives in those two stores. The `.next` build cache and the
-in-process queue hold nothing durable — jobs are rows in the database.
+checksums) lives in the database + blob stores. The `.next` build cache and
+the in-process queue hold nothing durable — jobs are rows in the database.
+The `dataset_rows` table (connected-sources phase 3) is a rebuildable
+projection of slice documents; it rides the database backup like everything
+else, and even a partial loss self-heals on the next sync (the backfill
+re-materializes rows from the documents' own stored text).
+
+## A laptop / bare `npm run dev` deployment (no Docker)
+
+The same two stores exist as plain directories next to the checkout:
+`./.pgdata` (PGlite; override `PGLITE_PATH`) and `./.blobdata` (override
+`BLOB_PATH`). Both are gitignored — **a laptop that only pushes code has NO
+backup of its demo/pilot data.** To back up: stop the dev server (PGlite is
+single-writer — a copy under a live server can be torn, same rule as the
+container), then:
+
+```bash
+tar czf "brandeis-dev-$(date +%F).tar.gz" .pgdata .blobdata
+```
+
+Restore = stop the server, delete the two dirs, untar, restart. If real
+agency data ever lives on a laptop, move it to the container or managed
+deploy instead — laptops don't do nightly cron.
 
 ## Backup (self-contained deploy)
 
@@ -47,6 +69,35 @@ Verify after every restore (this is the monthly test):
 2. A released request's **download link streams real bytes** (blobs intact).
 3. `/admin` shows the expected agencies and request counts.
 4. The Health section shows no failed jobs beyond those failed pre-backup.
+
+### What a restore legally means (read before restoring to an old point)
+
+- **The audit log is append-only forward, not restore-proof.** Restoring to
+  an earlier backup rewinds `request_events`/`admin_events` — events after
+  the backup point are GONE, and the log's evidentiary story now has a gap.
+  Restore the NEWEST usable backup, record (outside the system: an email,
+  a note in the agency's files) that a restore happened, when, and to which
+  point, and expect to re-do the lost window's work with fresh events.
+- **Retention and legal holds run on schedule.** A restore can resurrect a
+  document the retention sweep already destroyed on purpose. After
+  restoring an old backup, check `/admin` → the retention warnings and let
+  the next nightly sweep re-run before treating the corpus as current — and
+  if a document was destroyed under a retention schedule, deleting the
+  resurrected copy again is the correct action, not a loss.
+- **Released artifacts stay immutable** (invariant 8): a restore never
+  edits a delivered release — checksums verify exactly as before, which is
+  also your best integrity check that the blob half of a backup is sound
+  (spot-verify one on `/{slug}/authenticity`).
+
+### Keep a copy off the machine
+
+The tarball lands in `$PWD/backups` on the same host that just died in this
+runbook's opening question. Ship each nightly archive somewhere else —
+`rclone copy backups/ remote:brandeis-backups`, an S3 bucket, or at minimum
+a different physical disk. Backups the fire can reach are notes, not
+backups. If the archives leave your custody (any cloud), encrypt first:
+`age -r <recipient> -o backup.tar.gz.age backup.tar.gz` — they contain
+unredacted originals and PII by definition.
 
 ## Backup (managed Postgres + S3)
 

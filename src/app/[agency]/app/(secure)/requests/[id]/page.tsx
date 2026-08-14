@@ -411,7 +411,10 @@ export default async function RequestDetail({
             {r.interpretedScope}
           </h1>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {/* Seven actions at full width; at phone width they wrap into rows —
+            .btn is nowrap on purpose, so the ROW must be the thing that
+            bends (390px verified; without this the page scrolls sideways). */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <DeadlineBand band={risk.band} label={`${BAND_LABEL[risk.band]} · ${dateShort(r.dueAt)}`} />
           <StatusPill label={requestStatusLabel(r.status)} />
           {detail.source === "live" && (
