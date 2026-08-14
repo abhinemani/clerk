@@ -32,8 +32,12 @@ import { BrandLockup, BrandMarkRaster, SparkIcon } from "./_components/ui";
  * deployment runs a real scheduler) and "See it live" (→ /riverton). Self-
  * signup is still fully open but no longer competes for the primary slot: a
  * clerk who is still evaluating is not ready to provision a tenant, so
- * "Create your records office" lives in the nav, the footer, and a one-line
- * note under the closing CTAs. Don't add a third button to either row.
+ * "Create your records office" lives in the footer and a one-line note under
+ * the closing CTAs. Don't add a third button to either row.
+ *
+ * The NAV button carries "Book a walkthrough" too (owner, 2026-08-14, second
+ * pass): it is the most prominent element on the page, and pointing it at
+ * signup re-created exactly the hierarchy the hero change was meant to fix.
  */
 
 const PROBLEMS = [
@@ -199,14 +203,18 @@ export default function MarketingHome() {
           </Link>
           <nav className="nav-links" aria-label="Primary">
             <Link href="/riverton" className="nav-link">
-              Live demo
+              See it live
             </Link>
             <Link href="/admin" className="nav-link">
               Platform console
             </Link>
-            <Link href="/signup" className="btn btn-sm btn-maroon" style={{ marginLeft: 8 }}>
-              Create your records office
-            </Link>
+            {/* The chrome's one button carries the PRIMARY CTA — it is the most
+                prominent element on the page, so it may not point somewhere the
+                hero has already demoted. btn-sm keeps nav height; no padding
+                override (that's the hero button's size). */}
+            <BookLink href={bookHref} className="btn btn-sm btn-maroon" style={{ marginLeft: 8 }}>
+              Book a walkthrough
+            </BookLink>
           </nav>
         </div>
       </div>

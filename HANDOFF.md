@@ -105,10 +105,16 @@ walkthrough" → `/demo`) and the no-commitment look ("See it live" →
   whole value, then keep it or drop it.
 - **`demo` is now a reserved slug** (`accountService`) — without it an
   agency could take `/demo` and shadow the marketing form.
-- **Self-signup is NOT gone, just demoted** (owner's call): still in the
-  nav button, the footer, and a one-line note under the closing CTAs.
-  Don't add a third button to either CTA row — see the comment at the top
-  of `page.tsx`.
+- **Self-signup is NOT gone, just demoted** (owner's call): it lives in the
+  footer and a one-line note under the closing CTAs. Don't add a third
+  button to either CTA row — see the comment at the top of `page.tsx`.
+  **Second pass, same session:** the owner looked at the page and the
+  top-right NAV button still read "Create your records office" — the most
+  prominent element on the page still pointing at the demoted action,
+  which re-created the exact hierarchy the change was meant to fix. The
+  nav button is now "Book a walkthrough" and the nav link reads "See it
+  live". Lesson: demoting a CTA means demoting it in the CHROME too, not
+  just in the sections you happen to be editing.
 - **Verified in a browser** (gotcha 11): both CTA rows resolve to
   `/demo` + `/riverton`, no horizontal overflow at 1280 or 390, and a real
   submission ("Marlin Unified School District") round-tripped — success
