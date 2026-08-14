@@ -57,7 +57,17 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, after the UX pass): HOMEPAGE — gold
+**NEWEST (2026-08-14, cloud session): SESSION-START HOOK — fresh cloud
+containers now `npm install` before the session begins** (`.claude/hooks/
+session-start.sh`, registered in `.claude/settings.json`; web-only,
+synchronous, idempotent). Fixes the "vitest: not found" cold-start this
+very session hit. Side effect committed knowingly: `package-lock.json`
+lost 100 lines of `libc` metadata — npm 10.9.7 lockfile normalization,
+zero version changes; full suite green after. The stop hook (commit/push
+guard) is provisioned by the cloud environment itself — nothing needed in
+the repo for it. No laptop-setup change (no owner steps).
+
+**PREVIOUS (2026-08-14, cloud session, after the UX pass): HOMEPAGE — gold
 bars + copy rewrite (owner: "the gold bars help and we need those on the
 homepage. Also the copy is terrible").** Ornament: `.mk-eyebrow::before`
 gold bar on every eyebrow and `.mk-stat-n::after` base rule under both
