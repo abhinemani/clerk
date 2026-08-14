@@ -101,6 +101,19 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect((await repo.listAgencies()).map((a) => a.id)).toEqual(expect.arrayContaining([AG1, AG2]));
     });
 
+    it("agency: display-name patch round-trips; slug and other tenants untouched", async () => {
+      const before = await repo.getAgency(AG1);
+      const otherBefore = await repo.getAgency(AG2);
+      const renamed = await repo.updateAgency(AG1, { name: "City of Conf-Riverton (renamed)" });
+      expect(renamed.name).toBe("City of Conf-Riverton (renamed)");
+      expect(renamed.slug).toBe(before!.slug);
+      expect((await repo.getAgency(AG1))?.name).toBe("City of Conf-Riverton (renamed)");
+      // A settings-only patch must never blank the name.
+      await repo.updateAgency(AG1, { settings: { publicRequestLog: true } });
+      expect((await repo.getAgency(AG1))?.name).toBe("City of Conf-Riverton (renamed)");
+      expect((await repo.getAgency(AG2))?.name).toBe(otherBefore!.name);
+    });
+
     // --- users / requesters --------------------------------------------------
 
     it("users: email lookup and patches are tenant-scoped", async () => {

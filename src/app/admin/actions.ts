@@ -13,8 +13,13 @@ import { requirePlatformAdmin } from "@/auth/guards";
 import { getRepository } from "@/db/createRepository";
 import {
   AccountError,
+  platformCreateStaffUser,
+  platformInviteStaffUser,
   provisionAgency,
+  renameAgency,
+  resendStaffInvite,
   resetStaffPassword,
+  revokeStaffSignIn,
 } from "@/services/accountService";
 import { defaultDeps } from "@/services/deps";
 import type { StaffRole } from "@/services/repository";
@@ -64,6 +69,112 @@ export async function createAgencyAction(input: {
     if (e instanceof AccountError) return { ok: false, error: e.message };
     console.error("createAgencyAction failed", e);
     return { ok: false, error: "Could not create the agency." };
+  }
+}
+
+export async function renameAgencyAction(input: {
+  agencyId: string;
+  agencySlug: string;
+  name: string;
+}): Promise<PlatformResult> {
+  await requirePlatformAdmin();
+  try {
+    await renameAgency(defaultDeps(await getRepository()), {
+      agencyId: input.agencyId,
+      name: input.name,
+    });
+    revalidatePath("/admin");
+    revalidatePath(`/admin/${input.agencySlug}`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof AccountError) return { ok: false, error: e.message };
+    console.error("renameAgencyAction failed", e);
+    return { ok: false, error: "Could not rename the agency." };
+  }
+}
+
+/**
+ * Add a staff member to any tenant. With a password the account is live
+ * immediately; without one an invite link (via the tenant's outbox) lets the
+ * person set their own — same split as the tenant admin's form.
+ */
+export async function platformAddStaff(input: {
+  agencyId: string;
+  agencySlug: string;
+  email: string;
+  name: string;
+  role: StaffRole;
+  password?: string;
+}): Promise<PlatformResult> {
+  await requirePlatformAdmin();
+  try {
+    const deps = defaultDeps(await getRepository());
+    if (input.password?.trim()) {
+      await platformCreateStaffUser(deps, {
+        agencyId: input.agencyId,
+        email: input.email,
+        name: input.name,
+        role: input.role,
+        password: input.password,
+      });
+    } else {
+      const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+      await platformInviteStaffUser(deps, {
+        agencyId: input.agencyId,
+        email: input.email,
+        name: input.name,
+        role: input.role,
+        inviteLinkBase: `${baseUrl}/${input.agencySlug}/reset`,
+      });
+    }
+    revalidatePath(`/admin/${input.agencySlug}`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof AccountError) return { ok: false, error: e.message };
+    console.error("platformAddStaff failed", e);
+    return { ok: false, error: "Could not add the staff member." };
+  }
+}
+
+export async function platformResendInvite(input: {
+  agencyId: string;
+  agencySlug: string;
+  userId: string;
+}): Promise<PlatformResult> {
+  await requirePlatformAdmin();
+  try {
+    const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+    await resendStaffInvite(defaultDeps(await getRepository()), {
+      agencyId: input.agencyId,
+      userId: input.userId,
+      inviteLinkBase: `${baseUrl}/${input.agencySlug}/reset`,
+    });
+    revalidatePath(`/admin/${input.agencySlug}`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof AccountError) return { ok: false, error: e.message };
+    console.error("platformResendInvite failed", e);
+    return { ok: false, error: "Could not re-send the invite." };
+  }
+}
+
+export async function platformRevokeSignIn(input: {
+  agencyId: string;
+  agencySlug: string;
+  userId: string;
+}): Promise<PlatformResult> {
+  await requirePlatformAdmin();
+  try {
+    await revokeStaffSignIn(defaultDeps(await getRepository()), {
+      agencyId: input.agencyId,
+      userId: input.userId,
+    });
+    revalidatePath(`/admin/${input.agencySlug}`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof AccountError) return { ok: false, error: e.message };
+    console.error("platformRevokeSignIn failed", e);
+    return { ok: false, error: "Could not revoke sign-in." };
   }
 }
 

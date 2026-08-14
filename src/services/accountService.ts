@@ -158,19 +158,22 @@ export async function authenticateStaff(
   return user;
 }
 
-/** Agency admin adds a staff member with an initial password and role. */
-export async function createStaffUser(
+/**
+ * Shared core for adding a staff member with a live password — used by the
+ * agency-admin path and the platform console (same validation, different
+ * authorization and attribution).
+ */
+async function insertStaffWithPassword(
   deps: ServiceDeps,
   input: {
     agencyId: string;
-    actor: UserEntity; // must be an admin of the same agency
     email: string;
     name: string;
     role: StaffRole;
     password: string;
+    actorLabel: string;
   },
 ): Promise<UserEntity> {
-  assertAgencyAdmin(input.actor, input.agencyId);
   const email = normalizeEmail(input.email);
   if (!email.includes("@")) throw new AccountError("Enter a valid email address.");
   const policyError = passwordPolicyError(input.password);
@@ -190,12 +193,35 @@ export async function createStaffUser(
     id: deps.genId(),
     agencyId: input.agencyId,
     kind: "staff_created",
-    actorLabel: input.actor.name ?? input.actor.email,
+    actorLabel: input.actorLabel,
     summary: `Added ${user.name ?? user.email} as ${input.role}`,
     payload: { userId: user.id, role: input.role },
     createdAt: deps.now(),
   });
   return user;
+}
+
+/** Agency admin adds a staff member with an initial password and role. */
+export async function createStaffUser(
+  deps: ServiceDeps,
+  input: {
+    agencyId: string;
+    actor: UserEntity; // must be an admin of the same agency
+    email: string;
+    name: string;
+    role: StaffRole;
+    password: string;
+  },
+): Promise<UserEntity> {
+  assertAgencyAdmin(input.actor, input.agencyId);
+  return insertStaffWithPassword(deps, {
+    agencyId: input.agencyId,
+    email: input.email,
+    name: input.name,
+    role: input.role,
+    password: input.password,
+    actorLabel: input.actor.name ?? input.actor.email,
+  });
 }
 
 /** Agency admin changes a colleague's role. Admins cannot demote themselves. */
@@ -332,6 +358,28 @@ export async function inviteStaffUser(
   },
 ): Promise<UserEntity> {
   assertAgencyAdmin(input.actor, input.agencyId);
+  return insertStaffInvite(deps, {
+    agencyId: input.agencyId,
+    email: input.email,
+    name: input.name,
+    role: input.role,
+    inviteLinkBase: input.inviteLinkBase,
+    actorLabel: input.actor.name ?? input.actor.email,
+  });
+}
+
+/** Shared core for the invite flow — see insertStaffWithPassword. */
+async function insertStaffInvite(
+  deps: ServiceDeps,
+  input: {
+    agencyId: string;
+    email: string;
+    name: string;
+    role: StaffRole;
+    inviteLinkBase: string;
+    actorLabel: string;
+  },
+): Promise<UserEntity> {
   const email = normalizeEmail(input.email);
   if (!email.includes("@")) throw new AccountError("Enter a valid email address.");
   if (await deps.repo.findUserByEmail(input.agencyId, email))
@@ -346,19 +394,37 @@ export async function inviteStaffUser(
     passwordHash: null, // cannot sign in until the invite is accepted
   });
 
+  await sendStaffInviteLink(deps, { user, role: input.role, invitedBy: input.actorLabel, inviteLinkBase: input.inviteLinkBase });
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "staff_invited",
+    actorLabel: input.actorLabel,
+    summary: `Invited ${user.name ?? email} as ${input.role}`,
+    payload: { userId: user.id, role: input.role },
+    createdAt: deps.now(),
+  });
+  return user;
+}
+
+/** Mint a fresh single-use invite token (7 days) and mail the link. */
+async function sendStaffInviteLink(
+  deps: ServiceDeps,
+  input: { user: UserEntity; role: StaffRole; invitedBy: string; inviteLinkBase: string },
+): Promise<void> {
   const { mintToken } = await import("@/auth/tokens");
   const { raw } = await mintToken(deps, {
-    agencyId: input.agencyId,
+    agencyId: input.user.agencyId,
     kind: "staff_invite",
-    subjectId: user.id,
+    subjectId: input.user.id,
     ttlMs: 7 * 24 * 60 * 60 * 1000,
   });
   await deps.notifier?.send({
-    agencyId: input.agencyId,
-    to: email,
+    agencyId: input.user.agencyId,
+    to: input.user.email,
     subject: `You've been added to the records team`,
     body: [
-      `${input.actor.name ?? input.actor.email} added you as ${input.role}.`,
+      `${input.invitedBy} added you as ${input.role}.`,
       `Set your password to activate your account:`,
       ``,
       `${input.inviteLinkBase}?token=${raw}&kind=staff_invite`,
@@ -367,16 +433,6 @@ export async function inviteStaffUser(
     ].join("\n"),
     kind: "staff_invite",
   });
-  await deps.repo.appendAdminEvent({
-    id: deps.genId(),
-    agencyId: input.agencyId,
-    kind: "staff_invited",
-    actorLabel: input.actor.name ?? input.actor.email,
-    summary: `Invited ${user.name ?? email} as ${input.role}`,
-    payload: { userId: user.id, role: input.role },
-    createdAt: deps.now(),
-  });
-  return user;
 }
 
 // --- platform operator (cross-tenant; gated by requirePlatformAdmin above) --
@@ -455,6 +511,129 @@ export async function provisionAgency(
     createdAt: deps.now(),
   });
   return { agency, admin, ingestKey };
+}
+
+/**
+ * Platform console: change an agency's display name. The slug (URLs) and
+ * stateCode (statute profile) are deliberately NOT editable — a rename is a
+ * label correction, never a re-jurisdiction.
+ */
+export async function renameAgency(
+  deps: ServiceDeps,
+  input: { agencyId: string; name: string; actorLabel?: string },
+): Promise<Agency> {
+  const name = input.name.trim();
+  if (!name) throw new AccountError("Agency name is required.");
+  const agency = await deps.repo.getAgency(input.agencyId);
+  if (!agency) throw new NotFoundError("Agency", input.agencyId);
+  if (agency.name === name) return agency;
+
+  const updated = await deps.repo.updateAgency(input.agencyId, { name });
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "agency_renamed",
+    actorLabel: input.actorLabel ?? "platform operator",
+    summary: `Agency renamed: "${agency.name}" → "${name}"`,
+    payload: { from: agency.name, to: name },
+    createdAt: deps.now(),
+  });
+  return updated;
+}
+
+/** Platform console: add a staff member to any tenant with a live password. */
+export async function platformCreateStaffUser(
+  deps: ServiceDeps,
+  input: { agencyId: string; email: string; name: string; role: StaffRole; password: string },
+): Promise<UserEntity> {
+  await assertAgencyExists(deps, input.agencyId);
+  return insertStaffWithPassword(deps, { ...input, actorLabel: "platform operator" });
+}
+
+/** Platform console: invite a staff member into any tenant (link sets the password). */
+export async function platformInviteStaffUser(
+  deps: ServiceDeps,
+  input: { agencyId: string; email: string; name: string; role: StaffRole; inviteLinkBase: string },
+): Promise<UserEntity> {
+  await assertAgencyExists(deps, input.agencyId);
+  return insertStaffInvite(deps, { ...input, actorLabel: "platform operator" });
+}
+
+/**
+ * Re-send the activation link to a staff member who never set a password.
+ * Refused for activated accounts — those get a reset, not an invite.
+ */
+export async function resendStaffInvite(
+  deps: ServiceDeps,
+  input: { agencyId: string; userId: string; inviteLinkBase: string; actorLabel?: string },
+): Promise<UserEntity> {
+  const user = await deps.repo.getUser(input.agencyId, input.userId);
+  if (!user) throw new NotFoundError("User", input.userId);
+  if (user.passwordHash)
+    throw new AccountError("This account is already activated — reset the password instead.");
+
+  const actorLabel = input.actorLabel ?? "platform operator";
+  await sendStaffInviteLink(deps, {
+    user,
+    role: user.role,
+    invitedBy: actorLabel,
+    inviteLinkBase: input.inviteLinkBase,
+  });
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "staff_invited",
+    actorLabel,
+    summary: `Invite re-sent to ${user.name ?? user.email}`,
+    payload: { userId: user.id, role: user.role },
+    createdAt: deps.now(),
+  });
+  return user;
+}
+
+/**
+ * Revoke a staff member's sign-in by clearing the password. The account row
+ * survives (audit attribution, task history); access is restored by a reset
+ * or a fresh invite. requireStaff rejects passwordless sessions, so a live
+ * session dies on its next request — revocation is immediate.
+ *
+ * Guard: never leave a tenant with zero admins able to sign in — the operator
+ * is told to reset or promote instead.
+ */
+export async function revokeStaffSignIn(
+  deps: ServiceDeps,
+  input: { agencyId: string; userId: string; actorLabel?: string },
+): Promise<UserEntity> {
+  const user = await deps.repo.getUser(input.agencyId, input.userId);
+  if (!user) throw new NotFoundError("User", input.userId);
+  if (!user.passwordHash)
+    throw new AccountError("This account has no sign-in to revoke — it was never activated.");
+
+  if (user.role === "admin") {
+    const others = (await deps.repo.listUsers(input.agencyId)).filter(
+      (u) => u.id !== user.id && u.role === "admin" && u.passwordHash,
+    );
+    if (others.length === 0)
+      throw new AccountError(
+        "This is the agency's only admin who can sign in — reset their password or promote another admin instead of revoking.",
+      );
+  }
+
+  const updated = await deps.repo.updateUser(input.agencyId, input.userId, { passwordHash: null });
+  await deps.repo.appendAdminEvent({
+    id: deps.genId(),
+    agencyId: input.agencyId,
+    kind: "signin_revoked",
+    actorLabel: input.actorLabel ?? "platform operator",
+    summary: `Sign-in revoked for ${user.name ?? user.email} — restore with a reset or a new invite`,
+    payload: { userId: user.id, role: user.role },
+    createdAt: deps.now(),
+  });
+  return updated;
+}
+
+async function assertAgencyExists(deps: ServiceDeps, agencyId: string): Promise<void> {
+  if (!(await deps.repo.getAgency(agencyId))) throw new NotFoundError("Agency", agencyId);
 }
 
 /** Platform console: reset any staff member's password. */

@@ -57,8 +57,10 @@ test("mailbox import: upload mbox → preview → messages + attachments in the 
   await page.locator("table.queue tbody tr a").first().click();
   await waitHydrated(page);
 
-  // Upload → preview → confirm.
-  await expect(page.getByText("Import a mailbox export")).toBeVisible();
+  // Upload → preview → confirm. The request detail page is the heaviest
+  // first-compile in the suite — give it the same 15s the preview gets
+  // (HANDOFF flake watch: this expect timed out at the default 5s twice).
+  await expect(page.getByText("Import a mailbox export")).toBeVisible({ timeout: 15_000 });
   await page
     .locator('input[type="file"][accept*=".mbox"]')
     .setInputFiles({ name: "bell-export.mbox", mimeType: "application/mbox", buffer: mbox });

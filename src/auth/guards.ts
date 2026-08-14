@@ -67,6 +67,9 @@ export async function requireStaff(agencySlug: string, roles?: StaffRole[]): Pro
   const repo = await getRepository();
   const dbUser = await repo.getUser(u.agencyId!, u.id);
   if (!dbUser) redirect(`/${agencySlug}/app/login`); // account removed
+  // No password on file = sign-in was revoked (a session can only exist if a
+  // password once did) — the old token grants nothing, effective immediately.
+  if (!dbUser.passwordHash) redirect(`/${agencySlug}/app/login`);
   if (!roles && dbUser.role === "responder") redirect(`/${agencySlug}/app/tasks`);
   if (roles && !roles.includes(dbUser.role)) {
     redirect(dbUser.role === "responder" ? `/${agencySlug}/app/tasks` : `/${agencySlug}/app`);

@@ -96,9 +96,10 @@ export class DrizzleRepository implements Repository {
   }
   async updateAgency(
     agencyId: string,
-    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
+    patch: Partial<Pick<Agency, "name" | "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
   ): Promise<Agency> {
     const set: Record<string, unknown> = {};
+    if (patch.name != null && patch.name.trim()) set.name = patch.name;
     if ("workflowSettings" in patch) set.workflowSettings = patch.workflowSettings ?? null;
     if ("defaultRoutingRules" in patch) set.defaultRoutingRules = patch.defaultRoutingRules ?? null;
     if ("branding" in patch) set.branding = patch.branding ?? null;

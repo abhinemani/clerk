@@ -7,9 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**937 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
-newest 2026-08-14 transparency-impact entry; e2e last run at the
-release-verification build — nothing it covers changed since).
+**943 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-14 platform-console entry; e2e run fresh at that build).
 
 ## START HERE (next session)
 
@@ -61,7 +60,58 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, sixth build of the window): THE
+**NEWEST (2026-08-14, cloud session, seventh build of the window): THE
+PLATFORM CONSOLE GROWS UP — cities & users manageable end-to-end (owner:
+"map out and build a robust admin interface where I / admin can manage
+cities, users etc").** The /admin operator console had health + onboarding
+but almost no levers; now it manages both.
+- **Port: `updateAgency` accepts `name`** — display name ONLY; slug and
+  stateCode stay fixed on purpose (URLs and statute obligations never
+  drift under a rename; a mis-provisioned agency is re-created). Both
+  adapters + conformance tests, including "a settings-only patch never
+  blanks the name" (the Drizzle guard is `!= null && trim()`).
+- **accountService platform section**: `renameAgency` (audit event
+  `agency_renamed`; a no-op rename appends nothing);
+  `platformCreateStaffUser` / `platformInviteStaffUser` — the tenant
+  add/invite flows' bodies were EXTRACTED into shared cores
+  (`insertStaffWithPassword` / `insertStaffInvite` + `sendStaffInviteLink`)
+  so the operator path reuses the exact validation instead of forking it,
+  attributed "platform operator"; `resendStaffInvite` (fresh 7-day link;
+  refused once activated — that's a reset); `revokeStaffSignIn` (clears
+  passwordHash — the row SURVIVES for audit attribution; restore = reset
+  or re-invite; GUARDED so a tenant can never be left with zero admins
+  able to sign in).
+- **`requireStaff` hardened**: a passwordless DB user now redirects to
+  login. A session can only exist if a password once did, so revocation
+  kills a live session on its next request — verified in the browser
+  (staff session at /riverton/app, operator revokes, reload bounces to
+  login).
+- **/admin/[slug] rebuilt**: Agency identity card (rename form + "what's
+  fixed" copy), staff rows gain Reset password / Revoke sign-in (activated)
+  or Re-send invite (invite-pending), an Add-a-staff-member form (blank
+  password ⇒ invite via the tenant's outbox — tenant-admin idiom), and a
+  Recent activity feed (listAdminEvents 20) where operator actions land in
+  the tenant's own append-only log.
+- **NEW `/admin/people`**: cross-tenant search over staff + resident
+  accounts by name/email, grouped by agency, READ-ONLY on purpose —
+  management actions live on each agency's page where tenant context is
+  unambiguous. Console nav is now Agencies · People · Marketing site.
+- **mailboxImport flake resolved per the standing instruction**: it
+  recurred twice back-to-back this window, so the "Import a mailbox
+  export" expect got the file's own 15s timeout idiom; clean single run +
+  clean full 4/4 after. (Container needed the chromium headless-shell
+  shim AGAIN — 1234→1194 symlink dir; container state, not repo state.
+  Trap for the note: a DANGLING shim symlink makes `cd` fail silently and
+  scatter symlinks into the cwd — build the dir with real `mkdir -p`
+  first.)
+- 943 tests (+6), typecheck clean, 4/4 e2e. Browser-verified live
+  (screenshots delivered): rename round-trip + its two audit events,
+  invite → re-send → row states, revoke → invite-pending flip, people
+  search across the seeded tenants. No migration, no env vars, no
+  laptop-setup change (operator creds and their production posture are
+  unchanged).
+
+**PREVIOUS (2026-08-14, cloud session, sixth build of the window): THE
 SPACING PASS (owner: "spacing from the header to the first line of
 content is too tight… make all the spacing correct").** Vertical rhythm
 is now a token scale, not ad-hoc numbers:

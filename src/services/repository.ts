@@ -461,10 +461,14 @@ export interface Repository {
   /** Every tenant — platform-operator console only; never expose per-agency. */
   listAgencies(): Promise<Agency[]>;
   createAgency(a: Agency): Promise<Agency>;
-  /** Settings-only patch (workflow policy etc.) — identity fields are fixed. */
+  /**
+   * Settings patch (workflow policy etc.) plus display name — the slug and
+   * stateCode stay fixed (URLs and statute obligations must never drift
+   * under an edit; a mis-provisioned agency is re-created, not renamed).
+   */
   updateAgency(
     agencyId: string,
-    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
+    patch: Partial<Pick<Agency, "name" | "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
   ): Promise<Agency>;
 
   findRequesterByEmail(agencyId: string, email: string): Promise<Requester | null>;
@@ -790,11 +794,12 @@ export class InMemoryRepository implements Repository {
   }
   async updateAgency(
     agencyId: string,
-    patch: Partial<Pick<Agency, "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
+    patch: Partial<Pick<Agency, "name" | "workflowSettings" | "defaultRoutingRules" | "branding" | "settings">>,
   ) {
     const a = this.agencies.get(agencyId);
     if (!a) throw new NotFoundError("Agency", agencyId);
     const updated = { ...a, ...patch };
+    if (patch.name == null) updated.name = a.name; // name is non-null — an absent patch never blanks it
     this.agencies.set(agencyId, updated);
     return updated;
   }
