@@ -7,45 +7,731 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**811 tests pass, typecheck clean** (as of the newest 2026-08-13 entry);
-all 4 e2e specs were green as of the 2026-08-14 e2e entry, not re-run
-since the threading/logo work.
+**894 tests pass (+4 skipped), typecheck clean, 4/4 e2e green** (as of the
+newest 2026-08-14 UX-pass entry — e2e re-run that session).
 
 ## START HERE (next session)
 
-State in one line: the product is demo-complete through connected sources
-phase 2 and RAG'd triage; nothing is half-built; every entry below was
-verified as described at its date.
+State in one line: demo-complete product, **Phase 5 open with two agents
+live** (B1 disclosure librarian, B3 appeal packets) plus the §16.2
+checkpoint/steering surface, the **learning loop v1** ("plays" —
+docs/learning-loop.md, migration 0012), a consolidated ingestion hub
+(/app/admin/data with drag-and-drop upload), and a full UX/visual pass
+(staff nav rail, archive storefront, civic hero bands, engraved-plate
+card ornament, lit page ground). Nothing is half-built; every entry below
+was verified as described at its date.
 
 **The standing eval debt is CLEARED** (2026-08-13 keyed session, entry
-below): scorecard recorded, RAG'd triage proven live with precedent
-citations in the audit events, floors untouched (no misbehavior signal).
-The laptop's `.env` now carries ANTHROPIC_API_KEY (owner did Part A);
+below). The laptop's `.env` carries ANTHROPIC_API_KEY (owner did Part A);
 cloud sessions get keys per laptop-setup ⚡ steps.
 
-**Build candidates, roughly by staff-side value** (all offline,
-all sized for one window):
-1. ~~Correspondence threading + Message-ID dedupe~~ **DONE** (2026-08-13,
-   newest entry).
-2. Release-history import — link legacy-imported requests to imported
-   documents as releases, so archive/dedup/precedents inherit history
-   (tier-1 remainder, the onboarding lever).
-3. Intake dedup should reuse stored request vectors instead of re-embedding
-   the whole corpus per filing (`[agency]/actions.ts` findDuplicates call).
-4. Small: annual-report CSV companion · proactive retention-destruction
-   warnings · "reviewed by counsel on DATE" field on statute profiles ·
-   responder email on dispatch.
+**GATES RELEASED (owner, 2026-08-13):** connected-sources phase 3 AND
+Phase 5 agents (docs/agentic-horizon.md Bucket B) are buildable.
+Guardrails unchanged: tiers enforced in code, invariant 9 untouched —
+agents propose, a named human publishes.
 
-**Gated — do not build without the owner**: connected-sources phase 3
-(row store / tabular answers; needs real usage), Phase 5 agents
-(docs/agentic-horizon.md; needs real-user proof).
+**Build candidates, in rough priority order** (the strategy layer above
+this queue — the "what would make Brandeis special" bets — lives in
+`docs/big-ticket.md`; graduate items from there into this list, not
+straight into a build):
+1. **Fulfillment agent path** (the biggest thing left; see the 2026-08-13
+   checkpoint-surface entry): (a) migration adding Phase-5 values to the
+   DB `agent_type` enum, (b) scope-decomposition golden set in the eval
+   suite, (c) the model-driven planner behind a per-agency flag, demo
+   tenant first. The checkpoint UX it needs is DONE (/app/agents).
+2. **B2 consistency auditor** (cheap, read-only Tier 1 — reads the
+   exemption logs finalizeRedaction writes; weekly digest + card) or
+   **B4 third-party notice steward** (differentiator; needs notice rules
+   added to state profiles as data).
+3. **Learning loop v2**: play stats as structured prompt context (REQUIRES
+   `npm run eval`), embedding-based play matching over stored ask vectors,
+   letter scaffolds per play.
+4. **Connected-sources phase 3** (row store / tabular answers) — its own
+   full window; wrong-table answers are confidently wrong, so provenance
+   and refusal-when-unsure are load-bearing from day one.
+5. **Hybrid staff search** (per-chunk embeddings at ingest; service
+   signature ready) + the intake-dedup stored-vector perf item.
+6. **Mobile pass + animation review** — the UX pass verified desktop
+   width only, reduced-motion only. Also: redaction-studio trio (redo,
+   bar→log-card, redact-everywhere), backup/restore runbook.
 
 **Before every push** (full contract in CLAUDE.md): offline suite green,
 HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-13, same keyed session, latest): PINNED DARK NAV
+**NEWEST (2026-08-14, cloud session): THE BIG-TICKET BOARD —
+`docs/big-ticket.md`, the strategy list the owner asked to start
+("not just what's in the handoff file — what would make this app
+special").** Docs-only window. Seven bets, each grounded on existing
+substrate: (1) cross-tenant network plays — shared play library,
+exemption-practice benchmarking, comparative compliance stats (needs a
+NEW aggregation invariant before any code); (2) both sides of §16.4 —
+requester API + MCP server on the portal-agent/status-API safe surface,
+cross-tenant requester identity + newsroom workspace, B7 as the
+defensive half; (3) custodial connectors — connected-sources turned
+inward at the agency's own mail/DMS/drive systems, sequenced after
+fulfillment-agent v1 and B5; (4) audio/video (bodycam) redaction as the
+category win + B2 run forward as redact-everywhere memory; (5) public
+release-verification log riding invariant 8's checksums; (6) the
+transparency autopilot — deflection/publication converged into one
+surface with requests-per-resident as the north-star metric; (7) the
+statute layer as public infrastructure (50-state counsel-verified
+profiles, requester "know your rights"). Opinionated shortlist in the
+doc: requester API/MCP, the network plays, A/V redaction — with
+fulfillment agent v1 still first regardless. HANDOFF's build-candidate
+queue stays authoritative; the board feeds it. No code, no migration,
+no laptop-setup change (nothing owner-facing beyond reading the doc).
+
+**PREVIOUS (2026-08-14, cloud session): SESSION-START HOOK — fresh cloud
+containers now `npm install` before the session begins** (`.claude/hooks/
+session-start.sh`, registered in `.claude/settings.json`; web-only,
+synchronous, idempotent). Fixes the "vitest: not found" cold-start this
+very session hit. Side effect committed knowingly: `package-lock.json`
+lost 100 lines of `libc` metadata — npm 10.9.7 lockfile normalization,
+zero version changes; full suite green after. The stop hook (commit/push
+guard) is provisioned by the cloud environment itself — nothing needed in
+the repo for it. No laptop-setup change (no owner steps).
+
+**PREVIOUS (2026-08-14, cloud session, after the UX pass): HOMEPAGE — gold
+bars + copy rewrite (owner: "the gold bars help and we need those on the
+homepage. Also the copy is terrible").** Ornament: `.mk-eyebrow::before`
+gold bar on every eyebrow and `.mk-stat-n::after` base rule under both
+stat strips (globals.css — gold stays ORNAMENT, never text; the eyebrow
+text itself stays accent). Copy: same six-beat structure, same claims,
+no invented numbers — hero is now "Fewer requests. Faster responses.
+Decisions you can defend." with a lede that opens on "Most records
+requests ask for something that's already public"; problem head "More
+requests. The same one person. Still by hand."; pillars head "Three
+jobs. One system. No new headcount."; quote body ends "Two years later,
+the log reads like a defense exhibit."; closing eyebrow "An afternoon,
+not a procurement." TESTIMONIALS untouched (the illustrative disclaimer
+wording matters). Owner then asked for less text density: card bodies cut to one sentence, stat sublines to fragments, section subs to one line, roster entries compacted — the page lost ~500px of copy. Browser-verified full-page, screenshots delivered;
+894 tests, typecheck clean. **Owner approved both rounds and merged; the
+lean-copy rule is now pinned in CLAUDE.md's brand section** (headlines
+carry, card bodies one sentence, stat sub-lines fragments, subs one
+line — cut before you add).
+
+**PREVIOUS (2026-08-14, cloud session): THE UX PASS — owner-directed
+design/flow review, then all seven findings built in one window.**
+Browser-verified before AND after (screenshots delivered to the owner).
+- **StaffNav rail** (`_components/StaffNav.tsx`, mounted in the (secure)
+  layout): persistent sticky second-level nav on every /app page — Queue ·
+  Tasks · Records · Search · Agents · Reports · Outbox · Admin, gold
+  underline active state, Queue also active on /app/requests/*. The
+  command-center header dropped its button cluster (kept: a parked-agents
+  alert + session controls). Print-hidden.
+- **`.civic-hero` band** (globals.css): the marketing bands' aurora
+  language at municipal volume — gold bloom, plum counter-wash, stronger
+  hatch, gold seam. Applied to ARCHIVE and TRACK headers (portal home
+  already had its own treatment). This was the "app reads flat vs
+  marketing" fix.
+- **Archive rebuilt**: the AnswerBox now sits IN the archive hero (search,
+  cited answers, prior-answer matches, file fallback — the deflection
+  engine finally lives on its storefront). Card anatomy normalized: flex
+  cards with actions pinned to the foot, ONE primary action (Download when
+  bytes exist, else View record), "✦ AI summary" demoted to a card-foot
+  footnote, chips capped at 3 + date-first, real empty state.
+- **Track rebuilt + tracking-number recovery**: tracker inside the hero;
+  below it "Lost your tracking number?" — `sendTrackingReminder`
+  (requestService) emails the newest 5 publicIds + track links TO THE
+  FILING ADDRESS ONLY, silent either way (same no-enumeration posture as
+  password reset; kind "requester_update"). Sign-in / file-new links close
+  the page.
+- **Footer pinning**: `.agency-shell` flex column (screen-only) — short
+  pages no longer end mid-viewport with bare ground under the footer.
+- **Empty states**: reports' exemptions widget ("no exemptions cited yet —
+  every release unredacted"), records search pre-query "What this finds"
+  card.
+- **Request detail "Next up" banner**: state-computed single next action
+  (undecided review docs → open tasks → unrouted → empty review set →
+  ready to release), gold-edged, anchors to #dept-tasks /
+  #review-release / staff search prefill. Verified live: "1 record in the
+  review set awaits your release decisions → Review now".
+- **Admin section index is sticky** (`.admin-section-nav`, top 38px under
+  the rail) — the nine-section page keeps its map in reach.
+- **Post-filing account nudge**: confirmation card offers "Create an
+  account with <email>" → /register?email=… prefills AuthForm
+  (initialEmail prop).
+Known not-done from the review: mobile pass (still unverified at small
+widths) and scroll-animation review (shots were reduced-motion). No
+schema change, no laptop-setup change. 894 tests, typecheck clean, 4/4
+e2e.
+**Follow-up, same window — CARD ORNAMENT SYSTEM (owner: "visual elements
+on the divs so they don't seem boring").** The engraved-plate language,
+all in globals.css so every existing card inherits it: gold corner
+bracket on every `.card-pad` (in the padding zone — never collides with
+content), the letterhead tick before every `.panel-title` (same ornament
+grammar as the marketing eyebrows), a gold base rule under `.stat-num`
+numerals, and the engraver's hatch layered into the card/stat slab
+gradients. Print-guarded (ornaments display:none in print). Browser-
+verified on the command center and the request detail page.
+**And the GROUND (owner: "work on the backgrounds, not just the cards").**
+The body's screen-only background is now a full lighting rig, viewport-
+fixed: corner vignette → gold dawn top-left → cool slate key light
+center-top → plum ember right shoulder → plum floor glow bottom-left →
+engraver's hatch → SVG-grain (inline data URI, CSP-safe) → vertical
+falloff base (lighter at the top of the viewport, darker at the foot).
+Pages now read as a lit room behind the plates, not a flat dark sheet.
+Browser-verified on the command center (no hero) and archive (with hero);
+one e2e flake when unit+e2e ran simultaneously, two clean 4/4 runs after.
+
+**PREVIOUS (2026-08-13, cloud session): THE LEARNING LOOP — resolved
+requests now make the platform structurally smarter (docs/learning-loop.md,
+new spec).** Owner ask: learning from the types of questions and answers,
+beyond RAG. Shipped v1:
+- **`request_plays` (migration 0012 — first since 0011)**: a
+  materialized aggregate, rebuilt WHOLESALE per agency by the nightly
+  sweep from 4 agency-wide queries (requests + tasks + reviews +
+  departments; no N+1). Full-replace semantics on purpose: it can never
+  drift from the append-only record it summarizes. Port:
+  `replaceAgencyPlays`/`listPlays`, conformance-tested.
+- **`src/domain/caseLearning.ts`** (pure, tested): distillEpisode (closed
+  request + done tasks + reviews → episode), buildPlays (term-overlap
+  clustering, same family as demandPatterns; min 2 episodes — one case is
+  an anecdote), matchPlay, routingSuggestionFrom. **Confidence is
+  earned and capped**: route share × min(1, episodes/5), hard cap 0.9 —
+  explicit rules own 1.0, and the rationale states the numbers ("83% of
+  12 similar requests…").
+- **Intake wiring** (`learningService.applyPlayRouting`, called from
+  fileRequest AFTER routing rules — explicit policy outranks learned
+  history): one `play_routing` proposal-card event with the precedent
+  stats, and the suggestion goes through the SAME autoDispatchSuggestions
+  gate (its tasks-already-exist guard keeps the learned pass advisory
+  when a rule fired). Deterministic, zero API keys.
+- **Request page**: "Similar past requests" card (left rail, above the
+  timeline) — episode count, top route, median days, extension rate,
+  exemptions cited before, precedent publicIds. Consulted LIVE against
+  the plays table, so nightly rebuilds keep old requests fresh.
+- No seed change: the demo's boot sweep builds plays organically as
+  closed history accrues. No laptop-setup change (no env vars; the
+  migration applies itself).
+v2 candidates recorded in the spec: play stats as structured prompt
+context (eval required), embedding-based matching over stored ask
+vectors, letter scaffolds, accept/dismiss feedback tuning.
+
+**PREVIOUS (2026-08-13, cloud session, same window as B1/B3/checkpoints):
+DATA & FILES — the consolidated ingestion hub, plus the missing ad-hoc
+upload.** Owner ask: one interface for adding data feeds (Socrata etc.)
+and uploading/managing files. Finding: the pieces all existed but were
+split across three pages — connected feeds at admin/sources, CSV+ZIP
+import + source policy at admin/records-import, decisions at /records —
+and there was NO way to just upload files without preparing a CSV first.
+- **`/app/admin/data`** — one page, four sections in pipeline order:
+  Quick upload (new), Bulk import (moved), Connected data feeds (moved;
+  file drop / HTTP / Socrata registration + sync + standing publication),
+  Source policy (moved; trust + key rotation). The records queue stays
+  its own page — reviewing what landed is a different task from adding
+  more. Old URLs (admin/sources, admin/records-import) are redirects, so
+  bookmarks and the connectedSources e2e (which navigates the old path)
+  keep working untouched.
+- **Quick upload** (`QuickUploadPanel` + `quickUploadAction`): drag-and-
+  drop or pick up to 40 files / 25 MB, no spreadsheet. One synthesized
+  row per file (`rowFromUploadedFile` — title derived from the filename
+  by `titleFromFilename`, both unit-tested) rides the SAME importRecords
+  pipeline as CSV+ZIP: virus scan fail-closed, text extraction, PII
+  pre-scan, internal-only landing, classify_documents +
+  embed_document_chunks enqueued. A thinner front door onto proven code,
+  not a second import path.
+- Links repointed: admin dashboard ("Data & files" button replaces two),
+  records-queue header, setup checklist. Browser-verified via a fresh
+  seeded server (screenshot to the owner: all four sections render, the
+  seeded Riverton portal shows live sync state + Socrata option in the
+  connect form).
+No migration, no new env vars (no laptop-setup change). 880 tests,
+typecheck clean, 4/4 e2e.
+
+**PREVIOUS (2026-08-13, cloud session, same window as B1/B3): THE CHECKPOINT
+/ STEERING SURFACE — the prerequisite for a live fulfillment agent, and
+the first time a parked run can be approved and resumed from the UI.**
+Owner asked "biggest/hardest thing?"; answer: the model-driven fulfillment
+agent, and this surface is its first prerequisite (approve-and-resume UX),
+built now because every agent inherits it.
+- **agent_runs is finally used**: the table shipped dormant in migration
+  0000; the repository port now exposes it (create/get/update/list, tenant
+  -scoped, in the conformance suite). NOTE: the DB `agent_type` enum still
+  has only the five §16.1 agents — persisting B1/B2-style Phase-5 runs
+  needs a migration adding enum values; deliberately deferred (their runs
+  complete instantly today, nothing to steer).
+- **Harness: per-step approval (§16.3 "one approval releases").**
+  `AgentPlanStep.approvedByUserId` — a `requires_human` step executes on
+  resume ONLY when set, attributed in its audit event
+  (`autonomousSend: false`, approver recorded); approval is per-step,
+  never per-run, and forbidden actions ignore it entirely.
+- **Deadline agent v2 exercises it for real**: the sweep now PLANS Tier-2
+  `send_custodian_nudge_email` steps (open tasks on overdue requests
+  whose department has an email; capped 3/agency). Under the default
+  policy the run parks awaiting_checkpoint. Resumability rule worth
+  keeping: every deadline capability reads ONLY its step's `input`
+  (embedded at plan time) + injected deps — no closures over sweep-time
+  state — so persisted plans resume across processes. Registry factory
+  exported (`deadlineCapabilityRegistry`) for the resume path.
+- **`/app/agents`** (staff, coordinator+): parked runs on top with the
+  pending step ("wants to email works@… for PR-…") and Approve & resume /
+  Skip / Cancel; below, run history with status, step glyphs, budget
+  spend, handoff notes. Approve sends the REAL email via remindResponder
+  (delivery event on the request, as ever). Command center gained an
+  "Agents (N waiting)" button. Steering acts land in the admin log as
+  `agent_steered`; nightly register.ts persists each sweep run and says
+  when it parked. Full loop covered offline in
+  `src/agents/steering.test.ts`.
+Next toward the fulfillment agent, in order: (1) migration adding Phase-5
+values to the `agent_type` enum, (2) scope-decomposition golden set in the
+eval suite, (3) the model-driven planner behind a per-agency flag, demo
+tenant first.
+
+**PREVIOUS (2026-08-13, cloud session, same window as B1): B3 — THE
+APPEAL-DEFENSE PACKET BUILDER.** Second Phase-5 agent, per the spec's
+order. "The audit log was built for exactly this moment; this agent is
+its reader."
+- **`src/reporting/appealPacket.ts`** (pure, tested): assembles the
+  counsel dossier from what the platform already keeps — the deadline
+  story with every basis and named human (invariant 7), the per-document
+  exemption log with deciders (§5 reviews), correspondence (internal
+  notes excluded), checksummed releases (invariant 8), and the full §10
+  audit report as the evidentiary spine. The cover memo is COMPOSED from
+  the record (template, no model) and stamped "DRAFT — for counsel's
+  review"; an AI-drafted memo can layer on later behind the same draft
+  framing.
+- **`src/agents/appealPacketAgent.ts`**: `runAppealPacketAssembly` runs
+  read_request → read_events → compile_exemption_log → draft_message →
+  assemble_packet → checksum_packet → status_memo through the real
+  harness. New definition `appeal_packet` (per_request). ALL Tier 1 — it
+  compiles and drafts, never sends; the spec's "one Tier-2 send" (mail
+  the packet to counsel) is future wiring, deliberately not built.
+- **Route + button**: `/app/requests/[id]/appeal-packet.pdf` (mirrors the
+  defensibility route, requireStaff) with an "Appeal packet" button next
+  to "Defensibility report" on the request page. Each download IS an
+  agent run and appends one `agent_action` request event carrying the
+  packet text's sha-256 — a packet handed to counsel is provable later.
+  The kind was already in the EventKind union (the Phase-5-compat
+  groundwork paying off).
+No migration, no laptop-setup change (offline, no keys). 869 tests,
+typecheck clean, 4/4 e2e. **Next: B2 consistency auditor (cheap,
+read-only, same defensibility theme) or B4 third-party notice steward
+(bigger; needs notice rules in state profiles); connected-sources
+phase 3 still wants its own window.**
+
+**PREVIOUS (2026-08-13, cloud session): PHASE 5 OPENS — B1, THE
+PROACTIVE-DISCLOSURE LIBRARIAN, IS LIVE.** The owner released both
+standing gates this session ("I am happy to release the gates"):
+agentic-horizon Bucket B and connected-sources phase 3. CLAUDE.md's
+Current-phase block and the Gated line above were rewritten to match.
+First build per the spec's own order: **B1**, as a configuration over the
+dormant §16.1 framework — exactly as designed, no new architecture.
+- **`src/domain/demandPatterns.ts`** (pure, tested): token-overlap
+  clustering of demand signals — resolved-request texts, deflection-log
+  queries, and the new archive-miss signal — into `DemandPattern`s
+  (topic, keywords, counts by kind, request refs). Deterministic, no
+  model, `now` injected (computeDueDate rules).
+- **`archive_miss`**: new deflection kind logged when a resident searches
+  the archive, finds nothing, and files anyway (AnswerBox's
+  `loggedFileLink`, else-branch). 0 hours avoided, and EXCLUDED from every
+  ROI number (deflectionSummary, command-center stat, annual-report count)
+  — it is demand signal, not a deflection. Plain-text kind column: no
+  migration.
+- **`src/agents/disclosureLibrarianAgent.ts`**: `runDisclosureSweep` runs
+  the plan (read_demand_signals → one `propose_publication_candidate` per
+  pattern → status_memo) through the REAL run harness — allowlist → tier →
+  budget → append-only audit event per step. New agent definition
+  `disclosure_librarian` (new read tool `read_demand_signals`); its whole
+  plan is Tier 1 because it only proposes: no publish, no sends, no
+  reclassification — invariant 9 is the design. Tests assert the tier and
+  the allowlist hole where publish_release would be.
+- **Nightly**: register.ts sweep gained a disclosure pass (deadline-sweep
+  pattern) — appends ONE `disclosure_sweep` admin_event per agency, only
+  when patterns exist.
+- **Command center**: "Proactive disclosure opportunities" card (retention-
+  card pattern, same computation as the sweep): topic, signal counts,
+  request refs, and a "Find the records" link into `/app/search?q=` with
+  the cluster's keywords prefilled. Copy says out loud that publishing is
+  the human's per-record call.
+No laptop-setup change (offline, no keys, no owner steps). 861 tests,
+typecheck clean, 4/4 e2e (e2e needed a container-side chromium shim,
+noted for cloud sessions: symlink the pinned headless-shell path to
+/opt/pw-browsers' installed build — container state, not repo state).
+**Next per spec order: B3 (appeal-defense packet builder), then B4;
+connected-sources phase 3 wants its own full window.**
+
+**PREVIOUS (2026-08-13, cloud session): AUTH MULTI-TENANCY HARDENING — the
+follow-up the owner asked for after the previous session's read-only
+auth/signup scan.** That session reported findings and changed nothing;
+owner said fix them, so this session re-ran the audit and fixed the two
+real ones. (1) **The platform-operator dev credentials could work in
+production.** `PLATFORM_ADMIN_EMAIL/PASSWORD` fell back to the printed
+demo pair with no production guard — and that principal is the ONE
+cross-tenant login. Now `resolvePlatformAdmin()`
+(`src/auth/platformAdmin.ts`, unit-tested) mirrors `resolveAuthSecret`'s
+posture: in production, unset (or half-set) env creds disable platform
+sign-in outright; dev/test keep the seeded defaults. `.env.example` +
+laptop-setup Part D¾ (new) tell the owner exactly what to paste into a
+real deployment's variables — until then, `/admin` sign-in is simply off
+in production, which is the safe state. (2) **One-time token redemption
+was not tenant-scoped.** A verify/reset/invite link minted by agency A
+redeemed fine through agency B's `/verify` or `/reset` pages — the write
+still landed on A (the token carries its agencyId), so no cross-tenant
+data ever moved, but the tenancy boundary wasn't enforced at redemption
+and B's branding confirmed an action it didn't own. `consumeToken` now
+requires the expected agencyId and rejects mismatches WITHOUT burning the
+token (the link keeps working where it belongs);
+`verifyRequesterEmail`/`completePasswordReset` take the page's agency,
+and both portal callers resolve it from the URL slug. Cross-tenant
+redemption tests added on both flows. The rest of the audited surface
+(guards, roster actions, signup/provisioning, throttle) checked out
+clean. 852 tests, typecheck clean. No schema change.
+
+**PREVIOUS (2026-08-13, cloud session): THREE MORE BANDS — filled in the long
+flat stretch of plain page ground the copy pass exposed.** Between "the
+problem" (tinted) and "tenancy" (tinted), three sections — "how we help",
+"what it costs", and "how the tech works" — sat directly on `.mk-page`'s
+bare `var(--paper)` with only the body's own very-subtle fixed aurora
+showing through; "what it costs" and "how the tech works" ran back-to-back
+with no divider at all. Owner: more visually interesting
+backgrounds/gradients. Added three new band classes in globals.css
+(`.mk-band-accent`, `.mk-band-plum`, `.mk-band-ai`), each tying its color to
+the section's own content instead of repeating one wash everywhere:
+- `.mk-band-accent` on "how we help" — terracotta, matching that section's
+  own accent-colored eyebrow.
+- `.mk-band-plum` on "what it costs" — plum again, on purpose: it continues
+  the "AI proposes, staff disposes" quote band directly above rather than
+  resetting the mood. Two radials (top-left + bottom-right) so the wash is
+  visible right at the section header, not just at the bottom edge — the
+  first pass only had the bottom one and read flatter than the other two
+  bands at a glance.
+- `.mk-band-ai` on "how the tech works" — the AI teal, same hue as the
+  roster cards' left rail and spark icon.
+- Testimonials picked up the existing `.mk-band-tint` (same treatment as
+  "the problem"/"tenancy") for a consistent structural pause rather than a
+  fourth new color.
+Each JSX section was restructured from a bare `<section className="wrap
+mk-section">` to the established band pattern — outer `<section
+className="mk-band-X">` wrapping an inner `<div className="wrap
+mk-section">` — matching how `.mk-band-tint`/`.mk-band-dark` already work.
+Verified in the running app (reduced-motion screenshot, per the copy-pass
+entry's gotcha-12 note). 848 tests, typecheck clean, CSS + JSX-structure
+only — no copy changed in this pass.
+
+**PREVIOUS (2026-08-13, cloud session): HOMEPAGE COPY PASS — sharper, punchier,
+same structure.** Owner ask: tighten the marketing homepage copy, same
+sections and claims, shorter sentences, less exposition. Every paragraph in
+`src/app/page.tsx` got a pass — hero lede, the three PROBLEMS, the three
+PILLARS, both ROI/tech STATS blocks' sub-copy, the "AI proposes, staff
+disposes" quote body, all six AGENTS roster entries, the tenancy trio, and
+the closing CTA sub. No claims changed, no numbers changed, no sections
+added or removed — same six-beat structure (hero → problem → how we help →
+ROI → how the tech works → what we're hearing → close) from the 2026-08-13
+copy rewrite. The TESTIMONIALS quotes and their "illustrative, not real
+customers yet" framing were left as-is (already tight, and that disclaimer's
+wording matters). Verified in the running app, reduced-motion screenshot
+(the `.mk-reveal` scroll-timeline animation leaves off-viewport sections at
+opacity 0 in a single full-page screenshot otherwise — HANDOFF gotcha 12,
+not a regression, just a proofreading trap). 848 tests, typecheck clean,
+copy-only change.
+
+**PREVIOUS (2026-08-13, cloud session, third correction): THE HERO WAS STILL
+FLAT — the owner: "the first div/hero needs more gradients/texture/lighting,
+like the other sections but better."** Root cause: the ACTIVE `.mk-hero`
+rule (globals.css ~line 1010 — the later of the two `.mk-hero` blocks; see
+below) built its base gradient's middle stop from `var(--paper)`. Under the
+dark lock `--paper` resolves to `#0f141a`, nearly identical to the
+`#0b0f14`/`#202834` stops flanking it, so the "gradient" was three
+near-indistinguishable near-blacks — no visible movement at all — and what
+little aurora survived was then smothered by the vignette (0.88 alpha at
+its peak, meant to keep copy readable over a MUCH stronger aurora than was
+actually rendering). Verified by screenshotting the running app, not just
+reading the diff (see the correction two entries below — that lesson
+applied here too). Fixed:
+- Base gradient's middle stop is a real lighter-navy value (`#232b38`,
+  reusing the token already established for this exact purpose in
+  `.mk-band-dark`) instead of the token that was silently collapsing it.
+- Added a third top-center bloom (primary-tint, matching the body's own
+  top bloom) so the hero visually continues the page instead of sitting
+  apart from it — this is the "like the other sections" part of the ask.
+- Gold aurora 30%→40% mix, plum 78%→92%, hatch 0.05→0.065 alpha — pushed
+  past the mid-page bands' intensities since the hero should read as the
+  most-lit surface, not an equal one ("but better").
+- Vignette lightened (0.88/0.6/0.12 → 0.74/0.42/0.08) so the now-real
+  aurora actually shows through; copy is still legible (unchanged
+  contrast requirement, just less overlay).
+- `.mk-chat` (the hero's chat illustration) gets the same inset lit-top-edge
+  highlight `.card` got app-wide in the bold pass below — it hadn't
+  inherited that treatment since it's a bespoke component, not `.card`.
+Proof screenshots (before/after crop of the hero) delivered in-chat. The
+dead first `.mk-hero` block (~line 739, pre-dark-lock, overridden by cascade
+— see the bold-pass entry) was left untouched; still cruft, still not this
+session's job. 848 tests, typecheck clean, CSS-only change.
+
+**PREVIOUS (2026-08-13, cloud session, second correction): THE BOLD PASS —
+the owner looked again and called the pages "so flat"; the timid alphas
+were the problem, plus a push race meant origin/main didn't even carry
+the first app-wide attempt yet (a parallel session's homepage copy
+rewrite landed mid-push; merged cleanly — the file now carries an OLD
+navy-era `.mk-hero` block at ~line 716 that the later textured block
+overrides; left in place, cascade wins).** What the app-wide block does
+now, at visible strength:
+- `body`: dual aurora (primary-tint bloom top + plum ember at the right
+  shoulder) AND the engraver's hatch in the background stack — under the
+  content, never an overlay, `background-attachment: fixed`.
+- `.card`: stronger glass gradient + **inset lit top edge** (the inset
+  highlight is what makes a dark card read as material) + deep shadow.
+- `.stat` tiles ditto; `.nav` bottom seam picks up 28% gold; the
+  `.portal-hero` aurora went from 9% gold to 20% + plum.
+Proof screenshots (portal, workspace, marketing) delivered in-chat
+AGAIN — the owner had also been viewing an instance without the
+unpushed work, so: after any design change, confirm origin/main HAS it
+before discussing what it looks like. 848 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, cloud session, correction): TEXTURED DARK GOES
+APP-WIDE — the owner rightly called out that the previous entry only
+textured the MARKETING page while the actual product (portal, workspace,
+admin — everything built from `.card`/`.stat`) stayed flat dark.** Now in
+globals.css next to the `.card` base, one `@media screen` block:
+- `body` gets a fixed primary-tint bloom at the top of every page;
+- `.card` becomes the glass gradient + white-alpha hairline;
+- `.stat` tiles and `.stat-row` seams get the same treatment;
+- marketing hero hatch/aurora intensities raised (0.032→0.05 alpha,
+  gold 24→30%) since the subtle values read as invisible.
+Screen-scoped so PRINT keeps the flat light card. Proof screenshots
+(marketing, portal, workspace) were delivered in-chat. LESSON, on the
+record: "browser-verified" must mean the surfaces the OWNER looks at,
+not just the ones the diff touched. 848 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, cloud session, after the lock): THE TEXTURED DARK
+RESTORED (owner: "just dark and dark isn't visually interesting").** The
+dark-lock had flattened the marketing surfaces — the styled dark lives in
+gradients/hatch/auroras, which the light-hero rework had stripped.
+Recovered from git history (aa4cbfe) and redistributed:
+- Hero: the full original treatment — gold aurora top-left, plum bloom
+  right, engraver's hatch ::before, readability vignette ::after; eyebrow
+  and accent headline go GOLD on this ground (screen-scoped — print falls
+  back to ink/terracotta, verified via print emulation).
+- Chat panel: the original glass slab (gradient + deep shadow + backdrop
+  blur), bubbles/records in white-alpha and black-alpha layers.
+- Quote band: plum bloom + hatch + gold hairline borders — deliberately
+  PLUM so it reads distinct from the CTA band's gold aurora.
+- Tenancy band: primary-tint bloom + faint hatch.
+- Cards (pillars, stats, roster): glass gradients + white-alpha hairline
+  borders instead of flat --surface.
+Texture map for future edits: hero=gold+plum aurora · quote=plum ·
+tenancy=primary tint · CTA=gold · everything between stays quiet paper.
+Verified: full-page slices, print emulation (light palette, no gold
+text), 390px zero overflow. 848 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, cloud session, latest): DARK-LOCKED (owner
+directive — "everything falls into the dark style no matter the user
+preferences").** Supersedes "both themes ship" AND the light-hero
+decision from earlier the same day; CLAUDE.md's brand section is
+rewritten accordingly. Mechanics, because they're subtle:
+- The dark token block in globals.css went from `@media screen and
+  (prefers-color-scheme: dark)` to **`@media screen`** — unconditional on
+  screens. The light `:root` palette is deliberately KEPT: it has exactly
+  one consumer now, PRINT (paper always takes light values; the
+  screen-scoping is the whole print story). Do not delete it; do not
+  re-add preference gates.
+- `tenantAccentCss` same move: the dark-adjusted accent applies on every
+  screen; the stored accent survives in the base declaration for print.
+  branding.test.ts updated (asserts `@media screen{`).
+- The two remaining `<picture>` theme swaps are gone: BrandMarkRaster's
+  no-ground branch and the signup lockup both render the dark rev as
+  plain `<img>` — every screen ground is dark now. (mark-light.png and
+  brandeis-lockup-light.png still exist on disk; nothing references
+  them.)
+- GROUND-PINNED TOKENS block stays — it's what keeps nav/footer/gov
+  chrome self-consistent in print, where the page ground goes light.
+Verified with a LIGHT-preference browser context: marketing, portal,
+signup, bellmar all render --paper #0f141a; print emulation still gets
+#f7f7f5. Hero + quote band + chat all follow tokens into dark cleanly.
+848 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, cloud session, after the logo): MARKETING PAGE
+RETHOUGHT (owner: "rethink and optimize, best judgment").** The light
+hero had left the below-fold reading heavier than the top; the page now
+keeps EXACTLY ONE dark moment (the closing CTA band) before the footer:
+- The "AI proposes. Staff disposes." quote moved off near-black onto a
+  light letterhead band (`.mk-quote-band`, surface-2→paper gradient,
+  serif ink headline, gold kept to ornament — the outsize quote glyph
+  and the rule).
+- Claim-then-evidence order: pillars now precede the stat strip.
+- The six-agent roster kept ALL six (completeness is the pitch) but each
+  `does` cut to its core sentence and the cards tightened (~20% less
+  vertical) — page went 5088→4893px even after adding a CTA line.
+- Closing band: "Explore the live demo" promoted to the second button
+  (the demo is the product's best salesperson); the mailto walkthrough
+  demoted to a text link. Contrast fixes that came with the move:
+  `.mk-note` was #8fa0ba (dark-hero grey, fails AA on light) → theme
+  muted with a dark-band override; dark-band eyebrows re-pinned to gold
+  (the global eyebrow went terracotta, which dies on near-black).
+Verified light + dark + 390px (zero overflow), full-page slices.
+848 tests, typecheck clean.
+
+**PREVIOUS (2026-08-13, cloud session, after the top-3 entry): NEW LOGO
+RENDER ADOPTED (owner supplied it in-chat: "replace the logo/header
+image, cropped as needed").** The drawing changed: gold data-dashes
+streaming into a document sheet — the prism triangle is retired. What
+happened and what to know:
+- The paste never touched the container's disk; the exact bytes were
+  recovered from the session transcript's base64 (2000×731 webp, real
+  alpha) — worth remembering next time an asset arrives by paste.
+- Regenerated from it with sharp, per public/brand/README.md (updated):
+  `brandeis-lockup-dark.png` (1600×248), `mark-{dark,light}.png` (shared
+  252×124 canvas; the new art is ALL GOLD so both files carry the same
+  image — kept as two because the `<picture>` swap references both),
+  `src/app/icon.png` (64px crop of the document glyph — REPLACES
+  icon.svg; nothing hand-drawn survives now), `apple-icon.png` (glyph on
+  the board's plum), `opengraph-image.png` (new lockup on dark paper).
+- Still OLD art, on purpose: `brandeis-lockup-light.png` (unreferenced —
+  nav is pinned dark; README says regenerate before any light-ground use)
+  and `favicon.ico` (ico needs a tool sharp lacks).
+- ⚠ FLAGGED TO OWNER: the render's tagline carried stray accents. The
+  owner supplied a SECOND revision the same session (adopted, same
+  recipe): finer mark texture, lighter wordmark weight, "RECÓRDS" fixed —
+  "FÓR" still accented; swap in a corrected render when one exists.
+Browser-verified: marketing nav light+dark, 390px mark collapse, signup.
+848 tests, typecheck clean (no code paths changed beyond a comment).
+
+**PREVIOUS (2026-08-13, cloud session, latest): TOP-3 BUILDS (owner: "build
+the top 3") + HOMEPAGE REDESIGN (owner directive mid-session).** Four
+pieces, all browser-verified:
+- **Release-history import (the onboarding lever, build-candidate #2).**
+  The legacy CSV gains an optional `released_records` column — external_ids
+  from a records import, `;` or `|` separated. Each named doc is linked to
+  the row's request (request_documents), a real release row is minted
+  (artifacts with documentId, releasedAt = the row's closed date, approver =
+  the importing admin), askedAs aliases + metadata.releaseId land on the
+  docs, and `embed_requests` is enqueued post-import. INVARIANT 9 SHAPE:
+  publicness is NEVER minted here — docs keep their existing classification,
+  and the release is public only when every linked doc already IS public
+  (deriving from prior named-human decisions). UI copy says to import (and
+  publish) records FIRST — linked docs leave the publication queue, which is
+  the existing review-set rule, so sequencing matters. Missing external_ids
+  are reported per row and in the result, matched ones still link.
+- **Requester status API + webhooks (agentic-horizon §16.4 first brick).**
+  `GET /api/v1/{slug}/requests/{publicId}` serves the tracker's
+  requester-safe projection as JSON (statusApiService.publicRequestStatus —
+  tests pin that NOTHING about the requester, raw text, or staff crosses;
+  milestones are status_change+extension events only). Per-agency opt-in
+  (settings.statusApi, no migration — jsonb), 404-plays-dead when off, admin
+  card next to Compliance. Webhooks are PINGS on purpose: POST carries
+  tracking-number facts + statusUrl; subscribers verify against the API, so
+  NO signing secret exists (house rule: no secret values in the DB).
+  Emitted via emitStatusWebhook from ALL EIGHT status-moving sites
+  (submitRequest, transitionRequest, releaseRequest, denyRequest,
+  fulfillByReference, referRequest, forwardRequest + extendRequest as
+  deadline_extended) — the status-write choke point is LEAKY (7 sites
+  bypass transitionRequest; scout-verified list in the entry's commit).
+  Delivery is a durable `deliver_status_webhook` job (10s timeout, retries,
+  failures on /admin Health). Webhook URL is SSRF-guarded
+  (domain/statusApi.ts checkWebhookUrl: https-only, no IP literals/
+  localhost/internal names, tested).
+- **Intake dedup on stored vectors (build-candidate #3).** The scout
+  corrected HANDOFF's premise: intake dedup was LEXICAL-only over the full
+  corpus (the embedder branch existed but was dormant — naively enabling it
+  would have been the re-embed trap). `findDuplicateRequests` in
+  similarRequestsService now reads stored ask vectors; the filing's own
+  vector is already written by submitRequest, so the common case costs ZERO
+  embed calls. Per-metric thresholds (cosine 0.6 / Jaccard 0.35 — the
+  scales differ), per-row lexical fallback for vector-less rows, event
+  payload contract unchanged (the "Possibly related" card renders as
+  before). `src/ai/dedup/duplicates.ts` stays for its tests; intake no
+  longer calls it.
+- **HOMEPAGE REDESIGN (owner: "feels like a military company").** The hero
+  LEFT the ground-pinned family (CLAUDE.md updated): it sits on the page's
+  own paper now — white in light, follows the visitor in dark. The nav
+  stays pinned dark and got taller (104px desktop / 82px ≤640px; measured
+  23-24px of air around the lockup, owner asked ≥15). The hero panel is now
+  a CHAT — resident asks for inspection reports → assistant answers from
+  the public archive (no request needed) → resident asks for an unpublished
+  record → assistant files a drafted request with the statutory due date.
+  All theme-token styled (.mk-chat*), gold reduced to ornament (eyebrow +
+  heading accent went terracotta — gold is never text on paper). TRAP HIT:
+  two nowrap spans in the chat header forced the hero past a 390px
+  viewport (grid min-content); fixed with flex-wrap + `.mk-hero-grid > div
+  { min-width: 0 }`, verified scrollWidth === clientWidth. Screenshots:
+  light, dark, 390px.
+848 tests (24 new), typecheck clean. No prompt changes; no owner-facing
+env/service changes (laptop-setup untouched, checked). Follow-ups worth a
+window: statusWebhookJob has no direct unit test (fetch-thin, covered via
+emit tests); consider HMAC signing only if a subscriber demands it.
+
+**PREVIOUS (2026-08-13, cloud session, later): THE SMALL-ITEMS BASKET —
+build-candidate #4, all four, browser-verified both themes.** One of the
+four turned out to be stale (already shipped); its replacement was a real
+bug found while checking. What landed:
+- **Annual-report CSV companion**: `/app/reports/annual-report.csv` route
+  (staff-guarded, same shape as the PDF route) serving
+  `complianceReportCsv()` — section/metric/value rows covering every PDF
+  section, decimals not percent-strings. The reports page's CSV button now
+  points at the route for live agencies (demo fixture keeps the client
+  blob, same builder). AND THE DATA IS REAL NOW: `liveComplianceDataset`
+  had `extended: false` / `exemptionsCited: []` HARDCODED — the annual
+  report has been claiming 0% extensions and zero exemptions on live data
+  since it shipped. Extensions now read `extensionHistory`; exemptions
+  merge per-document review labels (new port method `listAgencyReviews`,
+  conformance-tested) with denial citations from the status_change event,
+  deduped PER REQUEST (a 40-page withholding under one citation is one use).
+- **Retention-destruction warnings, proactive at last**: the domain logic
+  existed but nothing time-driven ran it. Now (1) nightly
+  `retention_sweep` block in register.ts → `runRetentionSweep()`
+  (src/jobs/retentionSweep.ts, tested) appends a `retention_sweep` admin
+  event per agency listing at-risk docs — quiet agencies stay quiet, held
+  docs never alarm; (2) command-center warning card (same computation,
+  live) via new port method `listDocumentsUnderRetention`; (3) the
+  request-page risk card FINALLY has its act: a "Place hold" button →
+  `placeLegalHoldAction` → `setLegalHold` (which had NO caller before —
+  audited, named actor, verified live: card flips to "held", trail shows
+  "Dana Okafor placed a legal hold"). Seed: Morgan's incident report now
+  carries retentionUntil 21 days out, so the demo shows the whole loop.
+- **Counsel-review recency**: `src/domain/statuteReview.ts` (pure) —
+  a sign-off older than 365 days flips the compliance pill to amber
+  "re-review due" and re-opens the record form ("Re-record counsel
+  sign-off…"). The review status also prints on the annual report now:
+  narrative line in the PDF + `statute_reviewed_by_counsel` row in the
+  CSV — "not yet reviewed" when absent, on purpose.
+- **Responder email on dispatch was ALREADY SHIPPED** (2026-08-05,
+  task_responder_notice; the START-HERE bullet was stale — struck). The
+  real gap found instead: a notifier throw in dispatchTask escaped AFTER
+  the task row + assignment event were written, unwinding the action
+  mid-flight. Both send blocks are now best-effort: dept-email failure →
+  audited failed-delivery event ("resend from the task panel"), per-
+  responder failures → skipped-and-counted in the aggregate event
+  (`failed: [...]`), dispatch always returns the task. Tests pin both.
+824 tests (23 new), typecheck clean. Verified in a real browser (gotcha
+11), light AND dark: retention card, hold click-through, compliance pill,
+CSV/PDF routes. No prompt changes (no eval obligation), no owner-facing
+env/service changes (laptop-setup untouched, checked deliberately).
+
+**PREVIOUS (2026-08-13, cloud session): REAL KEYS CAN NO LONGER LEAK INTO
+`npm test` OR THE E2E SMOKE — the offline suite now strips them first.**
+Found by running the suite in a cloud container that carries a real
+`VOYAGE_API_KEY` (owner put it in the claude.ai env settings per
+laptop-setup ⚡ — every future cloud session will have it): two unit tests
+went red because `getEmbeddingProvider()` reads `process.env` at call
+time, so the "offline + deterministic" suite was silently sending
+unit-test embeddings to live Voyage. Here the calls died at the proxy and
+the best-effort paths swallowed the error into empty vectors; on a
+machine where they SUCCEED it's worse — spent credits and nondeterministic
+vectors that happen to pass. Nothing was wrong with the tested code.
+- `vitest.setup.ts` (new, wired via `setupFiles`): strips every
+  behavior-selecting env var (AI keys, ES, DATABASE_URL, S3, clamd, OCR,
+  email, auth/deploy toggles — the list is in the file) before any test
+  loads. No-op under `RUN_LIVE_EVALS`, so `npm run eval` still reaches the
+  live API on purpose. Tests that set env vars themselves are unaffected —
+  only inherited shell values are removed.
+- Same hole existed on the e2e side: playwright.config's webServer env
+  MERGES into the shell's, so the smoke's dev server would boot onto live
+  providers too. The config now blanks the service keys explicitly (empty
+  string reads as unset at every factory).
+- e2e in this container: the preinstalled Chromium (build 1194) predates
+  what npm-resolved Playwright 1.62 expects (1234) — fixed session-locally
+  with symlink shims under /opt/pw-browsers, no repo change. If a future
+  cloud session hits "Executable doesn't exist", that's the shape of it.
+Full re-verify after: 801 tests (+4 skipped), typecheck clean,
+`npm run build` clean, **4/4 e2e green** (paying the "worth a run next
+session" debt from the threading/logo entry — mailboxImport included).
+No owner-facing change (no new env var, no service): laptop-setup.md
+deliberately untouched.
+
+**PREVIOUS (2026-08-13, same keyed session, latest): PINNED DARK NAV
 CHROME (owner directive).** The nav's ground is dark in BOTH themes on
 every page; content below keeps theme-swapping. Implementation is a
 token re-declaration scoped to `.nav` (the dark palette's values,
@@ -605,11 +1291,11 @@ below). The next priorities, in order (owner-reviewed 2026-08-04):
    is staff-curated interpretedScope ONLY (raw filing text never published;
    pre-triage rows say "Awaiting review"). Footer link when enabled.
    Riverton seeds ON.
-4. Small knock-offs: responder email notification on dispatch to their
-   department (they have logins now; only the dept inbox gets the token
-   link) · ~~copilot prefill of task/extension panels · redaction redo
-   stack, click-a-bar-to-jump, "redact this word everywhere"~~ (all four
-   DONE 2026-08-13 night, see newest entry).
+4. Small knock-offs: ~~responder email notification on dispatch to their
+   department~~ (had ALREADY shipped 2026-08-05 as task_responder_notice —
+   this bullet was stale; failure-hardened 2026-08-13) · ~~copilot prefill
+   of task/extension panels · redaction redo stack, click-a-bar-to-jump,
+   "redact this word everywhere"~~ (all four DONE 2026-08-13 night).
 5. Phase 5 agents stay gated until real-user proof (docs/agentic-horizon.md).
 
 ## What this is
@@ -1058,13 +1744,15 @@ to write)**
 5. ~~**Queue ergonomics at volume.**~~ **DONE** (2026-08-04, see inventory:
    QueueFilterBar saved filters + QueueTable bulk assign, each row still
    individually audited).
-6. **Compliance exports.** Mostly done (2026-08-04): per-request
-   defensibility-report.pdf and annual-report.pdf ship. Still open: a CSV
-   companion to the annual report for states whose AG wants a spreadsheet.
+6. ~~**Compliance exports.**~~ **DONE** (2026-08-04 + 2026-08-13):
+   per-request defensibility-report.pdf, annual-report.pdf, and the
+   annual-report.csv route (small-items entry — full section/metric/value
+   spreadsheet from the same dataset).
 7. **Statute breadth + counsel sign-off.** 5 starter state profiles exist;
    each real deployment needs its state present and reviewed. Add profiles
-   as demand appears, plus a "reviewed by counsel on DATE" field surfaced
-   in the workspace so review status is honest.
+   as demand appears. ~~"reviewed by counsel on DATE" surfaced~~ DONE
+   (2026-08-05 field + 2026-08-13 staleness pill, re-record flow, and the
+   review line on the annual report PDF/CSV).
 
 **Tier 3 — durability & scale**
 8. ~~**Department-scoped accounts**~~ **DONE** (2026-08-04 late): responder
@@ -1079,9 +1767,10 @@ to write)**
    per-responder department checkboxes; seed adds sam@riverton.gov /
    riverton-demo3 (Public Works). Coordinators also see /app/tasks as an
    all-departments workload view.
-9. **Retention awareness / legal holds** — flag requested records nearing
-   scheduled destruction (small new data model; prevents the catastrophic
-   failure mode).
+9. ~~**Retention awareness / legal holds**~~ **DONE** (domain+auto-holds
+   earlier; proactive warnings 2026-08-13: nightly retention_sweep admin
+   event, command-center warning card, and a Place-hold button on the
+   request page — no new data model needed, the fields existed).
 10. **S3/MinIO + pg-boss adapters, backup/restore runbook** — both ports
     are ready; only needed past one machine. Plus copilot depth (prefill
     task/extension proposals into their panels).

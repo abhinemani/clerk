@@ -73,24 +73,37 @@ export async function fileRequest(input: {
       console.error("routing rules failed", e);
     }
 
+    // Learned routing second (docs/learning-loop.md): the agency's own
+    // resolved history as a play match — precedent stats as a card, and
+    // an earned-confidence route into the same auto-dispatch gate (whose
+    // tasks-already-exist guard keeps this advisory when a rule fired).
+    // Deterministic, no model; advisory failure only.
+    try {
+      const { applyPlayRouting } = await import("@/services/learningService");
+      await applyPlayRouting(deps, { agencyId, requestId: request.id, rawText });
+    } catch (e) {
+      console.error("play routing failed", e);
+    }
+
     // AI proposes off the request path: queue intake triage (§6.1). The job
     // no-ops without ANTHROPIC_API_KEY.
     const { getJobQueue } = await import("@/jobs/queue");
     getJobQueue().enqueue("intake_triage", { agencyId, requestId: request.id });
 
-    // Duplicate & related detection (§6.2): lexical similarity against the
-    // agency's other requests, recorded as an ai_action event the staff
-    // detail page renders. Advisory only — a failure never blocks filing.
+    // Duplicate & related detection (§6.2) on STORED ask vectors — the
+    // request's own vector was written moments ago in submitRequest, so the
+    // common case costs zero embed calls; rows without vectors degrade to
+    // token overlap inside the service. Advisory only — a failure never
+    // blocks filing.
     try {
-      const { findDuplicates } = await import("@/ai/dedup/duplicates");
-      const others = (await deps.repo.listRequests(agencyId)).filter((r) => r.id !== request.id);
-      const matches = await findDuplicates(
-        rawText,
-        others.map((r) => ({ id: r.id, publicId: r.publicId, text: r.interpretedScope ?? r.rawText })),
-        { threshold: 0.35, limit: 3 },
-      );
+      const { findDuplicateRequests } = await import("@/services/similarRequestsService");
+      const matches = await findDuplicateRequests(deps, {
+        agencyId,
+        requestId: request.id,
+        text: rawText,
+        limit: 3,
+      });
       if (matches.length > 0) {
-        const byId = new Map(others.map((r) => [r.id, r]));
         await deps.repo.appendEvent({
           id: deps.genId(),
           agencyId,
@@ -104,7 +117,7 @@ export async function fileRequest(input: {
               requestId: m.id,
               publicId: m.publicId,
               similarity: Math.round(m.similarity * 100) / 100,
-              status: byId.get(m.id)?.status ?? "unknown",
+              status: m.status,
             })),
           },
           createdAt: deps.now(),
@@ -449,7 +462,7 @@ export async function checkAlreadyReleasedAction(agencySlug: string, text: strin
  */
 export async function logDeflectionAction(input: {
   agencySlug: string;
-  kind: "download" | "scope_down";
+  kind: "download" | "scope_down" | "archive_miss";
   query?: string;
   documentId?: string;
 }): Promise<void> {
@@ -527,6 +540,30 @@ export async function portalSignOut(agencySlug: string): Promise<void> {
   await signOut({ redirectTo: `/${agencySlug}` });
 }
 
+/**
+ * "Lost your tracking number?" Always "succeeds" outwardly — the numbers
+ * only ever travel to the address the requests were filed under.
+ */
+export async function trackingReminderAction(input: {
+  agencySlug: string;
+  email: string;
+}): Promise<void> {
+  try {
+    const repo = await getRepository();
+    const agency = await repo.getAgencyBySlug(input.agencySlug);
+    if (!agency) return;
+    const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+    const { sendTrackingReminder } = await import("@/services/requestService");
+    await sendTrackingReminder(defaultDeps(repo), {
+      agencyId: agency.id,
+      email: input.email,
+      trackLinkBase: `${baseUrl}/${input.agencySlug}/track`,
+    });
+  } catch (e) {
+    console.error("trackingReminder failed", e); // still silent to the caller
+  }
+}
+
 /** Start a self-service reset. Always "succeeds" — no account enumeration. */
 export async function forgotPasswordAction(input: {
   agencySlug: string;
@@ -557,8 +594,13 @@ export async function resetPasswordAction(input: {
   password: string;
 }): Promise<AuthResult> {
   try {
+    // Scope redemption to the agency whose reset page this is — a link minted
+    // by one tenant must not be redeemable through another tenant's page.
+    const agencyId = await resolveAgencyId(input.agencySlug);
+    if (!agencyId) return { ok: false, error: "That link is invalid or expired — request a new one." };
     const { completePasswordReset } = await import("@/services/accountService");
     const ok = await completePasswordReset(defaultDeps(await getRepository()), {
+      agencyId,
       rawToken: input.token,
       kind: input.kind,
       password: input.password,

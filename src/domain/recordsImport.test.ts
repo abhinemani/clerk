@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRecordsCsv, RECORDS_CSV_TEMPLATE } from "./recordsImport";
+import { parseRecordsCsv, rowFromUploadedFile, titleFromFilename, RECORDS_CSV_TEMPLATE } from "./recordsImport";
 
 describe("parseRecordsCsv", () => {
   it("parses the shipped template", () => {
@@ -73,5 +73,37 @@ describe("parseRecordsCsv", () => {
     const { rows } = parseRecordsCsv('title,tags,keywords\nDoc,"a; b, c","x;y"');
     expect(rows[0]!.tags).toEqual(["a", "b", "c"]);
     expect(rows[0]!.keywords).toEqual(["x", "y"]);
+  });
+});
+
+describe("titleFromFilename", () => {
+  it("strips the extension and turns separators into spaces", () => {
+    expect(titleFromFilename("council_minutes-2026_06.pdf")).toBe("council minutes 2026 06");
+  });
+
+  it("drops any directory prefix (ZIP members carry folders)", () => {
+    expect(titleFromFilename("minutes/2026/june.pdf")).toBe("june");
+  });
+
+  it("falls back to the raw name when stripping would leave nothing", () => {
+    expect(titleFromFilename(".pdf")).toBe(".pdf");
+  });
+});
+
+describe("rowFromUploadedFile", () => {
+  it("produces a row with a derived title and everything else left for auto-classification", () => {
+    const row = rowFromUploadedFile("Traffic Study Final.pdf", 3);
+    expect(row).toEqual({
+      rowNumber: 3,
+      externalId: null,
+      title: "Traffic Study Final",
+      summary: null,
+      date: null,
+      recordType: null,
+      tags: [],
+      keywords: [],
+      filename: "Traffic Study Final.pdf",
+      warnings: [],
+    });
   });
 });

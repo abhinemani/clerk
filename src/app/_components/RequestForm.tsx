@@ -111,7 +111,7 @@ export function RequestForm({
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <div style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
             <Link href={`/${agencySlug}/track?id=${submitted.publicId}`} className="btn btn-primary">
               Track this request
             </Link>
@@ -119,6 +119,20 @@ export function RequestForm({
               Back to portal
             </Link>
           </div>
+          {/* One-click account nudge: the email is already in hand, and an
+              account means never losing a tracking number again. */}
+          {!signedInAs && email.includes("@") && (
+            <p className="muted" style={{ fontSize: "0.88rem", marginTop: 14, marginBottom: 0 }}>
+              Want all your requests in one place?{" "}
+              <Link
+                href={`/${agencySlug}/register?email=${encodeURIComponent(email)}`}
+                style={{ fontWeight: 600 }}
+              >
+                Create an account
+              </Link>{" "}
+              with {email} — this request will appear in it automatically.
+            </p>
+          )}
         </div>
       </div>
     );

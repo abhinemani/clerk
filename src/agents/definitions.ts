@@ -15,7 +15,9 @@ export type AgentTypeName =
   | "deadline"
   | "release_prep"
   | "ingest_steward"
-  | "requester_side";
+  | "requester_side"
+  | "disclosure_librarian" // Phase 5 B1 (gate released 2026-08-13)
+  | "appeal_packet"; // Phase 5 B3
 
 export type AgentScope = "per_request" | "queue_wide" | "data_plane" | "portal_session";
 
@@ -168,12 +170,67 @@ const requesterSide: AgentDefinition = {
   defaultBudget: { ...DEFAULT_BUDGET, maxToolCalls: 20, maxWallClockMs: 5 * 60_000 },
 };
 
+/**
+ * Proactive-disclosure librarian (agentic-horizon B1, the first Phase-5
+ * agent) — mines the request archive, deflection log, and archive misses for
+ * repeated demand and proposes publication candidates. Tier-2 ceiling by
+ * design, but its whole plan is Tier 1: it only ever PROPOSES — the
+ * classification flip that makes anything public is a named human's act
+ * (invariant 9 is the design).
+ */
+const disclosureLibrarian: AgentDefinition = {
+  type: "disclosure_librarian",
+  title: "Proactive-disclosure librarian",
+  description:
+    "Mines resolved requests, deflection-log queries, and archive misses for repeated demand patterns, and proposes proactive publications a named human can act on. Never publishes anything itself.",
+  scope: "queue_wide",
+  corpusScope: "full",
+  allowedCapabilities: new Set<CapabilityName>([
+    "read_demand_signals",
+    "corpus_search",
+    "propose_publication_candidate",
+    "status_memo",
+    "plan_update",
+  ]),
+  defaultBudget: { ...DEFAULT_BUDGET, maxToolCalls: 60, maxWallClockMs: 10 * 60_000 },
+};
+
+/**
+ * Appeal-defense packet builder (agentic-horizon B3) — reads the append-only
+ * record and assembles the counsel dossier: timeline, deadline bases,
+ * exemption citations, correspondence, checksummed releases, plus a
+ * composed cover-memo draft. All Tier 1 — it compiles and drafts, never
+ * sends; the spec's one Tier-2 send (mail to counsel) is future wiring.
+ */
+const appealPacket: AgentDefinition = {
+  type: "appeal_packet",
+  title: "Appeal-packet builder",
+  description:
+    "On denial or on demand, assembles the appeal-defense dossier from the append-only record — timeline, deadline computation bases, exemption citations with deciders, every letter, checksummed releases — with a drafted cover memo for counsel.",
+  scope: "per_request",
+  corpusScope: "full",
+  allowedCapabilities: new Set<CapabilityName>([
+    "read_request",
+    "read_events",
+    "read_documents",
+    "compile_exemption_log",
+    "draft_message",
+    "assemble_packet",
+    "checksum_packet",
+    "status_memo",
+    "plan_update",
+  ]),
+  defaultBudget: { ...DEFAULT_BUDGET, maxToolCalls: 40, maxWallClockMs: 5 * 60_000 },
+};
+
 export const AGENT_DEFINITIONS: Record<AgentTypeName, AgentDefinition> = {
   fulfillment,
   deadline,
   release_prep: releasePrep,
   ingest_steward: ingestSteward,
   requester_side: requesterSide,
+  disclosure_librarian: disclosureLibrarian,
+  appeal_packet: appealPacket,
 };
 
 export function getAgentDefinition(type: AgentTypeName): AgentDefinition {

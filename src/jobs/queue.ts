@@ -22,7 +22,8 @@ export type JobKind =
   | "ocr_extract"
   | "classify_documents"
   | "sync_connected_source"
-  | "embed_requests";
+  | "embed_requests"
+  | "deliver_status_webhook";
 
 export interface JobPayloads {
   intake_triage: { agencyId: string; requestId: string };
@@ -40,6 +41,15 @@ export interface JobPayloads {
   sync_connected_source: { agencyId: string; sourceId: string; actorLabel?: string };
   /** Answer-first phase 4: backfill ask vectors for requests missing one. */
   embed_requests: { agencyId: string };
+  /** Status API (§16.4 first brick): ping the agency's subscriber URL. */
+  deliver_status_webhook: {
+    agencyId: string;
+    publicId: string;
+    event: "status_changed" | "deadline_extended";
+    to?: string;
+    dueAt?: string;
+    occurredAt: string;
+  };
 }
 
 export type JobHandler<K extends JobKind = JobKind> = (payload: JobPayloads[K]) => Promise<void>;

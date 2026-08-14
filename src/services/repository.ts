@@ -7,6 +7,7 @@
  * agency-scoped; the in-memory adapter enforces the same tenant isolation the DB
  * layer must (a cross-agency read returns null, never another tenant's row).
  */
+import type { AgentBudgetLimits, AgentBudgetSpend, AgentPlanState, PlayStats } from "@/db/schema";
 import type { RequestStatus } from "@/domain/requestLifecycle";
 import type { TaskStatus } from "@/domain/taskWorkflow";
 import type { RoutingRule, WorkflowSettings } from "@/domain/workflow";
@@ -17,6 +18,7 @@ import type { RoutingRule, WorkflowSettings } from "@/domain/workflow";
 export interface AgencySettings {
   publicRequestLog?: boolean;
   statuteReview?: { reviewedBy: string; reviewedOn: string; note?: string };
+  statusApi?: { enabled: boolean; webhookUrl?: string | null };
 }
 
 /** Per-tenant identity — mirrors the schema's AgencyBranding. All optional. */
@@ -216,13 +218,68 @@ export interface DocumentEntity {
   createdAt: Date;
 }
 
+/**
+ * A learned demand cluster with its resolution statistics (docs/
+ * learning-loop.md). Rows are a nightly-rebuilt materialized aggregate —
+ * replaced wholesale per agency, never mutated row-by-row.
+ */
+export interface PlayEntity {
+  id: string;
+  agencyId: string;
+  topic: string;
+  keywords: string[];
+  stats: PlayStats;
+  episodeCount: number;
+  rebuiltAt: Date;
+  createdAt: Date;
+}
+
+/** DB enum agent_type — the five §16.1 agents (Phase-5 additions need a migration). */
+export type PersistedAgentType =
+  | "fulfillment"
+  | "deadline"
+  | "release_prep"
+  | "ingest_steward"
+  | "requester_side";
+
+export type AgentRunStatus =
+  | "planning"
+  | "running"
+  | "paused"
+  | "awaiting_checkpoint"
+  | "completed"
+  | "exhausted"
+  | "failed"
+  | "cancelled";
+
+/** A persisted agent run (§16.2) — resumable, interruptible, human-steerable. */
+export interface AgentRunEntity {
+  id: string;
+  agencyId: string;
+  agentType: PersistedAgentType;
+  requestId: string | null;
+  status: AgentRunStatus;
+  goal: string;
+  plan: AgentPlanState | null;
+  budgetLimits: AgentBudgetLimits | null;
+  budgetSpend: AgentBudgetSpend | null;
+  /** Null = system/cron initiated (e.g. the nightly deadline sweep). */
+  startedByUserId: string | null;
+  pausedByUserId?: string | null;
+  handoffNote: string | null;
+  lastStepAt: Date | null;
+  createdAt: Date;
+}
+
 export interface DeflectionEntity {
   id: string;
   agencyId: string;
   /** "download" (satisfied without filing), "scope_down" (narrowed a request),
-      or "answered_by_link" (a FILED request closed by citing already-public
-      records — production avoided, not filing). */
-  kind: "download" | "scope_down" | "answered_by_link";
+      "answered_by_link" (a FILED request closed by citing already-public
+      records — production avoided, not filing), or "archive_miss" (searched,
+      found nothing, filed anyway — unmet demand, 0 hours avoided; the
+      disclosure librarian's raw signal, not an ROI event). */
+  kind: "download" | "scope_down" | "answered_by_link" | "archive_miss";
   query: string | null;
   documentId: string | null;
   estimatedStaffHoursAvoided: number;
@@ -494,6 +551,8 @@ export interface Repository {
   listPublicDocuments(agencyId: string): Promise<DocumentEntity[]>;
   /** Every document in the agency corpus — STAFF surfaces only (§6.4). */
   listDocuments(agencyId: string): Promise<DocumentEntity[]>;
+  /** Documents with a retention schedule or a legal hold — the retention sweep's working set. */
+  listDocumentsUnderRetention(agencyId: string): Promise<DocumentEntity[]>;
   createDocument(doc: DocumentEntity): Promise<DocumentEntity>;
   getDocument(agencyId: string, id: string): Promise<DocumentEntity | null>;
   /**
@@ -550,6 +609,8 @@ export interface Repository {
   /** One decision per (request, document); re-deciding replaces. */
   upsertReview(r: ReviewEntity): Promise<ReviewEntity>;
   listReviews(agencyId: string, requestId: string): Promise<ReviewEntity[]>;
+  /** Every review decision in the agency — reporting counts exemption citations from here. */
+  listAgencyReviews(agencyId: string): Promise<ReviewEntity[]>;
 
   createRelease(r: ReleaseEntity): Promise<ReleaseEntity>;
   listReleases(agencyId: string, requestId: string): Promise<ReleaseEntity[]>;
@@ -558,6 +619,28 @@ export interface Repository {
 
   appendDeflection(d: DeflectionEntity): Promise<DeflectionEntity>;
   listDeflections(agencyId: string): Promise<DeflectionEntity[]>;
+
+  // Learning loop (docs/learning-loop.md): plays are replaced wholesale
+  // per agency by the nightly rebuild — full-replace semantics on purpose,
+  // so the store can never drift from the record it summarizes.
+  replaceAgencyPlays(agencyId: string, rows: PlayEntity[]): Promise<void>;
+  listPlays(agencyId: string): Promise<PlayEntity[]>;
+
+  // Agent runs (§16.2): persisted plan state so runs are resumable and a
+  // human can steer any run from the UI. All reads agency-scoped.
+  createAgentRun(r: AgentRunEntity): Promise<AgentRunEntity>;
+  getAgentRun(agencyId: string, id: string): Promise<AgentRunEntity | null>;
+  updateAgentRun(
+    agencyId: string,
+    id: string,
+    patch: Partial<
+      Pick<
+        AgentRunEntity,
+        "status" | "plan" | "budgetSpend" | "handoffNote" | "lastStepAt" | "pausedByUserId"
+      >
+    >,
+  ): Promise<AgentRunEntity>;
+  listAgentRuns(agencyId: string): Promise<AgentRunEntity[]>;
 
   // Durable job queue (deployment-scoped — payloads carry agency ids).
   createJob(j: JobRecord): Promise<JobRecord>;
@@ -951,6 +1034,12 @@ export class InMemoryRepository implements Repository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  async listDocumentsUnderRetention(agencyId: string) {
+    return [...this.documents.values()]
+      .filter((d) => d.agencyId === agencyId && (d.retentionUntil != null || d.legalHoldReason != null))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
   private requestDocs: { agencyId: string; requestId: string; documentId: string }[] = [];
   private reviews = new Map<string, ReviewEntity>();
   private releases: ReleaseEntity[] = [];
@@ -1068,6 +1157,9 @@ export class InMemoryRepository implements Repository {
       (r) => r.agencyId === agencyId && r.requestId === requestId,
     );
   }
+  async listAgencyReviews(agencyId: string) {
+    return [...this.reviews.values()].filter((r) => r.agencyId === agencyId);
+  }
 
   async createRelease(r: ReleaseEntity) {
     this.releases.push(r);
@@ -1086,6 +1178,52 @@ export class InMemoryRepository implements Repository {
   }
   async listDeflections(agencyId: string) {
     return this.deflections.filter((d) => d.agencyId === agencyId);
+  }
+
+  private plays: PlayEntity[] = [];
+
+  async replaceAgencyPlays(agencyId: string, rows: PlayEntity[]) {
+    this.plays = [
+      ...this.plays.filter((p) => p.agencyId !== agencyId),
+      ...rows.filter((p) => p.agencyId === agencyId),
+    ];
+  }
+  async listPlays(agencyId: string) {
+    return this.plays
+      .filter((p) => p.agencyId === agencyId)
+      .sort((a, b) => b.episodeCount - a.episodeCount);
+  }
+
+  private agentRuns = new Map<string, AgentRunEntity>();
+
+  async createAgentRun(r: AgentRunEntity) {
+    this.agentRuns.set(r.id, { ...r });
+    return r;
+  }
+  async getAgentRun(agencyId: string, id: string) {
+    const run = this.agentRuns.get(id);
+    return run && run.agencyId === agencyId ? run : null;
+  }
+  async updateAgentRun(
+    agencyId: string,
+    id: string,
+    patch: Partial<
+      Pick<
+        AgentRunEntity,
+        "status" | "plan" | "budgetSpend" | "handoffNote" | "lastStepAt" | "pausedByUserId"
+      >
+    >,
+  ) {
+    const run = await this.getAgentRun(agencyId, id);
+    if (!run) throw new NotFoundError("AgentRun", id);
+    const updated = { ...run, ...patch };
+    this.agentRuns.set(id, updated);
+    return updated;
+  }
+  async listAgentRuns(agencyId: string) {
+    return [...this.agentRuns.values()]
+      .filter((r) => r.agencyId === agencyId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   private jobs = new Map<string, JobRecord>();

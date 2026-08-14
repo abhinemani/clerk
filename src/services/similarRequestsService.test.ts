@@ -9,6 +9,7 @@ import { FakeEmbeddingProvider, type EmbeddingProvider } from "@/ai/search/embed
 import type { ServiceDeps } from "./deps";
 import { InMemoryRepository, type Agency, type RequestEntity } from "./repository";
 import {
+  findDuplicateRequests,
   findResolvedPrecedents,
   requestEmbeddingText,
   writeRequestEmbedding,
@@ -161,5 +162,63 @@ describe("findResolvedPrecedents", () => {
       embedder,
     );
     expect(hits.filter((h) => h.similarity > 0.5)).toEqual([]);
+  });
+});
+
+describe("findDuplicateRequests (§6.2 intake dedup on stored vectors)", () => {
+  const TEXT = "Inspection reports for the property at 400 Main Street from June 2025";
+  const NEAR_DUP = "All inspection reports for 400 Main Street property, June 2025";
+  const UNRELATED = "zzqx park permit fee waivers marmalade";
+
+  async function seedPair(deps: ServiceDeps, withVectors: boolean) {
+    const { repo } = deps;
+    const dup = await repo.createRequest(requestOf({ publicId: "PR-2026-11111", rawText: NEAR_DUP, status: "in_review" }));
+    const other = await repo.createRequest(requestOf({ publicId: "PR-2026-22222", rawText: UNRELATED }));
+    const self = await repo.createRequest(requestOf({ publicId: "PR-2026-33333", rawText: TEXT }));
+    if (withVectors) {
+      for (const r of [dup, other, self]) await writeRequestEmbedding(deps, { agencyId: "ag-1", requestId: r.id }, embedder);
+    }
+    return { dup, other, self };
+  }
+
+  it("finds a near-duplicate from STORED vectors with zero embed calls", async () => {
+    const { deps } = ctx();
+    const { dup, self } = await seedPair(deps, true);
+    // If anything embeds here, the whole point is lost — the vectors are stored.
+    const hits = await findDuplicateRequests(deps, { agencyId: "ag-1", requestId: self.id, text: TEXT });
+    expect(hits.map((h) => h.publicId)).toContain("PR-2026-11111");
+    expect(hits[0]!.status).toBe("in_review");
+    expect(hits.map((h) => h.id)).not.toContain(self.id); // never cites itself
+    expect(hits.map((h) => h.publicId)).not.toContain("PR-2026-22222");
+    expect(hits[0]!.similarity).toBeGreaterThanOrEqual(0.6);
+    void dup;
+  });
+
+  it("degrades to token overlap when no vectors are stored — flags never wait on the backfill", async () => {
+    const { deps } = ctx();
+    const { self } = await seedPair(deps, false);
+    const hits = await findDuplicateRequests(deps, { agencyId: "ag-1", requestId: self.id, text: TEXT });
+    expect(hits.map((h) => h.publicId)).toContain("PR-2026-11111");
+    expect(hits.map((h) => h.publicId)).not.toContain("PR-2026-22222");
+  });
+
+  it("a candidate without a vector still matches lexically while others use cosine", async () => {
+    const { deps } = ctx();
+    const { repo } = deps;
+    const vecMatch = await repo.createRequest(requestOf({ publicId: "PR-2026-44444", rawText: NEAR_DUP }));
+    const lexMatch = await repo.createRequest(
+      requestOf({ publicId: "PR-2026-55555", rawText: "Inspection reports property 400 Main Street June 2025 copies" }),
+    );
+    const self = await repo.createRequest(requestOf({ publicId: "PR-2026-66666", rawText: TEXT }));
+    // Vectors for the query + one candidate only; the other candidate is vector-less.
+    for (const r of [vecMatch, self]) await writeRequestEmbedding(deps, { agencyId: "ag-1", requestId: r.id }, embedder);
+    const hits = await findDuplicateRequests(deps, { agencyId: "ag-1", requestId: self.id, text: TEXT });
+    expect(hits.map((h) => h.publicId).sort()).toEqual(["PR-2026-44444", "PR-2026-55555"]);
+  });
+
+  it("empty corpus returns empty", async () => {
+    const { deps } = ctx();
+    const self = await deps.repo.createRequest(requestOf({ rawText: TEXT }));
+    expect(await findDuplicateRequests(deps, { agencyId: "ag-1", requestId: self.id, text: TEXT })).toEqual([]);
   });
 });

@@ -90,6 +90,13 @@ const HEADER_SYNONYMS: Record<string, string[]> = {
   closedAt: ["closed_date", "closeddate", "date_closed", "completed_date", "completed", "closed"],
   department: ["department", "dept", "assigned_to", "assigned_department"],
   recordType: ["record_type", "recordtype", "type", "category"],
+  releasedRecords: [
+    "released_records",
+    "released_record_ids",
+    "release_records",
+    "released_files",
+    "released_documents",
+  ],
 };
 
 function normalizeHeader(h: string): string {
@@ -186,6 +193,12 @@ export interface ParsedLegacyRow {
   closedAt: Date | null;
   department: string | null;
   recordType: string | null;
+  /**
+   * external_ids of already-imported documents this request RELEASED
+   * (release-history import — the join key is the records-import
+   * external_id). Empty when the column is absent.
+   */
+  releasedRecordIds: string[];
   /** Non-fatal issues worth surfacing (e.g. "due date missing"). */
   warnings: string[];
 }
@@ -267,6 +280,16 @@ export function parseLegacyCsv(csvText: string): LegacyImportParseResult {
       warnings.push(`"${requesterEmail}" doesn't look like an email — imported without a requester account.`);
     }
 
+    // Released records: ; or | separated external_ids, deduped, order kept.
+    const releasedRecordIds = [
+      ...new Set(
+        get(row, "releasedRecords")
+          .split(/[;|]/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    ];
+
     rows.push({
       rowNumber,
       legacyId: get(row, "legacyId") || null,
@@ -280,6 +303,7 @@ export function parseLegacyCsv(csvText: string): LegacyImportParseResult {
       closedAt,
       department: get(row, "department") || null,
       recordType: get(row, "recordType") || null,
+      releasedRecordIds,
       warnings,
     });
   });
@@ -289,6 +313,6 @@ export function parseLegacyCsv(csvText: string): LegacyImportParseResult {
 
 /** The template a records office can fill in — headers this parser recognizes. */
 export const LEGACY_CSV_TEMPLATE = [
-  "legacy_id,requester_name,requester_email,description,status,filed_date,due_date,closed_date,department,record_type",
-  '"OLD-2024-0091",Jane Reyes,jane@example.com,"All emails re: Main St paving, Jan-Mar 2024",fulfilled,2024-01-15,2024-01-25,2024-01-24,Public Works,contract',
+  "legacy_id,requester_name,requester_email,description,status,filed_date,due_date,closed_date,department,record_type,released_records",
+  '"OLD-2024-0091",Jane Reyes,jane@example.com,"All emails re: Main St paving, Jan-Mar 2024",fulfilled,2024-01-15,2024-01-25,2024-01-24,Public Works,contract,"PAV-2024-001;PAV-2024-002"',
 ].join("\n");

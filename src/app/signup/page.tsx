@@ -39,20 +39,13 @@ export default function SignupPage() {
 
       <main id="main">
         <div className="wrap" style={{ maxWidth: 640, paddingBlock: "48px 64px" }}>
-          {/* Both revisions, swapped by theme — correct HERE because this
-              ground (--paper) follows the visitor. Contrast the footer, whose
-              ground is dark either way and therefore pins the dark rev. */}
-          <picture>
-            <source
-              srcSet="/brand/brandeis-lockup-dark.png"
-              media="(prefers-color-scheme: dark)"
-            />
-            <img
-              src="/brand/brandeis-lockup-light.png"
-              alt=""
-              style={{ width: 260, height: "auto", marginBottom: 26 }}
-            />
-          </picture>
+          {/* Dark-locked (owner directive 2026-08-13): --paper is dark on
+              every screen now, so the dark rev is the only lockup. */}
+          <img
+            src="/brand/brandeis-lockup-dark.png"
+            alt=""
+            style={{ width: 260, height: "auto", marginBottom: 26 }}
+          />
           <span className="eyebrow">Bring {branding.productName} to your jurisdiction</span>
           <h1 className="serif" style={{ fontSize: "2rem", marginTop: 8, fontWeight: 600 }}>
             Open your records office

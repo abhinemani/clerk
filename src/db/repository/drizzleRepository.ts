@@ -7,12 +7,13 @@
  * Tenant isolation is enforced in every read: queries AND `agency_id` in, and a
  * row from another agency is invisible.
  */
-import { and, asc, desc, eq, isNull, lt, lte, ne, notExists, notLike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lt, lte, ne, notExists, notLike, or, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import {
   adminEvents,
   agencies,
   agencyDirectory,
+  agentRuns,
   authTokens,
   deflections,
   deliveries,
@@ -24,6 +25,7 @@ import {
   publicationDecisions,
   publicIdCounters,
   releases,
+  requestPlays,
   requestDocuments,
   requestEvents,
   requesters,
@@ -39,6 +41,7 @@ import {
   NotFoundError,
   type AdminEventEntity,
   type Agency,
+  type AgentRunEntity,
   type AuthTokenEntity,
   type DeflectionEntity,
   type DeliveryEntity,
@@ -49,6 +52,7 @@ import {
   type JobRecord,
   type JobStatus,
   type MessageEntity,
+  type PlayEntity,
   type PublicationDecisionRow,
   type PublicationState,
   type ReleaseEntity,
@@ -732,6 +736,21 @@ export class DrizzleRepository implements Repository {
     return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
   }
 
+  async listDocumentsUnderRetention(agencyId: string): Promise<DocumentEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(documents)
+      .where(
+        tenantWhere(
+          documents.agencyId,
+          agencyId,
+          or(isNotNull(documents.retentionUntil), isNotNull(documents.legalHoldReason)),
+        ),
+      )
+      .orderBy(desc(documents.createdAt));
+    return rows.map((d: typeof documents.$inferSelect) => this.toDocument(d));
+  }
+
   // --- durable job queue ---------------------------------------------------
 
   async createJob(j: JobRecord): Promise<JobRecord> {
@@ -1409,6 +1428,22 @@ export class DrizzleRepository implements Repository {
       createdAt: r.createdAt,
     }));
   }
+  async listAgencyReviews(agencyId: string): Promise<ReviewEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(reviews)
+      .where(tenantWhere(reviews.agencyId, agencyId));
+    return rows.map((r: typeof reviews.$inferSelect) => ({
+      id: r.id,
+      agencyId: r.agencyId,
+      requestId: r.requestId,
+      documentId: r.documentId,
+      decision: r.decision,
+      exemptionLabel: r.exemptionLabel,
+      decidedByUserId: r.decidedByUserId ?? "",
+      createdAt: r.createdAt,
+    }));
+  }
 
   async createRelease(r: ReleaseEntity): Promise<ReleaseEntity> {
     await this.db.insert(releases).values({
@@ -1482,5 +1517,120 @@ export class DrizzleRepository implements Repository {
       estimatedStaffHoursAvoided: d.estimatedStaffHoursAvoided ?? 0,
       createdAt: d.createdAt,
     }));
+  }
+
+  // --- learning loop (docs/learning-loop.md) -------------------------------
+
+  async replaceAgencyPlays(agencyId: string, rows: PlayEntity[]): Promise<void> {
+    await this.db.delete(requestPlays).where(eq(requestPlays.agencyId, agencyId));
+    const mine = rows.filter((p) => p.agencyId === agencyId);
+    if (mine.length === 0) return;
+    await this.db.insert(requestPlays).values(
+      mine.map((p) => ({
+        id: p.id,
+        agencyId: p.agencyId,
+        topic: p.topic,
+        keywords: p.keywords,
+        stats: p.stats,
+        episodeCount: p.episodeCount,
+        rebuiltAt: p.rebuiltAt,
+        createdAt: p.createdAt,
+      })),
+    );
+  }
+
+  async listPlays(agencyId: string): Promise<PlayEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(requestPlays)
+      .where(eq(requestPlays.agencyId, agencyId))
+      .orderBy(desc(requestPlays.episodeCount));
+    return rows.map((p: typeof requestPlays.$inferSelect) => ({
+      id: p.id,
+      agencyId: p.agencyId,
+      topic: p.topic,
+      keywords: p.keywords ?? [],
+      stats: p.stats,
+      episodeCount: p.episodeCount,
+      rebuiltAt: p.rebuiltAt,
+      createdAt: p.createdAt,
+    }));
+  }
+
+  // --- agent runs (§16.2) --------------------------------------------------
+
+  private toAgentRun(r: typeof agentRuns.$inferSelect): AgentRunEntity {
+    return {
+      id: r.id,
+      agencyId: r.agencyId,
+      agentType: r.agentType as AgentRunEntity["agentType"],
+      requestId: r.requestId,
+      status: r.status as AgentRunEntity["status"],
+      goal: r.goal,
+      plan: r.plan ?? null,
+      budgetLimits: r.budgetLimits ?? null,
+      budgetSpend: r.budgetSpend ?? null,
+      startedByUserId: r.startedByUserId,
+      pausedByUserId: r.pausedByUserId,
+      handoffNote: r.handoffNote,
+      lastStepAt: r.lastStepAt,
+      createdAt: r.createdAt,
+    };
+  }
+
+  async createAgentRun(r: AgentRunEntity): Promise<AgentRunEntity> {
+    await this.db.insert(agentRuns).values({
+      id: r.id,
+      agencyId: r.agencyId,
+      agentType: r.agentType,
+      requestId: r.requestId,
+      status: r.status,
+      goal: r.goal,
+      plan: r.plan,
+      budgetLimits: r.budgetLimits,
+      budgetSpend: r.budgetSpend,
+      startedByUserId: r.startedByUserId,
+      handoffNote: r.handoffNote,
+      lastStepAt: r.lastStepAt,
+      createdAt: r.createdAt,
+    });
+    return r;
+  }
+
+  async getAgentRun(agencyId: string, id: string): Promise<AgentRunEntity | null> {
+    const [row] = await this.db
+      .select()
+      .from(agentRuns)
+      .where(and(eq(agentRuns.agencyId, agencyId), eq(agentRuns.id, id)))
+      .limit(1);
+    return row ? this.toAgentRun(row) : null;
+  }
+
+  async updateAgentRun(
+    agencyId: string,
+    id: string,
+    patch: Partial<
+      Pick<
+        AgentRunEntity,
+        "status" | "plan" | "budgetSpend" | "handoffNote" | "lastStepAt" | "pausedByUserId"
+      >
+    >,
+  ): Promise<AgentRunEntity> {
+    const [row] = await this.db
+      .update(agentRuns)
+      .set(patch)
+      .where(and(eq(agentRuns.agencyId, agencyId), eq(agentRuns.id, id)))
+      .returning();
+    if (!row) throw new NotFoundError("AgentRun", id);
+    return this.toAgentRun(row);
+  }
+
+  async listAgentRuns(agencyId: string): Promise<AgentRunEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.agencyId, agencyId))
+      .orderBy(desc(agentRuns.createdAt));
+    return rows.map((r: typeof agentRuns.$inferSelect) => this.toAgentRun(r));
   }
 }

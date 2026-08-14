@@ -32,6 +32,7 @@ import {
   type ReviewDocVM,
 } from "../../../../../_components/ReviewRelease";
 import { MailboxImportPanel } from "../../../../../_components/MailboxImportPanel";
+import { placeLegalHoldFormAction } from "./actions";
 import {
   RequestWorkspace,
   type SuggestionVM,
@@ -91,7 +92,7 @@ export default async function RequestDetail({
   let assigneeId: string | null = null;
   // Retention: documents in this review set at risk of destruction, and the
   // holds protecting the rest. Spoliation is the failure this surfaces.
-  let retentionRisk: { filename: string; label: string }[] = [];
+  let retentionRisk: { documentId: string; filename: string; label: string }[] = [];
   let heldCount = 0;
   // Referral: who we can point this requester at, and where it already went.
   let referTargets: ReferTargetVM[] = [];
@@ -109,6 +110,17 @@ export default async function RequestDetail({
   // holds by construction — the corpus is public).
   let archiveMatches: { id: string; title: string; dateLabel: string; downloadUrl: string | null; syncedFrom: string | null }[] = [];
   let requesterHasEmail = false;
+  // Learned precedent (docs/learning-loop.md): how the office resolved
+  // similar past requests — consulted live so nightly rebuilds keep it fresh.
+  let playVM: {
+    topic: string;
+    episodes: number;
+    medianDays: number | null;
+    extensionPct: number;
+    topRoute: string | null;
+    exemptions: string[];
+    samples: string[];
+  } | null = null;
   if (detail.source === "live") {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -125,6 +137,27 @@ export default async function RequestDetail({
       repo.listEvents(staff.agencyId, r.id),
       repo.getRequest(staff.agencyId, r.id),
     ]);
+    if (rawRequest) {
+      const { consultPlays } = await import("@/services/learningService");
+      const { defaultDeps } = await import("@/services/deps");
+      const match = await consultPlays(defaultDeps(repo), {
+        agencyId: staff.agencyId,
+        text: rawRequest.interpretedScope ?? rawRequest.rawText,
+      });
+      if (match) {
+        const { stats } = match.play;
+        playVM = {
+          topic: match.play.topic,
+          episodes: match.play.episodeCount,
+          medianDays: stats.medianDaysToClose,
+          extensionPct: Math.round(stats.extensionRate * 100),
+          topRoute: stats.routes[0] ? `${stats.routes[0].department} (${Math.round(stats.routes[0].share * 100)}%)` : null,
+          exemptions: stats.exemptions.slice(0, 3).map((e) => e.label),
+          samples: stats.samplePublicIds.filter((p) => p !== r.publicId).slice(0, 3),
+        };
+      }
+    }
+
     const extConfig = profile?.responseClock.extension;
     if (extConfig) {
       const taken = rawRequest?.extensionHistory?.[0] ?? null;
@@ -207,6 +240,7 @@ export default async function RequestDetail({
       const { documentsAtRetentionRisk, retentionStatus } = await import("@/domain/retention");
       const reviewSet = docs.filter((d) => d.classification === "internal");
       retentionRisk = documentsAtRetentionRisk(reviewSet, now).map(({ doc, status }) => ({
+        documentId: doc.id,
         filename: doc.filename ?? doc.id,
         label: status.label,
       }));
@@ -372,8 +406,78 @@ export default async function RequestDetail({
               Defensibility report
             </a>
           )}
+          {detail.source === "live" && (
+            <a
+              href={`/${slug}/app/requests/${r.id}/appeal-packet.pdf`}
+              className="btn btn-sm"
+              title="Counsel dossier: deadline bases, exemption citations, letters, checksummed releases, drafted cover memo"
+            >
+              Appeal packet
+            </a>
+          )}
         </div>
       </div>
+
+      {/* Next up — the page already knows the request's state; say what it
+          needs instead of making the coordinator scroll to discover it. */}
+      {detail.source === "live" &&
+        r.closedAt == null &&
+        (() => {
+          const openTasks = r.tasks.filter((t) => t.status !== "done" && t.status !== "cancelled");
+          const undecided = reviewDocs.filter((d) => !d.decision);
+          const next =
+            undecided.length > 0
+              ? {
+                  text: `${undecided.length} record${undecided.length === 1 ? "" : "s"} in the review set await${undecided.length === 1 ? "s" : ""} your release decisions.`,
+                  href: "#review-release",
+                  cta: "Review now",
+                }
+              : openTasks.length > 0
+                ? {
+                    text: `Waiting on ${openTasks.length} department task${openTasks.length === 1 ? "" : "s"}.`,
+                    href: "#dept-tasks",
+                    cta: "See tasks",
+                  }
+                : r.tasks.length === 0
+                  ? {
+                      text: "Not routed yet — dispatch it to the department that holds the records.",
+                      href: "#dept-tasks",
+                      cta: "Route it",
+                    }
+                  : reviewDocs.length === 0
+                    ? {
+                        text: "Department tasks are done but the review set is empty — find and attach the records.",
+                        href: `/${slug}/app/search?req=${r.id}`,
+                        cta: "Find records",
+                      }
+                    : !releaseVM
+                      ? {
+                          text: "Every record is decided — assemble the response and approve the release.",
+                          href: "#review-release",
+                          cta: "Go to release",
+                        }
+                      : null;
+          return next ? (
+            <div
+              className="card"
+              style={{
+                marginTop: 16,
+                padding: "12px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+                borderLeft: "3px solid var(--gold)",
+              }}
+            >
+              <span className="panel-title" style={{ margin: 0 }}>Next up</span>
+              <span style={{ fontSize: "0.92rem", flex: 1, minWidth: 220 }}>{next.text}</span>
+              <a href={next.href} className="btn btn-sm btn-primary">
+                {next.cta}
+              </a>
+            </div>
+          ) : null;
+        })()}
 
       <div className="detail-grid" style={{ marginTop: 20 }}>
         {/* Left — timeline, requester, immutable request */}
@@ -478,11 +582,25 @@ export default async function RequestDetail({
                 for destruction and not under hold. Destroying a record responsive to an open request
                 is spoliation — place a hold before the schedule runs.
               </p>
-              <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "grid", gap: 4 }}>
+              <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "grid", gap: 6 }}>
                 {retentionRisk.map((d) => (
-                  <li key={d.filename} style={{ fontSize: "0.82rem" }}>
-                    <span className="mono">{d.filename}</span>{" "}
+                  <li key={d.documentId} style={{ fontSize: "0.82rem", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span className="mono">{d.filename}</span>
                     <span className="muted">— {d.label}</span>
+                    {/* The named-human act: this staff member places the hold,
+                        audited onto this request's trail. */}
+                    <form
+                      action={placeLegalHoldFormAction.bind(null, {
+                        agencySlug: slug,
+                        requestId: id,
+                        documentId: d.documentId,
+                      })}
+                      style={{ marginLeft: "auto" }}
+                    >
+                      <button className="btn btn-sm" type="submit">
+                        Place hold
+                      </button>
+                    </form>
                   </li>
                 ))}
               </ul>
@@ -541,6 +659,32 @@ export default async function RequestDetail({
               Immutable — the exact words the requester wrote.
             </div>
           </div>
+
+          {/* Learned precedent (docs/learning-loop.md): the office's own
+              resolved history for this kind of ask — deterministic stats, no
+              model. Advisory: routing/decisions stay named-human acts. */}
+          {playVM && (
+            <div className="card card-pad">
+              <div className="panel-title">Similar past requests</div>
+              <p style={{ fontSize: "0.88rem", margin: "8px 0 0" }}>
+                {playVM.episodes} resolved request(s) about{" "}
+                <span style={{ fontWeight: 600 }}>{playVM.topic}</span>
+                {playVM.topRoute ? <> — mostly fulfilled by {playVM.topRoute}</> : null}.
+              </p>
+              <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+                {playVM.medianDays != null ? `Median ${playVM.medianDays} days to close. ` : ""}
+                {playVM.extensionPct > 0 ? `${playVM.extensionPct}% took an extension. ` : ""}
+                {playVM.exemptions.length > 0
+                  ? `Exemptions cited before: ${playVM.exemptions.join(", ")}.`
+                  : "No exemptions cited in past cases."}
+              </div>
+              {playVM.samples.length > 0 && (
+                <div className="mono muted" style={{ fontSize: "0.76rem", marginTop: 6 }}>
+                  Precedents: {playVM.samples.join(" · ")}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="card card-pad">
             <div className="panel-title">
@@ -626,7 +770,7 @@ export default async function RequestDetail({
           releaseVM ||
           r.status === "denied" ||
           (r.closedAt == null && canTransition(r.status, "denied"))) && (
-        <div style={{ marginTop: 24, maxWidth: 720 }}>
+        <div id="review-release" style={{ marginTop: 24, maxWidth: 720, scrollMarginTop: 56 }}>
           <ReviewRelease
             key={`${reviewDocs.map((d) => `${d.documentId}:${d.decision}`).join(",")}|${releaseVM ? "released" : "open"}|${r.status}`}
             agencySlug={slug}

@@ -1057,9 +1057,54 @@ export const agentRuns = pgTable(
   ],
 );
 
+/**
+ * request_plays — the learning loop's distilled knowledge (docs/
+ * learning-loop.md). Each row is one learned cluster of demand ("towing
+ * contracts", "bodycam footage") with the statistics of how the office
+ * actually resolved it: routes, exemptions, timing, outcomes. Rebuilt
+ * NIGHTLY as a full materialized aggregate of the append-only record —
+ * never incrementally mutated, so it can't drift from the truth it
+ * summarizes. Consulted deterministically at intake; its route confidence
+ * feeds the existing auto-dispatch gate (never at 1.0 — explicit rules own
+ * that).
+ */
+export const requestPlays = pgTable(
+  "request_plays",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    /** Human label built from the cluster's strongest terms. */
+    topic: text("topic").notNull(),
+    /** Term profile the intake matcher compares new asks against. */
+    keywords: jsonb("keywords").$type<string[]>().notNull(),
+    stats: jsonb("stats").$type<PlayStats>().notNull(),
+    episodeCount: integer("episode_count").notNull(),
+    rebuiltAt: timestamp("rebuilt_at", { withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (t) => [index("request_plays_agency_idx").on(t.agencyId)],
+);
+
 // ---------------------------------------------------------------------------
 // Shared JSONB payload types (kept here so schema is the single source of truth)
 // ---------------------------------------------------------------------------
+
+/** Aggregated resolution knowledge for one learned demand cluster. */
+export interface PlayStats {
+  /** Departments that actually produced the records, by share (desc). */
+  routes: { departmentId: string | null; department: string; share: number }[];
+  /** Exemption labels cited in reviews, by count (desc). */
+  exemptions: { label: string; count: number }[];
+  /** Terminal statuses → counts (fulfilled, partially_fulfilled, denied, …). */
+  outcomes: Record<string, number>;
+  medianDaysToClose: number | null;
+  /** Share of episodes that took a statutory extension. */
+  extensionRate: number;
+  /** Precedent request publicIds, newest first (display + prompt context). */
+  samplePublicIds: string[];
+}
 
 export interface AgentBudgetLimits {
   maxToolCalls: number;
@@ -1086,6 +1131,13 @@ export interface AgentPlanStep {
   disposition?: "autonomous" | "requires_human" | "forbidden";
   output?: unknown;
   note?: string;
+  /**
+   * Named human who approved THIS step at a checkpoint (§16.3 "one approval
+   * releases"). A requires_human step executes on resume only when this is
+   * set; the approval is scoped to the single step, never the run. Forbidden
+   * actions ignore it — nothing approves those.
+   */
+  approvedByUserId?: string;
 }
 
 export interface AgentPlanState {
@@ -1115,6 +1167,15 @@ export interface AgencySettings {
    * Recorded by the agency admin; display-only everywhere else.
    */
   statuteReview?: { reviewedBy: string; reviewedOn: string; note?: string };
+  /**
+   * Requester status API (agentic-horizon §16.4 first brick, opt-in):
+   * GET /api/v1/{slug}/requests/{publicId} serves the tracker's
+   * requester-safe projection; webhookUrl (https) receives a ping on every
+   * status change / extension. Ping-style on purpose: the POST carries only
+   * tracking-number-level facts, and subscribers verify against the status
+   * API — so there is no signing secret to store.
+   */
+  statusApi?: { enabled: boolean; webhookUrl?: string | null };
 }
 
 /**
@@ -1216,6 +1277,7 @@ export const allTables = {
   authTokens,
   agentRuns,
   publicIdCounters,
+  requestPlays,
   jobs,
   publicationDecisions,
   instanceMeta,

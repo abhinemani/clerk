@@ -70,5 +70,15 @@ export async function runLegacyImportAction(
     actorUserId: staff.userId,
     rows,
   });
+
+  // The imported history joins the precedent corpus without waiting for the
+  // next boot backfill (idempotent — already-embedded rows are skipped).
+  try {
+    const { getJobQueue } = await import("@/jobs/queue");
+    getJobQueue().enqueue("embed_requests", { agencyId: staff.agencyId });
+  } catch (e) {
+    console.error("embed_requests enqueue after legacy import failed", e);
+  }
+
   return { ok: true, ...result, skippedInvalid: errors.length };
 }

@@ -411,6 +411,34 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect(reviews[0]?.id).toBe(first.id);
     });
 
+    it("documents: listDocumentsUnderRetention returns only scheduled or held docs, tenant-scoped", async () => {
+      const scheduled = await repo.createDocument(docOf({ retentionUntil: new Date("2026-09-01T00:00:00Z") }));
+      const held = await repo.createDocument(docOf({ legalHoldReason: "Litigation hold" }));
+      const plain = await repo.createDocument(docOf());
+      const under = await repo.listDocumentsUnderRetention(AG1);
+      const ids = under.map((d) => d.id);
+      expect(ids).toContain(scheduled.id);
+      expect(ids).toContain(held.id);
+      expect(ids).not.toContain(plain.id);
+      const other = await repo.listDocumentsUnderRetention(AG2);
+      expect(other.some((d) => d.id === scheduled.id || d.id === held.id)).toBe(false);
+    });
+
+    it("reviews: listAgencyReviews spans requests, tenant-scoped", async () => {
+      const r1 = await repo.createRequest(requestOf());
+      const r2 = await repo.createRequest(requestOf());
+      const d1 = await repo.createDocument(docOf());
+      const d2 = await repo.createDocument(docOf());
+      await repo.upsertReview({ id: uid(), agencyId: AG1, requestId: r1.id, documentId: d1.id, decision: "withhold", exemptionLabel: "Personnel privacy", decidedByUserId: USER1, createdAt: new Date() });
+      await repo.upsertReview({ id: uid(), agencyId: AG1, requestId: r2.id, documentId: d2.id, decision: "release_redacted", exemptionLabel: "PII", decidedByUserId: USER1, createdAt: new Date() });
+      // The suite shares one repo per adapter — assert containment, not equality.
+      const all = await repo.listAgencyReviews(AG1);
+      const mine = all.filter((x) => x.requestId === r1.id || x.requestId === r2.id);
+      expect(mine.map((x) => x.exemptionLabel).sort()).toEqual(["PII", "Personnel privacy"]);
+      const other = await repo.listAgencyReviews(AG2);
+      expect(other.some((x) => x.requestId === r1.id || x.requestId === r2.id)).toBe(false);
+    });
+
     it("releases: lookup by id and by contained document, tenant-scoped", async () => {
       const r = await repo.createRequest(requestOf());
       const artifactDocId = uid();
@@ -426,6 +454,78 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       const d = await repo.appendDeflection({ id: uid(), agencyId: AG1, kind: "download", query: "q", documentId: null, estimatedStaffHoursAvoided: 1.5, createdAt: new Date() });
       expect((await repo.listDeflections(AG1)).some((x) => x.id === d.id)).toBe(true);
       expect((await repo.listDeflections(AG2)).some((x) => x.id === d.id)).toBe(false);
+    });
+
+    it("plays: full-replace per agency, tenant-scoped list", async () => {
+      const mk = (agencyId: string, topic: string, episodes: number) => ({
+        id: uid(),
+        agencyId,
+        topic,
+        keywords: topic.split(" "),
+        stats: {
+          routes: [{ departmentId: null, department: "Public Works", share: 1 }],
+          exemptions: [],
+          outcomes: { fulfilled: episodes },
+          medianDaysToClose: 7,
+          extensionRate: 0,
+          samplePublicIds: ["PR-1"],
+        },
+        episodeCount: episodes,
+        rebuiltAt: new Date(),
+        createdAt: new Date(),
+      });
+
+      await repo.replaceAgencyPlays(AG1, [mk(AG1, "towing contracts", 4), mk(AG1, "budget salaries", 2)]);
+      await repo.replaceAgencyPlays(AG2, [mk(AG2, "bodycam footage", 3)]);
+
+      const ag1 = await repo.listPlays(AG1);
+      expect(ag1.map((p) => p.topic)).toEqual(["towing contracts", "budget salaries"]); // episodeCount desc
+      expect(ag1[0]!.stats.routes[0]!.department).toBe("Public Works");
+      // Tenant isolation both ways (invariant 2).
+      expect((await repo.listPlays(AG2)).map((p) => p.topic)).toEqual(["bodycam footage"]);
+
+      // Full replace: a rebuild with one row leaves exactly one row — and
+      // never touches the other agency's plays.
+      await repo.replaceAgencyPlays(AG1, [mk(AG1, "towing contracts", 5)]);
+      expect((await repo.listPlays(AG1)).map((p) => p.episodeCount)).toEqual([5]);
+      expect((await repo.listPlays(AG2)).length).toBe(1);
+    });
+
+    it("agent runs: create + get + update + list, all tenant-scoped (§16.2)", async () => {
+      const run = await repo.createAgentRun({
+        id: uid(),
+        agencyId: AG1,
+        agentType: "deadline",
+        requestId: null,
+        status: "awaiting_checkpoint",
+        goal: "Nightly deadline sweep",
+        plan: {
+          goal: "Nightly deadline sweep",
+          cursor: 1,
+          steps: [
+            { index: 0, action: "read_queue", description: "read_queue", status: "done" },
+            { index: 1, action: "send_custodian_nudge_email", description: "nudge", status: "awaiting_human" },
+          ],
+        },
+        budgetLimits: { maxToolCalls: 10, maxTokens: 1000, maxWallClockMs: 60_000 },
+        budgetSpend: { toolCalls: 1, tokens: 0, wallClockMs: 5 },
+        startedByUserId: null,
+        handoffNote: null,
+        lastStepAt: null,
+        createdAt: new Date(),
+      });
+
+      expect((await repo.getAgentRun(AG1, run.id))?.status).toBe("awaiting_checkpoint");
+      expect(await repo.getAgentRun(AG2, run.id)).toBeNull(); // invariant 2
+
+      const plan = { ...run.plan!, cursor: 2 };
+      const updated = await repo.updateAgentRun(AG1, run.id, { status: "completed", plan });
+      expect(updated.status).toBe("completed");
+      expect(updated.plan?.cursor).toBe(2);
+      await expect(repo.updateAgentRun(AG2, run.id, { status: "cancelled" })).rejects.toThrow();
+
+      expect((await repo.listAgentRuns(AG1)).some((r) => r.id === run.id)).toBe(true);
+      expect((await repo.listAgentRuns(AG2)).some((r) => r.id === run.id)).toBe(false);
     });
 
     // --- durable job queue ---------------------------------------------------

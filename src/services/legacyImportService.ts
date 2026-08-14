@@ -17,12 +17,18 @@
  */
 import { formatPublicId } from "@/domain/publicId";
 import type { ParsedLegacyRow } from "@/domain/legacyImport";
+import { addAskAlias, readDocumentMeta } from "@/domain/documentMeta";
 import type { ServiceDeps } from "./deps";
-import { NotFoundError } from "./repository";
+import { NotFoundError, type DocumentEntity } from "./repository";
 
 export interface LegacyImportResult {
-  imported: { publicId: string; legacyId: string | null }[];
+  imported: { publicId: string; legacyId: string | null; linkedDocuments: number }[];
   failed: { rowNumber: number; reason: string }[];
+  /** Release-history linkage totals (0 when the CSV had no released_records column). */
+  releasesCreated: number;
+  documentsLinked: number;
+  /** external_ids named in the CSV that matched no imported document. */
+  missingRecordIds: string[];
 }
 
 export async function importLegacyRequests(
@@ -37,9 +43,24 @@ export async function importLegacyRequests(
 
   const imported: LegacyImportResult["imported"] = [];
   const failed: LegacyImportResult["failed"] = [];
+  let releasesCreated = 0;
+  let documentsLinked = 0;
+  const missingRecordIds = new Set<string>();
   // Dedupe requesters within this batch too — a legacy export commonly
   // repeats the same person across many rows.
   const requesterCache = new Map<string, string>(); // email -> requesterId
+
+  // Release-history linkage (the onboarding lever): rows may name the
+  // external_ids of already-imported documents they RELEASED. Load the
+  // lookup once — only when some row actually uses it.
+  let docsByExternalId: Map<string, DocumentEntity> | null = null;
+  if (input.rows.some((r) => r.releasedRecordIds.length > 0)) {
+    docsByExternalId = new Map(
+      (await repo.listDocuments(input.agencyId))
+        .filter((d) => d.externalSystemId != null)
+        .map((d) => [d.externalSystemId!, d] as const),
+    );
+  }
 
   for (const row of input.rows) {
     try {
@@ -93,28 +114,97 @@ export async function importLegacyRequests(
         createdAt: row.receivedAt,
       });
 
+      // Link this request's historical release, when the row names records.
+      // The publicness decision is NEVER made here (invariant 9): docs keep
+      // whatever classification a human already gave them, and the minted
+      // release is public only when every linked doc already IS public —
+      // deriving from prior named-human decisions, not flipping anything.
+      let releaseId: string | null = null;
+      const releasedDocs: DocumentEntity[] = [];
+      const missingHere: string[] = [];
+      if (row.releasedRecordIds.length > 0 && docsByExternalId) {
+        for (const externalId of row.releasedRecordIds) {
+          const doc = docsByExternalId.get(externalId);
+          if (doc) releasedDocs.push(doc);
+          else {
+            missingHere.push(externalId);
+            missingRecordIds.add(externalId);
+          }
+        }
+        if (releasedDocs.length > 0) {
+          for (const doc of releasedDocs) {
+            await repo.linkRequestDocument(input.agencyId, request.id, doc.id);
+          }
+          const release = await repo.createRelease({
+            id: deps.genId(),
+            agencyId: input.agencyId,
+            requestId: request.id,
+            artifacts: releasedDocs.map((d) => ({
+              blobRef: d.blobRef ?? d.filename ?? d.id,
+              filename: d.filename ?? d.id,
+              checksum: d.checksum ?? `legacy:${d.id}`,
+              documentId: d.id,
+            })),
+            responseLetter: null,
+            visibility: releasedDocs.every((d) => d.classification === "public")
+              ? "public"
+              : "private",
+            approvedByUserId: input.actorUserId,
+            releasedAt: row.closedAt ?? row.receivedAt,
+          });
+          releaseId = release.id;
+          releasesCreated++;
+          documentsLinked += releasedDocs.length;
+
+          // The ask-alias loop + archive backlink, best-effort like the live
+          // release path: a learning write must never fail a history load.
+          for (const doc of releasedDocs) {
+            try {
+              const meta = readDocumentMeta(doc);
+              const nextAliases = addAskAlias(meta, row.description);
+              const patch: Record<string, unknown> = { ...(doc.metadata ?? {}) };
+              if (nextAliases) patch.askedAs = nextAliases;
+              if (!meta.releaseId) patch.releaseId = release.id;
+              await repo.updateDocument(input.agencyId, doc.id, {
+                metadata: patch as DocumentEntity["metadata"],
+              });
+            } catch (e) {
+              console.error("[legacyImport] alias/backlink write failed (non-fatal)", e);
+            }
+          }
+        }
+      }
+
       await repo.appendEvent({
         id: deps.genId(),
         agencyId: input.agencyId,
         requestId: request.id,
         kind: "note",
         actorUserId: input.actorUserId,
-        summary: `Imported from legacy system by ${actor.name ?? actor.email}${row.legacyId ? ` (legacy ref ${row.legacyId})` : ""}`,
+        summary: `Imported from legacy system by ${actor.name ?? actor.email}${row.legacyId ? ` (legacy ref ${row.legacyId})` : ""}${releasedDocs.length > 0 ? ` — ${releasedDocs.length} released document(s) linked` : ""}`,
         payload: {
           source: "legacy_import",
           legacyId: row.legacyId,
           legacyStatus: row.statusMatched ? null : "unrecognized — mapped to closed",
           department: row.department,
           warnings: row.warnings,
+          ...(releaseId ? { releaseId, releasedDocumentIds: releasedDocs.map((d) => d.id) } : {}),
+          ...(missingHere.length > 0 ? { missingReleasedRecordIds: missingHere } : {}),
         },
         createdAt: deps.now(),
       });
 
-      imported.push({ publicId, legacyId: row.legacyId });
+      imported.push({ publicId, legacyId: row.legacyId, linkedDocuments: releasedDocs.length });
     } catch (e) {
       failed.push({ rowNumber: row.rowNumber, reason: e instanceof Error ? e.message : "Import failed." });
     }
   }
 
-  return { imported, failed };
+  return {
+    imported,
+    failed,
+    releasesCreated,
+    documentsLinked,
+    missingRecordIds: [...missingRecordIds],
+  };
 }

@@ -55,7 +55,7 @@ export default async function AgencyLayout({
   const accentCss = b.accentColor ? tenantAccentCss(b.accentColor) : null;
 
   return (
-    <div className={accentCss ? "tenant-accent" : undefined}>
+    <div className={`agency-shell${accentCss ? " tenant-accent" : ""}`}>
       {accentCss && <style>{accentCss}</style>}
       <a href="#main" className="skip-link">
         Skip to content

@@ -313,6 +313,18 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
       ],
     });
     await acceptTaskRecords(deps, { agencyId, taskId: task.id, actorUserId: admin.id });
+
+    // The incident report carries a retention schedule inside the 30-day
+    // warning window, so the retention-destruction warning (command center
+    // card + nightly sweep) has a live demo moment: an open request whose
+    // responsive record is about to be destroyed on schedule.
+    const reviewDocs = await repo.listRequestDocuments(agencyId, incidentRequest.id);
+    const incidentDoc = reviewDocs.find((d) => d.filename === REDACTION_DEMO.documentName);
+    if (incidentDoc) {
+      await repo.updateDocument(agencyId, incidentDoc.id, {
+        retentionUntil: new Date(Date.now() + 21 * 86_400_000),
+      });
+    }
   }
 
   // Registering with the same email claims the filed request into the account.

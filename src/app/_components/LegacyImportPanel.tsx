@@ -14,13 +14,21 @@ import {
 } from "../[agency]/app/(secure)/admin/import/actions";
 
 const TEMPLATE = [
-  "legacy_id,requester_name,requester_email,description,status,filed_date,due_date,closed_date,department,record_type",
-  '"OLD-2024-0091",Jane Reyes,jane@example.com,"All emails re: Main St paving, Jan-Mar 2024",fulfilled,2024-01-15,2024-01-25,2024-01-24,Public Works,contract',
+  "legacy_id,requester_name,requester_email,description,status,filed_date,due_date,closed_date,department,record_type,released_records",
+  '"OLD-2024-0091",Jane Reyes,jane@example.com,"All emails re: Main St paving, Jan-Mar 2024",fulfilled,2024-01-15,2024-01-25,2024-01-24,Public Works,contract,"PAV-2024-001;PAV-2024-002"',
 ].join("\n");
 
 type Result =
   | { kind: "preview"; data: PreviewResult }
-  | { kind: "imported"; imported: number; failedCount: number; skippedInvalid: number }
+  | {
+      kind: "imported";
+      imported: number;
+      failedCount: number;
+      skippedInvalid: number;
+      releasesCreated: number;
+      documentsLinked: number;
+      missingRecordIds: string[];
+    }
   | { kind: "error"; message: string };
 
 export function LegacyImportPanel({ agencySlug }: { agencySlug: string }) {
@@ -60,7 +68,15 @@ export function LegacyImportPanel({ agencySlug }: { agencySlug: string }) {
       const res = await runLegacyImportAction(agencySlug, csv);
       setResult(
         res.ok
-          ? { kind: "imported", imported: res.imported.length, failedCount: res.failed.length, skippedInvalid: res.skippedInvalid }
+          ? {
+              kind: "imported",
+              imported: res.imported.length,
+              failedCount: res.failed.length,
+              skippedInvalid: res.skippedInvalid,
+              releasesCreated: res.releasesCreated,
+              documentsLinked: res.documentsLinked,
+              missingRecordIds: res.missingRecordIds,
+            }
           : { kind: "error", message: res.error },
       );
     });
@@ -71,7 +87,12 @@ export function LegacyImportPanel({ agencySlug }: { agencySlug: string }) {
       <p className="muted" style={{ fontSize: "0.9rem", margin: 0, maxWidth: 640 }}>
         Bring in requests from a spreadsheet or your old system (NextRequest, GovQA, anything that
         exports CSV). Each row becomes a real, searchable request with its original status and
-        dates — audited as an import, not pretended to be filed today.
+        dates — audited as an import, not pretended to be filed today. A{" "}
+        <span className="mono">released_records</span> column (external IDs from a records import,
+        separated by <span className="mono">;</span>) links each request to the documents it
+        released, so the archive, duplicate detection, and triage precedents inherit the history.
+        Import (and publish) the records first, then run this — documents keep whatever
+        classification you already gave them.
       </p>
 
       <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
@@ -185,6 +206,20 @@ export function LegacyImportPanel({ agencySlug }: { agencySlug: string }) {
           {result.failedCount > 0 && (
             <p style={{ color: "var(--overdue)", fontSize: "0.85rem", margin: "4px 0 0" }}>
               {result.failedCount} row(s) failed during import — see server logs.
+            </p>
+          )}
+          {result.releasesCreated > 0 && (
+            <p className="muted" style={{ fontSize: "0.85rem", margin: "4px 0 0" }}>
+              {result.releasesCreated} historical release{result.releasesCreated === 1 ? "" : "s"}{" "}
+              linked ({result.documentsLinked} document{result.documentsLinked === 1 ? "" : "s"}).
+            </p>
+          )}
+          {result.missingRecordIds.length > 0 && (
+            <p style={{ color: "var(--due)", fontSize: "0.85rem", margin: "4px 0 0" }}>
+              {result.missingRecordIds.length} released-record ID(s) matched no imported document:{" "}
+              <span className="mono">{result.missingRecordIds.slice(0, 5).join(", ")}</span>
+              {result.missingRecordIds.length > 5 ? "…" : ""} — import those records first, then
+              re-run the affected rows.
             </p>
           )}
           <p className="muted" style={{ fontSize: "0.85rem", marginTop: 8 }}>

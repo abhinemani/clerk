@@ -28,6 +28,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ agency:
     report,
     agency.name,
     `Through ${now.toISOString().slice(0, 10)}`,
+    { statuteReview: agency.settings?.statuteReview ?? null },
   );
   const pdf = renderTextPdf(narrative.split("\n"), "Annual compliance report");
 

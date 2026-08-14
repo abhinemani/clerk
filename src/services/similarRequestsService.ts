@@ -88,6 +88,61 @@ export async function writeRequestEmbedding(
   }
 }
 
+export interface DuplicateRequestMatch {
+  id: string;
+  publicId: string;
+  similarity: number;
+  status: string;
+}
+
+/**
+ * Duplicate detection at intake (§6.2), on STORED vectors.
+ *
+ * The filing's own ask vector was written moments earlier in submitRequest,
+ * so the common case costs ZERO embed calls: read the store, cosine against
+ * every other stored vector. The trap this replaces (HANDOFF build-candidate
+ * #3): the naive path would re-embed the whole corpus on every filing.
+ *
+ * Degradation, per row: a candidate without a stored vector — or a corpus
+ * with no vectors at all (backfill not yet run) — falls back to token
+ * overlap, so duplicate flags never wait on the embed pipeline. Thresholds
+ * are PER METRIC because the scales differ: cosine on real embeddings runs
+ * high (unrelated asks can score 0.4), Jaccard runs low.
+ */
+export async function findDuplicateRequests(
+  deps: ServiceDeps,
+  input: { agencyId: string; requestId: string; text: string; limit?: number },
+): Promise<DuplicateRequestMatch[]> {
+  const limit = input.limit ?? 3;
+  const { repo } = deps;
+  const candidates = (await repo.listRequests(input.agencyId)).filter(
+    (r) => r.id !== input.requestId,
+  );
+  if (candidates.length === 0) return [];
+
+  const stored = new Map(
+    (await repo.listRequestEmbeddings(input.agencyId)).map((e) => [e.id, e.embedding] as const),
+  );
+  const queryVec = stored.get(input.requestId) ?? null;
+  const queryTokens = tokens(input.text);
+
+  const VEC_THRESHOLD = 0.6; // cosine over embeddings — near-duplicate territory
+  const LEX_THRESHOLD = 0.35; // Jaccard — the original intake calibration
+
+  return candidates
+    .map((r) => {
+      const vec = queryVec ? stored.get(r.id) : undefined;
+      const similarity = vec
+        ? cosine(queryVec!, vec)
+        : overlap(queryTokens, tokens(requestEmbeddingText(r)));
+      return { id: r.id, publicId: r.publicId, similarity, status: r.status, metric: vec ? "vec" : "lex" };
+    })
+    .filter((s) => s.similarity >= (s.metric === "vec" ? VEC_THRESHOLD : LEX_THRESHOLD))
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, limit)
+    .map(({ id, publicId, similarity, status }) => ({ id, publicId, similarity, status }));
+}
+
 /**
  * The k most similar human-reviewed requests, with their outcomes.
  *

@@ -4,14 +4,21 @@ Four files, two jobs.
 
 ## Full lockups — hero use
 
-- `brandeis-lockup-dark.png` (1600×295) — white wordmark, gold tagline.
+- `brandeis-lockup-dark.png` (1600×248) — white wordmark, gold tagline.
+  **Rev 2026-08-13b**, cropped/downscaled from the owner's 2000×731
+  transparent render supplied in-session: gold data-dashes streaming into a
+  document sheet (the old prism-triangle drawing is retired). ⚠ The render's
+  tagline carries stray accents ("FÓR", "RECÓRDS") — flagged to the owner at
+  handoff; replace this file from a corrected render when one exists.
 - `brandeis-lockup-light.png` (1600×301) — navy wordmark, gold tagline.
+  **PREVIOUS drawing, currently UNREFERENCED by code** (the nav is pinned
+  dark, so every lockup placement renders the dark rev). Kept only so a
+  future light-ground placement fails loudly to the old art rather than
+  silently to nothing; regenerate it from a light-ground render of the NEW
+  drawing before using it anywhere.
 
-Both are cropped and downscaled from the owner's 4096px transparent PNG
-renders (2026-08-13). Unlike the first round of assets, these were rendered
-with a real alpha channel — no black plate to key off. They are still
-rasters: they do not scale past the source and cannot be recoloured, so they
-are used as images, not as the mark.
+They are rasters: they do not scale past the source and cannot be
+recoloured, so they are used as images, not as the mark.
 
 **Owner directive 2026-08-13: these renders ARE the logo, everywhere.** No
 re-typeset wordmark, no vector redraw. `<BrandLockup>` renders the full
@@ -25,14 +32,16 @@ visitor, pin the dark revision on grounds that are dark in both themes
 
 ## Marks — header use
 
-- `mark-dark.png`, `mark-light.png` — the prism cropped out of the lockup
-  renders above (everything left of the gap before the wordmark), fitted
-  inside a shared **252×124** canvas and centred.
+- `mark-dark.png`, `mark-light.png` — the mark (data-dashes + document
+  sheet) cropped out of the 2026-08-13b lockup render (everything left of
+  the gap before the wordmark), fitted inside a shared **252×124** canvas
+  and centred. The new drawing is ALL GOLD with no ground-specific ink, so
+  both files currently carry the SAME image — kept as two files because
+  `<BrandMarkRaster>`'s `<picture>` swap references both, and a future
+  render pair may diverge again.
 
 `<BrandMarkRaster>` swaps them with `<picture>` + `prefers-color-scheme`, and
-`<BrandLockup>` sets the type beside them. Each render has its glow baked
-into the pixels: the dark rev vanishes on the brand ground and reads as a
-dirty grey plate on paper, and the light rev's navy inverts that problem.
+`<BrandLockup>` sets the type beside them.
 
 To regenerate them from a new pair of renders, two steps are load-bearing:
 
@@ -55,9 +64,13 @@ both, onto the same canvas.
 The rasters, everywhere (owner directive 2026-08-13): `<BrandLockup>` for
 the full lockup, `<BrandMarkRaster>` for the mark alone. The hand-authored
 `<BrandMark>` SVG was REMOVED with that directive — do not redraw the mark
-in code. The one surviving hand-drawn derivative is `src/app/icon.svg` (a
-favicon cannot ship a 170KB raster); keep its colours in sync with the
-renders if they are ever regenerated.
+in code. With the 2026-08-13b render the last hand-drawn derivative
+(`src/app/icon.svg`, the old prism) was replaced by `src/app/icon.png` —
+a 64px crop of the render's document glyph, so even the favicon is the
+owner's pixels now. `apple-icon.png` (mark on the board's plum) and
+`opengraph-image.png` (lockup on dark paper) are composed from the same
+render; `favicon.ico` is still the OLD drawing (ico needs a tool sharp
+doesn't have) — regenerate it when convenient.
 
 To replace the rasters with a true vector, export with text converted to
 outlines and shapes as paths (Illustrator: Save As → SVG, *Preserve

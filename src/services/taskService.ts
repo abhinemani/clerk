@@ -63,6 +63,9 @@ export async function dispatchTask(deps: ServiceDeps, input: DispatchTaskInput):
   });
 
   // Actually deliver the task to the department head (§4 email interface).
+  // Best-effort like every notification path (outbox-first by design): the
+  // task and its audit trail already exist, and a relay outage must not
+  // unwind the dispatch — it lands as a failed-delivery event instead.
   if (deps.notifier && input.departmentEmail) {
     const link = taskUrl(task.token, deps.baseUrl);
     const drafted =
@@ -74,27 +77,40 @@ export async function dispatchTask(deps: ServiceDeps, input: DispatchTaskInput):
         scope: input.scopeText,
         link,
       });
-    const receipt = await deps.notifier.send({
-      agencyId: input.agencyId,
-      to: input.departmentEmail,
-      subject: drafted.subject,
-      body: drafted.body,
-      kind: "task_dispatch",
-      requestId: request.id,
-      taskId: task.id,
-      // A responder can just reply with attachments — email-in (§6.5).
-      replyTo: inboundAddress("task", task.token),
-    });
-    await repo.appendEvent({
-      id: deps.genId(),
-      agencyId: input.agencyId,
-      requestId: request.id,
-      kind: "delivery",
-      actorUserId: input.actorUserId ?? null,
-      summary: `Task link delivered to ${input.departmentName ?? "department"} (${input.departmentEmail})`,
-      payload: { taskId: task.id, to: input.departmentEmail, channel: receipt.channel, deliveryId: receipt.id },
-      createdAt: deps.now(),
-    });
+    try {
+      const receipt = await deps.notifier.send({
+        agencyId: input.agencyId,
+        to: input.departmentEmail,
+        subject: drafted.subject,
+        body: drafted.body,
+        kind: "task_dispatch",
+        requestId: request.id,
+        taskId: task.id,
+        // A responder can just reply with attachments — email-in (§6.5).
+        replyTo: inboundAddress("task", task.token),
+      });
+      await repo.appendEvent({
+        id: deps.genId(),
+        agencyId: input.agencyId,
+        requestId: request.id,
+        kind: "delivery",
+        actorUserId: input.actorUserId ?? null,
+        summary: `Task link delivered to ${input.departmentName ?? "department"} (${input.departmentEmail})`,
+        payload: { taskId: task.id, to: input.departmentEmail, channel: receipt.channel, deliveryId: receipt.id },
+        createdAt: deps.now(),
+      });
+    } catch (err) {
+      await repo.appendEvent({
+        id: deps.genId(),
+        agencyId: input.agencyId,
+        requestId: request.id,
+        kind: "delivery",
+        actorUserId: input.actorUserId ?? null,
+        summary: `Task link delivery FAILED to ${input.departmentName ?? "department"} (${input.departmentEmail}) — resend from the task panel`,
+        payload: { taskId: task.id, to: input.departmentEmail, failed: true, error: err instanceof Error ? err.message : String(err) },
+        createdAt: deps.now(),
+      });
+    }
   }
 
   // Signed-up responders of this department get a heads-up too — WITHOUT the
@@ -104,39 +120,46 @@ export async function dispatchTask(deps: ServiceDeps, input: DispatchTaskInput):
   if (deps.notifier && input.departmentId) {
     const [agency, users] = await Promise.all([repo.getAgency(input.agencyId), repo.listUsers(input.agencyId)]);
     const notified: string[] = [];
+    const failed: string[] = [];
     for (const user of users) {
       if (user.role !== "responder" || user.email === input.departmentEmail) continue;
       const departmentIds = await repo.listUserDepartmentIds(input.agencyId, user.id);
       if (!departmentIds.includes(input.departmentId)) continue;
-      await deps.notifier.send({
-        agencyId: input.agencyId,
-        to: user.email,
-        subject: `New records task for ${input.departmentName ?? "your department"} — ${request.publicId}`,
-        body: [
-          `${user.name ?? "Hello"},`,
-          ``,
-          `A records task was just assigned to ${input.departmentName ?? "your department"}:`,
-          ``,
-          `  ${input.scopeText}`,
-          ``,
-          `Sign in to your task list to work it:`,
-          `  ${deps.baseUrl ?? ""}/${agency?.slug ?? ""}/app/tasks`,
-        ].join("\n"),
-        kind: "task_responder_notice",
-        requestId: request.id,
-        taskId: task.id,
-      });
-      notified.push(user.email);
+      try {
+        await deps.notifier.send({
+          agencyId: input.agencyId,
+          to: user.email,
+          subject: `New records task for ${input.departmentName ?? "your department"} — ${request.publicId}`,
+          body: [
+            `${user.name ?? "Hello"},`,
+            ``,
+            `A records task was just assigned to ${input.departmentName ?? "your department"}:`,
+            ``,
+            `  ${input.scopeText}`,
+            ``,
+            `Sign in to your task list to work it:`,
+            `  ${deps.baseUrl ?? ""}/${agency?.slug ?? ""}/app/tasks`,
+          ].join("\n"),
+          kind: "task_responder_notice",
+          requestId: request.id,
+          taskId: task.id,
+        });
+        notified.push(user.email);
+      } catch {
+        // Best-effort heads-up: one bad address or a relay hiccup must not
+        // stop the remaining responders' notices, let alone the dispatch.
+        failed.push(user.email);
+      }
     }
-    if (notified.length > 0) {
+    if (notified.length > 0 || failed.length > 0) {
       await repo.appendEvent({
         id: deps.genId(),
         agencyId: input.agencyId,
         requestId: request.id,
         kind: "delivery",
         actorUserId: input.actorUserId ?? null,
-        summary: `Heads-up sent to ${notified.length} signed-in responder${notified.length === 1 ? "" : "s"} (${input.departmentName ?? "department"})`,
-        payload: { taskId: task.id, to: notified },
+        summary: `Heads-up sent to ${notified.length} signed-in responder${notified.length === 1 ? "" : "s"} (${input.departmentName ?? "department"})${failed.length > 0 ? ` — ${failed.length} failed` : ""}`,
+        payload: { taskId: task.id, to: notified, ...(failed.length > 0 ? { failed } : {}) },
         createdAt: deps.now(),
       });
     }

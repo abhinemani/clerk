@@ -67,7 +67,9 @@ describe("tenantAccentCss", () => {
   it("emits light values verbatim and a screen-scoped dark override", () => {
     const css = tenantAccentCss("#1e3a5f")!;
     expect(css).toContain(".tenant-accent{--primary:#1e3a5f;--primary-deep:#1e3a5f;--primary-hover:#1e3a5f;}");
-    expect(css).toContain("@media screen and (prefers-color-scheme:dark)");
+    // Dark-locked: the adjusted accent applies on every screen; the base
+    // (stored) value survives only for print.
+    expect(css).toContain("@media screen{");
     const dark = accentForDarkTheme("#1e3a5f")!;
     expect(css).toContain(`--primary:${dark}`);
     // --primary-deep stays the stored accent in dark too: it is only ever a
