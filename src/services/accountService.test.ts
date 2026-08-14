@@ -307,7 +307,7 @@ describe("provisionAgency — the multi-tenant front door (self-signup + console
 
   it("refuses reserved slugs — including /signup itself", async () => {
     const deps = makeDeps();
-    for (const slug of ["signup", "admin", "api", "app"]) {
+    for (const slug of ["signup", "admin", "api", "app", "demo"]) {
       await expect(
         provisionAgency(deps, {
           name: "X",

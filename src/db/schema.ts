@@ -1110,6 +1110,39 @@ export const requestPlays = pgTable(
   (t) => [index("request_plays_agency_idx").on(t.agencyId)],
 );
 
+/**
+ * demo_requests — walkthrough requests from the marketing site's primary CTA.
+ *
+ * PLATFORM-LEVEL, so no agency_id: whoever fills this in has no tenant yet —
+ * that is the entire point of asking. It is the one table a logged-out
+ * stranger can write to, so the write path rate-limits and the columns are
+ * all plain contact text; nothing here is ever read back into a tenant's
+ * data. Email delivery is best-effort on top (the row is the record, the
+ * same principle as deliveries), so the form still works on a deployment
+ * with zero external services configured.
+ */
+export const demoRequests = pgTable(
+  "demo_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    /** Jurisdiction or organization, as typed ("City of Riverton"). */
+    organization: text("organization").notNull(),
+    /** Job title, free text — "City Clerk", "Records Officer", counsel… */
+    role: text("role"),
+    /** Two-letter state, when they picked one; null = "not listed / other". */
+    stateCode: text("state_code"),
+    /** Free text: when they're around, what they want to see. */
+    notes: text("notes"),
+    /** Which surface sent them ("marketing-hero", "marketing-close", …) —
+        so we can tell which CTA actually earns walkthroughs. */
+    source: text("source"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("demo_requests_created_idx").on(t.createdAt)],
+);
+
 // ---------------------------------------------------------------------------
 // Shared JSONB payload types (kept here so schema is the single source of truth)
 // ---------------------------------------------------------------------------

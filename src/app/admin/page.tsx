@@ -66,10 +66,11 @@ export default async function PlatformHome() {
   // Deployment health: failures must be VISIBLE, not console-only. Failed
   // jobs stay in the jobs table (durable queue); failed relays stay on their
   // outbox rows. Green means actually green.
-  const [failedJobs, queuedJobs, failedDeliveries] = await Promise.all([
+  const [failedJobs, queuedJobs, failedDeliveries, demoRequests] = await Promise.all([
     repo.listJobs({ status: "failed", limit: 10 }),
     repo.listJobs({ status: "queued", limit: 100 }),
     repo.listFailedDeliveries(10),
+    repo.listDemoRequests(25),
   ]);
   const agencyNameById = new Map(agencies.map((a) => [a.id, a.name]));
   const oldestQueued = queuedJobs.at(-1); // listJobs is newest-first
@@ -256,6 +257,50 @@ export default async function PlatformHome() {
           </p>
         )}
       </div>
+
+      {/* Walkthrough requests — the marketing site's "Book a walkthrough" CTA
+          writes here. It sits directly above onboarding because that is the
+          actual sequence: someone asks for a demo, then becomes a tenant.
+          Platform-level (no agency yet), and the console is its only reader —
+          on a deployment with no email provider configured, this list is the
+          ONLY place a request surfaces, so it is never collapsed away. */}
+      <h2 style={{ fontSize: "1.05rem", marginTop: 34, marginBottom: 12 }}>
+        Walkthrough requests
+        {demoRequests.length > 0 && (
+          <span className="muted" style={{ fontWeight: 400 }}> · {demoRequests.length}</span>
+        )}
+      </h2>
+      {demoRequests.length === 0 ? (
+        <p className="muted" style={{ fontSize: "0.88rem" }}>
+          None yet. The marketing site&apos;s primary CTA (/demo) lands here.
+        </p>
+      ) : (
+        <div style={{ display: "grid", gap: 10 }}>
+          {demoRequests.map((d) => (
+            <article key={d.id} className="card card-pad" style={{ display: "grid", gap: 6 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                <strong style={{ fontSize: "1rem" }}>{d.organization}</strong>
+                {d.stateCode && <span className="tag">{d.stateCode}</span>}
+                <span className="muted" style={{ fontSize: "0.8rem", marginLeft: "auto" }}>
+                  {d.createdAt.toISOString().slice(0, 10)}
+                </span>
+              </div>
+              <div style={{ fontSize: "0.9rem" }}>
+                {d.name}
+                {d.role ? `, ${d.role}` : ""} ·{" "}
+                <a href={`mailto:${d.email}`} className="mono">
+                  {d.email}
+                </a>
+              </div>
+              {d.notes && (
+                <p className="muted" style={{ fontSize: "0.88rem", whiteSpace: "pre-wrap" }}>
+                  {d.notes}
+                </p>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
 
       <h2 style={{ fontSize: "1.05rem", marginTop: 34, marginBottom: 12 }}>Onboard an agency</h2>
       <CreateAgencyForm />

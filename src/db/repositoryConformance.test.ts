@@ -576,6 +576,42 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect((await repo.listDeflections(AG2)).some((x) => x.id === d.id)).toBe(false);
     });
 
+    it("demo requests: platform-level create + newest-first list", async () => {
+      // No agency scope on purpose (marketing walkthrough requests come from
+      // people who have no tenant yet) — so this asserts ordering and full
+      // round-trip of every column instead of isolation.
+      const older = {
+        id: uid(),
+        name: "A. Clerk",
+        email: "clerk@example.org",
+        organization: "City of Example",
+        role: "City Clerk",
+        stateCode: "CA",
+        notes: "Tuesday mornings",
+        source: "marketing-hero",
+        createdAt: new Date("2026-08-10T10:00:00Z"),
+      };
+      const newer = {
+        ...older,
+        id: uid(),
+        name: "B. Counsel",
+        role: null,
+        stateCode: null,
+        notes: null,
+        source: null,
+        createdAt: new Date("2026-08-12T10:00:00Z"),
+      };
+      await repo.createDemoRequest(older);
+      await repo.createDemoRequest(newer);
+
+      const all = await repo.listDemoRequests();
+      const mine = all.filter((x) => x.id === older.id || x.id === newer.id);
+      expect(mine.map((x) => x.id)).toEqual([newer.id, older.id]); // newest first
+      expect(mine[1]).toEqual(older); // every column survives the round trip
+      expect(mine[0]?.role).toBeNull(); // …including the nullable ones
+      expect((await repo.listDemoRequests(1)).length).toBe(1); // limit honored
+    });
+
     it("plays: full-replace per agency, tenant-scoped list", async () => {
       const mk = (agencyId: string, topic: string, episodes: number) => ({
         id: uid(),

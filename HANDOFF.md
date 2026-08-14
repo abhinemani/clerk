@@ -7,9 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**983 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (counts as
-of the newest 2026-08-14 signup-email entry; e2e last run fresh at the
-portal-mobile build before it).
+**996 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (counts as
+of the newest 2026-08-14 marketing-CTA entry; e2e last run fresh at the
+portal-mobile build, and no spec touches the marketing page).
 
 ## START HERE (next session)
 
@@ -71,7 +71,59 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, twelfth build of the window): THE
+**NEWEST (2026-08-14, cloud session, thirteenth build of the window): TWO
+CTAs ON THE MARKETING SITE — "Book a walkthrough" and "See it live"
+(owner: "we need two calls to action … request a demo that takes them to a
+scheduling form, and try it out that links to the live demo").** The
+homepage led with "Create your records office", which asks a clerk who is
+still evaluating to provision a tenant. The pair is now the ask ("Book a
+walkthrough" → `/demo`) and the no-commitment look ("See it live" →
+`/riverton`); wording was the owner's explicit call from four options.
+- **`/demo` is a REAL form, not a mailto.** New page + server action +
+  `DemoRequestForm`. Self-contained first: it writes a `demo_requests`
+  row on every deployment with zero services configured, and the `/admin`
+  console lists them (heading "Walkthrough requests", directly above
+  "Onboard an agency" — that is the actual sequence). Email notification
+  (`DEMO_NOTIFY_EMAIL`) is best-effort ON TOP, wrapped in try/catch: the
+  row is the record, delivery never loses a lead. Reply-To is the
+  requester, so replying goes straight to them.
+- **An external scheduler is opt-in, not the default.** `DEMO_SCHEDULING_URL`
+  (absolute http(s) only — a relative or `javascript:` value is refused,
+  it would be a redirect gadget on a public page) makes every CTA link
+  straight out, and `/demo` forwards there so old links still work. Unset
+  = the built-in form. Both vars are in `.env.example` and
+  `docs/laptop-setup.md` Part D⅞ (click paths + paste blocks).
+- **`demo_requests` is PLATFORM-level — no agency_id** (migration 0015,
+  additive). It is the one table a logged-out stranger can write to, so:
+  pure validation in `src/domain/demoRequest.ts` (11 unit tests), the same
+  fixed-window limiter `/signup` uses (5/client/hour, 60 deployment-wide),
+  and an off-screen honeypot whose rejection LOOKS like success so a
+  scraper learns nothing. Conformance test added for both adapters.
+- **Gotcha worth keeping:** the test that caught a real bug was state-code
+  normalization — slicing to 2 chars BEFORE validating turned "Texas"
+  into "TE" and would have stored a state that doesn't exist. Validate the
+  whole value, then keep it or drop it.
+- **`demo` is now a reserved slug** (`accountService`) — without it an
+  agency could take `/demo` and shadow the marketing form.
+- **Self-signup is NOT gone, just demoted** (owner's call): still in the
+  nav button, the footer, and a one-line note under the closing CTAs.
+  Don't add a third button to either CTA row — see the comment at the top
+  of `page.tsx`.
+- **Verified in a browser** (gotcha 11): both CTA rows resolve to
+  `/demo` + `/riverton`, no horizontal overflow at 1280 or 390, and a real
+  submission ("Marlin Unified School District") round-tripped — success
+  card rendered, row confirmed in `.pgdata` with every column intact. The
+  invalid-email path is unit-tested rather than browser-tested: the
+  browser's native `type="email"` check blocks that submit client-side, so
+  it never reaches the action. 996 tests pass (+5 skipped), typecheck
+  clean.
+  Owner-facing (two env vars) → `.env.example` + `docs/laptop-setup.md`
+  updated in the same commit.
+  **One copy claim to confirm:** the success card promises a reply "within
+  one business day" — change it if that is not a promise you want on the
+  page.
+
+**PREVIOUS (2026-08-14, cloud session, twelfth build of the window): THE
 GOV-EMAIL SIGNUP GATE IS GONE (owner: "users shouldn't need to have gov
 emails to register").** `/signup` refused anything that wasn't
 .gov/.mil/state-local .us, which turned away real records offices —

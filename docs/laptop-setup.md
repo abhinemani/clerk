@@ -260,6 +260,51 @@ jurisdictions — leave it unset unless you have a reason.
 
 ---
 
+## Part D⅞ — walkthrough requests from the marketing site (optional)
+
+The homepage's primary button ("Book a walkthrough") goes to `/demo`, which
+has a built-in form. **This needs nothing from you** — every submission is
+written to the database and listed on the `/admin` console under
+"Walkthrough requests", on any deployment, with zero services configured.
+Read them there.
+
+Two optional upgrades:
+
+**1. Get an email when one arrives.** Only works once Part D's email
+provider is set (without it the console list is still the record). **PASTE**
+into your `.env` and the deployment's Variables screen:
+
+```
+DEMO_NOTIFY_EMAIL=you@your-domain.com
+```
+
+The notification's Reply-To is the requester's own address, so replying goes
+straight to them. If sending fails, the submission is still saved — delivery
+is never allowed to lose a lead.
+
+**2. Use a real calendar scheduler instead of the form.** If you'd rather
+people grab a slot directly:
+
+    CLICK — cal.com (or calendly.com) → create an event type
+            ("Brandeis walkthrough", 30 min) → copy its public link
+
+Then **PASTE** into your `.env` and the deployment's Variables screen:
+
+```
+DEMO_SCHEDULING_URL=https://cal.com/your-handle/walkthrough
+```
+
+Every "Book a walkthrough" button now links straight to your scheduler, and
+`/demo` forwards there too (so old links still work). Unset it to go back to
+the built-in form. Must start with `http://` or `https://` — anything else is
+ignored on purpose.
+
+**Verify:** with neither variable set, submit the form at
+`http://localhost:3000/demo` → it appears at `http://localhost:3000/admin`
+under "Walkthrough requests".
+
+---
+
 ## Part E — fresh laptop from zero (~10 min, no accounts)
 
 **PASTE, top to bottom:**

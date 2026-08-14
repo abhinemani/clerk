@@ -447,6 +447,7 @@ const RESERVED_SLUGS = new Set([
   "account",
   "app",
   "signup",
+  "demo", // the marketing walkthrough form — a tenant here would shadow it
 ]);
 
 /**

@@ -17,6 +17,7 @@ import {
   authTokens,
   deflections,
   deliveries,
+  demoRequests,
   departments,
   documentChunks,
   documents,
@@ -44,6 +45,7 @@ import {
   type AgentRunEntity,
   type AuthTokenEntity,
   type DeflectionEntity,
+  type DemoRequestEntity,
   type DeliveryEntity,
   type Department,
   type DirectoryEntry,
@@ -1653,6 +1655,41 @@ export class DrizzleRepository implements Repository {
       documentId: d.documentId,
       estimatedStaffHoursAvoided: d.estimatedStaffHoursAvoided ?? 0,
       createdAt: d.createdAt,
+    }));
+  }
+
+  // Walkthrough requests are PLATFORM-level: no tenantWhere here on purpose —
+  // the person who submitted one has no agency yet (see schema comment).
+  async createDemoRequest(d: DemoRequestEntity): Promise<DemoRequestEntity> {
+    await this.db.insert(demoRequests).values({
+      id: d.id,
+      name: d.name,
+      email: d.email,
+      organization: d.organization,
+      role: d.role,
+      stateCode: d.stateCode,
+      notes: d.notes,
+      source: d.source,
+      createdAt: d.createdAt,
+    });
+    return d;
+  }
+  async listDemoRequests(limit = 100): Promise<DemoRequestEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(demoRequests)
+      .orderBy(desc(demoRequests.createdAt))
+      .limit(limit);
+    return rows.map((r: typeof demoRequests.$inferSelect) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      organization: r.organization,
+      role: r.role,
+      stateCode: r.stateCode,
+      notes: r.notes,
+      source: r.source,
+      createdAt: r.createdAt,
     }));
   }
 

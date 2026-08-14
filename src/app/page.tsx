@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { branding } from "@/config/branding";
+import { schedulingUrl } from "@/domain/demoRequest";
 import { BrandLockup, BrandMarkRaster, SparkIcon } from "./_components/ui";
 
 /**
@@ -25,6 +26,14 @@ import { BrandLockup, BrandMarkRaster, SparkIcon } from "./_components/ui";
  * band replaced the abstract ROI stats: the three shipped differentiators
  * (docs/requester-api.md, docs/release-verification.md,
  * docs/transparency-impact.md) make the cost argument concretely now.
+ *
+ * CTAs (owner, 2026-08-14): exactly TWO, in the hero and the close —
+ * "Book a walkthrough" (→ /demo, or straight to DEMO_SCHEDULING_URL when a
+ * deployment runs a real scheduler) and "See it live" (→ /riverton). Self-
+ * signup is still fully open but no longer competes for the primary slot: a
+ * clerk who is still evaluating is not ready to provision a tenant, so
+ * "Create your records office" lives in the nav, the footer, and a one-line
+ * note under the closing CTAs. Don't add a third button to either row.
  */
 
 const PROBLEMS = [
@@ -143,7 +152,39 @@ const AGENTS = [
   },
 ];
 
+/**
+ * "Book a walkthrough" target. Internal by default; an external scheduler
+ * gets a plain <a> (next/link's prefetch has nothing to fetch off-site).
+ * If this page is prerendered before an owner sets DEMO_SCHEDULING_URL the
+ * buttons keep pointing at /demo — which forwards to the scheduler anyway,
+ * so the visitor still lands in the right place, one hop later.
+ */
+function BookLink({
+  href,
+  className,
+  children,
+  style = { paddingInline: 24, paddingBlock: 12 },
+}: {
+  href: string;
+  className: string;
+  children: React.ReactNode;
+  /** Defaults to button padding; footer links pass {} for a bare link. */
+  style?: React.CSSProperties;
+}) {
+  return href.startsWith("http") ? (
+    <a href={href} className={className} style={style}>
+      {children}
+    </a>
+  ) : (
+    <Link href={href} className={className} style={style}>
+      {children}
+    </Link>
+  );
+}
+
 export default function MarketingHome() {
+  const bookHref = schedulingUrl() ?? "/demo";
+
   return (
     <div className="mk-page">
       {/* Product header — sticky glass, same .nav as the portals.
@@ -193,11 +234,11 @@ export default function MarketingHome() {
                 routed, and on the statutory clock — every AI draft waiting on a named human.
               </p>
               <div style={{ display: "flex", gap: 12, marginTop: 32, flexWrap: "wrap" }}>
-                <Link href="/signup" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
-                  Create your records office
-                </Link>
+                <BookLink href={bookHref} className="btn btn-gold">
+                  Book a walkthrough
+                </BookLink>
                 <Link href="/riverton" className="btn" style={{ paddingInline: 24, paddingBlock: 12 }}>
-                  Explore the live demo
+                  See it live
                 </Link>
               </div>
               {/* Proof row — anchors the column's foot (the old centered layout
@@ -589,28 +630,25 @@ export default function MarketingHome() {
         <section className="mk-band-dark">
           <div className="wrap mk-section">
             <div className="mk-cta">
-              <span className="mk-eyebrow">An afternoon, not a procurement</span>
+              <span className="mk-eyebrow">A working session, not a procurement</span>
               <h2 className="mk-h2" style={{ marginTop: 14 }}>
-                Stand up a records office in an afternoon.
+                Bring us your worst backlog.
               </h2>
               <p className="mk-sub" style={{ marginInline: "auto", maxWidth: 560 }}>
-                Self-signup is open to government email addresses. Bring your state, your
-                departments, and your seal — the checklist does the rest.
+                Thirty minutes on the real product — your state&apos;s rules, counsel&apos;s
+                hardest question, no slides.
               </p>
               <div className="mk-cta-row">
-                <Link href="/signup" className="btn btn-gold" style={{ paddingInline: 24, paddingBlock: 12 }}>
-                  Create your records office
-                </Link>
+                <BookLink href={bookHref} className="btn btn-gold">
+                  Book a walkthrough
+                </BookLink>
                 <Link href="/riverton" className="btn btn-outline-light" style={{ paddingInline: 24, paddingBlock: 12 }}>
-                  Explore the live demo
+                  See it live
                 </Link>
               </div>
               <p className="mk-note" style={{ marginTop: 16 }}>
-                Prefer a guided look?{" "}
-                <a href={`mailto:hello@brandeis.us?subject=${encodeURIComponent(`${branding.productName} demo`)}`}>
-                  Request a walkthrough
-                </a>
-                .
+                Ready to skip the call? <Link href="/signup">Create your records office</Link> —
+                self-signup takes about a minute.
               </p>
             </div>
           </div>
@@ -647,6 +685,9 @@ export default function MarketingHome() {
             </div>
             <div className="mk-foot-col">
               <h4>Contact</h4>
+              <BookLink href={bookHref} className="" style={{}}>
+                Book a walkthrough
+              </BookLink>
               <a href="mailto:hello@brandeis.us">hello@brandeis.us</a>
             </div>
           </div>
