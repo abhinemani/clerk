@@ -17,7 +17,8 @@ export type AgentTypeName =
   | "ingest_steward"
   | "requester_side"
   | "disclosure_librarian" // Phase 5 B1 (gate released 2026-08-13)
-  | "appeal_packet"; // Phase 5 B3
+  | "appeal_packet" // Phase 5 B3
+  | "consistency_auditor"; // Phase 5 B2
 
 export type AgentScope = "per_request" | "queue_wide" | "data_plane" | "portal_session";
 
@@ -223,6 +224,31 @@ const appealPacket: AgentDefinition = {
   defaultBudget: { ...DEFAULT_BUDGET, maxToolCalls: 40, maxWallClockMs: 5 * 60_000 },
 };
 
+/**
+ * Consistency auditor (agentic-horizon B2) — cross-request defensibility.
+ * Reads the review/exemption decision log the office already writes and flags
+ * records of the same type treated inconsistently ("officer names redacted
+ * under privacy in PR-104 but released in PR-131"). Inconsistency is what
+ * loses appeals. Read-only Tier 1 by design: it flags and reports, and never
+ * touches a decision — there is deliberately no hole in this allowlist where
+ * a decision-changing action would go.
+ */
+const consistencyAuditor: AgentDefinition = {
+  type: "consistency_auditor",
+  title: "Consistency auditor",
+  description:
+    "Weekly cross-request audit of review and exemption decisions: flags same-type records treated inconsistently across requests, with the precedents cited, so the office can defend (or reconcile) the divergence before an appeal finds it.",
+  scope: "queue_wide",
+  corpusScope: "full",
+  allowedCapabilities: new Set<CapabilityName>([
+    "read_decision_log",
+    "flag_for_review",
+    "status_memo",
+    "plan_update",
+  ]),
+  defaultBudget: { ...DEFAULT_BUDGET, maxToolCalls: 60, maxWallClockMs: 10 * 60_000 },
+};
+
 export const AGENT_DEFINITIONS: Record<AgentTypeName, AgentDefinition> = {
   fulfillment,
   deadline,
@@ -231,6 +257,7 @@ export const AGENT_DEFINITIONS: Record<AgentTypeName, AgentDefinition> = {
   requester_side: requesterSide,
   disclosure_librarian: disclosureLibrarian,
   appeal_packet: appealPacket,
+  consistency_auditor: consistencyAuditor,
 };
 
 export function getAgentDefinition(type: AgentTypeName): AgentDefinition {

@@ -29,7 +29,8 @@ export type ReadToolName =
   | "read_sync_status"
   | "read_review_queue"
   | "compute_deadline_risk"
-  | "read_demand_signals"; // resolved requests + deflection queries + archive misses (B1)
+  | "read_demand_signals" // resolved requests + deflection queries + archive misses (B1)
+  | "read_decision_log"; // review/exemption decisions across requests (B2)
 
 /** Anything an agent step can invoke. */
 export type CapabilityName = ReadToolName | ActionType;
@@ -73,6 +74,7 @@ const READ_TOOLS = new Set<ReadToolName>([
   "read_review_queue",
   "compute_deadline_risk",
   "read_demand_signals",
+  "read_decision_log",
 ]);
 
 export function isReadTool(name: string): name is ReadToolName {

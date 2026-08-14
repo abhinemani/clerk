@@ -138,12 +138,14 @@ relaxed: action tiers stay enforced in code (Tier 3 can never be
 configured autonomous, the forbidden set stands), every agent action lands
 in the append-only log, and invariant 9 still means no agent flips
 internal→public — agents propose, a named human publishes.
-**Live so far:** B1 (disclosure librarian) and B3 (appeal packets); the
-§16.2 checkpoint/steering surface (`/app/agents` — parked runs, per-step
+**Live so far:** B1 (disclosure librarian), B2 (consistency auditor —
+weekly, read-only), B3 (appeal packets), and the **fulfillment agent v1**
+(model-driven planner behind `settings.fulfillmentAgent`, demo tenant
+first; falls back to a deterministic plan without a key); the §16.2
+checkpoint/steering surface (`/app/agents` — parked runs, per-step
 approvals, resume through the harness); and the learning loop v1
-(docs/learning-loop.md — "plays"). Next per HANDOFF: B2/B4, then the
-fulfillment agent (enum migration → eval golden set → planner behind a
-per-agency flag).
+(docs/learning-loop.md — "plays"). Next per HANDOFF: the fulfillment
+planner's live eval (standing debt), then B4 / fulfillment v2.
 
 ## Stack (do not substitute without asking)
 Next.js App Router + TypeScript (strict), Drizzle on **embedded PGlite by

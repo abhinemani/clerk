@@ -16,6 +16,7 @@ import { runPipeline } from "@/ai/runPipeline";
 import type { ModelClient } from "@/ai/modelClient";
 import { routingPipeline, type RoutingOutput } from "@/ai/pipelines/routing";
 import type { Candidate, Retriever } from "@/ai/search/retriever";
+import type { ServiceDeps } from "@/services/deps";
 import { DEFAULT_ACTION_POLICY, type AgencyActionPolicy } from "./actionTiers";
 import { DEFAULT_BUDGET, ZERO_SPEND } from "./budget";
 import { getAgentDefinition } from "./definitions";
@@ -81,6 +82,124 @@ function buildMemo(
     }${routing.assignments.length ? " and dispatch the proposed tasks." : "."}`,
   );
   return lines.join("\n");
+}
+
+/**
+ * The persisted fulfillment agent's capability implementations (v1 — the
+ * planner-driven path behind the per-agency flag, docs/agentic-horizon.md).
+ *
+ * Deadline-agent resumability rule: every capability reads ONLY its step's
+ * `input` (embedded at plan time by fulfillmentService) plus injected deps —
+ * never a closure over plan-time state — so a run parked at the dispatch_task
+ * checkpoint resumes correctly in a later process. Exported for the steering
+ * surface's resume path (steering.ts registryFor).
+ *
+ * Search results are computed at plan time and embedded in the step inputs
+ * (the deadline agent's read_queue idiom): the corpus_search step's audit
+ * event records exactly what was searched and found; assemble_review_set
+ * performs the real attach from the embedded ids.
+ */
+export function fulfillmentCapabilityRegistry(
+  agencyId: string,
+  deps?: ServiceDeps,
+): MapCapabilityRegistry {
+  const capIn = (
+    name: string,
+    fn: (input: Record<string, unknown>) => Promise<unknown> | unknown,
+  ): Capability => ({
+    name: name as never,
+    async execute(input) {
+      return { output: await fn(input), tokens: 0 };
+    },
+  });
+
+  return new MapCapabilityRegistry([
+    capIn("read_request", (i) => ({
+      publicId: i.publicId,
+      scope: i.scope,
+      items: i.items ?? [],
+    })),
+    capIn("corpus_search", (i) => ({
+      label: i.label,
+      query: i.query,
+      found: i.found ?? 0,
+      top: i.top ?? [],
+    })),
+    capIn("assemble_review_set", async (i) => {
+      const requestId = typeof i.requestId === "string" ? i.requestId : null;
+      const documentIds = Array.isArray(i.documentIds)
+        ? i.documentIds.filter((d): d is string => typeof d === "string")
+        : [];
+      if (!deps || !requestId || documentIds.length === 0) {
+        return { attached: 0, considered: documentIds.length };
+      }
+      const attached = new Set(
+        (await deps.repo.listRequestDocuments(agencyId, requestId)).map((d) => d.id),
+      );
+      const { holdForOpenRequest } = await import("@/services/retentionService");
+      const added: string[] = [];
+      for (const documentId of documentIds) {
+        if (attached.has(documentId)) continue;
+        const doc = await deps.repo.getDocument(agencyId, documentId);
+        if (!doc) continue;
+        await deps.repo.linkRequestDocument(agencyId, requestId, documentId);
+        // Responsive to an open request ⇒ hold against the retention
+        // schedule (spoliation rule — same as the staff attach path).
+        await holdForOpenRequest(deps, { agencyId, requestId, documentId });
+        added.push(doc.filename ?? documentId);
+      }
+      if (added.length > 0) {
+        await deps.repo.appendEvent({
+          id: deps.genId(),
+          agencyId,
+          requestId,
+          kind: "note",
+          actorUserId: null,
+          summary: `Fulfillment agent attached ${added.length} candidate record(s) to the review set`,
+          payload: { documentIds, added, source: "fulfillment_agent" },
+          createdAt: deps.now(),
+        });
+      }
+      return { attached: added.length, considered: documentIds.length };
+    }),
+    capIn("dispatch_task", async (i) => {
+      // Tier 2 — under the default policy the harness parks the run before
+      // this ever executes; a named approval (or agency opt-in) releases it.
+      if (
+        !deps ||
+        typeof i.requestId !== "string" ||
+        typeof i.scopeText !== "string"
+      ) {
+        return { dispatched: false, department: i.departmentName ?? null };
+      }
+      const { dispatchTask } = await import("@/services/taskService");
+      const task = await dispatchTask(deps, {
+        agencyId,
+        requestId: i.requestId,
+        departmentId: typeof i.departmentId === "string" ? i.departmentId : undefined,
+        departmentName: typeof i.departmentName === "string" ? i.departmentName : undefined,
+        departmentEmail: typeof i.departmentEmail === "string" ? i.departmentEmail : undefined,
+        scopeText: i.scopeText,
+      });
+      return { dispatched: true, taskId: task.id, department: i.departmentName ?? null };
+    }),
+    capIn("status_memo", async (i) => {
+      const memo = typeof i.memo === "string" ? i.memo : "";
+      if (deps && typeof i.requestId === "string" && memo) {
+        await deps.repo.appendEvent({
+          id: deps.genId(),
+          agencyId,
+          requestId: i.requestId,
+          kind: "note",
+          actorUserId: null,
+          summary: "Fulfillment agent status memo",
+          payload: { memo, source: "fulfillment_agent" },
+          createdAt: deps.now(),
+        });
+      }
+      return { memo };
+    }),
+  ]);
 }
 
 /** Run the fulfillment agent for one request as a real agent execution. */

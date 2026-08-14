@@ -21,6 +21,7 @@ export interface AgencySettings {
   statusApi?: { enabled: boolean; webhookUrl?: string | null };
   requesterApi?: { enabled: boolean; filingEnabled?: boolean };
   releaseVerification?: { enabled: boolean };
+  fulfillmentAgent?: { enabled: boolean };
 }
 
 /** Per-tenant identity — mirrors the schema's AgencyBranding. All optional. */
@@ -236,13 +237,17 @@ export interface PlayEntity {
   createdAt: Date;
 }
 
-/** DB enum agent_type — the five §16.1 agents (Phase-5 additions need a migration). */
+/** DB enum agent_type — the five §16.1 agents plus the Phase-5 agents
+ *  (migration 0014). Append-only: never remove or rename a shipped value. */
 export type PersistedAgentType =
   | "fulfillment"
   | "deadline"
   | "release_prep"
   | "ingest_steward"
-  | "requester_side";
+  | "requester_side"
+  | "disclosure_librarian"
+  | "appeal_packet"
+  | "consistency_auditor";
 
 export type AgentRunStatus =
   | "planning"

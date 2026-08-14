@@ -12,18 +12,23 @@ newest 2026-08-14 performance-pass entry; e2e run fresh at that build).
 
 ## START HERE (next session)
 
-State in one line: demo-complete product, **Phase 5 open with two agents
-live** (B1 disclosure librarian, B3 appeal packets) plus the §16.2
-checkpoint/steering surface, the **learning loop v1** ("plays" —
-docs/learning-loop.md, migration 0012), a consolidated ingestion hub
-(/app/admin/data with drag-and-drop upload), and a full UX/visual pass
-(staff nav rail, archive storefront, civic hero bands, engraved-plate
-card ornament, lit page ground). Nothing is half-built; every entry below
-was verified as described at its date.
+State in one line: demo-complete product, **Phase 5 open with FOUR agents
+live** (B1 disclosure librarian, B2 consistency auditor, B3 appeal
+packets, and the **fulfillment agent v1** — planner-driven, per-agency
+flag, Riverton on) plus the §16.2 checkpoint/steering surface, the
+**learning loop v1** ("plays" — docs/learning-loop.md, migration 0012), a
+consolidated ingestion hub (/app/admin/data with drag-and-drop upload),
+and a full UX/visual pass (staff nav rail, archive storefront, civic hero
+bands, engraved-plate card ornament, lit page ground). Nothing is
+half-built; every entry below was verified as described at its date.
 
-**The standing eval debt is CLEARED** (2026-08-13 keyed session, entry
-below). The laptop's `.env` carries ANTHROPIC_API_KEY (owner did Part A);
-cloud sessions get keys per laptop-setup ⚡ steps.
+**ONE STANDING EVAL DEBT (new, 2026-08-14):** the fulfillment planner
+prompt (`src/ai/prompts/fulfillmentPlan.ts`, 2026-08-14.1) has not been
+through a live `npm run eval` — this cloud session had no
+ANTHROPIC_API_KEY. The golden set + grader ship and are unit-tested
+offline; a keyed session (laptop, or cloud after the ⚡ steps) should run
+`npm run eval` and record the fulfillment-plan scorecard here. The
+2026-08-13 intake-triage debt remains CLEARED.
 
 **GATES RELEASED (owner, 2026-08-13):** connected-sources phase 3 AND
 Phase 5 agents (docs/agentic-horizon.md Bucket B) are buildable.
@@ -34,15 +39,15 @@ agents propose, a named human publishes.
 this queue — the "what would make Brandeis special" bets — lives in
 `docs/big-ticket.md`; graduate items from there into this list, not
 straight into a build):
-1. **Fulfillment agent path** (the biggest thing left; see the 2026-08-13
-   checkpoint-surface entry): (a) migration adding Phase-5 values to the
-   DB `agent_type` enum, (b) scope-decomposition golden set in the eval
-   suite, (c) the model-driven planner behind a per-agency flag, demo
-   tenant first. The checkpoint UX it needs is DONE (/app/agents).
-2. **B2 consistency auditor** (cheap, read-only Tier 1 — reads the
-   exemption logs finalizeRedaction writes; weekly digest + card) or
-   **B4 third-party notice steward** (differentiator; needs notice rules
-   added to state profiles as data).
+1. **Fulfillment agent v2** (v1 SHIPPED 2026-08-14, newest entry): run
+   the live eval (the standing debt above), then grow the planner —
+   connector_search over connected sources, plan revision mid-run
+   (plan_update), per-item review-set curation instead of top-N, and the
+   B5 records map as routing context when it exists.
+2. **B4 third-party notice steward** (differentiator; needs notice rules
+   added to state profiles as data). B2 shipped 2026-08-14; its forward
+   version — redact-everywhere memory (big-ticket §4) — is the natural
+   follow-on.
 3. **Learning loop v2**: play stats as structured prompt context (REQUIRES
    `npm run eval`), embedding-based play matching over stored ask vectors,
    letter scaffolds per play.
@@ -61,7 +66,97 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, eighth build of the window):
+**NEWEST (2026-08-14, cloud session, ninth build of the window): THE
+FULFILLMENT AGENT V1 + B2 + THE PRODUCTION INDEX — HANDOFF candidate #1
+built end-to-end, plus two items graduated from the owner's
+FOIA-workflow-recommendations review (owner: "Do #1, 3 and 4 from your
+list").** Three features, one migration, all through the real harness.
+- **Migration 0014** (first since 0013): `agent_type` enum grows the
+  Phase-5 values `disclosure_librarian`, `appeal_packet`,
+  `consistency_auditor` — persisted runs for all Phase-5 agents now
+  possible (the deliberately-deferred item from the checkpoint-surface
+  entry). Conformance test proves each value round-trips on PGlite.
+- **FULFILLMENT AGENT V1 (candidate #1, all three steps):**
+  (a) the enum migration above; (b) the **scope-decomposition golden
+  set** in the eval suite (evals/fulfillmentPlan.{golden,test}.ts +
+  fulfillmentPlanGrade.ts — grader unit-tested offline, live run gated on
+  ANTHROPIC_API_KEY like every eval; ⚠ see the standing eval debt in
+  START HERE); (c) the **model-driven planner behind a per-agency flag**
+  (`settings.fulfillmentAgent.enabled`, admin card under Workflow
+  automation, Riverton seed ON — demo tenant first). The pieces:
+  - `src/ai/prompts/fulfillmentPlan.ts` + `pipelines/fulfillmentPlan.ts`
+    (versioned 2026-08-14.1): scope → 1–6 items, each with a search
+    query + optional department routing. `clampFulfillmentPlan` enforces
+    the guardrails IN CODE (item cap — gotcha 9, no schema bounds —
+    and departments only from the provided list; invented ones are
+    stripped, tested). `fallbackFulfillmentPlan` is the no-key path:
+    deterministic items from triaged record types — the button degrades,
+    never breaks (self-contained first).
+  - `src/services/fulfillmentService.ts` `startFulfillmentRun`: flag
+    check → plan (pipeline, else fallback; a planner failure also falls
+    back) → plan-time corpus search per item (searchAgencyRecords) →
+    steps with EVERYTHING in their inputs (deadline-agent resumability
+    rule) → persisted agent_runs row → real harness. read_request /
+    corpus_search echo their plan-time inputs; `assemble_review_set`
+    REALLY attaches (link + retention hold — the spoliation rule — + one
+    note event); each `dispatch_task` is Tier 2 and PARKS the run at
+    /app/agents; `status_memo` lands the memo as a request note. The
+    planning pipeline run itself is an `ai_action` event (invariant 10),
+    every step an `agent_action` event with the runId.
+  - `fulfillmentCapabilityRegistry` exported from fulfillmentAgent.ts;
+    steering.ts registryFor gained `case "fulfillment"` — approve on
+    /app/agents resumes through the same harness and the approved
+    dispatch really emails via dispatchTask (delivery event as ever).
+  - UI: "✦ Run fulfillment agent" button in the request header (renders
+    only when the flag is on and the request is open); parked runs
+    redirect the coordinator to /app/agents.
+- **B2 CONSISTENCY AUDITOR (third Phase-5 agent, spec order bent by the
+  owner's pick):** `src/domain/consistencyAudit.ts` (pure, tested) finds
+  cross-request divergence in the §5 review log — same record type
+  released in full in one request but withheld/redacted in another
+  (divergent_decision), or restricted under different exemption labels
+  (divergent_exemption). Same-request divergence is NOT a finding
+  (per-document review is normal); needs ≥2 distinct requests; label
+  comparison is case-insensitive. `consistencyAuditorAgent.ts` runs
+  read_decision_log (new read tool) → flag_for_review per finding (Tier
+  1) → status_memo through the real harness; allowlist has NO
+  decision-changing hole (tested). Nightly sweep gates it to WEEKLY via
+  its own `consistency_audit` admin event (digest lands clean OR dirty —
+  "we audit weekly" is itself defensibility; runs persist to agent_runs).
+  Command center gained an "Inconsistent treatment across requests" card
+  (same domain computation as the sweep — the two can't diverge).
+- **PRODUCTION INDEX (Vaughn-style index of records) + THE EXEMPTION-LOG
+  UNIFICATION:** `src/reporting/productionIndex.ts` (pure, tested) —
+  per-document rows (decision, exemption, named decider, distinct
+  redaction reasons read from the redacted artifact's metadata
+  exemptionLog, and WHICH checksummed release carried it, resolved
+  through the artifact), plus the exemption-log section. Served as
+  `/app/requests/[id]/production-index.pdf` (defensibility-route idiom)
+  with a "Production index" button next to Appeal packet. REFACTOR WORTH
+  KNOWING: `compileExemptionLog` in that module is now THE one
+  exemption-grouping implementation — releasePrepAgent's
+  compile_exemption_log capability was rewired onto it (its inline
+  grouping deleted; ExemptionLogEntry re-exported for compat), so the
+  agent's log and the index can never diverge in aggregation.
+- Verified: typecheck clean, **980 offline tests** (+31: consistency
+  domain/agent, production index, fulfillment service, plan grader,
+  enum conformance), 4/4 e2e (container needed the chromium
+  headless-shell shim AGAIN — 1234→1194 symlink, mkdir -p first per the
+  dangling-symlink trap; container state, not repo state).
+  Browser-verified on a fresh-seeded :3400 server (screenshots
+  delivered): both new header buttons, production-index.pdf serving,
+  fulfillment run via the FALLBACK plan (no key in this container)
+  completing with memo + review-set attach, the run listed on
+  /app/agents — where the B2 weekly audit run from the boot sweep also
+  appears — and the admin card toggled on for Riverton. NOT verified
+  live: the model-planned path with real dispatch_task parking (needs a
+  key) — the offline suite covers it with FakeModelClient; first keyed
+  session should press the button on Riverton and approve the parked
+  dispatch once. No laptop-setup change (no new env vars, keys, or owner
+  steps; the eval debt rides the existing Part B instructions — said out
+  loud per the push contract).
+
+**PREVIOUS (2026-08-14, cloud session, eighth build of the window):
 PERFORMANCE PASS — vector search moved into the database, N+1 hot paths
 batched, app-layer waterfalls collapsed (owner: "are there ways to
 optimize the code?" → audit, then "yes do that").** No intended behavior

@@ -6,6 +6,7 @@ import { deadlineRisk, byRiskDesc } from "@/domain/deadlineRisk";
 import { documentsAtRetentionRisk, type RetentionStatus } from "@/domain/retention";
 import { mineDemandPatterns, type DemandPattern } from "@/domain/demandPatterns";
 import { demandSignalsFrom } from "@/domain/transparencyImpact";
+import { decisionRecordsFrom, findInconsistencies, type ConsistencyFinding } from "@/domain/consistencyAudit";
 import { isAssignableRole } from "@/domain/workflow";
 import { matchesQueueFilters, parseQueueFilters, hasActiveFilters } from "@/domain/queueFilters";
 import { runDeadlineSweep } from "@/agents/deadlineAgent";
@@ -112,18 +113,23 @@ export default async function Queue({
   // Repeated-demand patterns (same computation as the librarian's nightly
   // sweep) — proposals only; publishing stays a named human's act.
   let demandPatterns: DemandPattern[] = [];
+  // Cross-request inconsistencies (same computation as the B2 auditor's
+  // weekly sweep) — flags only; reconciling a decision stays a human's act.
+  let consistencyFindings: ConsistencyFinding[] = [];
   // Agent runs parked at a human checkpoint — the /app/agents badge.
   let parkedAgentRuns = 0;
   if (ws.source === "live" && ws.agencyId) {
     // One parallel batch — these reads are independent, and awaiting them in
     // sequence made the dashboard a five-stage waterfall.
     const repo = await getRepository();
-    const [users, agentRuns, retentionDocs, deflections, allRequests] = await Promise.all([
+    const [users, agentRuns, retentionDocs, deflections, allRequests, agencyReviews, allDocuments] = await Promise.all([
       repo.listUsers(ws.agencyId),
       repo.listAgentRuns(ws.agencyId),
       repo.listDocumentsUnderRetention(ws.agencyId),
       repo.listDeflections(ws.agencyId),
       repo.listRequests(ws.agencyId),
+      repo.listAgencyReviews(ws.agencyId),
+      repo.listDocuments(ws.agencyId),
     ]);
     assignableStaff = users
       .filter((u) => isAssignableRole(u.role))
@@ -142,6 +148,9 @@ export default async function Queue({
     // Shared signal builder (domain/transparencyImpact) — the reports page's
     // impact section mines the same signals, so the two can never diverge.
     demandPatterns = mineDemandPatterns(demandSignalsFrom(allRequests, deflections), { now: ws.now });
+    consistencyFindings = findInconsistencies(
+      decisionRecordsFrom(allRequests, agencyReviews, allDocuments),
+    );
 
     const closedRequests = ws.requests.filter((r) => r.closedAt != null);
     onTimeLabel = closedRequests.length
@@ -273,6 +282,35 @@ export default async function Queue({
             Repeated asks the public archive isn&apos;t answering (from requests, searches, and
             misses over the last 90 days). Publishing anything is your call, made per record —
             the librarian only points at the demand.
+          </p>
+        </div>
+      )}
+
+      {/* Consistency auditor (Phase 5 B2): same-type records treated
+          differently across requests. Flags only — reconciling (or noting why
+          the divergence is right) stays a named human's act. */}
+      {consistencyFindings.length > 0 && (
+        <div className="card card-pad" style={{ marginTop: 20, borderColor: "var(--due)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="panel-title">Inconsistent treatment across requests</div>
+            <span className="pill band-due_soon">{consistencyFindings.length}</span>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0", display: "grid", gap: 8 }}>
+            {consistencyFindings.slice(0, 4).map((f, i) => (
+              <li key={i} style={{ fontSize: "0.88rem" }}>
+                {f.summary}
+              </li>
+            ))}
+            {consistencyFindings.length > 4 && (
+              <li className="muted" style={{ fontSize: "0.8rem" }}>
+                …and {consistencyFindings.length - 4} more in the weekly digest
+              </li>
+            )}
+          </ul>
+          <p className="muted" style={{ fontSize: "0.8rem", marginTop: 8 }}>
+            A divergence is not necessarily an error — but it should have a reason on the record.
+            Inconsistency across requests is what loses appeals; reconcile it (or note the
+            distinction) while the office still remembers why.
           </p>
         </div>
       )}

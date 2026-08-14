@@ -5,9 +5,10 @@ import { isKnownCapability } from "./tools";
 import { FORBIDDEN_ACTIONS } from "./actionTiers";
 
 describe("agent definitions", () => {
-  it("defines the five §16.1 agents plus the Phase-5 pair (B1 librarian, B3 appeal packet)", () => {
+  it("defines the five §16.1 agents plus the Phase-5 trio (B1 librarian, B2 auditor, B3 appeal packet)", () => {
     expect(Object.keys(AGENT_DEFINITIONS).sort()).toEqual([
       "appeal_packet",
+      "consistency_auditor",
       "deadline",
       "disclosure_librarian",
       "fulfillment",
@@ -50,9 +51,20 @@ describe("agent definitions", () => {
   });
 
   it("staff-side agents use the full corpus", () => {
-    for (const t of ["fulfillment", "deadline", "release_prep", "ingest_steward", "disclosure_librarian", "appeal_packet"] as const) {
+    for (const t of ["fulfillment", "deadline", "release_prep", "ingest_steward", "disclosure_librarian", "appeal_packet", "consistency_auditor"] as const) {
       expect(getAgentDefinition(t).corpusScope).toBe("full");
     }
+  });
+
+  it("the consistency auditor is read-only Tier 1: flags and reports, never decides", () => {
+    const caps = getAgentDefinition("consistency_auditor").allowedCapabilities;
+    expect(caps.has("read_decision_log")).toBe(true);
+    expect(caps.has("flag_for_review")).toBe(true);
+    // No path to a decision, a send, or a release — by construction.
+    expect(caps.has("finalize_redactions")).toBe(false);
+    expect(caps.has("publish_release")).toBe(false);
+    expect(caps.has("send_requester_message")).toBe(false);
+    expect(caps.has("dispatch_task")).toBe(false);
   });
 
   it("the appeal-packet builder compiles and drafts but cannot send or release", () => {

@@ -13,6 +13,7 @@
  */
 import type { AgentPlanStep } from "@/db/schema";
 import { seededSuggestions, type Suggestion } from "@/ai/redaction/profiles";
+import { compileExemptionLog, type ExemptionLogEntry } from "@/reporting/productionIndex";
 import { DEFAULT_ACTION_POLICY, type AgencyActionPolicy } from "./actionTiers";
 import { DEFAULT_BUDGET, ZERO_SPEND } from "./budget";
 import { getAgentDefinition } from "./definitions";
@@ -31,11 +32,10 @@ export interface ReleasePrepInput {
   reviewSet: ReviewDoc[];
 }
 
-export interface ExemptionLogEntry {
-  exemption: string;
-  count: number;
-  documents: string[];
-}
+// The exemption-log shape (and its grouping) is owned by the shared compiler
+// (src/reporting/productionIndex.ts) — one implementation for the agent, the
+// production index, and anything else that aggregates citations.
+export type { ExemptionLogEntry };
 
 export interface ReleasePrepResult {
   redactions: number;
@@ -83,19 +83,11 @@ export async function runReleasePrep(
       return { count: scratch.redactions.length };
     }),
     cap("compile_exemption_log", () => {
-      const byExemption = new Map<string, Set<string>>();
-      for (const r of scratch.redactions) {
-        const set = byExemption.get(r.reason) ?? new Set<string>();
-        set.add(r.docId);
-        byExemption.set(r.reason, set);
-      }
-      scratch.exemptionLog = [...byExemption.entries()]
-        .map(([exemption, docs]) => ({
-          exemption,
-          count: scratch.redactions.filter((r) => r.reason === exemption).length,
-          documents: [...docs],
-        }))
-        .sort((a, b) => b.count - a.count);
+      // Shared compiler (productionIndex.ts) — same grouping as the
+      // production index, fed here with the agent's redaction suggestions.
+      scratch.exemptionLog = compileExemptionLog(
+        scratch.redactions.map((r) => ({ document: r.docId, exemption: r.reason })),
+      );
       return { entries: scratch.exemptionLog.length };
     }),
     cap("draft_message", () => {

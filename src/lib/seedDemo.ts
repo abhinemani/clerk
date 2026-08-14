@@ -112,6 +112,9 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
       // Release verification demo (docs/release-verification.md): the seeded
       // release below makes /riverton/authenticity verifiable out of the box.
       releaseVerification: { enabled: true },
+      // Fulfillment agent v1 (spec §16.1) — demo tenant first, per the gate
+      // plan: the "Run fulfillment agent" button shows on Riverton requests.
+      fulfillmentAgent: { enabled: true },
     },
   });
   // Deterministic routing rules — file "pothole repairs on Elm St" in the

@@ -184,13 +184,18 @@ export const eventKind = pgEnum("event_kind", [
   "note",
 ]);
 
-// The five agents of §16.1.
+// The five agents of §16.1, plus the Phase-5 agents (gates released
+// 2026-08-13). Values are append-only: the enum backs persisted agent_runs
+// rows, so a value once shipped is never removed or renamed.
 export const agentType = pgEnum("agent_type", [
   "fulfillment",
   "deadline",
   "release_prep",
   "ingest_steward",
   "requester_side",
+  "disclosure_librarian", // Phase 5 B1
+  "appeal_packet", // Phase 5 B3
+  "consistency_auditor", // Phase 5 B2
 ]);
 
 // Agent run lifecycle (§16.2). Runs are resumable, interruptible, and pause at
@@ -1209,6 +1214,16 @@ export interface AgencySettings {
    * projected), plus a register of public releases' checksums.
    */
   releaseVerification?: { enabled: boolean };
+  /**
+   * Fulfillment agent v1 (spec §16.1, opt-in — demo tenant first): the
+   * model-driven planner that decomposes a request's scope, searches the
+   * corpus, assembles a candidate review set, and plans department tasks.
+   * Tier rules unmoved: task dispatches park at the /app/agents checkpoint,
+   * and nothing requester-facing or legally significant is reachable from
+   * its allowlist. Off (absent) = the button does not render and the
+   * service refuses to start a run.
+   */
+  fulfillmentAgent?: { enabled: boolean };
 }
 
 /**

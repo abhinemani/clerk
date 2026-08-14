@@ -99,6 +99,13 @@
       "when": 1786729395013,
       "tag": "0013_wooden_ultragirl",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786733002094,
+      "tag": "0014_material_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

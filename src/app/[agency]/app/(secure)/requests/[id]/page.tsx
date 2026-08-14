@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getRepository } from "@/db/createRepository";
 import { getRequestDetail, outstandingTasks } from "@/lib/live";
 import { isAssignableRole } from "@/domain/workflow";
@@ -32,7 +32,7 @@ import {
   type ReviewDocVM,
 } from "../../../../../_components/ReviewRelease";
 import { MailboxImportPanel } from "../../../../../_components/MailboxImportPanel";
-import { placeLegalHoldFormAction } from "./actions";
+import { placeLegalHoldFormAction, runFulfillmentAgentAction } from "./actions";
 import {
   RequestWorkspace,
   type SuggestionVM,
@@ -49,6 +49,14 @@ const BAND_LABEL: Record<RiskBand, string> = {
 };
 
 const MS_DAY = 86_400_000;
+
+// Form wrapper (agents-page idiom): forms need void returns; a parked run
+// lands the coordinator on the checkpoint it's waiting at.
+async function runFulfillmentForm(slug: string, requestId: string): Promise<void> {
+  "use server";
+  const res = await runFulfillmentAgentAction({ agencySlug: slug, requestId });
+  if (res.ok && res.parked) redirect(`/${slug}/app/agents`);
+}
 
 export default async function RequestDetail({
   params,
@@ -121,6 +129,9 @@ export default async function RequestDetail({
     exemptions: string[];
     samples: string[];
   } | null = null;
+  // Fulfillment agent v1 (spec §16.1): the button renders only when the
+  // agency opted in (settings.fulfillmentAgent — demo tenant first).
+  let fulfillmentEnabled = false;
   if (detail.source === "live" && detail.raw) {
     const staff = await requireStaff(slug);
     const repo = await getRepository();
@@ -163,6 +174,7 @@ export default async function RequestDetail({
     const profile = agencyRow ? getStateProfile(agencyRow.stateCode) : null;
     exemptionOptions =
       profile?.exemptions.map((e) => ({ citation: e.statuteSection, label: e.shortLabel })) ?? [];
+    fulfillmentEnabled = agencyRow?.settings?.fulfillmentAgent?.enabled === true && r.closedAt == null;
     {
       const match = playMatch;
       if (match) {
@@ -405,6 +417,18 @@ export default async function RequestDetail({
               Find records
             </Link>
           )}
+          {detail.source === "live" && fulfillmentEnabled && (
+            <form action={runFulfillmentForm.bind(null, slug, r.id)}>
+              <button
+                className="btn btn-sm"
+                type="submit"
+                style={{ color: "var(--ai)" }}
+                title="Decompose the scope, search the records, attach candidates to the review set, and plan department tasks — task emails wait for your approval on the Agents page"
+              >
+                ✦ Run fulfillment agent
+              </button>
+            </form>
+          )}
           <Link href={`/${slug}/app/requests/${r.id}/redact`} className="btn btn-sm">
             Redact records →
           </Link>
@@ -424,6 +448,15 @@ export default async function RequestDetail({
               title="Counsel dossier: deadline bases, exemption citations, letters, checksummed releases, drafted cover memo"
             >
               Appeal packet
+            </a>
+          )}
+          {detail.source === "live" && (
+            <a
+              href={`/${slug}/app/requests/${r.id}/production-index.pdf`}
+              className="btn btn-sm"
+              title="Vaughn-style index of records: per-document decision, exemption, decider, redaction reasons, and the checksummed release it shipped in"
+            >
+              Production index
             </a>
           )}
         </div>

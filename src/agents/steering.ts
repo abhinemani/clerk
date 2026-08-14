@@ -14,6 +14,7 @@ import type { ServiceDeps } from "@/services/deps";
 import { DEFAULT_ACTION_POLICY } from "./actionTiers";
 import { DEFAULT_BUDGET, ZERO_SPEND } from "./budget";
 import { deadlineCapabilityRegistry } from "./deadlineAgent";
+import { fulfillmentCapabilityRegistry } from "./fulfillmentAgent";
 import { getAgentDefinition } from "./definitions";
 import { runAgent, type AgentRunState, type RunResult } from "./runHarness";
 import type { CapabilityRegistry } from "./tools";
@@ -30,6 +31,8 @@ function registryFor(row: AgentRunEntity, deps: ServiceDeps): CapabilityRegistry
   switch (row.agentType) {
     case "deadline":
       return deadlineCapabilityRegistry(row.agencyId, deps);
+    case "fulfillment":
+      return fulfillmentCapabilityRegistry(row.agencyId, deps);
     default:
       throw new AgentSteeringError(
         `Resume is not wired for the ${row.agentType} agent yet — cancel the run instead.`,

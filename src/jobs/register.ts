@@ -253,6 +253,99 @@ export function registerJobs(): void {
       console.error("[jobs] disclosure sweep failed", err);
     }
 
+    // Consistency auditor (agentic-horizon B2, Phase 5): weekly cross-request
+    // audit of review/exemption decisions. Read-only Tier 1 — it flags
+    // divergences and writes a digest; it never touches a decision. The sweep
+    // runs nightly, so gate to once per 7 days via the last audit's own
+    // admin event (quiet weeks append nothing, matching the B1 posture).
+    try {
+      const [{ getRepository }, { runConsistencyAudit }, { decisionRecordsFrom }] =
+        await Promise.all([
+          import("@/db/createRepository"),
+          import("@/agents/consistencyAuditorAgent"),
+          import("@/domain/consistencyAudit"),
+        ]);
+      const repo = await getRepository();
+      const now = new Date();
+      const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+      for (const agency of await repo.listAgencies()) {
+        const recentEvents = await repo.listAdminEvents(agency.id, 50);
+        const lastAudit = recentEvents.find((e) => e.kind === "consistency_audit");
+        if (lastAudit && now.getTime() - lastAudit.createdAt.getTime() < WEEK_MS) continue;
+
+        const [requests, reviews, documents] = await Promise.all([
+          repo.listRequests(agency.id),
+          repo.listAgencyReviews(agency.id),
+          repo.listDocuments(agency.id),
+        ]);
+        const decisions = decisionRecordsFrom(requests, reviews, documents);
+        if (decisions.length === 0) continue;
+
+        // Persist the run so /app/agents shows the audit in the run history.
+        const runId = crypto.randomUUID();
+        await repo.createAgentRun({
+          id: runId,
+          agencyId: agency.id,
+          agentType: "consistency_auditor",
+          requestId: null,
+          status: "planning",
+          goal: "Weekly consistency audit",
+          plan: null,
+          budgetLimits: null,
+          budgetSpend: null,
+          startedByUserId: null,
+          handoffNote: null,
+          lastStepAt: null,
+          createdAt: now,
+        });
+        const persistRun = async (r: import("@/agents/runHarness").AgentRunState) => {
+          await repo.updateAgentRun(agency.id, runId, {
+            status: r.status,
+            plan: r.plan,
+            budgetSpend: r.budgetSpend,
+            handoffNote: r.handoffNote ?? null,
+            lastStepAt: r.lastStepAt ?? null,
+          });
+        };
+        const result = await runConsistencyAudit({
+          decisions,
+          now,
+          agencyId: agency.id,
+          runId,
+          persist: persistRun,
+        });
+        await persistRun(result.run);
+        // The weekly digest lands whether or not anything was found — "we
+        // audit weekly and this week was clean" is itself defensibility.
+        await repo.appendAdminEvent({
+          id: crypto.randomUUID(),
+          agencyId: agency.id,
+          kind: "consistency_audit",
+          actorLabel: "consistency auditor",
+          summary:
+            result.findings.length > 0
+              ? `${result.findings.length} cross-request inconsistency finding(s) — review before an appeal does`
+              : "Weekly consistency audit clean — no cross-request divergences",
+          payload: {
+            digest: result.digest,
+            outcome: result.outcome,
+            runId,
+            findings: result.findings.map((f) => ({
+              kind: f.kind,
+              recordType: f.recordType,
+              summary: f.summary,
+              releasedIn: f.releasedIn,
+              restrictedIn: f.restrictedIn,
+              exemptions: f.exemptions,
+            })),
+          },
+          createdAt: now,
+        });
+      }
+    } catch (err) {
+      console.error("[jobs] consistency audit failed", err);
+    }
+
     // Connected data sources (docs/connected-sources.md): the nightly pull.
     // Paused sources (syncSchedule null) are skipped; each sync is a durable
     // job so a failure lands on the /admin Health surface, not in a log.

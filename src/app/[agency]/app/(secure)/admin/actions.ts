@@ -578,3 +578,40 @@ export async function setReleaseVerificationAction(input: {
     return { ok: false, error: "Could not update the setting." };
   }
 }
+
+/**
+ * Fulfillment agent v1 (spec §16.1, opt-in — demo tenant first). Enables the
+ * "Run fulfillment agent" button on request pages. The tier system is not a
+ * setting: task dispatches always park at /app/agents (unless Tier-2 auto-send
+ * is separately opted in), and release/denial/redaction stay human-only.
+ */
+export async function setFulfillmentAgentAction(input: {
+  agencySlug: string;
+  enabled: boolean;
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+
+    const agency = await repo.getAgency(agencyId);
+    await repo.updateAgency(agencyId, {
+      settings: {
+        ...(agency?.settings ?? {}),
+        fulfillmentAgent: { enabled: input.enabled },
+      },
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "fulfillment_agent_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: input.enabled ? "Fulfillment agent ENABLED" : "Fulfillment agent disabled",
+      payload: { enabled: input.enabled },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    return { ok: true };
+  } catch (e) {
+    console.error("setFulfillmentAgent failed", e);
+    return { ok: false, error: "Could not update the setting." };
+  }
+}

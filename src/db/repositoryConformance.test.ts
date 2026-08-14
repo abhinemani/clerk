@@ -648,6 +648,28 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect((await repo.listAgentRuns(AG2)).some((r) => r.id === run.id)).toBe(false);
     });
 
+    it("agent runs: Phase-5 agent_type values persist (migration 0014)", async () => {
+      // The enum backs persisted runs; each Phase-5 value must round-trip.
+      for (const agentType of ["disclosure_librarian", "appeal_packet", "consistency_auditor"] as const) {
+        const run = await repo.createAgentRun({
+          id: uid(),
+          agencyId: AG1,
+          agentType,
+          requestId: null,
+          status: "completed",
+          goal: `${agentType} run`,
+          plan: null,
+          budgetLimits: null,
+          budgetSpend: null,
+          startedByUserId: null,
+          handoffNote: null,
+          lastStepAt: null,
+          createdAt: new Date(),
+        });
+        expect((await repo.getAgentRun(AG1, run.id))?.agentType).toBe(agentType);
+      }
+    });
+
     // --- durable job queue ---------------------------------------------------
 
     it("jobs: claim → oldest runnable; retry backoff and boot recovery behave alike", async () => {

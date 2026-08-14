@@ -12,6 +12,7 @@ import { CompliancePanel, type StatuteVM } from "../../../../_components/Complia
 import { StatusApiPanel } from "../../../../_components/StatusApiPanel";
 import { RequesterApiPanel } from "../../../../_components/RequesterApiPanel";
 import { ReleaseVerificationPanel } from "../../../../_components/ReleaseVerificationPanel";
+import { FulfillmentAgentPanel } from "../../../../_components/FulfillmentAgentPanel";
 import { effectiveWorkflowSettings } from "@/domain/workflow";
 import { computeSetupStatus } from "@/domain/setupChecklist";
 import { getStateProfile } from "@/statute/profiles";
@@ -283,6 +284,10 @@ export default async function AdminPage({ params }: { params: Promise<{ agency: 
         key={`${workflow.autoAssign}|${workflow.autoDispatch}|${workflow.autoDispatchConfidence}|${workflow.milestoneEmails}`}
         agencySlug={slug}
         initial={workflow}
+      />
+      <FulfillmentAgentPanel
+        agencySlug={slug}
+        enabled={agencySettings.fulfillmentAgent?.enabled === true}
       />
 
       <h2 id="routing" style={{ fontSize: "1.1rem", marginTop: 30, marginBottom: 8, scrollMarginTop: 80 }}>

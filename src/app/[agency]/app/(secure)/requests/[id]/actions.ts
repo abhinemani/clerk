@@ -913,3 +913,28 @@ export async function placeLegalHoldAction(input: {
     return fail("placeLegalHold", e);
   }
 }
+
+/**
+ * Fulfillment agent v1 (spec §16.1, behind settings.fulfillmentAgent): plan,
+ * search, attach candidates, and park any department dispatch at the
+ * /app/agents checkpoint. Form-action variant for the header button.
+ */
+export async function runFulfillmentAgentAction(input: {
+  agencySlug: string;
+  requestId: string;
+}): Promise<WorkspaceResult & { parked?: boolean }> {
+  try {
+    const { staff, deps } = await ctx(input.agencySlug);
+    const { startFulfillmentRun } = await import("@/services/fulfillmentService");
+    const result = await startFulfillmentRun(deps, {
+      agencyId: staff.agencyId,
+      requestId: input.requestId,
+      actorUserId: staff.userId,
+    });
+    revalidatePath(`/${input.agencySlug}/app/requests/${input.requestId}`);
+    revalidatePath(`/${input.agencySlug}/app/agents`);
+    return { ok: true, parked: result.parked };
+  } catch (e) {
+    return fail("runFulfillmentAgent", e);
+  }
+}
