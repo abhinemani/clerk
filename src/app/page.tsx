@@ -184,7 +184,7 @@ export default function MarketingHome() {
               <h1 className="mk-display">
                 Fewer requests. Faster responses.
                 <br />
-                <span className="mk-accent">Decisions you can defend.</span>
+                <span className="mk-accent">Transparency, made turnkey.</span>
               </h1>
               <hr className="letterhead-rule" aria-hidden />
               <p className="mk-lede">
@@ -327,21 +327,23 @@ export default function MarketingHome() {
           </div>
         </section>
 
-        {/* The operating principle — a letterhead moment on the page's own
-            paper. It used to be a near-black band; the dark ground now
-            belongs to the closing CTA alone, so the page keeps exactly one
-            dark moment before the footer. */}
+        {/* The namesake's line — the one literal quotation on the page, a
+            letterhead moment on the page's own paper. The product is named
+            for it; the body ties the line to what the software does. (The
+            dark ground still belongs to the closing CTA alone, so the page
+            keeps exactly one dark moment before the footer.) */}
         <section className="mk-quote-band">
           <div className="wrap mk-section">
             <div className="mk-quote mk-reveal">
               <div className="mk-quote-mark" aria-hidden>
                 &ldquo;
               </div>
-              <p className="mk-quote-t">AI proposes. Staff disposes.</p>
+              <p className="mk-quote-t">Sunlight is said to be the best of disinfectants.</p>
               <p className="mk-quote-b">
-                Every AI output is a draft on a card — Accept, Edit, or Dismiss — in front of a
-                named human. Nothing legally significant leaves the building on model authority. Two
-                years later, the log reads like a defense exhibit.
+                Louis D. Brandeis, 1913 — the namesake, and the job description.{" "}
+                {branding.productName} makes that sunlight turnkey: what&apos;s already public
+                answers itself in seconds; what isn&apos;t leaves only by a named human&apos;s
+                decision, on an append-only log.
               </p>
               <hr className="letterhead-rule" aria-hidden style={{ marginInline: "auto" }} />
             </div>
