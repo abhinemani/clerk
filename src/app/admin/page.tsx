@@ -22,46 +22,36 @@ export default async function PlatformHome() {
   const agencies = await repo.listAgencies();
   const now = new Date();
 
-  const rows = await Promise.all(
-    agencies
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(async (a) => {
-        const [requests, users, requesters, directory, departments, publicDocs] =
-          await Promise.all([
-            repo.listRequests(a.id),
-            repo.listUsers(a.id),
-            repo.listRequesters(a.id),
-            repo.listDirectory(a.id),
-            repo.listDepartments(a.id),
-            repo.listPublicDocuments(a.id),
-          ]);
-        const open = requests.filter((r) => r.closedAt == null);
-        const overdue = open.filter(
-          (r) => r.statutoryDueAt != null && r.statutoryDueAt.getTime() < now.getTime(),
-        );
-        const setup = computeSetupStatus({
-          staffCount: users.length,
-          departmentCount: departments.length,
-          routingRuleCount: (a.defaultRoutingRules ?? []).length,
-          directoryCount: directory.length,
-          publicRecordCount: publicDocs.length,
-          requestCount: requests.length,
-          hasStatuteProfile: getStateProfile(a.stateCode) != null,
-          statuteReviewed: a.settings?.statuteReview != null,
-          emailConfigured: getEmailSender() != null,
-        });
-        return {
-          agency: a,
-          open: open.length,
-          overdue: overdue.length,
-          total: requests.length,
-          staff: users.length,
-          residents: requesters.filter((r) => r.passwordHash).length,
-          peerLinks: directory.filter((d) => d.peerAgencyId).length,
-          setup,
-        };
-      }),
-  );
+  // Counts come from ONE grouped roll-up, not six table loads per tenant —
+  // this page is O(tables), not O(tables × tenants). See
+  // Repository.listPlatformAgencyStats.
+  const stats = await repo.listPlatformAgencyStats(now);
+  const rows = agencies
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((a) => {
+      const s = stats[a.id];
+      const setup = computeSetupStatus({
+        staffCount: s?.staffCount ?? 0,
+        departmentCount: s?.departmentCount ?? 0,
+        routingRuleCount: (a.defaultRoutingRules ?? []).length,
+        directoryCount: s?.directoryCount ?? 0,
+        publicRecordCount: s?.publicRecordCount ?? 0,
+        requestCount: s?.requestCount ?? 0,
+        hasStatuteProfile: getStateProfile(a.stateCode) != null,
+        statuteReviewed: a.settings?.statuteReview != null,
+        emailConfigured: getEmailSender() != null,
+      });
+      return {
+        agency: a,
+        open: s?.openCount ?? 0,
+        overdue: s?.overdueCount ?? 0,
+        total: s?.requestCount ?? 0,
+        staff: s?.staffCount ?? 0,
+        residents: s?.residentCount ?? 0,
+        peerLinks: s?.peerLinkCount ?? 0,
+        setup,
+      };
+    });
 
   // Deployment health: failures must be VISIBLE, not console-only. Failed
   // jobs stay in the jobs table (durable queue); failed relays stay on their

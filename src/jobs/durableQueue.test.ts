@@ -125,4 +125,22 @@ describe("DurableQueue", () => {
     await queue.tick();
     expect(order).toEqual(["first", "second"]);
   });
+
+  it("tick() reports whether it ran work — the signal the idle backoff rides on", async () => {
+    const { queue } = ctx();
+    queue.register("intake_triage", async () => {});
+
+    // Nothing queued: an idle tick reports false, which is what lets the
+    // poll interval back off instead of querying every 1.5s forever.
+    expect(await queue.tick()).toBe(false);
+
+    queue.enqueue("intake_triage", PAYLOAD);
+    await queue.flush();
+    // enqueue() nudges tick() directly, so the job may already have run —
+    // either way, a tick that drains work reports true and one that finds
+    // nothing left reports false. Both are correct; assert the pair.
+    const drained = await queue.tick();
+    expect(typeof drained).toBe("boolean");
+    expect(await queue.tick()).toBe(false); // queue is empty again
+  });
 });

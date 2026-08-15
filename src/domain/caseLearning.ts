@@ -39,6 +39,13 @@ export interface CaseEpisode {
 }
 
 /** Distill one CLOSED request into an episode; null if it can't teach us anything. */
+/**
+ * One closed request → a compact episode. `tasks`/`reviews` may be the
+ * request's own slice (what the rebuild passes, pre-bucketed) or a wider
+ * array — the requestId filters below make either correct. Prefer passing
+ * the slice: handing this the whole agency's arrays per request is what
+ * made the nightly rebuild quadratic.
+ */
 export function distillEpisode(
   request: RequestEntity,
   tasks: TaskEntity[],

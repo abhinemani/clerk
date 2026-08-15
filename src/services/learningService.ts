@@ -44,9 +44,31 @@ export async function rebuildAgencyPlays(
   const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
   const vectorByRequestId = new Map(askVectors.map((v) => [v.id, v.embedding]));
 
+  // Bucket tasks/reviews by request ONCE. distillEpisode filters by
+  // requestId itself (kept — it's a cheap guard on an already-scoped slice),
+  // but handing it the whole agency's arrays per request made the nightly
+  // rebuild O(requests × tasks); it is now O(requests + tasks).
+  const tasksByRequest = new Map<string, typeof tasks>();
+  for (const t of tasks) {
+    const list = tasksByRequest.get(t.requestId);
+    if (list) list.push(t);
+    else tasksByRequest.set(t.requestId, [t]);
+  }
+  const reviewsByRequest = new Map<string, typeof reviews>();
+  for (const r of reviews) {
+    const list = reviewsByRequest.get(r.requestId);
+    if (list) list.push(r);
+    else reviewsByRequest.set(r.requestId, [r]);
+  }
+
   const episodes: CaseEpisode[] = [];
   for (const request of requests) {
-    const ep = distillEpisode(request, tasks, reviews, deptNameById);
+    const ep = distillEpisode(
+      request,
+      tasksByRequest.get(request.id) ?? [],
+      reviewsByRequest.get(request.id) ?? [],
+      deptNameById,
+    );
     if (ep) episodes.push(ep);
   }
   // Oldest-first for stable clustering across rebuilds.

@@ -332,6 +332,27 @@ export interface DemoRequestEntity {
   createdAt: Date;
 }
 
+/**
+ * One tenant's counts for the platform console (see
+ * Repository.listPlatformAgencyStats). Counts only — the console never needs
+ * the rows themselves, and loading them was the whole problem.
+ */
+export interface PlatformAgencyStats {
+  requestCount: number;
+  /** Requests with no closedAt. */
+  openCount: number;
+  /** Open requests whose statutory due date has passed. */
+  overdueCount: number;
+  staffCount: number;
+  /** Requesters who have a password set — i.e. real resident accounts. */
+  residentCount: number;
+  directoryCount: number;
+  /** Directory entries linked to a peer agency on this deployment. */
+  peerLinkCount: number;
+  departmentCount: number;
+  publicRecordCount: number;
+}
+
 export type JobStatus = "queued" | "running" | "done" | "failed";
 
 /** One durable background job — survives restarts; failures stay visible. */
@@ -720,6 +741,20 @@ export interface Repository {
   createDemoRequest(d: DemoRequestEntity): Promise<DemoRequestEntity>;
   /** Newest first. */
   listDemoRequests(limit?: number): Promise<DemoRequestEntity[]>;
+  /**
+   * Per-agency roll-up counts for the platform console, keyed by agencyId.
+   * Platform-level (no agency scope) — the operator console is the only
+   * reader, and it renders ONLY counts.
+   *
+   * Exists because /admin used to load six whole tables per tenant
+   * (requests, users, requesters, directory, departments, public documents)
+   * just to call `.length` on each — 6×N full scans per page view. The
+   * Drizzle path answers the same questions with one GROUP BY per table
+   * regardless of tenant count. `now` is passed in rather than read from a
+   * clock so the overdue count stays deterministic and testable
+   * (computeDueDate idiom).
+   */
+  listPlatformAgencyStats(now: Date): Promise<Record<string, PlatformAgencyStats>>;
 
   // Learning loop (docs/learning-loop.md): plays are replaced wholesale
   // per agency by the nightly rebuild — full-replace semantics on purpose,
@@ -1396,6 +1431,48 @@ export class InMemoryRepository implements Repository {
     return [...this.demoRequests]
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, limit);
+  }
+
+  async listPlatformAgencyStats(now: Date): Promise<Record<string, PlatformAgencyStats>> {
+    const out: Record<string, PlatformAgencyStats> = {};
+    const bucket = (agencyId: string): PlatformAgencyStats =>
+      (out[agencyId] ??= {
+        requestCount: 0,
+        openCount: 0,
+        overdueCount: 0,
+        staffCount: 0,
+        residentCount: 0,
+        directoryCount: 0,
+        peerLinkCount: 0,
+        departmentCount: 0,
+        publicRecordCount: 0,
+      });
+    // Every agency appears, even one with nothing in it yet (a freshly
+    // provisioned tenant is exactly what an operator wants to see).
+    for (const a of this.agencies.values()) bucket(a.id);
+
+    for (const r of this.requests.values()) {
+      const s = bucket(r.agencyId);
+      s.requestCount++;
+      if (r.closedAt == null) {
+        s.openCount++;
+        if (r.statutoryDueAt != null && r.statutoryDueAt.getTime() < now.getTime()) s.overdueCount++;
+      }
+    }
+    for (const u of this.users.values()) bucket(u.agencyId).staffCount++;
+    for (const r of this.requesters.values()) {
+      if (r.passwordHash) bucket(r.agencyId).residentCount++;
+    }
+    for (const d of this.directory.values()) {
+      const s = bucket(d.agencyId);
+      s.directoryCount++;
+      if (d.peerAgencyId) s.peerLinkCount++;
+    }
+    for (const d of this.departments.values()) bucket(d.agencyId).departmentCount++;
+    for (const d of this.documents.values()) {
+      if (d.classification === "public") bucket(d.agencyId).publicRecordCount++;
+    }
+    return out;
   }
 
   private plays: PlayEntity[] = [];

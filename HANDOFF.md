@@ -7,10 +7,11 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**1044 tests pass (+5 skipped), typecheck clean** (counts as of the newest
-2026-08-15 fulfillment-v2 entry). **4/4 e2e green as of the 2026-08-14
-staff-mobile-pass entry** — v2 touched no UI, so e2e wasn't re-run; nothing
-in its diff should affect it, but a next session touching UI should confirm.
+**1047 tests pass (+5 skipped), typecheck clean** (counts as of the newest
+2026-08-15 cleanup-pass entry). **4/4 e2e green as of the 2026-08-14
+staff-mobile-pass entry** — neither of the two 2026-08-15 build entries
+changed UI structure, so e2e wasn't re-run; a next session touching UI
+should confirm.
 
 ## START HERE (next session)
 
@@ -61,9 +62,17 @@ straight into a build):
    docs/learning-loop.md.
 4. ~~**Connected-sources phase 3**~~ **SHIPPED 2026-08-14** (fifteenth
    build): row store + refusal-first tabular answers.
-5. **Hybrid staff search** (per-chunk embeddings at ingest; service
-   signature ready). (~~intake-dedup stored-vector perf item~~ — done;
-   dedup + precedent ranking now run as SQL top-k.)
+5. ~~**Hybrid staff search**~~ **WAS ALREADY SHIPPED** — candidate was
+   STALE, closed 2026-08-15 (eighteenth build). Verified end to end:
+   `jobs/chunkEmbedJob.ts` chunks + embeds body text, registered as
+   `embed_document_chunks` and enqueued from every real ingest path
+   (records-import ×2, source sync, request upload, syncConnectedSourceJob,
+   plus the boot backfill), and `recordsSearchService.searchBodyChunks`
+   fuses the vector half into results by RRF. Only the file's own header
+   comment was stale — it still called per-chunk embeddings "the planned
+   upgrade" while describing code 40 lines below it; fixed. (~~intake-dedup
+   stored-vector perf item~~ — done; dedup + precedent ranking now run as
+   SQL top-k.)
 6. ~~**Mobile pass + animation review**~~ **DONE 2026-08-14** (sixteenth
    build, newest entry): deep staff surfaces verified at 390px, animation
    reviewed as far as this container's chromium executes it (one
@@ -79,7 +88,78 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-15, cloud session, seventeenth build of the window):
+**NEWEST (2026-08-15, cloud session, eighteenth build of the window):
+CLEANUP PASS — a stale candidate closed, and four parked performance items
+from the eighth build's audit.**
+- **CANDIDATE #5 (hybrid staff search) WAS ALREADY SHIPPED** — second time
+  this window a candidate turned out stale (the redaction-studio trio was
+  the first). Verified end to end before closing it: `jobs/chunkEmbedJob.ts`
+  chunks + embeds body text, is registered as `embed_document_chunks`, is
+  enqueued from every real ingest path (records-import ×2, source sync,
+  request upload, syncConnectedSourceJob, plus the boot backfill), and
+  `recordsSearchService.searchBodyChunks` fuses the vector half by RRF.
+  The only thing actually stale was that file's own header comment, which
+  called per-chunk embeddings "the planned upgrade" while describing code
+  40 lines below it. LESSON worth keeping: a stale doc comment is how a
+  shipped feature gets re-queued as a build candidate — when you finish a
+  feature, grep for the comment that promised it.
+- **THE PLATFORM CONSOLE N+1 (the big one).** `/admin` loaded SIX whole
+  tables per tenant (requests, users, requesters, directory, departments,
+  public documents) purely to call `.length` — 6×N full scans per page
+  view, so the operator console got slower with every tenant onboarded.
+  New port method **`listPlatformAgencyStats(now)`** returns per-agency
+  counts keyed by agencyId; the Drizzle path answers with ONE `GROUP BY`
+  per table (six queries total, independent of tenant count) using
+  `count(*) filter (where …)` for the conditional columns — PGlite runs
+  that syntax fine, the conformance suite proves it. `now` is a parameter,
+  not a clock read, so the overdue count stays deterministic
+  (computeDueDate idiom). An agency with nothing in it still gets a row —
+  a freshly provisioned tenant is exactly what an operator wants to see.
+  VERIFIED THE NUMBERS DIDN'T MOVE, two ways: the conformance test
+  cross-checks every field against the old per-tenant reads on both
+  adapters, and a throwaway script compared both computations against the
+  REAL seeded PGlite database — all nine counts identical for both
+  tenants. Browser-verified per gotcha 11 (screenshots delivered):
+  Riverton 2 open/3 all-time/3 staff/1 resident/1 forwarding link,
+  Bellmar 1 open/1 all-time/1 staff, health strip consistent, no
+  horizontal overflow at 1280 or 390.
+- **Job-queue idle backoff.** The worker ran a claim query every 1.5s
+  forever (~57k no-op queries/day on an idle deployment). `setInterval` is
+  now a self-scheduling `setTimeout` whose delay doubles up to 30s while
+  ticks find nothing, and snaps back to 1.5s the moment a job runs. SAFE
+  BECAUSE work this process enqueues never waits for the poll —
+  `enqueue()` nudges `tick()` directly — so the backoff only delays
+  discovering work another instance enqueued or a retry coming due.
+  `tick()` now returns whether it ran anything (the signal the backoff
+  rides on); tested.
+- **The nightly play rebuild was quadratic.** `distillEpisode` re-filtered
+  the agency's ENTIRE tasks and reviews arrays once per request —
+  O(requests × tasks) every night. `rebuildAgencyPlays` now buckets both
+  into Maps once and hands each request its own slice. `distillEpisode`
+  KEEPS its requestId filter (cheap on a pre-scoped array, and dropping it
+  would silently mis-handle any caller that passes a wider array) — its
+  doc comment now records which the rebuild passes and why.
+- **DELIBERATELY NOT DONE, with reasons** (so nobody re-parks them
+  blindly): **piiScan's `resolveOverlaps`** is O(n²) but findings per
+  document number in the dozens — the win is microseconds, and it is
+  redaction-critical code where a subtle containment bug means a name
+  ships unredacted. Bad trade; left alone on purpose. **next/image for the
+  222KB lockups** touches brand assets under the CLAUDE.md dark-lock and
+  `<picture>` theme-swap rules — not a cleanup-window change. Still parked
+  and untouched: reportingData's denied-request `listEvents` fan-out (the
+  code already documents it as bounded by denial count),
+  connectedSourceService's per-source whole-corpus load, redact-visual's
+  per-page PDF re-decode, embedRequestsJob batching, and the nightly
+  sweep's repeated `listAgencies` reads (one cheap query per sweep block,
+  nightly — genuinely not worth the resilience cost of hoisting it out of
+  its own try/catch).
+- 1047 offline tests (+3: platform-stats conformance on both adapters,
+  queue tick contract), typecheck clean. No migration, no env vars, no
+  laptop-setup change (said out loud per the push contract). e2e not
+  re-run — no UI structure changed, only the numbers' provenance, and
+  those were browser-verified directly.
+
+**PREVIOUS (2026-08-15, cloud session, seventeenth build of the window):
 FULFILLMENT AGENT V2 — connector_search, plan_update, per-item review-set
 curation (HANDOFF candidate #1, all three named sub-items), plus the
 department-spread eval fix from the previous entry.** The §16.1 agent

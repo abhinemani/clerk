@@ -59,12 +59,25 @@ export interface JobQueue {
 }
 
 const RETRY_BACKOFF_MS = 30_000; // × attempt number
+/** Floor: how fast the worker polls while there is (or just was) work. */
 const POLL_INTERVAL_MS = 1_500;
+/**
+ * Ceiling for the idle backoff. An idle deployment should not run a claim
+ * query every 1.5s forever (~57k no-op queries/day). Safe to back off
+ * because work THIS process enqueues never waits for the poll — enqueue()
+ * nudges tick() directly — so the backoff only delays discovering work
+ * another instance enqueued, or a retry whose runAfter has come due. Any
+ * tick that actually runs a job resets the delay to the floor, so a burst
+ * stays responsive after the first job lands.
+ */
+const POLL_IDLE_MAX_MS = 30_000;
 
 export class DurableQueue implements JobQueue {
   private handlers = new Map<JobKind, JobHandler>();
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private ticking = false;
+  private polling = false;
+  private pollDelay = POLL_INTERVAL_MS;
   private pendingPersists: Promise<void>[] = [];
 
   constructor(private readonly repoProvider: () => Promise<Repository>) {}
@@ -112,22 +125,46 @@ export class DurableQueue implements JobQueue {
     } catch (err) {
       console.error("[jobs] boot recovery failed", err);
     }
-    if (!this.timer) {
-      this.timer = setInterval(() => void this.tick(), POLL_INTERVAL_MS);
-      // Don't hold a dev process open just to poll.
-      this.timer.unref?.();
+    if (!this.polling) {
+      this.polling = true;
+      this.pollDelay = POLL_INTERVAL_MS;
+      this.scheduleNextPoll();
     }
   }
 
+  /** Self-scheduling poll (not setInterval — the delay varies with idleness). */
+  private scheduleNextPoll(): void {
+    if (!this.polling) return;
+    this.timer = setTimeout(() => {
+      void this.pollOnce();
+    }, this.pollDelay);
+    // Don't hold a dev process open just to poll.
+    this.timer.unref?.();
+  }
+
+  private async pollOnce(): Promise<void> {
+    const ranWork = await this.tick();
+    // tick() already resets the delay when it runs something; only the idle
+    // case grows it, doubling up to the ceiling.
+    if (!ranWork) this.pollDelay = Math.min(this.pollDelay * 2, POLL_IDLE_MAX_MS);
+    this.scheduleNextPoll();
+  }
+
   stop(): void {
-    if (this.timer) clearInterval(this.timer);
+    this.polling = false;
+    if (this.timer) clearTimeout(this.timer);
     this.timer = null;
   }
 
-  /** One worker pass: claim → run → complete/retry/fail. Reentrancy-guarded. */
-  async tick(): Promise<void> {
-    if (this.ticking) return;
+  /**
+   * One worker pass: claim → run → complete/retry/fail. Reentrancy-guarded.
+   * Returns true when it ran at least one job — the signal the idle backoff
+   * uses (and the reason a busy queue never backs off).
+   */
+  async tick(): Promise<boolean> {
+    if (this.ticking) return false;
     this.ticking = true;
+    let ranAny = false;
     try {
       const repo = await this.repoProvider();
       // Drain everything runnable — each claim is atomic, so this is safe
@@ -135,6 +172,10 @@ export class DurableQueue implements JobQueue {
       for (;;) {
         const job = await repo.claimNextJob(new Date());
         if (!job) break;
+        ranAny = true;
+        // Reset the idle backoff as soon as there IS work, so a burst
+        // arriving through enqueue()'s direct nudge stays responsive too.
+        this.pollDelay = POLL_INTERVAL_MS;
         await this.run(repo, job);
       }
     } catch (err) {
@@ -142,6 +183,7 @@ export class DurableQueue implements JobQueue {
     } finally {
       this.ticking = false;
     }
+    return ranAny;
   }
 
   private async run(repo: Repository, job: JobRecord): Promise<void> {

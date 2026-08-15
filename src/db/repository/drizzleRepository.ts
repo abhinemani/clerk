@@ -48,6 +48,7 @@ import {
   type DatasetRowEntity,
   type DeflectionEntity,
   type DemoRequestEntity,
+  type PlatformAgencyStats,
   type DeliveryEntity,
   type Department,
   type DirectoryEntry,
@@ -1693,6 +1694,97 @@ export class DrizzleRepository implements Repository {
       source: r.source,
       createdAt: r.createdAt,
     }));
+  }
+
+  async listPlatformAgencyStats(now: Date): Promise<Record<string, PlatformAgencyStats>> {
+    const blank = (): PlatformAgencyStats => ({
+      requestCount: 0,
+      openCount: 0,
+      overdueCount: 0,
+      staffCount: 0,
+      residentCount: 0,
+      directoryCount: 0,
+      peerLinkCount: 0,
+      departmentCount: 0,
+      publicRecordCount: 0,
+    });
+
+    // One GROUP BY per table — six queries total, independent of tenant
+    // count. (The console previously ran six per TENANT, each loading the
+    // whole table only to read its length.)
+    const [agencyRows, requestRows, userRows, requesterRows, directoryRows, deptRows, docRows] =
+      await Promise.all([
+        this.db.select({ id: agencies.id }).from(agencies),
+        this.db
+          .select({
+            agencyId: requests.agencyId,
+            total: sql<number>`count(*)::int`,
+            open: sql<number>`count(*) filter (where ${requests.closedAt} is null)::int`,
+            overdue: sql<number>`count(*) filter (where ${requests.closedAt} is null and ${requests.statutoryDueAt} is not null and ${requests.statutoryDueAt} < ${now})::int`,
+          })
+          .from(requests)
+          .groupBy(requests.agencyId),
+        this.db
+          .select({ agencyId: users.agencyId, total: sql<number>`count(*)::int` })
+          .from(users)
+          .groupBy(users.agencyId),
+        this.db
+          .select({
+            agencyId: requesters.agencyId,
+            residents: sql<number>`count(*) filter (where ${requesters.passwordHash} is not null)::int`,
+          })
+          .from(requesters)
+          .groupBy(requesters.agencyId),
+        this.db
+          .select({
+            agencyId: agencyDirectory.agencyId,
+            total: sql<number>`count(*)::int`,
+            peers: sql<number>`count(*) filter (where ${agencyDirectory.peerAgencyId} is not null)::int`,
+          })
+          .from(agencyDirectory)
+          .groupBy(agencyDirectory.agencyId),
+        this.db
+          .select({ agencyId: departments.agencyId, total: sql<number>`count(*)::int` })
+          .from(departments)
+          .groupBy(departments.agencyId),
+        this.db
+          .select({
+            agencyId: documents.agencyId,
+            publicCount: sql<number>`count(*) filter (where ${documents.classification} = 'public')::int`,
+          })
+          .from(documents)
+          .groupBy(documents.agencyId),
+      ]);
+
+    const out: Record<string, PlatformAgencyStats> = {};
+    // Seed from agencies so a tenant with nothing in it still appears.
+    for (const a of agencyRows as { id: string }[]) out[a.id] = blank();
+    const bucket = (agencyId: string) => (out[agencyId] ??= blank());
+
+    for (const r of requestRows as { agencyId: string; total: number; open: number; overdue: number }[]) {
+      const s = bucket(r.agencyId);
+      s.requestCount = r.total;
+      s.openCount = r.open;
+      s.overdueCount = r.overdue;
+    }
+    for (const r of userRows as { agencyId: string; total: number }[]) {
+      bucket(r.agencyId).staffCount = r.total;
+    }
+    for (const r of requesterRows as { agencyId: string; residents: number }[]) {
+      bucket(r.agencyId).residentCount = r.residents;
+    }
+    for (const r of directoryRows as { agencyId: string; total: number; peers: number }[]) {
+      const s = bucket(r.agencyId);
+      s.directoryCount = r.total;
+      s.peerLinkCount = r.peers;
+    }
+    for (const r of deptRows as { agencyId: string; total: number }[]) {
+      bucket(r.agencyId).departmentCount = r.total;
+    }
+    for (const r of docRows as { agencyId: string; publicCount: number }[]) {
+      bucket(r.agencyId).publicRecordCount = r.publicCount;
+    }
+    return out;
   }
 
   // --- learning loop (docs/learning-loop.md) -------------------------------

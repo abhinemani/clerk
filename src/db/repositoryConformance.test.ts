@@ -790,6 +790,108 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect(publicOnly.total).toBe(1);
     });
 
+    it("platform agency stats: grouped counts match what the console used to compute row-by-row", async () => {
+      // A fresh agency of its own, so counts are exact rather than
+      // "whatever earlier tests happened to leave in AG1".
+      const AGS = uid();
+      await repo.createAgency({
+        id: AGS,
+        slug: `conf-stats-${AGS.slice(0, 8)}`,
+        name: "Stats City",
+        stateCode: "CA",
+        observedHolidays: [],
+      });
+      const now = new Date("2026-08-15T12:00:00Z");
+
+      // 3 requests: one closed, one open-and-overdue, one open-and-not-due.
+      await repo.createRequest(
+        requestOf({ agencyId: AGS, closedAt: new Date("2026-08-10T00:00:00Z"), statutoryDueAt: new Date("2026-08-01T00:00:00Z") }),
+      );
+      await repo.createRequest(
+        requestOf({ agencyId: AGS, closedAt: null, statutoryDueAt: new Date("2026-08-01T00:00:00Z") }),
+      );
+      await repo.createRequest(
+        requestOf({ agencyId: AGS, closedAt: null, statutoryDueAt: new Date("2026-09-01T00:00:00Z") }),
+      );
+      await repo.createUser({
+        id: uid(),
+        agencyId: AGS,
+        email: `stats-${AGS.slice(0, 8)}@x.gov`,
+        name: "S",
+        role: "coordinator",
+        passwordHash: null,
+      });
+      // Two requesters, only one with a password → one "resident".
+      await repo.createRequester({ id: uid(), agencyId: AGS, email: `r1-${AGS.slice(0, 8)}@x.com`, name: "R1", type: "individual", passwordHash: "hash" });
+      await repo.createRequester({ id: uid(), agencyId: AGS, email: `r2-${AGS.slice(0, 8)}@x.com`, name: "R2", type: "individual", passwordHash: null });
+      await repo.createDepartment({ id: uid(), agencyId: AGS, name: "Public Works", defaultResponderEmails: [] });
+      // Two directory entries, only one linked to a peer agency.
+      await repo.createDirectoryEntry({ id: uid(), agencyId: AGS, name: "Peer City", jurisdictionType: "city", contactEmail: "p@x.gov", contactPhone: null, portalUrl: null, recordTypes: [], notes: null, peerAgencyId: AG1 });
+      await repo.createDirectoryEntry({ id: uid(), agencyId: AGS, name: "Plain County", jurisdictionType: "county", contactEmail: "q@x.gov", contactPhone: null, portalUrl: null, recordTypes: [], notes: null, peerAgencyId: null });
+      // Two documents, one public.
+      await repo.createDocument(docOf({ agencyId: AGS, classification: "public" }));
+      await repo.createDocument(docOf({ agencyId: AGS, classification: "internal" }));
+
+      const stats = await repo.listPlatformAgencyStats(now);
+      const s = stats[AGS]!;
+      expect(s.requestCount).toBe(3);
+      expect(s.openCount).toBe(2);
+      expect(s.overdueCount).toBe(1); // open AND past due — the closed overdue one doesn't count
+      expect(s.staffCount).toBe(1);
+      expect(s.residentCount).toBe(1); // password-holders only
+      expect(s.directoryCount).toBe(2);
+      expect(s.peerLinkCount).toBe(1);
+      expect(s.departmentCount).toBe(1);
+      expect(s.publicRecordCount).toBe(1);
+
+      // Cross-checked against the per-tenant reads the console used to do —
+      // this is the assertion that would catch the two paths drifting.
+      const [requests, users, requesters, directory, departments, publicDocs] = await Promise.all([
+        repo.listRequests(AGS),
+        repo.listUsers(AGS),
+        repo.listRequesters(AGS),
+        repo.listDirectory(AGS),
+        repo.listDepartments(AGS),
+        repo.listPublicDocuments(AGS),
+      ]);
+      expect(s.requestCount).toBe(requests.length);
+      expect(s.openCount).toBe(requests.filter((r) => r.closedAt == null).length);
+      expect(s.overdueCount).toBe(
+        requests.filter(
+          (r) => r.closedAt == null && r.statutoryDueAt != null && r.statutoryDueAt.getTime() < now.getTime(),
+        ).length,
+      );
+      expect(s.staffCount).toBe(users.length);
+      expect(s.residentCount).toBe(requesters.filter((r) => r.passwordHash).length);
+      expect(s.directoryCount).toBe(directory.length);
+      expect(s.peerLinkCount).toBe(directory.filter((d) => d.peerAgencyId).length);
+      expect(s.departmentCount).toBe(departments.length);
+      expect(s.publicRecordCount).toBe(publicDocs.length);
+
+      // An agency with nothing in it still gets a row — a freshly
+      // provisioned tenant is exactly what an operator wants to see.
+      const EMPTY = uid();
+      await repo.createAgency({
+        id: EMPTY,
+        slug: `conf-empty-${EMPTY.slice(0, 8)}`,
+        name: "Empty City",
+        stateCode: "TX",
+        observedHolidays: [],
+      });
+      const withEmpty = await repo.listPlatformAgencyStats(now);
+      expect(withEmpty[EMPTY]).toEqual({
+        requestCount: 0,
+        openCount: 0,
+        overdueCount: 0,
+        staffCount: 0,
+        residentCount: 0,
+        directoryCount: 0,
+        peerLinkCount: 0,
+        departmentCount: 0,
+        publicRecordCount: 0,
+      });
+    });
+
     it("agent runs: create + get + update + list, all tenant-scoped (§16.2)", async () => {
       const run = await repo.createAgentRun({
         id: uid(),

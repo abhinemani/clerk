@@ -7,9 +7,11 @@
  * surfaces must never call this — they have the public-only archive search
  * (invariant 3 lives in that query layer, not here).
  *
- * Self-contained: lexical scoring over filename + extracted text + metadata
- * works with zero configuration. (Per-chunk embeddings are the planned
- * upgrade behind the same signature — see HANDOFF roadmap.)
+ * HYBRID: lexical scoring over filename + extracted text + metadata, fused by
+ * reciprocal rank with a per-chunk VECTOR half (searchBodyChunks below —
+ * body chunks embedded at ingest by jobs/chunkEmbedJob). Still self-contained:
+ * with no embeddings stored or no embedder reachable the vector half returns
+ * [] and search degrades to pure lexical rather than failing.
  */
 import { LexicalRetriever } from "@/ai/search/retriever";
 import { readDocumentMeta } from "@/domain/documentMeta";
