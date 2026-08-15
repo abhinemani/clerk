@@ -21,6 +21,7 @@
 const SERVICE_ENV_VARS = [
   // AI providers
   "ANTHROPIC_API_KEY",
+  "CLOUD_ANTHROPIC_API_KEY", // cloud-env alias, mapped in vitest.config.ts
   "VOYAGE_API_KEY",
   // search cluster
   "ELASTICSEARCH_URL",

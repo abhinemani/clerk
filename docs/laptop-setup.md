@@ -44,9 +44,16 @@ that permanently.
    Two lines, `.env` style, values from steps 1–2:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-PASTE-YOURS
+CLOUD_ANTHROPIC_API_KEY=sk-ant-PASTE-YOURS
 VOYAGE_API_KEY=pa-PASTE-YOURS
 ```
+
+   ⚠ The Anthropic one must be named `CLOUD_ANTHROPIC_API_KEY`, NOT
+   `ANTHROPIC_API_KEY` — the platform filters the plain name out of
+   session env (the dialog warns it "won't be used to authenticate
+   requests"), so under the plain name cloud sessions never see it. The
+   `CLOUD_` alias passes through and the app/eval map it at boot
+   (verified live 2026-08-15).
 
    ⚠ Cloud environments have no dedicated secrets store — values are
    readable by anyone who can use the environment. Fine for a personal
@@ -92,9 +99,12 @@ EOF
 cd clerk && npm run eval
 ```
 
-What good looks like (last run 2026-08-13, all gates green): **custodian
-8/8 · exemption 5/5, recall 100%, precision 69% · intake triage 7/8 (88%,
-both RAG cases pass) · answer engine 3/3 grounded**. Note `request_match`
+What good looks like (last run 2026-08-15, all gates green on re-run):
+**custodian 8/8 · exemption 5/5, recall 100% · intake triage 9/10 (90%,
+all four RAG/play cases pass) · fulfillment plan 5/6 (83%) · answer
+engine 3/3 grounded**. The exemption gate is zero-missed-labels and is
+model-nondeterministic — a single missed name is worth one re-run before
+treating it as a regression. Note `request_match`
 has no eval case of its own — the RAG golden cases cover the triage/
 routing prompts; a misbehaving request_match needs a new golden set
 first (see HANDOFF). Then either commit the

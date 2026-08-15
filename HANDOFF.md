@@ -22,17 +22,14 @@ and a full UX/visual pass (staff nav rail, archive storefront, civic hero
 bands, engraved-plate card ornament, lit page ground). Nothing is
 half-built; every entry below was verified as described at its date.
 
-**TWO STANDING EVAL DEBTS (2026-08-14):** neither the fulfillment planner
-prompt (`src/ai/prompts/fulfillmentPlan.ts`, 2026-08-14.1) nor the
-intake-triage prompt (`src/ai/prompts/intakeTriage.ts`, 2026-08-14.1 —
-learning-loop v2 added play-stats context, see the newest entry) has been
-through a live `npm run eval` — the cloud sessions that built them had no
-ANTHROPIC_API_KEY. Golden sets + graders ship and are unit-tested offline
-(intake gained a play-calibration case and a play-contamination guard); a
-keyed session (laptop, or cloud after the ⚡ steps) should run
-`npm run eval` and record BOTH scorecards here. The 2026-08-13
-intake-triage debt for version 2026-08-13.1 was cleared, but the version
-has moved since.
+**~~TWO STANDING EVAL DEBTS (2026-08-14)~~ CLEARED 2026-08-15** (newest
+entry): both the fulfillment planner prompt (2026-08-14.1) and the
+intake-triage prompt (2026-08-14.1) went through a live `npm run eval`
+from a cloud session — all gates green (exemption needed one re-run; the
+miss was model nondeterminism, not a regression). Scorecards recorded in
+the newest entry. The ⚡ cloud-key path in docs/laptop-setup.md was
+WRONG until that entry — the platform filters `ANTHROPIC_API_KEY` from
+session env; the fix is the `CLOUD_ANTHROPIC_API_KEY` alias (see entry).
 
 **GATES RELEASED (owner, 2026-08-13):** connected-sources phase 3 AND
 Phase 5 agents (docs/agentic-horizon.md Bucket B) are buildable.
@@ -43,8 +40,9 @@ agents propose, a named human publishes.
 this queue — the "what would make Brandeis special" bets — lives in
 `docs/big-ticket.md`; graduate items from there into this list, not
 straight into a build):
-1. **Fulfillment agent v2** (v1 SHIPPED 2026-08-14): run the live eval
-   (the standing debt above), then grow the planner — connector_search
+1. **Fulfillment agent v2** (v1 SHIPPED 2026-08-14; live eval ✓
+   2026-08-15, 5/6 — see newest entry for the one routing miss): grow
+   the planner — connector_search
    over connected sources, plan revision mid-run (plan_update), per-item
    review-set curation instead of top-N, and the B5 records map as
    routing context when it exists.
@@ -76,7 +74,56 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-14, cloud session, sixteenth build of the window): THE
+**NEWEST (2026-08-15, cloud session): THE LIVE EVAL RUN — both standing
+scorecard debts cleared, and the cloud-key path fixed for good.** Owner
+asked for `npm run eval`; first live full-suite run since 2026-08-13.
+- **Scorecards (all five suites, live API):**
+  - **Custodian suggest 8/8** — 0 false referrals, 0 wrong targets, 3/3
+    referrals caught.
+  - **Exemption pass: FAILED first run, 5/5 on immediate re-run.** First
+    run missed one PII label ("Dana Whitfield", incident-report-pii,
+    case recall 80%, mean 96%); re-run scored 100% recall, 0 missed,
+    0 decoys. The gate is zero-missed-labels by design, so know this:
+    a single missed name can be MODEL NONDETERMINISM — re-run once
+    before treating it as a prompt regression. Precision hovered 63–69%
+    (reported-only; over-flagging is one dismissal).
+  - **Fulfillment plan 5/6 (83%, bar passed)** — first live run of
+    prompt 2026-08-14.1 (debt cleared). Miss: broad-incident-
+    multi-department wants some item routed to "Public Works"; the plan
+    routed Police Records ×2 + City Clerk ×2. Worth a look when building
+    v2 — the planner under-spreads across departments on broad scopes.
+  - **Intake triage 9/10 (90%, bar passed)** — first live run of prompt
+    2026-08-14.1 (debt cleared); all four RAG/play golden cases pass
+    (calibration + both contamination guards). Miss:
+    police-report-personnel wants record type ~ "personnel", model said
+    "internal affairs files, disciplinary records" — a vocabulary miss,
+    arguably grader-strict, not a safety miss.
+  - **Answer engine 3/3** grounded with public citations, no internal
+    leaks.
+- **THE GOTCHA (this is why no cloud session ever ran the eval): the
+  claude.ai environment config CANNOT deliver `ANTHROPIC_API_KEY`.** The
+  platform filters that exact name out of session env — sessions
+  authenticate through the Anthropic account, and the env dialog warns
+  the key "won't be used to authenticate requests". The owner had it
+  configured correctly per the old ⚡ step 3; it silently never arrived
+  (VOYAGE_API_KEY, a name the platform doesn't reserve, arrives fine).
+  Every prior "cloud session had no ANTHROPIC_API_KEY" note in this file
+  traces to this.
+- **The fix — `CLOUD_ANTHROPIC_API_KEY` alias, mapped at both boot
+  points:** `src/instrumentation.ts` (app server, so cloud dev-server
+  live-AI verification works too) and `vitest.config.ts` loadDotEnv (so
+  `npm run eval` scores live). Real `ANTHROPIC_API_KEY` always wins;
+  alias added to the vitest.setup.ts strip list so `npm test` stays
+  offline-deterministic. Verified live: full eval ran keyless-`.env`
+  with only the alias exported. Owner action (already told): rename the
+  variable in the claude.ai environment settings; docs/laptop-setup.md
+  ⚡ step 3 + Part B scorecard + `.env.example` updated in this commit
+  (owner-facing change → laptop doc same-commit, per contract).
+- Offline suite + typecheck green. No schema, prompt, or app-behavior
+  changes — prompts untouched, so no scorecard-diff obligation; this
+  entry IS the recorded scorecard.
+
+**PREVIOUS (2026-08-14, cloud session, sixteenth build of the window): THE
 MOBILE PASS ON THE DEEP STAFF SURFACES + animation review + runbook
 (HANDOFF candidate #6, closing it).** Every deep staff surface is now
 verified no-horizontal-overflow at 390px in a real browser: command

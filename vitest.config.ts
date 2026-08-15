@@ -30,6 +30,12 @@ function loadDotEnv(): void {
   } catch {
     // No .env — the app is designed to run without one; live evals just skip.
   }
+  // Cloud sessions can't receive ANTHROPIC_API_KEY by that name (the platform
+  // filters it from session env; see src/instrumentation.ts). Accept the
+  // CLOUD_ANTHROPIC_API_KEY alias so `npm run eval` scores live there too.
+  if (!process.env.ANTHROPIC_API_KEY && process.env.CLOUD_ANTHROPIC_API_KEY) {
+    process.env.ANTHROPIC_API_KEY = process.env.CLOUD_ANTHROPIC_API_KEY;
+  }
 }
 loadDotEnv();
 
