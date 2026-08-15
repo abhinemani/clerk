@@ -7,8 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**1047 tests pass (+5 skipped), typecheck clean** (counts as of the newest
-2026-08-15 cleanup-pass entry). **4/4 e2e green as of the 2026-08-14
+**1073 tests pass (+5 skipped), typecheck clean** (counts as of the newest
+2026-08-15 network-plays-functions entry). **4/4 e2e green as of the 2026-08-14
 staff-mobile-pass entry** — neither of the two 2026-08-15 build entries
 changed UI structure, so e2e wasn't re-run; a next session touching UI
 should confirm.
@@ -52,14 +52,16 @@ straight into a build):
    scope item instead of one flat top-N list). Also fixed the live-eval
    department-spread miss from the v1 entry (now 6/6). Remaining from the
    original v2 list: the B5 records map as routing context, once B5 ships.
-1b. **Network plays (big-ticket §1) — DESIGN LANDED 2026-08-15, build
-   NOT started.** `docs/network-plays.md` + **invariant 11**. Four ⚑
-   owner/counsel decisions are open and BLOCK the build (read policy,
-   rebuild cadence, floor values, public-record status of the aggregate).
-   When they're answered, first code is the two pure functions
-   (`toNetworkContribution`, `publishableAggregates`) with property tests
-   and NO schema — the invariant's whole enforcement surface, testable
-   before a table exists.
+1b. **Network plays (big-ticket §1) — INVARIANT + CHOKEPOINT FUNCTIONS
+   SHIPPED 2026-08-15** (`docs/network-plays.md`, **invariant 11**,
+   `src/domain/networkPlays.ts` + `networkVocabulary.ts`, 26 tests). ⚑1–3
+   answered by the owner (contribute-to-read, weekly, 5/20/0.4); ⚑4
+   (public-record status) is with counsel and blocks nothing. **Next:
+   consent surface + admin-log event, then the `network_aggregates` table
+   + weekly rebuild job, then the read side (routing hints first,
+   exemption benchmarking LAST — highest sensitivity).** Nothing is wired
+   yet: no schema, no job, no UI, no caller. The functions refuse by
+   default, so nothing downstream can leak on its own.
 2. **B4 third-party notice steward** (differentiator; needs notice rules
    added to state profiles as data). B2 shipped 2026-08-14; its forward
    version — redact-everywhere memory (big-ticket §4) — is the natural
@@ -96,7 +98,55 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-15, cloud session, nineteenth build of the window):
+**NEWEST (2026-08-15, cloud session, twentieth build of the window):
+NETWORK PLAYS — THE TWO CHOKEPOINT FUNCTIONS (owner answered ⚑1–3:
+contribute-to-read, weekly, 5/20/0.4, then "go build the pure
+functions").** Invariant 11's entire enforcement surface now exists as pure
+code with 26 tests, and **still no schema, no migration, no job, no UI, no
+caller** — exactly the sequencing the design doc specified.
+- **`src/domain/networkVocabulary.ts`** — the controlled vocabularies (26
+  topic codes, 14 department roles) and three mappers. **`toStatuteSection`
+  is the load-bearing one**: `reviews.exemptionLabel` is built as
+  `reasons.join("; ")`, i.e. literal clerk free text that can contain a
+  name or a case number, so only a section appearing in the agency's OWN
+  statute profile may cross, and only when the label unambiguously names
+  exactly one.
+- **`src/domain/networkPlays.ts`** — `toNetworkContribution` (consent
+  checked INSIDE, so a non-consenting agency cannot contribute even by
+  caller error) and `publishableAggregates` (the three owner floors, plus
+  a stricter per-section agency floor). Two distinct boundary types on
+  purpose: a **contribution** carries agencyId + exact episodeCount because
+  you cannot enforce a population floor without counting the population,
+  and is platform-internal; an **aggregate** is what a tenant reads and
+  carries neither.
+- **THE STRUCTURAL GUARANTEE, worth understanding before touching it:**
+  invariant 11 says a network signal may never auto-dispatch. A numeric cap
+  CANNOT deliver that — agencies set their own `autoDispatchConfidence`
+  (default 0.8 but any value is permitted), so no constant sits below every
+  tenant's bar. So `networkRoutingHint` returns a `NetworkRoutingHint`,
+  deliberately NOT the `LearnedRoutingSuggestion` that
+  `autoDispatchSuggestions` consumes — feeding a network hint into dispatch
+  is a COMPILE ERROR, not a policy violation. `NETWORK_CONFIDENCE_CAP`
+  (0.6) only ranks hints below local plays (0.9) in the UI. **If a future
+  session "simplifies" the hint into a LearnedRoutingSuggestion to reuse a
+  component, the invariant silently breaks — refuse that refactor.**
+- **Three real bugs the tests caught, all silent-degradation class** (full
+  writeup in the design doc): a PLURAL trigger term (`"streets"`) never
+  substring-matches the singular name (`"Street Maintenance"`), so that
+  agency's routing just vanished; scoring role matches by term LENGTH made
+  `"Police Records"` resolve to *clerk* because "records" is longer than
+  "police"; and unweighted term counting let a play about an annual budget
+  report win `police_incident_reports` on the bare supporting term
+  "report", as the only match. Fixed with weighted terms +
+  `MIN_TOPIC_SCORE`. The through-line now written into the vocabulary file:
+  **a false mapping is worse than no mapping** — no mapping drops one
+  agency's contribution, a false one pollutes every other agency's
+  benchmark — so every ambiguity resolves to null.
+- 1073 offline tests (+26), typecheck clean. No migration, no env vars, no
+  services → `docs/laptop-setup.md` untouched (said out loud per the push
+  contract). Nothing to browser-verify: no surface renders any of this yet.
+
+**PREVIOUS (2026-08-15, cloud session, nineteenth build of the window):
 NETWORK PLAYS — THE INVARIANT, NOT THE FEATURE (big-ticket §1, owner-
 directed: "the right first move is designing the cross-tenant aggregation
 invariant, not writing code").** Design only — **no code, no migration, no

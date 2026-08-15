@@ -1,10 +1,16 @@
 # Network plays — cross-tenant learning without cross-tenant leakage
 
-Status: **DESIGN ONLY, no code, no migration** (started 2026-08-15 at the
-owner's direction). This is big-ticket §1's first move, deliberately taken
-while the network is small: the rules are cheap to get right now and
-expensive to retrofit once tenants have contributed data under a promise we
-later have to change.
+Status: **the two chokepoint functions are BUILT and tested; no schema, no
+migration, nothing wired** (design 2026-08-15, functions same day). This is
+big-ticket §1's first move, deliberately taken while the network is small:
+the rules are cheap to get right now and expensive to retrofit once tenants
+have contributed data under a promise we later have to change.
+
+Owner answered ⚑1–3 on 2026-08-15: **contribute-to-read**, **weekly
+rebuild**, floors **5 agencies / 20 episodes / 0.4 max share**. ⚑4 (is the
+aggregate itself a public record) is still open with counsel and does not
+block the code. Built: `src/domain/networkVocabulary.ts`,
+`src/domain/networkPlays.ts`, `src/domain/networkPlays.test.ts` (26 tests).
 
 The hard rules extracted from this document live in **invariant 11**
 (`docs/invariants.md`). Where the two ever disagree, the invariant wins.
@@ -141,24 +147,21 @@ count below the floors.
   promise the architecture cannot keep, and the consent copy should say so
   rather than imply otherwise.
 
-⚑ **1 — Contribute-to-read, or read-for-free?** Recommendation:
-**contribute-to-read.** It is fair (no free-riding on other agencies'
-disclosure), it drives the network effect that is the entire point, and it
-makes the value exchange legible in the consent dialog. The counter-argument
-is adoption friction for a cautious first tenant. Business call, not a
-technical one.
+✅ **1 — Contribute-to-read** (owner, 2026-08-15). No free-riding on other
+agencies' disclosure; the value exchange is legible in the consent dialog.
+Enforced at the read side when it is built — the projection functions are
+already consent-gated on the write side.
 
-⚑ **2 — Rebuild cadence and differencing.** Recommendation: recompute on a
-**slow, fixed cadence** (weekly) rather than continuously, and suppress any
-aggregate whose contributing-agency set changed since the prior publication
-until it clears the floors *again*. Continuous recomputation is the
-differencing attack's best friend. Cheap to do now; awkward to add later.
+✅ **2 — Weekly rebuild** (owner, 2026-08-15), not continuous. Continuous
+recomputation is the differencing attack's best friend. The rebuild job
+should also suppress an aggregate whose contributing-agency set changed
+since the prior publication until it clears the floors again.
 
-⚑ **3 — Floor values.** Recommendation, conservative on purpose and easy to
-loosen once there is real data: `MIN_AGENCIES = 5`, `MIN_EPISODES = 20`,
-`MAX_AGENCY_SHARE = 0.4`. These are the numbers invariant 11 references by
-name. Loosening them later is a one-line change plus a scorecard; tightening
-them after tenants have relied on the looser numbers is a broken promise.
+✅ **3 — Floors: `MIN_AGENCIES = 5`, `MIN_EPISODES = 20`,
+`MAX_AGENCY_SHARE = 0.4`** (owner, 2026-08-15). Live in
+`src/domain/networkPlays.ts` as exported constants, referenced by name in
+invariant 11. Conservative on purpose: loosening later is a one-line change,
+tightening after tenants have relied on looser numbers is a broken promise.
 
 ⚑ **4 — Is the aggregate itself a public record?** A cross-agency statistic
 held by the vendor, derived from records held by public agencies, is a
@@ -206,10 +209,50 @@ the `computeDueDate()` pattern applied to a privacy rule: no I/O, no clock,
 config as arguments, exhaustively testable, and impossible to bypass by
 accident because the only path to the network table runs through them.
 
-**First code when the build starts** (specified now so it is mechanical
-later): `toNetworkContribution` + `publishableAggregates` as pure functions
-with property tests, *before* any table exists. An invariant with no test is
-a wish, and these two are testable with zero schema.
+**Built 2026-08-15** — `toNetworkContribution` + `publishableAggregates` as
+pure functions with property tests, *before* any table exists. An invariant
+with no test is a wish, and these two are testable with zero schema.
+
+### What building them taught (three real bugs the tests caught)
+
+Worth recording, because each is silent and each would have degraded the
+network's data quality rather than crashing:
+
+1. **A plural trigger term never matches the singular name.** The role
+   vocabulary said `"streets"`, so `"Street Maintenance"` mapped to nothing
+   and that agency's routing simply vanished from the aggregate. Substring
+   triggers must always be the SHORTER form.
+2. **Length is not specificity.** Scoring role matches by term length made
+   `"Police Records"` resolve to *clerk*, because `"records"` (7 chars) beat
+   `"police"` (6). Replaced with explicit per-term weights — a role-defining
+   noun outranks a generic one regardless of length.
+3. **A generic supporting term can win alone.** Unweighted term counting let
+   a play about an annual budget report match the bare term `"report"` under
+   `police_incident_reports` — the only match, therefore the winner. Hence
+   weighted terms plus `MIN_TOPIC_SCORE`: supporting terms may only tip a
+   decision that defining terms already support.
+
+The through-line: for a vocabulary, **a false mapping is worse than no
+mapping.** No mapping drops one agency's contribution; a false one pollutes
+every other agency's benchmark with data that isn't about their topic. Every
+ambiguity in these functions resolves to null for that reason.
+
+### One structural guarantee worth understanding before changing it
+
+Invariant 11 says a network signal may never auto-dispatch on its own. The
+obvious implementation is a numeric cap — and it does not work: an agency
+sets its own `autoDispatchConfidence` (default 0.8, but any value ≥ 0 is
+permitted), so *no* constant we pick is guaranteed to sit below every
+tenant's bar.
+
+So the guarantee is **structural instead**: `networkRoutingHint` returns a
+`NetworkRoutingHint`, deliberately NOT the `LearnedRoutingSuggestion` that
+`autoDispatchSuggestions` consumes. Routing a network hint into the dispatch
+path is a compile error, not a policy violation. `NETWORK_CONFIDENCE_CAP`
+(0.6) exists only to rank hints below local plays in the UI. If someone
+later "simplifies" the hint type into a LearnedRoutingSuggestion to reuse a
+component, the invariant silently breaks — that refactor is the one to
+refuse.
 
 ### Read side ranking rule
 
@@ -234,12 +277,25 @@ than your own, and the code should say so rather than relying on a comment.
 
 ## What would make this real
 
-In order, once the ⚑ decisions are answered:
+1. ~~The two pure functions + property tests (no schema).~~ **DONE
+   2026-08-15.**
+2. ~~The topic-code vocabulary.~~ **STARTER SET DONE** — 26 topic codes, 14
+   department roles, weighted terms. This stays the piece worth the most
+   care: it is product judgment, not engineering, and it should be revisited
+   against real play data before the network publishes anything. Widening it
+   is additive and safe.
+3. **Consent surface + admin-log event** — next. Per-agency setting, named
+   admin, revocable, `agency_network_consent_changed` in the append-only
+   admin log. The consent copy must state the tradeoff plainly (see the
+   threat model's item 5: contributing means contributing data that could be
+   cited against you).
+4. `network_aggregates` table + the weekly rebuild job (⚑2 answered:
+   weekly, with suppression when the contributing set changes).
+5. Read side, in this order: cold-start routing hints first (clearest value,
+   least sensitive), comparative metrics second, exemption benchmarking last
+   — it is the highest-sensitivity surface and should ship only once the
+   network is well past the floors.
 
-1. The two pure functions + property tests (no schema).
-2. The topic-code vocabulary — the actual product judgment, and the piece
-   worth the most care.
-3. Consent surface + admin-log event.
-4. `network_aggregates` table + weekly rebuild job.
-5. Read side: cold-start routing hints first (clearest value), benchmarking
-   second (highest sensitivity).
+Note that nothing in steps 3–5 can leak anything on its own: every path to a
+tenant-readable number runs through the two functions built in step 1, and
+they refuse by default.
