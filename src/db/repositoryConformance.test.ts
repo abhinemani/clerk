@@ -1106,8 +1106,11 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
 
     it("tasks: round-trip, token lookup, agency-wide list, tenant scoping", async () => {
       const r = await repo.createRequest(requestOf());
-      const t = await repo.createTask({ id: uid(), agencyId: AG1, requestId: r.id, departmentId: DEPT1, scopeText: "pull records", status: "assigned", token: `conf-token-${adapterName}`, dueAt: null, uploads: [], pushbackNotes: null });
+      const dispatchedAt = new Date("2026-03-05T10:00:00Z");
+      const t = await repo.createTask({ id: uid(), agencyId: AG1, requestId: r.id, departmentId: DEPT1, scopeText: "pull records", status: "assigned", token: `conf-token-${adapterName}`, dueAt: null, uploads: [], pushbackNotes: null, createdAt: dispatchedAt });
       expect((await repo.getTaskByToken(t.token))?.id).toBe(t.id);
+      // createdAt round-trips (executive-report windows group tasks by dispatch date).
+      expect((await repo.getTask(AG1, t.id))?.createdAt?.getTime()).toBe(dispatchedAt.getTime());
       expect(await repo.getTask(AG2, t.id)).toBeNull();
       await repo.updateTask(AG1, t.id, { status: "submitted", uploads: [{ name: "a.pdf", pages: 2 }] });
       const back = await repo.getTask(AG1, t.id);

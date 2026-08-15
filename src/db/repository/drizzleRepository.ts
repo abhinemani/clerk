@@ -556,6 +556,8 @@ export class DrizzleRepository implements Repository {
       dueAt: t.dueAt,
       uploads: t.uploads,
       pushbackNotes: t.pushbackNotes,
+      // Omitted → the column default stamps it; passed → honored (test determinism).
+      ...(t.createdAt ? { createdAt: t.createdAt } : {}),
     });
     return t;
   }
@@ -607,6 +609,7 @@ export class DrizzleRepository implements Repository {
       dueAt: t.dueAt,
       uploads: t.uploads ?? [],
       pushbackNotes: t.pushbackNotes,
+      createdAt: t.createdAt,
     };
   }
 

@@ -8,6 +8,7 @@ import { DEFLECTIONS_YTD, reportingDataset } from "@/lib/reportingDemo";
 import { complianceReport } from "@/reporting/metrics";
 import { complianceReportCsv } from "@/reporting/csv";
 import { DownloadButton } from "../../../../_components/DownloadButton";
+import { ExecutiveReportBuilder } from "../../../../_components/ExecutiveReportBuilder";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,14 @@ export default async function ReportsPage({ params }: { params: Promise<{ agency
           )}
         </div>
       </div>
+
+      {/* Period-windowed executive artifact (docs/executive-reporting.md) —
+          live agencies only: the demo fixture has no request log to window. */}
+      {agency.id && (
+        <div style={{ marginTop: 20 }}>
+          <ExecutiveReportBuilder slug={slug} />
+        </div>
+      )}
 
       <div className="stat-row" style={{ marginTop: 20, gridTemplateColumns: "repeat(4, 1fr)" }}>
         <div className="stat">

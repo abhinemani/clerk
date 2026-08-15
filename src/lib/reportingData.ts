@@ -1,11 +1,14 @@
 /**
  * Live §11 compliance dataset — shared by the on-screen report, its CSV
  * export, and the annual-report PDF, so all three are computed from the
- * exact same rows.
+ * exact same rows. The executive report's loader lives here too and reuses
+ * the same citation logic, so the two artifacts can never disagree about
+ * what an exemption count means.
  */
 import { getRepository } from "@/db/createRepository";
-import type { Repository } from "@/services/repository";
+import type { Repository, RequestEntity } from "@/services/repository";
 import type { RequestForMetrics } from "@/reporting/metrics";
+import type { ExecutiveDataset } from "@/reporting/executiveSummary";
 
 /**
  * Exemption citations for one request, deduplicated: an annual report counts
@@ -23,19 +26,13 @@ function citationsFor(
   return [...new Set([...(reviewLabels ?? []), ...(denialCitations ?? [])])];
 }
 
-export async function liveComplianceDataset(
+/** Both citation sources, keyed by request id (see citationsFor). */
+async function citationSources(
+  repo: Repository,
   agencyId: string,
-  repoOverride?: Repository,
-): Promise<{ records: RequestForMetrics[]; deflections: number }> {
-  const repo = repoOverride ?? (await getRepository());
-  const [requests, requesters, deflections, reviews] = await Promise.all([
-    repo.listRequests(agencyId),
-    repo.listRequesters(agencyId),
-    repo.listDeflections(agencyId),
-    repo.listAgencyReviews(agencyId),
-  ]);
-  const typeById = new Map(requesters.map((r) => [r.id, r.type]));
-
+  requests: RequestEntity[],
+): Promise<{ reviewLabelsByRequest: Map<string, string[]>; denialCitationsByRequest: Map<string, string[]> }> {
+  const reviews = await repo.listAgencyReviews(agencyId);
   const reviewLabelsByRequest = new Map<string, string[]>();
   for (const review of reviews) {
     if (review.decision === "release" || !review.exemptionLabel) continue;
@@ -63,6 +60,21 @@ export async function liveComplianceDataset(
         }
       }),
   );
+  return { reviewLabelsByRequest, denialCitationsByRequest };
+}
+
+export async function liveComplianceDataset(
+  agencyId: string,
+  repoOverride?: Repository,
+): Promise<{ records: RequestForMetrics[]; deflections: number }> {
+  const repo = repoOverride ?? (await getRepository());
+  const [requests, requesters, deflections] = await Promise.all([
+    repo.listRequests(agencyId),
+    repo.listRequesters(agencyId),
+    repo.listDeflections(agencyId),
+  ]);
+  const typeById = new Map(requesters.map((r) => [r.id, r.type]));
+  const { reviewLabelsByRequest, denialCitationsByRequest } = await citationSources(repo, agencyId, requests);
 
   return {
     records: requests.map((r) => ({
@@ -80,5 +92,55 @@ export async function liveComplianceDataset(
     // archive_miss rows are demand signal for the disclosure librarian, not
     // deflections — they never count toward the annual report's ROI number.
     deflections: deflections.filter((d) => d.kind !== "archive_miss").length,
+  };
+}
+
+/**
+ * Dataset for the executive report (docs/executive-reporting.md): the same
+ * requests projected with the fields period-windowing needs, plus tasks
+ * (department activity) and raw deflection rows — computeExecutiveSummary
+ * applies the archive_miss/ROI house rule itself, so it stays pinned by the
+ * pure layer's tests rather than by every caller remembering.
+ */
+export async function liveExecutiveDataset(
+  agencyId: string,
+  repoOverride?: Repository,
+): Promise<ExecutiveDataset> {
+  const repo = repoOverride ?? (await getRepository());
+  const [requests, tasks, departments, deflections] = await Promise.all([
+    repo.listRequests(agencyId),
+    repo.listAgencyTasks(agencyId),
+    repo.listDepartments(agencyId),
+    repo.listDeflections(agencyId),
+  ]);
+  const { reviewLabelsByRequest, denialCitationsByRequest } = await citationSources(repo, agencyId, requests);
+  const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
+
+  return {
+    requests: requests
+      .filter((r) => r.status !== "draft") // a draft's clock hasn't started
+      .map((r) => ({
+        publicId: r.publicId,
+        receivedAt: r.receivedAt ?? r.createdAt,
+        closedAt: r.closedAt,
+        status: r.status,
+        statutoryDueAt: r.statutoryDueAt,
+        extensionDates: (r.extensionHistory ?? []).map((e) => new Date(e.at)),
+        referredAt: r.referredAt ?? null,
+        exemptionsCited: citationsFor(
+          reviewLabelsByRequest.get(r.id),
+          denialCitationsByRequest.get(r.id),
+        ),
+      })),
+    tasks: tasks.map((t) => ({
+      departmentName: (t.departmentId && deptNameById.get(t.departmentId)) || null,
+      createdAt: t.createdAt ?? null,
+      status: t.status,
+    })),
+    deflections: deflections.map((d) => ({
+      kind: d.kind,
+      createdAt: d.createdAt,
+      hoursAvoided: d.estimatedStaffHoursAvoided,
+    })),
   };
 }

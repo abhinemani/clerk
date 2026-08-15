@@ -49,6 +49,7 @@ export async function dispatchTask(deps: ServiceDeps, input: DispatchTaskInput):
     dueAt: input.dueAt ?? null,
     uploads: [],
     pushbackNotes: null,
+    createdAt: deps.now(),
   });
 
   await repo.appendEvent({
