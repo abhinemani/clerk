@@ -172,6 +172,9 @@ export interface TaskEntity {
   dueAt: Date | null;
   uploads: { name: string; pages?: number }[];
   pushbackNotes: string | null;
+  /** Dispatch time (reporting windows). Optional: rows created before this
+      field carried it may lack a value in the in-memory adapter. */
+  createdAt?: Date;
 }
 
 export type EventKind =

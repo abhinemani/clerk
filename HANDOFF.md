@@ -7,11 +7,9 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**1092 tests pass (+5 skipped), typecheck clean** (counts as of the newest
-2026-08-15 network-plays-read-side entry). Migrations 0000–0018 applied. **4/4 e2e green as of the 2026-08-14
-staff-mobile-pass entry** — neither of the two 2026-08-15 build entries
-changed UI structure, so e2e wasn't re-run; a next session touching UI
-should confirm.
+**1120 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (all three
+re-verified after the 2026-08-15 merge of the executive-reporting branch
+into the two network-plays builds). Migrations 0000–0018 applied.
 
 ## START HERE (next session)
 
@@ -103,7 +101,90 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-15, cloud session, twenty-second build of the window):
+**NEWEST (2026-08-15, cloud session, twenty-third build of the window):
+EXECUTIVE REPORTING — owner-directed ("reports for executives / elected
+leaders … daily, weekly, or monthly … as pretty PDFs … user should be able
+to customize them"; scheduling explicitly CUT by the owner — the cadence
+words mean the report's WINDOW, chosen at generation time).**
+docs/executive-reporting.md is the spec-as-built; design was mapped in-chat
+with the owner across four rounds before any code. Built in parallel with
+the two network-plays builds below and merged after them — counts in this
+entry are from its own branch; the header carries the post-merge totals.
+- **`src/reporting/styledPdf.ts` — the styled PDF engine, the build's real
+  investment.** Dependency-free byte-level assembly (textPdf.ts idiom,
+  grown up): PDF standard-14 Helvetica/Bold/Oblique with REAL AFM width
+  tables for measured wrapping, WinAnsi encoding (em/en dash, curly
+  quotes, middle dot map to bytes; unknown glyphs degrade to "?"),
+  fill/stroke/line primitives in from-the-top coordinates, `ensureSpace`
+  multi-page flow, an `onPageBreak` running-header hook, and footers drawn
+  at finalize when the true page count exists. Every future typeset
+  artifact inherits this; `renderTextPdf` deliberately stays for release
+  artifacts and defensibility exhibits (typewriter plainness is a feature
+  there).
+- **`src/reporting/executiveSummary.ts`** — pure period windows + metrics
+  (computeDueDate idiom: ref date is an argument, every section carries a
+  `basis` string). Half-open UTC day / Monday-week / calendar-month
+  windows, `priorPeriod` deltas, trailing trend buckets (14/8/6). Also
+  home of `EXECUTIVE_SECTIONS` so the client builder never imports the
+  Buffer-using engine. **THE SEMANTIC FINDING worth keeping: requests
+  carry ONE deadline.** `extendDeadline` REWRITES `statutoryDueAt` to the
+  extended date (audit trail keeps the pre-extension value; the schema's
+  `extended_due_at` column is written by nobody and read by nobody) — so
+  metrics.ts' "on-time" has ALWAYS meant "including lawful extensions",
+  and the four "divergent" on-time computations the eighteenth-build-era
+  map suspected are mostly fallback differences, not semantics. The
+  executive report states the real semantics in its basis line.
+- **`src/reporting/executiveReportPdf.ts`** — pure renderer: ink masthead
+  + gold seam (gold stays ornament, never text on light ground), KPI
+  tiles with prior-period deltas (valence colors only where direction has
+  meaning), dual-bar trend, on-time/late proportional band, outcomes +
+  exemptions, department table, transparency impact. Light palette
+  hardcoded (a PDF has no CSS tokens). QUIET PERIODS RENDER HONEST EMPTY
+  STATES, never suppressed sections — a day report is legitimately
+  sparse. Statute-review honesty line prints in the masthead both ways.
+- **Data honesty calls:** department activity is the DISPATCHED-IN-WINDOW
+  COHORT followed to current state (task completion isn't separately
+  timestamped; the basis says so instead of pretending). `archive_miss`
+  is excluded from deflections/hours INSIDE `computeExecutiveSummary`,
+  pinned by test, so no caller has to remember the house rule.
+  Backlog/overdue are measured at the window's END, not generation time.
+  Extensions count by the date taken. Exemptions ride closed-in-period
+  requests and count requests, not documents — via the same code as the
+  annual report: `liveExecutiveDataset` sits beside
+  `liveComplianceDataset` in reportingData.ts sharing one
+  `citationSources` helper, so the two artifacts cannot disagree.
+- **`TaskEntity.createdAt` (optional)** added for the dispatch-cohort
+  window: both adapters map it, `dispatchTask` stamps `deps.now()`,
+  conformance test pins the round-trip. In-memory rows without it are
+  EXCLUDED from windows, never guessed.
+- **Surfaces:** route `/app/reports/executive-report.pdf?period=&date=&
+  sections=&note=` (requireStaff with NO roles list — coordinator
+  posture, responders default-denied) + `ExecutiveReportBuilder` card on
+  /app/reports (window picker, live period pill, section checkboxes,
+  ≤600-char framing note, prefs in localStorage — queue-saved-filters
+  posture). Live agencies only; demo fixture has no log to window.
+- **Deliberately NOT built** (recorded in the doc): scheduling/stored
+  artifacts/delivery (owner cut it; regeneration is deterministic), AI
+  narrative (future slice: prompt over the computed summary ONLY, never
+  request text, AI-labeled, clerk-approved, eval-gated), cross-agency
+  comparisons (invariant 11 territory — NOTE: the network-plays queue
+  below now names "comparative metrics on /app/reports" as its own next
+  slice; that work must ride invariant 11's machinery, not this report's),
+  saved templates (localStorage covers it), custom ranges.
+- 1101 offline tests on its own branch (+28: engine 8, summary 12,
+  renderer 5, conformance, and the suite green throughout), typecheck
+  clean, **4/4 e2e green** (throwaway config pinning
+  `/opt/pw-browsers/chromium`, per the eleventh-build note).
+  Browser-verified per gotcha 11: builder at 1280 + 390 (overflow probe
+  0px), live period pill, month/week/day PDFs generated through the real
+  route with session cookies and visually inspected (masthead, tiles,
+  deltas, bars, table, footers, empty states) — screenshots + PDFs
+  delivered. One copy bug caught by the inspection and fixed (median
+  tile's prior-period delta wording). No migration, no env
+  vars/keys/services → `docs/laptop-setup.md` deliberately untouched
+  (said out loud per the push contract).
+
+**PREVIOUS (2026-08-15, cloud session, twenty-second build of the window):
 NETWORK PLAYS — THE FIRST READ SURFACE (routing hints on the request page,
 plus the seed fixture that makes any of it demoable).**
 - **Two mappings the read side needed and the write side never did:**
