@@ -85,6 +85,14 @@ contributing more than `MAX_AGENCY_SHARE` of it. An aggregate failing any floor 
 WITHHELD ENTIRELY — never rounded, padded, blurred, or partially disclosed into
 existence. Suppression is the only permitted response to a thin cell.
 
+**Contributions are ephemeral.** The per-agency contribution — the only artifact that
+names its source agency and carries exact counts — is computed in memory and never
+persisted, logged, cached, or exported. Only aggregates are stored. This is not tidiness:
+the owner's counsel position (2026-08-15) is that the aggregate IS a public record, so
+anything stored beside it may be asked for too, and a stored contribution set would
+de-anonymize every aggregate built from it. The guarantee has to be that the data does
+not exist at rest, not that we decline to serve it.
+
 **Advisory only.** A network-derived signal may inform a suggestion a named human reads.
 It may never: satisfy invariant 4's approval requirement, trigger an automated dispatch
 on its own, raise an automated confidence at or above the local learned-play cap (other

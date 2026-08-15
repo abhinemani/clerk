@@ -117,8 +117,20 @@ export interface ProjectionContext {
 }
 
 /**
- * PLATFORM-INTERNAL. Never serve this to a tenant: it names its source
- * agency and carries an exact episode count, both required for floor math.
+ * EPHEMERAL AND PLATFORM-INTERNAL — invariant 11.
+ *
+ * This is the only artifact that names its source agency AND carries an
+ * exact count, both required for floor math and both de-anonymizing. It
+ * must be computed in memory and **never persisted, logged, cached, or
+ * exported**: the aggregate it feeds is a public record (owner's counsel
+ * position, 2026-08-15), so anything stored next to that aggregate can be
+ * asked for too, and a stored contribution set would reverse the anonymity
+ * of every aggregate built from it.
+ *
+ * The guarantee must be that this data does not exist at rest — not that we
+ * decline to serve it. If you find yourself adding a `network_contributions`
+ * table, a debug dump, or an error log that includes one of these, that is
+ * the invariant breaking.
  */
 export interface NetworkContribution {
   agencyId: string;

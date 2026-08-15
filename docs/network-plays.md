@@ -6,11 +6,13 @@ big-ticket §1's first move, deliberately taken while the network is small:
 the rules are cheap to get right now and expensive to retrofit once tenants
 have contributed data under a promise we later have to change.
 
-Owner answered ⚑1–3 on 2026-08-15: **contribute-to-read**, **weekly
-rebuild**, floors **5 agencies / 20 episodes / 0.4 max share**. ⚑4 (is the
-aggregate itself a public record) is still open with counsel and does not
-block the code. Built: `src/domain/networkVocabulary.ts`,
-`src/domain/networkPlays.ts`, `src/domain/networkPlays.test.ts` (26 tests).
+**All four ⚑ decisions answered by the owner, 2026-08-15:**
+contribute-to-read · weekly rebuild · floors 5 agencies / 20 episodes / 0.4
+max share · **the aggregate IS a public record** — which added the
+"contributions are ephemeral" clause to invariant 11 (see ⚑4 below; it is
+the one answer that changed the design). Built:
+`src/domain/networkVocabulary.ts`, `src/domain/networkPlays.ts`,
+`src/domain/networkPlays.test.ts` (26 tests).
 
 The hard rules extracted from this document live in **invariant 11**
 (`docs/invariants.md`). Where the two ever disagree, the invariant wins.
@@ -163,11 +165,46 @@ since the prior publication until it clears the floors again.
 invariant 11. Conservative on purpose: loosening later is a one-line change,
 tightening after tenants have relied on looser numbers is a broken promise.
 
-⚑ **4 — Is the aggregate itself a public record?** A cross-agency statistic
-held by the vendor, derived from records held by public agencies, is a
-question for counsel, not for me. It does not block the design — the floors
-mean the answer is "disclosable either way" — but the owner should have an
-answer before the first customer asks.
+✅ **4 — YES, the aggregate is a public record** (owner, 2026-08-15). Three
+consequences follow, and the first one changed the design:
+
+1. **Contributions must never be persisted** — now a clause of invariant 11.
+   If the aggregate is disclosable, anything stored beside it can be asked
+   for too. The per-agency contribution is the one artifact that names its
+   source agency *and* carries exact counts, so a stored contribution set
+   would reverse the anonymity of every aggregate built from it. Compute in
+   memory during the weekly rebuild; store only aggregates. Cheap to
+   guarantee now, effectively impossible to retrofit after a table exists
+   and has history in it.
+2. **The floors are now load-bearing in a stronger sense.** They were
+   protecting against a curious tenant; they are now the only thing between
+   a FOIA request and per-agency practice data. The values stand (5 / 20 /
+   0.4, plus the stricter per-section agency floor), and this is the
+   argument against loosening them casually later.
+3. **Publish proactively rather than wait to be asked.** This is the whole
+   product thesis applied to ourselves — a record that will be requested
+   should already be published (`docs/transparency-impact.md`). It also
+   turns a disclosure obligation into the comparative-benchmark surface
+   big-ticket §1 already wanted. Product opportunity, not an obligation to
+   rush: the read side still ships routing hints first and benchmarking
+   last.
+
+**One tension this creates, for the record.** Public records carry retention
+duties, which argues for keeping historical aggregates; but a *series* of
+weekly aggregates is exactly what a differencing attack wants — watch an
+agency join or leave between two snapshots and subtract. These are
+reconcilable, and the reconciliation is already in ⚑2: keep snapshots
+immutable and dated (retention satisfied), and suppress publication of any
+aggregate whose contributing-agency set changed until it clears the floors
+again (differencing blunted). Whoever builds the weekly job should treat
+that suppression rule as load-bearing rather than an optimization.
+
+**Still worth asking counsel:** if the aggregate is a public record of each
+*participating* agency (vendor-held records on an agency's behalf are the
+agency's records in many states), then each agency may be asked for it
+individually — which makes the "no agency is identifiable" property
+something each participant is relying on when they answer. That strengthens
+the design rather than threatening it, but it belongs in the consent copy.
 
 ## Scope for v1
 
@@ -289,8 +326,15 @@ than your own, and the code should say so rather than relying on a comment.
    admin log. The consent copy must state the tradeoff plainly (see the
    threat model's item 5: contributing means contributing data that could be
    cited against you).
-4. `network_aggregates` table + the weekly rebuild job (⚑2 answered:
-   weekly, with suppression when the contributing set changes).
+4. `network_aggregates` table + the weekly rebuild job (⚑2: weekly, with
+   suppression when the contributing set changes). **Two invariant-11 rules
+   land here, not in the pure functions, so they are easy to violate by
+   accident:** contributions stay in memory and are never written anywhere
+   (no table, no cache, no debug log, no error payload), and a snapshot
+   whose contributing-agency set changed is suppressed until it clears the
+   floors again. Store dated immutable aggregates — that satisfies the
+   retention duty a public record carries without publishing a differencable
+   series.
 5. Read side, in this order: cold-start routing hints first (clearest value,
    least sensitive), comparative metrics second, exemption benchmarking last
    — it is the highest-sensitivity surface and should ship only once the

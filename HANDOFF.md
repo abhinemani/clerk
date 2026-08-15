@@ -55,8 +55,10 @@ straight into a build):
 1b. **Network plays (big-ticket §1) — INVARIANT + CHOKEPOINT FUNCTIONS
    SHIPPED 2026-08-15** (`docs/network-plays.md`, **invariant 11**,
    `src/domain/networkPlays.ts` + `networkVocabulary.ts`, 26 tests). ⚑1–3
-   answered by the owner (contribute-to-read, weekly, 5/20/0.4); ⚑4
-   (public-record status) is with counsel and blocks nothing. **Next:
+   **all four ⚑ answered by the owner** (contribute-to-read, weekly,
+   5/20/0.4, and **the aggregate IS a public record** — which added the
+   "contributions are ephemeral, never persisted" clause to invariant 11;
+   the weekly-rebuild job is where that rule has to be honored). **Next:
    consent surface + admin-log event, then the `network_aggregates` table
    + weekly rebuild job, then the read side (routing hints first,
    exemption benchmarking LAST — highest sensitivity).** Nothing is wired
@@ -142,6 +144,21 @@ caller** — exactly the sequencing the design doc specified.
   **a false mapping is worse than no mapping** — no mapping drops one
   agency's contribution, a false one pollutes every other agency's
   benchmark — so every ambiguity resolves to null.
+- **⚑4 ANSWERED SAME SESSION — "yes the aggregate is a public record" — and
+  it CHANGED THE DESIGN.** If the aggregate is disclosable, anything stored
+  beside it can be asked for too; the per-agency `NetworkContribution` is
+  the one artifact naming its source agency AND carrying exact counts, so a
+  stored contribution set would reverse the anonymity of every aggregate
+  built from it. **Invariant 11 gained a "contributions are ephemeral"
+  clause**: computed in memory, never persisted/logged/cached/exported;
+  only aggregates are stored. Free to guarantee today (nothing is
+  persisted yet), effectively impossible to retrofit once a table has
+  history. Two knock-ons recorded in the design doc: the floors are now the
+  only thing between a FOIA request and per-agency practice data (so don't
+  loosen them casually), and there's a real tension between the retention
+  duty a public record carries and the differencing risk of a weekly
+  SERIES — reconciled by ⚑2's suppression rule, which the rebuild job must
+  treat as load-bearing rather than an optimization.
 - 1073 offline tests (+26), typecheck clean. No migration, no env vars, no
   services → `docs/laptop-setup.md` untouched (said out loud per the push
   contract). Nothing to browser-verify: no surface renders any of this yet.
