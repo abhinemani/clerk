@@ -14,6 +14,16 @@ layer of product on top of substrate that exists.
 
 ## 1. The network is the moat (cross-tenant compounding)
 
+**DESIGN STARTED 2026-08-15 — `docs/network-plays.md` + invariant 11.** The
+owner took this board's own advice and did the invariant first, while the
+network is small enough that getting the rules wrong is still cheap. No
+code, no migration; four ⚑ decisions are waiting on the owner (read
+policy, rebuild cadence, floor values, and whether counsel considers the
+aggregate a public record). The finding that shaped the design: a play's
+`topic` is literally terms lifted from request text, so pooling plays as
+they exist today would ship requester wording across a tenant boundary
+while feeling like statistics. Original case:
+
 Every incumbent install is an island. Brandeis is multi-tenant with a
 learning loop; the special version is letting tenants learn from EACH
 OTHER, with consent and aggregation.
@@ -41,7 +51,9 @@ OTHER, with consent and aggregation.
 Why it's a moat: none of this is copyable by a competitor with separate
 installs, and it gets better with every tenant. It is also the first item
 on this board that needs genuinely NEW invariant thinking — treat the
-aggregation-floor rules with the same seriousness as invariant 2.
+aggregation-floor rules with the same seriousness as invariant 2. (Done:
+that is now invariant 11, written before the first migration as this board
+and CLAUDE.md both required.)
 
 ## 2. Both sides of the machine-filed future (§16.4, cashed in)
 

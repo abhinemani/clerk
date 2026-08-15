@@ -130,6 +130,21 @@ PG via DATABASE_URL) — deliberately not a separate analytics store:
   (`play-stats-do-not-contaminate`). ⚠ Prompt-rule eval debt until a
   keyed session runs `npm run eval`.
 
+## Plays never leave the tenant (read before sharing anything)
+
+Everything above is **per agency**. Cross-tenant use of plays — the
+"network plays" moat, `docs/network-plays.md` — is governed by **invariant
+11** and is design-only as of 2026-08-15.
+
+One trap in particular, because it is invisible until it leaks: a play's
+`topic` is `keywords.slice(0, 3).join(" ")`, i.e. terms lifted straight
+from the requester's own wording, and its `embedding` is a centroid that
+approximates its members. **Neither is anonymous.** Pooling play rows
+across tenants would ship requester language and near-invertible vectors
+across a tenant boundary while looking like statistics. If you are ever
+tempted to share a play, share a controlled-vocabulary projection of one —
+see the design doc.
+
 ## v2 candidates that remain (build on demand)
 
 - Proposal-feedback learning: accept/dismiss rates on play cards

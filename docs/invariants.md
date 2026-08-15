@@ -56,3 +56,50 @@ to public. That direction always requires a named human action, logged.
 Every AI-generated artifact (draft, suggestion, classification, summary) is marked as
 AI-generated in the data model and traceable to a pipeline run in RequestEvent. Nothing
 AI-generated is presentable to a requester while marked unapproved.
+
+## 11. Cross-tenant aggregation is consented, floored, and advisory
+Design doc: `docs/network-plays.md`. This invariant governs every feature that lets one
+tenant's history inform another's — it is written BEFORE the first such feature ships,
+per the standing rule that cross-tenant aggregation gets its own invariant before its
+first migration.
+
+**Consent.** No tenant contributes to any cross-agency aggregate without an explicit,
+per-agency opt-in performed by a named admin and recorded in the append-only admin log.
+Default is off. Opt-in is revocable at any time; the next rebuild must exclude a revoked
+agency entirely.
+
+**Allowlist, never denylist.** What crosses a tenant boundary is limited to a closed set
+of fields drawn from CONTROLLED VOCABULARIES — canonical topic codes, canonical
+department roles, canonical statute sections, and bucketed numerics. Tenant-authored
+free text and tenant-local identifiers never cross, and that specifically includes
+request text, `interpreted_scope`, play `topic`/`keywords` (which are derived from
+request text), staff-authored exemption labels, `samplePublicIds`, any uuid, filenames,
+staff or requester identities, and **embedding vectors** — a centroid over few members
+approximates its members and is text in disguise, not an anonymous number. A
+contribution that cannot be mapped onto the controlled vocabulary is dropped, never
+passed through.
+
+**Population floors.** A published aggregate must draw on at least `MIN_AGENCIES`
+distinct consenting agencies and `MIN_EPISODES` total episodes, with no single agency
+contributing more than `MAX_AGENCY_SHARE` of it. An aggregate failing any floor is
+WITHHELD ENTIRELY — never rounded, padded, blurred, or partially disclosed into
+existence. Suppression is the only permitted response to a thin cell.
+
+**Advisory only.** A network-derived signal may inform a suggestion a named human reads.
+It may never: satisfy invariant 4's approval requirement, trigger an automated dispatch
+on its own, raise an automated confidence at or above the local learned-play cap (other
+agencies' history is weaker evidence than your own, and must rank that way in code), or
+reach any requester-facing surface — invariant 3 remains the outer wall.
+
+**Relationship to invariant 2.** Tenant isolation is not weakened here. An
+invariant-11-compliant aggregate is not agency A's data: it is a statistic that provably
+cannot be attributed to A. Everything that fails any clause above remains A's data and
+invariant 2 applies to it unchanged. If the two ever appear to conflict, invariant 2
+wins and the aggregate is withheld.
+
+Test: property tests over the projection function assert that no output field contains
+any input request text, publicId, uuid, or vector, and that unmappable inputs yield
+null; floor tests assert withholding at each floor minus one, including the
+single-dominant-agency case; a revocation test asserts the following rebuild excludes
+the revoked agency's contribution entirely; a ranking test asserts network-derived
+confidence sorts below the local cap and never auto-dispatches.

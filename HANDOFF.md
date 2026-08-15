@@ -52,6 +52,14 @@ straight into a build):
    scope item instead of one flat top-N list). Also fixed the live-eval
    department-spread miss from the v1 entry (now 6/6). Remaining from the
    original v2 list: the B5 records map as routing context, once B5 ships.
+1b. **Network plays (big-ticket §1) — DESIGN LANDED 2026-08-15, build
+   NOT started.** `docs/network-plays.md` + **invariant 11**. Four ⚑
+   owner/counsel decisions are open and BLOCK the build (read policy,
+   rebuild cadence, floor values, public-record status of the aggregate).
+   When they're answered, first code is the two pure functions
+   (`toNetworkContribution`, `publishableAggregates`) with property tests
+   and NO schema — the invariant's whole enforcement surface, testable
+   before a table exists.
 2. **B4 third-party notice steward** (differentiator; needs notice rules
    added to state profiles as data). B2 shipped 2026-08-14; its forward
    version — redact-everywhere memory (big-ticket §4) — is the natural
@@ -88,7 +96,66 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-15, cloud session, eighteenth build of the window):
+**NEWEST (2026-08-15, cloud session, nineteenth build of the window):
+NETWORK PLAYS — THE INVARIANT, NOT THE FEATURE (big-ticket §1, owner-
+directed: "the right first move is designing the cross-tenant aggregation
+invariant, not writing code").** Design only — **no code, no migration, no
+schema.** Two documents and three cross-references; the build is blocked
+on four ⚑ owner decisions by design, not by accident.
+- **INVARIANT 11 added** (`docs/invariants.md`) — written BEFORE the first
+  migration, which is what CLAUDE.md and the big-ticket board both
+  required for this bet. Five clauses: consent (off by default, named
+  admin, revocable, logged), **allowlist-never-denylist** over controlled
+  vocabularies, population floors with suppression as the ONLY response to
+  a thin cell (never round/pad/blur), advisory-only (can't satisfy
+  invariant 4, can't auto-dispatch, can't outrank a local play, can't
+  reach a requester surface), and an explicit **relationship-to-invariant-2
+  clause** — if the two ever appear to conflict, 2 wins and the aggregate
+  is withheld. Without that last clause a future reader would reasonably
+  read 2 and 11 as contradictory, since 11 does let A's history influence
+  B's screen.
+- **THE FINDING THAT SHAPED IT:** a play's `topic` is
+  `keywords.slice(0, 3).join(" ")` — terms lifted straight from the
+  requester's wording — and its v2 `embedding` is a centroid that
+  approximates its members. So the obvious implementation ("plays are
+  already aggregates, just pool them") would ship requester language and
+  near-invertible vectors across a tenant boundary WHILE FEELING LIKE
+  STATISTICS. That is the whole reason this got an invariant before a
+  table. Recorded in `docs/learning-loop.md` too, since that's where a
+  future session touching plays starts.
+- **The design move worth keeping** (`docs/network-plays.md`): don't scrub
+  tenant strings — scrubbing is a denylist and denylists fail open on the
+  one term nobody thought of. Instead NOTHING tenant-authored crosses:
+  contributions are assembled only from platform-defined controlled
+  vocabularies (topic codes, department roles, canonical statute sections,
+  bucketed numerics), and a play that can't be mapped is DROPPED rather
+  than passed through with a free-text fallback. Leak surface becomes the
+  size of the vocabulary instead of the size of the corpus.
+- Doc also carries a five-item threat model (rare-topic re-identification,
+  embedding inversion, small-cell disclosure, differencing over time, and
+  the honest one — exemption benchmarking is *designed* to expose an
+  outlier, so the same number is litigation ammunition against the
+  contributor, which is why consent must be informed rather than a buried
+  default), v1 scope pinned to a SINGLE deployment (federation across
+  self-hosted instances is a far bigger security surface for the same
+  claim), the architecture sketch as two pure functions carrying the
+  entire invariant (computeDueDate idiom — no I/O, no clock, config as
+  arguments), and a read-side ranking rule (network confidence caps at
+  0.6, strictly below the local play cap of 0.9 — other agencies' history
+  is real evidence but weaker than your own, and the code should say so).
+- **⚑ FOUR OPEN OWNER/COUNSEL DECISIONS, each with a recommendation:**
+  (1) contribute-to-read vs. read-for-free — rec: contribute-to-read;
+  (2) rebuild cadence — rec: weekly + suppress when the contributing set
+  changed, because continuous recomputation is the differencing attack's
+  best friend; (3) floor values — rec: 5 agencies / 20 episodes / 0.4 max
+  share, conservative on purpose since loosening later is a one-liner and
+  tightening later is a broken promise; (4) is the aggregate itself a
+  public record — counsel, not me.
+- No tests to add or run (no code changed); typecheck + suite still green
+  from the previous entry, re-verified. No env vars, keys, or services →
+  `docs/laptop-setup.md` untouched (said out loud per the push contract).
+
+**PREVIOUS (2026-08-15, cloud session, eighteenth build of the window):
 CLEANUP PASS — a stale candidate closed, and four parked performance items
 from the eighth build's audit.**
 - **CANDIDATE #5 (hybrid staff search) WAS ALREADY SHIPPED** — second time
