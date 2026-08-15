@@ -7,8 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**1073 tests pass (+5 skipped), typecheck clean** (counts as of the newest
-2026-08-15 network-plays-functions entry). **4/4 e2e green as of the 2026-08-14
+**1087 tests pass (+5 skipped), typecheck clean** (counts as of the newest
+2026-08-15 network-plays-live entry). Migrations 0000–0018 applied. **4/4 e2e green as of the 2026-08-14
 staff-mobile-pass entry** — neither of the two 2026-08-15 build entries
 changed UI structure, so e2e wasn't re-run; a next session touching UI
 should confirm.
@@ -58,12 +58,13 @@ straight into a build):
    **all four ⚑ answered by the owner** (contribute-to-read, weekly,
    5/20/0.4, and **the aggregate IS a public record** — which added the
    "contributions are ephemeral, never persisted" clause to invariant 11;
-   the weekly-rebuild job is where that rule has to be honored). **Next:
-   consent surface + admin-log event, then the `network_aggregates` table
-   + weekly rebuild job, then the read side (routing hints first,
-   exemption benchmarking LAST — highest sensitivity).** Nothing is wired
-   yet: no schema, no job, no UI, no caller. The functions refuse by
-   default, so nothing downstream can leak on its own.
+   the weekly-rebuild job honors that rule). **Consent surface, migration
+   0018 `network_aggregates`, and the weekly rebuild job all SHIPPED
+   2026-08-15 — the feature is live end to end and OFF for every tenant
+   until an admin opts in. ONLY THE READ SIDE REMAINS:** surface benchmarks
+   to staff, routing hints first (clearest value, least sensitive),
+   comparative metrics second, exemption benchmarking LAST (highest
+   sensitivity — ship it only once the network is well past the floors).
 2. **B4 third-party notice steward** (differentiator; needs notice rules
    added to state profiles as data). B2 shipped 2026-08-14; its forward
    version — redact-everywhere memory (big-ticket §4) — is the natural
@@ -100,7 +101,73 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-15, cloud session, twentieth build of the window):
+**NEWEST (2026-08-15, cloud session, twenty-first build of the window):
+NETWORK PLAYS — CONSENT SURFACE, TABLE, AND THE WEEKLY JOB (the feature is
+now live end to end and OFF for every tenant until an admin opts in; only
+the read side remains).**
+- **Consent** (`settings.networkPlays`, `NetworkPlaysPanel`,
+  `setNetworkPlaysAction`): per-agency, named admin, revocable, and both
+  directions land in the append-only admin log as `network_consent_changed`.
+  **The panel copy is the feature, not decoration** — it states near the top
+  that these benchmarks exist to show when an office is an outlier, that the
+  same figures could be cited in an appeal involving a participant, and that
+  the aggregate is a public record. Don't "tighten" that into a tooltip;
+  consent that hides the cost is not consent.
+- **Migration 0018 `network_aggregates`** — platform-level (no agency_id,
+  the demo_requests idiom). Port gained `replaceNetworkAggregates` /
+  `listNetworkAggregates`, both adapters + conformance. FULL REPLACE, one
+  current snapshot: **a revision to the design doc**, which had said to keep
+  dated snapshots for the retention duty a public record carries. A dated
+  SERIES is exactly what differencing subtracts across, and the aggregate is
+  rebuildable from the record, so a series buys nothing and costs anonymity.
+- **`networkPlaysService.rebuildNetworkAggregates`**, wired into the nightly
+  sweep but gated WEEKLY by its own `network_rebuild` admin event (B2
+  consistency-audit idiom; the marker rides the first consenting agency, and
+  every consenting agency gets the receipt in its own log). The two
+  invariant-11 rules the pure functions CANNOT enforce live here and are
+  commented at their site: contributions exist only inside a marked
+  "ephemeral zone" and are never persisted/logged/returned, and the read
+  side is gated contribute-to-read + same-state-only.
+- **THE LIVELOCK, worth knowing before touching the stability rule:** ⚑2
+  says hold a group for a cycle when its membership moves. Implemented
+  naively that FREEZES the benchmark forever — the hold re-publishes the old
+  row, next cycle compares the unchanged stored count against the new
+  candidate, holds again, repeat. Fixed with
+  `network_aggregates.pendingAgencyCount`, which remembers the count being
+  waited on so the hold lasts exactly one cycle. Caught by the "publishes
+  after membership settles" test — keep that test. Also note what is
+  deliberately NOT stored: the contributing SET or any fingerprint of it. A
+  set-hash is brute-forceable against a known tenant list, which would undo
+  the anonymity the floors provide; a weaker safe signal (the count) beats a
+  stronger leaky one, and a membership change that preserves the count
+  slipping through is the accepted cost.
+- **PRE-EXISTING BUG FOUND AND FIXED while verifying:** Drizzle's
+  `createAgency` silently DROPPED `settings`, `branding`, and
+  `defaultRoutingRules` — it wrote only the identity columns +
+  workflowSettings — while InMemory persisted the whole object. A service
+  test could pass on InMemory and lose data in production: exactly the
+  create-time divergence the conformance suite exists to kill, and it had no
+  coverage. Found because a freshly created agency's network consent came
+  back empty on PGlite. Fixed + pinned by a new conformance test. Zero risk
+  to existing behavior — the one production caller (`provisionAgency`)
+  passes none of the three.
+- **Browser-verified** (gotcha 11, screenshot delivered): the panel renders
+  on /riverton/app/admin, consent toggles off→on and persists across reload,
+  the audit event records the named human ("Dana Okafor — consent GIVEN"),
+  no horizontal overflow at 1280 or 390. **Verified end to end on real
+  PGlite/Drizzle, both directions:** one consenting agency publishes NOTHING
+  (below the floor of 5), and five consenting agencies publish exactly one
+  benchmark — `CA/building_permits, agencies=5, episodes="20-49",
+  days="4-7", public_works "75-89%"` — with leak checks confirming no agency
+  uuid, no tenant department name, and no publicId anywhere in the stored
+  rows. NOTE for the next session: the Riverton seed has **no plays at all**
+  (no closed requests that cluster), so the demo tenant shows nothing here
+  until its history grows — that is correct, not a bug.
+- 1087 offline tests (+14), typecheck clean. Migration 0018 (append-only,
+  additive). No env vars, keys, or services → `docs/laptop-setup.md`
+  untouched (said out loud per the push contract).
+
+**PREVIOUS (2026-08-15, cloud session, twentieth build of the window):
 NETWORK PLAYS — THE TWO CHOKEPOINT FUNCTIONS (owner answered ⚑1–3:
 contribute-to-read, weekly, 5/20/0.4, then "go build the pure
 functions").** Invariant 11's entire enforcement surface now exists as pure

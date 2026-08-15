@@ -193,6 +193,54 @@ export function registerJobs(): void {
       console.error("[jobs] play rebuild failed", err);
     }
 
+    // Network plays (docs/network-plays.md, invariant 11): recompute the
+    // cross-agency aggregates. WEEKLY, not nightly — a slow cadence is a
+    // deliberate part of the privacy design (⚑2), because a frequently
+    // republished series is what a differencing attack subtracts across.
+    // Gated by its own admin event, the B2 consistency-audit idiom; the
+    // marker lands on the FIRST consenting agency so the cadence survives
+    // restarts without a platform-level events table.
+    try {
+      const [{ getRepository }, { rebuildNetworkAggregates }, { defaultDeps }] =
+        await Promise.all([
+          import("@/db/createRepository"),
+          import("@/services/networkPlaysService"),
+          import("@/services/deps"),
+        ]);
+      const repo = await getRepository();
+      const now = new Date();
+      const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+      const consenting = (await repo.listAgencies()).filter(
+        (a) => a.settings?.networkPlays?.enabled === true,
+      );
+      // Nobody has opted in ⇒ nothing to do, and nothing to log about.
+      if (consenting.length > 0) {
+        const marker = consenting[0]!;
+        const recent = await repo.listAdminEvents(marker.id, 50);
+        const last = recent.find((e) => e.kind === "network_rebuild");
+        if (!last || now.getTime() - last.createdAt.getTime() >= WEEK_MS) {
+          const summary = await rebuildNetworkAggregates(defaultDeps(repo));
+          // Every consenting agency gets the receipt in its own audit log —
+          // participation is something an agency should be able to prove
+          // from its own records, not take our word for.
+          for (const agency of consenting) {
+            await repo.appendAdminEvent({
+              id: crypto.randomUUID(),
+              agencyId: agency.id,
+              kind: "network_rebuild",
+              actorLabel: "network rebuild (weekly)",
+              summary: `Network plays rebuilt: ${summary.published} benchmark(s) published across ${summary.consentingAgencies} consenting agencies${summary.heldForStability > 0 ? `; ${summary.heldForStability} held while membership settles` : ""}`,
+              // Counts only — no agency names, no contribution data.
+              payload: { ...summary },
+              createdAt: now,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[jobs] network plays rebuild failed", err);
+    }
+
     // Proactive-disclosure librarian (agentic-horizon B1, Phase 5 — gate
     // released 2026-08-13): mine resolved demand for publication candidates.
     // Proposals only — the classification flip stays a named human's act

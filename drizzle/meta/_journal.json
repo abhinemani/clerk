@@ -127,6 +127,13 @@
       "when": 1786748259323,
       "tag": "0017_flawless_the_fury",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786760412390,
+      "tag": "0018_mighty_whirlwind",
+      "breakpoints": true
     }
   ]
 }

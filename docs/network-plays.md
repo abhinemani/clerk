@@ -1,10 +1,19 @@
 # Network plays — cross-tenant learning without cross-tenant leakage
 
-Status: **the two chokepoint functions are BUILT and tested; no schema, no
-migration, nothing wired** (design 2026-08-15, functions same day). This is
+Status: **LIVE END TO END, off for every tenant until an admin opts in**
+(design, functions, consent surface, table, and weekly job all 2026-08-15).
+Remaining: the read side — nothing yet renders a benchmark to staff.
 big-ticket §1's first move, deliberately taken while the network is small:
 the rules are cheap to get right now and expensive to retrofit once tenants
 have contributed data under a promise we later have to change.
+
+The stability rule needed one thing the design didn't anticipate:
+`network_aggregates.pendingAgencyCount`. Holding a group whose agency count
+moved LIVELOCKS without it — the hold re-publishes the old row, next cycle
+compares the unchanged stored count against the new candidate, holds again,
+and the benchmark freezes permanently the first time an agency joins. The
+column remembers which count is being waited on so the hold lasts exactly
+one cycle. A count is safe to store; the contributing SET is not.
 
 **All four ⚑ decisions answered by the owner, 2026-08-15:**
 contribute-to-read · weekly rebuild · floors 5 agencies / 20 episodes / 0.4
@@ -321,20 +330,29 @@ than your own, and the code should say so rather than relying on a comment.
    care: it is product judgment, not engineering, and it should be revisited
    against real play data before the network publishes anything. Widening it
    is additive and safe.
-3. **Consent surface + admin-log event** — next. Per-agency setting, named
-   admin, revocable, `agency_network_consent_changed` in the append-only
-   admin log. The consent copy must state the tradeoff plainly (see the
-   threat model's item 5: contributing means contributing data that could be
-   cited against you).
-4. `network_aggregates` table + the weekly rebuild job (⚑2: weekly, with
-   suppression when the contributing set changes). **Two invariant-11 rules
-   land here, not in the pure functions, so they are easy to violate by
-   accident:** contributions stay in memory and are never written anywhere
-   (no table, no cache, no debug log, no error payload), and a snapshot
-   whose contributing-agency set changed is suppressed until it clears the
-   floors again. Store dated immutable aggregates — that satisfies the
-   retention duty a public record carries without publishing a differencable
-   series.
+3. ~~Consent surface + admin-log event~~ **DONE 2026-08-15.**
+   `settings.networkPlays`, `NetworkPlaysPanel`, `setNetworkPlaysAction`,
+   `network_consent_changed` in the append-only admin log with the acting
+   human's name. The panel states the tradeoff plainly and near the top —
+   including that these figures could be cited in an appeal involving a
+   participant, and that the aggregate is a public record. Keep it that way;
+   consent that hides the cost is not consent.
+4. ~~`network_aggregates` table + weekly rebuild job~~ **DONE 2026-08-15**
+   (migration 0018, `networkPlaysService.rebuildNetworkAggregates`, wired
+   into the nightly sweep but gated WEEKLY by its own `network_rebuild`
+   admin event — the B2 consistency-audit idiom). The two invariant-11
+   rules that live in the caller rather than the pure functions are both
+   honored and commented at their site: contributions exist only inside the
+   marked ephemeral zone of the rebuild and are never persisted, logged, or
+   returned; and the store is full-replace, one current snapshot, never a
+   published series.
+
+   **Revision to the original plan, worth knowing.** The design said "store
+   dated immutable aggregates" to satisfy the retention duty. Built as
+   full-replace instead: a dated series is precisely what a differencing
+   attack subtracts across, and the aggregate is rebuildable from the record
+   at any time, so retaining a series buys nothing and costs anonymity. The
+   honest position is that the current aggregate IS the record.
 5. Read side, in this order: cold-start routing hints first (clearest value,
    least sensitive), comparative metrics second, exemption benchmarking last
    — it is the highest-sensitivity surface and should ship only once the

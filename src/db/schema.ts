@@ -1184,6 +1184,67 @@ export const demoRequests = pgTable(
   (t) => [index("demo_requests_created_idx").on(t.createdAt)],
 );
 
+/**
+ * network_aggregates — cross-agency learning (docs/network-plays.md,
+ * invariant 11). PLATFORM-LEVEL: no agency_id, because a row belongs to no
+ * tenant by construction. It is the demo_requests idiom, for the opposite
+ * reason: demo requests have no tenant yet, these have too many to name.
+ *
+ * TWO RULES THIS TABLE EXISTS TO HONOR, both easy to break by accident:
+ *
+ *  1. **Nothing here identifies a contributor.** No agency id, no agency
+ *     name, no per-agency count, and deliberately NO fingerprint of the
+ *     contributing set — with a known tenant list a set-hash is brute-
+ *     forceable back to its members, which would undo the anonymity the
+ *     floors provide. `agencyCount` is the only membership signal stored,
+ *     and it is already part of the published aggregate.
+ *  2. **The per-agency contribution is NEVER stored** — not here, not
+ *     anywhere. It is computed in memory by the weekly rebuild and
+ *     discarded. The aggregate is a public record (owner's counsel
+ *     position), so anything stored beside it can be asked for too.
+ *
+ * FULL-REPLACE per rebuild, like request_plays: one current snapshot, never
+ * a published series. That is deliberate — a dated series of aggregates is
+ * exactly what a differencing attack subtracts across, so we do not keep
+ * one. The aggregate is rebuildable from the record at any time.
+ */
+export const networkAggregates = pgTable(
+  "network_aggregates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Comparability unit, with topic: statistics only pool within a state. */
+    stateCode: text("state_code").notNull(),
+    /** Controlled-vocabulary TopicCode — never tenant free text. */
+    topic: text("topic").notNull(),
+    /** Distinct consenting agencies behind this row; always >= MIN_AGENCIES. */
+    agencyCount: integer("agency_count").notNull(),
+    /** Bucketed episode total — exact counts are what differencing subtracts. */
+    episodes: text("episodes").notNull(),
+    /** [{ role, share (bucket), agencyCount }] — controlled-vocabulary roles. */
+    routes: jsonb("routes").$type<{ role: string; share: string; agencyCount: number }[]>(),
+    /** [{ section, agencyCount }] — canonical statute sections only. */
+    exemptionSections: jsonb("exemption_sections").$type<{ section: string; agencyCount: number }[]>(),
+    daysToClose: text("days_to_close"),
+    extensionRate: text("extension_rate"),
+    /** The checkable sentence (computeDueDate/tabular-answer idiom). */
+    basis: text("basis").notNull(),
+    /**
+     * Stability rule (⚑2): the agency count observed while this row was being
+     * held back, so the hold lasts exactly ONE cycle instead of forever.
+     * Without it the rule livelocks — it would keep re-publishing the old row,
+     * compare the unchanged stored count against the new one, and hold again,
+     * freezing the benchmark permanently after the first agency joined.
+     *
+     * A COUNT is safe to store; the contributing SET is not, and must never be
+     * stored here in any form (a set-hash is brute-forceable against a known
+     * tenant list).
+     */
+    pendingAgencyCount: integer("pending_agency_count"),
+    computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("network_aggregates_state_topic_idx").on(t.stateCode, t.topic)],
+);
+
 // ---------------------------------------------------------------------------
 // Shared JSONB payload types (kept here so schema is the single source of truth)
 // ---------------------------------------------------------------------------
@@ -1298,6 +1359,19 @@ export interface AgencySettings {
    * service refuses to start a run.
    */
   fulfillmentAgent?: { enabled: boolean };
+  /**
+   * Network plays (docs/network-plays.md, invariant 11) — cross-agency
+   * learning. OFF BY DEFAULT AND ALWAYS OPT-IN: enabling it means this
+   * agency's closed-request history contributes distilled, controlled-
+   * vocabulary statistics to aggregates other agencies can read, and
+   * (contribute-to-read) unlocks reading theirs.
+   *
+   * The consent is meaningful and revocable: absent or false, the projection
+   * function refuses to produce a contribution at all, and the next weekly
+   * rebuild excludes this agency entirely. Nothing tenant-authored ever
+   * crosses — see the invariant before changing anything here.
+   */
+  networkPlays?: { enabled: boolean };
 }
 
 /**

@@ -22,6 +22,9 @@ export interface AgencySettings {
   requesterApi?: { enabled: boolean; filingEnabled?: boolean };
   releaseVerification?: { enabled: boolean };
   fulfillmentAgent?: { enabled: boolean };
+  /** Cross-agency learning consent (docs/network-plays.md, invariant 11).
+   *  Off/absent = this agency contributes nothing and reads nothing. */
+  networkPlays?: { enabled: boolean };
 }
 
 /** Per-tenant identity — mirrors the schema's AgencyBranding. All optional. */
@@ -351,6 +354,28 @@ export interface PlatformAgencyStats {
   peerLinkCount: number;
   departmentCount: number;
   publicRecordCount: number;
+}
+
+/**
+ * One published cross-agency aggregate (docs/network-plays.md, invariant 11).
+ * PLATFORM-LEVEL — belongs to no tenant. Carries no agency identifier and no
+ * per-agency count by construction; see the table comment in schema.ts for
+ * why there is deliberately no contributing-set fingerprint either.
+ */
+export interface NetworkAggregateEntity {
+  id: string;
+  stateCode: string;
+  topic: string;
+  agencyCount: number;
+  episodes: string;
+  routes: { role: string; share: string; agencyCount: number }[];
+  exemptionSections: { section: string; agencyCount: number }[];
+  daysToClose: string | null;
+  extensionRate: string | null;
+  basis: string;
+  /** Stability rule bookkeeping — see the schema comment. A count only. */
+  pendingAgencyCount: number | null;
+  computedAt: Date;
 }
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
@@ -755,6 +780,18 @@ export interface Repository {
    * (computeDueDate idiom).
    */
   listPlatformAgencyStats(now: Date): Promise<Record<string, PlatformAgencyStats>>;
+
+  /**
+   * Network plays (docs/network-plays.md, invariant 11). Platform-level, no
+   * agency scope — an aggregate belongs to no tenant.
+   *
+   * FULL REPLACE, like replaceAgencyPlays: one current snapshot, never a
+   * published series, because a dated series is what a differencing attack
+   * subtracts across. There is no method to store a per-agency contribution
+   * and there must never be one — contributions are ephemeral by invariant.
+   */
+  replaceNetworkAggregates(rows: NetworkAggregateEntity[]): Promise<void>;
+  listNetworkAggregates(): Promise<NetworkAggregateEntity[]>;
 
   // Learning loop (docs/learning-loop.md): plays are replaced wholesale
   // per agency by the nightly rebuild — full-replace semantics on purpose,
@@ -1526,6 +1563,18 @@ export class InMemoryRepository implements Repository {
       .filter((r) => r.agencyId === agencyId && r.documentId === documentId)
       .sort((a, b) => a.rowIndex - b.rowIndex)
       .slice(0, limit);
+  }
+
+  private networkAggregates: NetworkAggregateEntity[] = [];
+
+  async replaceNetworkAggregates(rows: NetworkAggregateEntity[]) {
+    this.networkAggregates = rows.map((r) => ({ ...r }));
+  }
+
+  async listNetworkAggregates() {
+    return this.networkAggregates
+      .map((r) => ({ ...r }))
+      .sort((a, b) => a.stateCode.localeCompare(b.stateCode) || a.topic.localeCompare(b.topic));
   }
 
   async searchAgencyDatasetRows(

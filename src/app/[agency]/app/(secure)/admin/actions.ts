@@ -580,6 +580,54 @@ export async function setReleaseVerificationAction(input: {
 }
 
 /**
+ * Network plays consent (docs/network-plays.md, invariant 11).
+ *
+ * This is the ONLY way an agency's history joins a cross-agency aggregate,
+ * and the only way it leaves. Both directions are recorded in the
+ * append-only admin log with the acting human's name, because "who agreed to
+ * share this, and when" is the first question anyone will ask.
+ *
+ * Turning it OFF is meaningful, not cosmetic: the projection function refuses
+ * to produce a contribution without consent, so the next weekly rebuild
+ * excludes this agency entirely. Aggregates already computed are NOT
+ * retracted — they were floor-cleared and non-attributable by construction —
+ * and the panel copy says so rather than implying a retraction we cannot
+ * perform.
+ */
+export async function setNetworkPlaysAction(input: {
+  agencySlug: string;
+  enabled: boolean;
+}): Promise<AdminResult> {
+  try {
+    const { actor, repo, agencyId } = await actorFor(input.agencySlug);
+
+    const agency = await repo.getAgency(agencyId);
+    await repo.updateAgency(agencyId, {
+      settings: {
+        ...(agency?.settings ?? {}),
+        networkPlays: { enabled: input.enabled },
+      },
+    });
+    await repo.appendAdminEvent({
+      id: crypto.randomUUID(),
+      agencyId,
+      kind: "network_consent_changed",
+      actorLabel: actor.name ?? actor.email,
+      summary: input.enabled
+        ? "Network plays: consent GIVEN — this agency now contributes anonymized statistics to cross-agency aggregates"
+        : "Network plays: consent WITHDRAWN — this agency is excluded from the next rebuild",
+      payload: { enabled: input.enabled },
+      createdAt: new Date(),
+    });
+    revalidatePath(`/${input.agencySlug}/app/admin`);
+    return { ok: true };
+  } catch (e) {
+    console.error("setNetworkPlays failed", e);
+    return { ok: false, error: "Could not update the setting." };
+  }
+}
+
+/**
  * Fulfillment agent v1 (spec §16.1, opt-in — demo tenant first). Enables the
  * "Run fulfillment agent" button on request pages. The tier system is not a
  * setting: task dispatches always park at /app/agents (unless Tier-2 auto-send

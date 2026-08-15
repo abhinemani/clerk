@@ -24,6 +24,7 @@ import {
   documents,
   jobs,
   messages,
+  networkAggregates,
   publicationDecisions,
   publicIdCounters,
   releases,
@@ -48,6 +49,7 @@ import {
   type DatasetRowEntity,
   type DeflectionEntity,
   type DemoRequestEntity,
+  type NetworkAggregateEntity,
   type PlatformAgencyStats,
   type DeliveryEntity,
   type Department,
@@ -96,6 +98,14 @@ export class DrizzleRepository implements Repository {
       stateCode: a.stateCode,
       observedHolidays: a.observedHolidays,
       workflowSettings: a.workflowSettings ?? null,
+      // These three were silently DROPPED here until 2026-08-15 while
+      // InMemory persisted them — a create-time divergence no unit test could
+      // see, since unit tests only ever exercise InMemory. Found when a
+      // freshly created agency's settings came back empty on PGlite.
+      // Conformance now pins it.
+      defaultRoutingRules: a.defaultRoutingRules ?? null,
+      branding: a.branding ?? null,
+      portalSettings: a.settings ?? null,
     });
     return a;
   }
@@ -1785,6 +1795,51 @@ export class DrizzleRepository implements Repository {
       bucket(r.agencyId).publicRecordCount = r.publicCount;
     }
     return out;
+  }
+
+  // --- network plays (docs/network-plays.md, invariant 11) -----------------
+
+  async replaceNetworkAggregates(rows: NetworkAggregateEntity[]): Promise<void> {
+    // Full replace: one current snapshot, never a published series.
+    await this.db.delete(networkAggregates);
+    if (rows.length === 0) return;
+    await this.db.insert(networkAggregates).values(
+      rows.map((r) => ({
+        id: r.id,
+        stateCode: r.stateCode,
+        topic: r.topic,
+        agencyCount: r.agencyCount,
+        episodes: r.episodes,
+        routes: r.routes,
+        exemptionSections: r.exemptionSections,
+        daysToClose: r.daysToClose,
+        extensionRate: r.extensionRate,
+        basis: r.basis,
+        pendingAgencyCount: r.pendingAgencyCount,
+        computedAt: r.computedAt,
+      })),
+    );
+  }
+
+  async listNetworkAggregates(): Promise<NetworkAggregateEntity[]> {
+    const rows = await this.db
+      .select()
+      .from(networkAggregates)
+      .orderBy(asc(networkAggregates.stateCode), asc(networkAggregates.topic));
+    return rows.map((r: typeof networkAggregates.$inferSelect) => ({
+      id: r.id,
+      stateCode: r.stateCode,
+      topic: r.topic,
+      agencyCount: r.agencyCount,
+      episodes: r.episodes,
+      routes: r.routes ?? [],
+      exemptionSections: r.exemptionSections ?? [],
+      daysToClose: r.daysToClose,
+      extensionRate: r.extensionRate,
+      basis: r.basis,
+      pendingAgencyCount: r.pendingAgencyCount,
+      computedAt: r.computedAt,
+    }));
   }
 
   // --- learning loop (docs/learning-loop.md) -------------------------------

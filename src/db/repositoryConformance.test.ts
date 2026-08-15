@@ -892,6 +892,89 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       });
     });
 
+    it("createAgency persists settings/branding/routing rules, not just the identity columns", async () => {
+      // REGRESSION: the Drizzle insert used to write only id/slug/name/state/
+      // holidays/workflowSettings and silently drop the other three, while
+      // InMemory stored the whole object. A service test could pass on
+      // InMemory and lose data in production — the exact divergence class
+      // this suite exists to kill. Found when a freshly created agency's
+      // networkPlays consent came back empty on PGlite.
+      const id = uid();
+      await repo.createAgency({
+        id,
+        slug: `conf-create-${id.slice(0, 8)}`,
+        name: "Create City",
+        stateCode: "WA",
+        observedHolidays: ["2026-07-04"],
+        workflowSettings: { autoAssign: true, autoDispatch: false, autoDispatchConfidence: 0.7 },
+        defaultRoutingRules: [{ keywords: ["pothole"], departmentId: DEPT1 }],
+        branding: { officeName: "Records Division" },
+        settings: { networkPlays: { enabled: true }, publicRequestLog: true },
+      });
+      const back = await repo.getAgency(id);
+      expect(back?.settings?.networkPlays?.enabled).toBe(true);
+      expect(back?.settings?.publicRequestLog).toBe(true);
+      expect(back?.branding?.officeName).toBe("Records Division");
+      expect(back?.defaultRoutingRules?.[0]?.keywords).toEqual(["pothole"]);
+      expect(back?.workflowSettings?.autoAssign).toBe(true);
+      expect(back?.observedHolidays).toEqual(["2026-07-04"]);
+    });
+
+    it("network aggregates: platform-level, full-replace, and carry no agency identity (invariant 11)", async () => {
+      const row = (over: Partial<import("@/services/repository").NetworkAggregateEntity> = {}) => ({
+        id: uid(),
+        stateCode: "CA",
+        topic: "building_permits",
+        agencyCount: 6,
+        episodes: "50-99",
+        routes: [{ role: "public_works", share: "75-89%", agencyCount: 5 }],
+        exemptionSections: [{ section: "Cal. Gov. Code § 7927.700", agencyCount: 6 }],
+        daysToClose: "4-7",
+        extensionRate: "10-25%",
+        basis: "Across 6 consenting CA agencies.",
+        pendingAgencyCount: null,
+        computedAt: new Date("2026-08-15T00:00:00Z"),
+        ...over,
+      });
+
+      await repo.replaceNetworkAggregates([
+        row(),
+        row({ stateCode: "TX", topic: "meeting_minutes" }),
+      ]);
+      const stored = await repo.listNetworkAggregates();
+      expect(stored).toHaveLength(2);
+      expect(stored.map((r) => `${r.stateCode}:${r.topic}`)).toEqual([
+        "CA:building_permits",
+        "TX:meeting_minutes",
+      ]);
+      // jsonb round-trips with its shape intact.
+      expect(stored[0]!.routes[0]).toEqual({ role: "public_works", share: "75-89%", agencyCount: 5 });
+      expect(stored[0]!.exemptionSections[0]!.section).toBe("Cal. Gov. Code § 7927.700");
+
+      // No agency identity is even storable — the row type has no field for
+      // one, and nothing agency-shaped survives a round trip.
+      expect(JSON.stringify(stored)).not.toContain(AG1);
+      expect(JSON.stringify(stored)).not.toContain("agencyId");
+
+      // FULL REPLACE: one current snapshot, never an appended series (a dated
+      // series is what a differencing attack subtracts across).
+      await repo.replaceNetworkAggregates([row({ stateCode: "NY", topic: "payroll_salary" })]);
+      const after = await repo.listNetworkAggregates();
+      expect(after).toHaveLength(1);
+      expect(after[0]!.stateCode).toBe("NY");
+
+      // The stability-rule bookkeeping round-trips (null AND a set value) —
+      // without it the weekly rebuild livelocks and freezes every benchmark.
+      await repo.replaceNetworkAggregates([row({ pendingAgencyCount: 7 })]);
+      expect((await repo.listNetworkAggregates())[0]!.pendingAgencyCount).toBe(7);
+      await repo.replaceNetworkAggregates([row({ pendingAgencyCount: null })]);
+      expect((await repo.listNetworkAggregates())[0]!.pendingAgencyCount).toBeNull();
+
+      // Replacing with nothing empties the table (every group fell below a floor).
+      await repo.replaceNetworkAggregates([]);
+      expect(await repo.listNetworkAggregates()).toEqual([]);
+    });
+
     it("agent runs: create + get + update + list, all tenant-scoped (§16.2)", async () => {
       const run = await repo.createAgentRun({
         id: uid(),
