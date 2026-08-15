@@ -12,6 +12,7 @@
  * upgrade behind the same signature — see HANDOFF roadmap.)
  */
 import { LexicalRetriever } from "@/ai/search/retriever";
+import { readDocumentMeta } from "@/domain/documentMeta";
 import type { CorpusDoc } from "@/lib/corpus";
 import type { ServiceDeps } from "./deps";
 import { NotFoundError, type DocumentEntity } from "./repository";
@@ -27,6 +28,10 @@ export interface RecordsSearchHit {
   createdAt: Date;
   /** True when the doc is already in the target request's review set. */
   alreadyAttached?: boolean;
+  /** Set when this hit is a connected-source dataset slice (any
+   *  classification — staff scope), so callers can offer a row-level
+   *  connector_search on top of the plain document match. */
+  connectedSource: { dataset: string; sourceName: string } | null;
 }
 
 function toCorpusDoc(d: DocumentEntity): CorpusDoc {
@@ -149,6 +154,7 @@ export async function searchAgencyRecords(
 
   return hits.map((h) => {
     const d = byId.get(h.id)!;
+    const stamp = readDocumentMeta(d).connectedSource;
     return {
       documentId: d.id,
       filename: d.filename ?? d.id,
@@ -159,6 +165,7 @@ export async function searchAgencyRecords(
       whyMatched: h.whyMatched,
       createdAt: d.createdAt,
       alreadyAttached: attached.has(d.id),
+      connectedSource: stamp ? { dataset: stamp.dataset, sourceName: stamp.sourceName } : null,
     };
   });
 }

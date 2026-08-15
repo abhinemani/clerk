@@ -353,3 +353,81 @@ describe("missing implementation", () => {
     expect(res.reason).toMatch(/No implementation registered/);
   });
 });
+
+describe("plan_update — mid-run plan revision (§16.1)", () => {
+  it("splices inserted steps right after the plan_update step and runs them next", async () => {
+    const run = makeRun({
+      plan: plan([
+        step(0, { tool: "read_request" }),
+        step(1, { action: "plan_update" }),
+        step(2, { action: "status_memo" }),
+      ]),
+    });
+    const inserted: AgentPlanStep = {
+      index: 999, // deliberately wrong — the harness must renumber it
+      description: "a broadened follow-up search",
+      status: "pending",
+      action: "corpus_search",
+      input: { query: "broadened" },
+    };
+    const registry = new MapCapabilityRegistry([
+      fake("read_request"),
+      {
+        name: "plan_update" as never,
+        async execute() {
+          return { output: { revised: true }, tokens: 0, insertSteps: [inserted] };
+        },
+      },
+      fake("corpus_search"),
+      fake("status_memo"),
+    ]);
+    const { events, emit } = collector();
+
+    const res = await runAgent(run, {
+      definition: getAgentDefinition("fulfillment"),
+      policy: DEFAULT_ACTION_POLICY,
+      registry,
+      emit,
+    });
+
+    expect(res.outcome).toBe("completed");
+    // The inserted step actually ran, in the right slot.
+    expect(run.plan.steps.map((s) => s.action ?? s.tool)).toEqual([
+      "read_request",
+      "plan_update",
+      "corpus_search",
+      "status_memo",
+    ]);
+    // Indices were renumbered to match array position (the fake 999 is gone).
+    expect(run.plan.steps.map((s) => s.index)).toEqual([0, 1, 2, 3]);
+    expect(run.plan.steps.every((s) => s.status === "done")).toBe(true);
+    // One audit event per step, including the inserted one, in order.
+    expect(events.map((e) => e.payload.capability)).toEqual([
+      "read_request",
+      "plan_update",
+      "corpus_search",
+      "status_memo",
+    ]);
+    // The plan_update step's own audit event still points at itself (index 1),
+    // not shifted by the splice.
+    expect(events[1]!.payload.stepIndex).toBe(1);
+  });
+
+  it("is a no-op when insertSteps is empty or absent", async () => {
+    const run = makeRun({
+      plan: plan([step(0, { action: "plan_update" }), step(1, { action: "status_memo" })]),
+    });
+    const registry = new MapCapabilityRegistry([
+      { name: "plan_update" as never, async execute() { return { output: {}, insertSteps: [] }; } },
+      fake("status_memo"),
+    ]);
+    const res = await runAgent(run, {
+      definition: getAgentDefinition("fulfillment"),
+      policy: DEFAULT_ACTION_POLICY,
+      registry,
+      emit: () => {},
+    });
+    expect(res.outcome).toBe("completed");
+    expect(run.plan.steps).toHaveLength(2);
+  });
+});

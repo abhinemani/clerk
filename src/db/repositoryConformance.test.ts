@@ -732,6 +732,64 @@ function conformance(adapterName: string, makeRepo: () => Promise<Repository>) {
       expect(JSON.stringify(opened.rows)).toContain("CONF-INTERNAL-MARKER");
     });
 
+    it("searchAgencyDatasetRows: STAFF scope sees internal rows too, tenant isolation still holds (fulfillment v2 connector_search)", async () => {
+      // A dataset name distinct from "street-sweeping" — that one is shared
+      // (same agency, same beforeAll-scoped repo) with an earlier test above.
+      const DATASET = "connector-search-staff-scope";
+      const rowOf = (
+        agencyId: string,
+        documentId: string,
+        i: number,
+        recordDate: string,
+        data: Record<string, string>,
+      ) => ({
+        id: uid(),
+        agencyId,
+        documentId,
+        dataset: DATASET,
+        period: recordDate.slice(0, 7),
+        rowIndex: i,
+        recordDate,
+        data,
+        createdAt: new Date("2026-08-15T00:00:00Z"),
+      });
+
+      const pub = await repo.createDocument(docOf({ classification: "public" }));
+      const internal = await repo.createDocument(docOf()); // classification: "internal"
+      const foreign = await repo.createDocument(docOf({ agencyId: AG2, classification: "public" }));
+
+      await repo.replaceDatasetRows(AG1, pub.id, [rowOf(AG1, pub.id, 0, "2026-06-02", { street: "Oak Ave" })]);
+      await repo.replaceDatasetRows(AG1, internal.id, [
+        rowOf(AG1, internal.id, 0, "2026-06-15", { street: "Mill Rd (internal-only slice)" }),
+      ]);
+      await repo.replaceDatasetRows(AG2, foreign.id, [
+        rowOf(AG2, foreign.id, 0, "2026-06-20", { street: "CONF-FOREIGN-MARKER" }),
+      ]);
+
+      // Unlike searchPublicDatasetRows, the internal slice's rows DO surface —
+      // staff tooling already sees the full corpus.
+      const staff = await repo.searchAgencyDatasetRows(AG1, { dataset: DATASET, limit: 10 });
+      expect(staff.total).toBe(2);
+      expect(staff.rows.map((r) => r.recordDate)).toEqual(["2026-06-02", "2026-06-15"]);
+      expect(JSON.stringify(staff.rows)).toContain("Mill Rd (internal-only slice)");
+      // Tenant isolation (invariant 2) still holds — no classification gate needed for that.
+      expect(JSON.stringify(staff.rows)).not.toContain("CONF-FOREIGN-MARKER");
+
+      // Range bounds behave the same as the public method.
+      const narrowed = await repo.searchAgencyDatasetRows(AG1, {
+        dataset: DATASET,
+        from: "2026-06-10",
+        to: "2026-06-30",
+        limit: 10,
+      });
+      expect(narrowed.total).toBe(1);
+      expect(narrowed.rows[0]!.data.street).toBe("Mill Rd (internal-only slice)");
+
+      // The public method never sees the internal row.
+      const publicOnly = await repo.searchPublicDatasetRows(AG1, { dataset: DATASET, limit: 10 });
+      expect(publicOnly.total).toBe(1);
+    });
+
     it("agent runs: create + get + update + list, all tenant-scoped (§16.2)", async () => {
       const run = await repo.createAgentRun({
         id: uid(),

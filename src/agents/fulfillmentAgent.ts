@@ -125,8 +125,22 @@ export function fulfillmentCapabilityRegistry(
       found: i.found ?? 0,
       top: i.top ?? [],
     })),
+    // Row-level lookup on top of the plain document match (v2): plan-time
+    // findAgencyTabularAnswer results, echoed here purely for the audit trail
+    // — the deadline-agent idiom (no fresh IO in the capability itself).
+    capIn("connector_search", (i) => ({
+      label: i.label,
+      dataset: i.dataset ?? null,
+      totalRows: i.totalRows ?? 0,
+      periods: i.periods ?? [],
+      basis: i.basis ?? null,
+    })),
+    // Per-item review-set curation (v2): one call per scope item that found
+    // candidates, so the audit trail — and a coordinator skimming it — can
+    // see which item a document is responsive to, not just a flat pile.
     capIn("assemble_review_set", async (i) => {
       const requestId = typeof i.requestId === "string" ? i.requestId : null;
+      const itemLabel = typeof i.itemLabel === "string" ? i.itemLabel : null;
       const documentIds = Array.isArray(i.documentIds)
         ? i.documentIds.filter((d): d is string => typeof d === "string")
         : [];
@@ -155,13 +169,36 @@ export function fulfillmentCapabilityRegistry(
           requestId,
           kind: "note",
           actorUserId: null,
-          summary: `Fulfillment agent attached ${added.length} candidate record(s) to the review set`,
-          payload: { documentIds, added, source: "fulfillment_agent" },
+          summary: itemLabel
+            ? `Fulfillment agent attached ${added.length} candidate record(s) responsive to "${itemLabel}"`
+            : `Fulfillment agent attached ${added.length} candidate record(s) to the review set`,
+          payload: { documentIds, added, itemLabel, source: "fulfillment_agent" },
           createdAt: deps.now(),
         });
       }
-      return { attached: added.length, considered: documentIds.length };
+      return { attached: added.length, considered: documentIds.length, itemLabel };
     }),
+    // Mid-run plan revision (v2, §16.1 plan_update): reads the plan-time gap
+    // analysis embedded in its input and, when a scope item was a dead end
+    // (no corpus hits, no connector data, no department to route to), inserts
+    // the already-computed broadened-search steps right after itself. Tier 1
+    // — it only grows the plan with more Tier-1 reads; nothing it inserts can
+    // itself bypass a checkpoint. (Not built via capIn: it needs to return
+    // insertSteps at the top level of CapabilityResult, not nested in output.)
+    {
+      name: "plan_update" as never,
+      async execute(input) {
+        const gaps = Array.isArray(input.gaps) ? input.gaps : [];
+        const insertSteps = Array.isArray(input.candidateInsertSteps)
+          ? (input.candidateInsertSteps as AgentPlanStep[])
+          : [];
+        return {
+          output: { revisedFor: gaps, insertedStepCount: insertSteps.length },
+          tokens: 0,
+          insertSteps,
+        };
+      },
+    },
     capIn("dispatch_task", async (i) => {
       // Tier 2 — under the default policy the harness parks the run before
       // this ever executes; a named approval (or agency opt-in) releases it.

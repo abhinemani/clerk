@@ -168,6 +168,16 @@ export async function runAgent(
 
     try {
       const result = await executeStep(step, { run, definition, policy, registry, now });
+      // plan_update (§16.1 mid-run plan revision): splice new steps in right
+      // after this one and renumber so `.index` always matches array
+      // position — the current step's own index is unaffected (it precedes
+      // the insertion point), so the audit event below still points at it.
+      if (result.insertSteps && result.insertSteps.length > 0) {
+        run.plan.steps.splice(run.plan.cursor + 1, 0, ...result.insertSteps);
+        run.plan.steps.forEach((s, i) => {
+          s.index = i;
+        });
+      }
       run.budgetSpend = recordSpend(run.budgetSpend, {
         toolCalls: 1,
         tokens: result.tokens ?? 0,
@@ -216,6 +226,8 @@ interface StepExecResult {
   tier?: number | null;
   autonomousSend: boolean;
   eventDisposition: Disposition | "read";
+  /** See CapabilityResult.insertSteps — plan_update's mid-run revision. */
+  insertSteps?: AgentPlanStep[];
 }
 
 interface StepExecCtx {
@@ -311,7 +323,13 @@ async function executeStep(step: AgentPlanStep, ctx: StepExecCtx): Promise<StepE
   const result = await capability.execute(input, capCtx);
   step.status = "done";
   step.output = result.output;
-  return { tokens: result.tokens, tier, autonomousSend, eventDisposition };
+  return {
+    tokens: result.tokens,
+    tier,
+    autonomousSend,
+    eventDisposition,
+    insertSteps: result.insertSteps,
+  };
 }
 
 function describeStep(step: AgentPlanStep): string {

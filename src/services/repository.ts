@@ -748,6 +748,18 @@ export interface Repository {
     documentId: string,
     limit: number,
   ): Promise<DatasetRowEntity[]>;
+  /**
+   * STAFF-SCOPED row search (fulfillment v2 connector_search) — every slice's
+   * rows regardless of classification, tenant-scoped only. This is internal
+   * tooling that already sees the full corpus (same posture as
+   * searchAgencyRecords); it must never back a requester-facing surface —
+   * that stays on searchPublicDatasetRows, where invariant 3 is enforced in
+   * the query itself.
+   */
+  searchAgencyDatasetRows(
+    agencyId: string,
+    opts: { dataset: string; from?: string; to?: string; limit: number },
+  ): Promise<{ rows: DatasetRowEntity[]; total: number }>;
 
   // Agent runs (§16.2): persisted plan state so runs are resumable and a
   // human can steer any run from the UI. All reads agency-scoped.
@@ -1437,6 +1449,22 @@ export class InMemoryRepository implements Repository {
       .filter((r) => r.agencyId === agencyId && r.documentId === documentId)
       .sort((a, b) => a.rowIndex - b.rowIndex)
       .slice(0, limit);
+  }
+
+  async searchAgencyDatasetRows(
+    agencyId: string,
+    opts: { dataset: string; from?: string; to?: string; limit: number },
+  ) {
+    const matches = this.datasetRows
+      .filter(
+        (r) =>
+          r.agencyId === agencyId &&
+          r.dataset === opts.dataset &&
+          (!opts.from || r.recordDate >= opts.from) &&
+          (!opts.to || r.recordDate <= opts.to),
+      )
+      .sort((a, b) => a.recordDate.localeCompare(b.recordDate) || a.rowIndex - b.rowIndex);
+    return { rows: matches.slice(0, opts.limit), total: matches.length };
   }
 
   private agentRuns = new Map<string, AgentRunEntity>();

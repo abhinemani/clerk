@@ -7,15 +7,18 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**1036 tests pass (+5 skipped), typecheck clean, 4/4 e2e green** (counts
-as of the newest 2026-08-14 staff-mobile-pass entry; e2e ran fresh there).
+**1044 tests pass (+5 skipped), typecheck clean** (counts as of the newest
+2026-08-15 fulfillment-v2 entry). **4/4 e2e green as of the 2026-08-14
+staff-mobile-pass entry** — v2 touched no UI, so e2e wasn't re-run; nothing
+in its diff should affect it, but a next session touching UI should confirm.
 
 ## START HERE (next session)
 
 State in one line: demo-complete product, **Phase 5 open with FOUR agents
 live** (B1 disclosure librarian, B2 consistency auditor, B3 appeal
-packets, and the **fulfillment agent v1** — planner-driven, per-agency
-flag, Riverton on) plus the §16.2 checkpoint/steering surface, the
+packets, and the **fulfillment agent v2** — planner-driven, per-agency
+flag, Riverton on, now with connector_search/plan_update/per-item review-set
+curation) plus the §16.2 checkpoint/steering surface, the
 **learning loop v1** ("plays" — docs/learning-loop.md, migration 0012), a
 consolidated ingestion hub (/app/admin/data with drag-and-drop upload),
 and a full UX/visual pass (staff nav rail, archive storefront, civic hero
@@ -40,12 +43,14 @@ agents propose, a named human publishes.
 this queue — the "what would make Brandeis special" bets — lives in
 `docs/big-ticket.md`; graduate items from there into this list, not
 straight into a build):
-1. **Fulfillment agent v2** (v1 SHIPPED 2026-08-14; live eval ✓
-   2026-08-15, 5/6 — see newest entry for the one routing miss): grow
-   the planner — connector_search
-   over connected sources, plan revision mid-run (plan_update), per-item
-   review-set curation instead of top-N, and the B5 records map as
-   routing context when it exists.
+1. ~~**Fulfillment agent v2**~~ **SHIPPED 2026-08-15** (seventeenth build,
+   newest entry): connector_search (staff-scoped row-level lookup over
+   connected/tabular datasets), plan_update (mid-run plan revision — a
+   dead-end scope item gets a broadened retry spliced into the running
+   plan), and per-item review-set curation (one assemble_review_set per
+   scope item instead of one flat top-N list). Also fixed the live-eval
+   department-spread miss from the v1 entry (now 6/6). Remaining from the
+   original v2 list: the B5 records map as routing context, once B5 ships.
 2. **B4 third-party notice steward** (differentiator; needs notice rules
    added to state profiles as data). B2 shipped 2026-08-14; its forward
    version — redact-everywhere memory (big-ticket §4) — is the natural
@@ -74,7 +79,97 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-15, cloud session): THE LIVE EVAL RUN — both standing
+**NEWEST (2026-08-15, cloud session, seventeenth build of the window):
+FULFILLMENT AGENT V2 — connector_search, plan_update, per-item review-set
+curation (HANDOFF candidate #1, all three named sub-items), plus the
+department-spread eval fix from the previous entry.** The §16.1 agent
+framework had already anticipated this: `connector_search` and
+`plan_update` were defined as Tier-1 actions in `actionTiers.ts` and
+already sat in every agent's `allowedCapabilities` (`definitions.ts`) —
+nobody had wired an actual implementation for either. v2 is exactly what
+CLAUDE.md says Bucket B work should be: configuration over the existing
+substrate, not new architecture.
+- **connector_search** (`src/services/agencyTabularAnswer.ts`,
+  `findAgencyTabularAnswer`): the staff-scoped mirror of
+  `tabularAnswerService.findTabularAnswer` — same one-dataset-ambiguity
+  rule, same `composeTabularAnswer` composer, but reads a NEW port method,
+  `searchAgencyDatasetRows` (both adapters + conformance test), which
+  carries no classification filter — every slice's rows, any tenant-scoped
+  classification. This must never back a requester surface (the doc
+  comments say so loudly); it is only ever consumed by fulfillment's
+  plan-time search, alongside the existing full-corpus `corpus_search`.
+  `recordsSearchService.searchAgencyRecords` hits now carry a
+  `connectedSource` stamp (mirrors what `archive.ts` already does) so the
+  service can tell which hits point at a dataset. The memo gets its own
+  staff-only basis line (`connectorBasis`) rather than reusing
+  `TabularAnswer.basis`, which says "published slice(s)" — true for the
+  public path, false here.
+- **plan_update — a real harness mechanism, not just a fulfillment
+  capability.** `CapabilityResult` gained an optional `insertSteps`
+  (`src/agents/tools.ts`); `runAgent` splices them into `plan.steps` right
+  after the current step and renumbers every `.index` to its array
+  position before continuing (`src/agents/runHarness.ts`, tested in
+  `runHarness.test.ts`). This is generic — any agent's `plan_update` step
+  can grow its own remaining plan — not fulfillment-specific, matching how
+  the capability was already allowlisted everywhere. Fulfillment's use: at
+  plan time, any scope item with NO leads at all (zero corpus hits, zero
+  connector data, no department) gets a broadened retry search
+  PRE-COMPUTED (deadline-agent idiom — the plan_update capability itself
+  does no fresh IO, it only decides whether to splice in what's already
+  been found) and handed to one `plan_update` step, which inserts the
+  retry's `corpus_search` (+ `assemble_review_set` if it found anything)
+  immediately after itself.
+- **Per-item review-set curation.** `ATTACH_CAP` (global top-12) is gone;
+  `PER_ITEM_ATTACH_CAP` (5) applies per scope item instead, with a shared
+  `considered` set so no document attaches twice across items. Each item
+  with candidates gets its OWN `assemble_review_set` step
+  (`itemLabel` in the input), so the audit trail — and a coordinator
+  skimming it — sees which item a document is responsive to, not one flat
+  pile. `fulfillmentCapabilityRegistry`'s `assemble_review_set` capability
+  names the item in its event summary when present, unchanged shape when
+  absent (backward compatible).
+- **The department-spread eval miss (flagged in the previous entry) is
+  fixed, iteratively.** First pass (general "spread across departments"
+  guidance) did NOT move the live score — same failure, same shape, twice.
+  Root cause found by calling the pipeline directly: City Clerk's
+  department description literally says "Contracts, minutes, ordinances,
+  budgets," which out-competes Public Works for a scope item titled around
+  a contract, even though Public Works' description says "repairs." Fix:
+  a concrete tie-break — when one department's description names the
+  PAPERWORK TYPE and another names the PHYSICAL/OPERATIONAL ACTIVITY the
+  item is actually about, the activity match wins. Live-verified 2/2 direct
+  reruns of `broad-incident-multi-department` after the fix (was 0/2
+  before). A SEPARATE pre-existing flake surfaced during those reruns
+  (`department-guardrail`: the model sometimes named a non-listed
+  department in `memo_note` prose, e.g. "a separate finance/HR system",
+  even though `clampFulfillmentPlan` already strips any invented
+  `department` value in code) — narrowed with one more instruction but not
+  fully eliminated; left as a documented residual since the actual
+  guardrail is enforced in code regardless of prompt wording. Prompt now
+  at `2026-08-15.3` (was `2026-08-14.1`); full history in the file's
+  header comment.
+- **Live eval, full suite:** fulfillment plan **6/6 (100%)**, up from 5/6.
+  Custodian 8/8, answer engine 3/3 (both unchanged, prompts untouched).
+  Exemption pass and intake triage each threw their SAME pre-existing
+  single misses HANDOFF already recorded on 2026-08-15 (`Dana Whitfield`
+  recall miss; `police-report-personnel` vocabulary miss) — those prompts
+  were not touched this session, so these are the known nondeterminism
+  already on record, not a regression.
+- **New repository port method** `searchAgencyDatasetRows` — both adapters
+  implemented, conformance-tested per the CLAUDE.md rule (staff scope sees
+  internal rows the public method hides; tenant isolation still holds).
+- 1044 offline tests (+8: runHarness plan_update ×2, agencyTabularAnswer
+  ×4, repositoryConformance ×1, plus the fulfillmentService/Agent suites'
+  existing tests all still green against the restructured service),
+  typecheck clean. **No UI change** — `/app/agents` already renders steps
+  generically (glyph strip by status, no hardcoded capability names), and
+  the request-page button only reads `result.parked`, unaffected by the
+  internal restructuring — so e2e was not re-run this session; last
+  verified 4/4 at the 2026-08-14 entry. No migration, no new env vars,
+  keys, or services — `docs/laptop-setup.md` deliberately untouched (said
+  out loud per the push contract).
+
+**PREVIOUS (2026-08-15, cloud session): THE LIVE EVAL RUN — both standing
 scorecard debts cleared, and the cloud-key path fixed for good.** Owner
 asked for `npm run eval`; first live full-suite run since 2026-08-13.
 - **Scorecards (all five suites, live API):**

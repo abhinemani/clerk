@@ -1831,6 +1831,36 @@ export class DrizzleRepository implements Repository {
     return rows.map((r: { row: typeof datasetRows.$inferSelect }) => this.toDatasetRow(r.row));
   }
 
+  async searchAgencyDatasetRows(
+    agencyId: string,
+    opts: { dataset: string; from?: string; to?: string; limit: number },
+  ): Promise<{ rows: DatasetRowEntity[]; total: number }> {
+    // Staff scope — no classification join/filter (tenant isolation only);
+    // see the port doc comment for why this must stay off requester surfaces.
+    const conditions = [
+      eq(datasetRows.agencyId, agencyId),
+      eq(datasetRows.dataset, opts.dataset),
+      ...(opts.from ? [sql`${datasetRows.recordDate} >= ${opts.from}`] : []),
+      ...(opts.to ? [sql`${datasetRows.recordDate} <= ${opts.to}`] : []),
+    ];
+    const [rows, totals] = await Promise.all([
+      this.db
+        .select()
+        .from(datasetRows)
+        .where(and(...conditions))
+        .orderBy(asc(datasetRows.recordDate), asc(datasetRows.rowIndex))
+        .limit(opts.limit),
+      this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(datasetRows)
+        .where(and(...conditions)),
+    ]);
+    return {
+      rows: rows.map((r: typeof datasetRows.$inferSelect) => this.toDatasetRow(r)),
+      total: totals[0]?.n ?? 0,
+    };
+  }
+
   // --- agent runs (§16.2) --------------------------------------------------
 
   private toAgentRun(r: typeof agentRuns.$inferSelect): AgentRunEntity {

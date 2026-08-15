@@ -15,6 +15,7 @@
  * interface and an injectable registry, so the agent framework can be built and
  * tested now against fakes, and wired to real pipelines later without change.
  */
+import type { AgentPlanStep } from "@/db/schema";
 import type { ActionType } from "./actionTiers";
 import { isActionType } from "./actionTiers";
 
@@ -51,6 +52,17 @@ export interface CapabilityResult {
   output: unknown;
   /** Tokens consumed by this call, folded into the run budget (§16.2). */
   tokens?: number;
+  /**
+   * Steps to splice into the plan immediately after this one — the
+   * `plan_update` mechanism (§16.1: "plan revision mid-run"). The harness
+   * inserts them and renumbers every step's `.index` to its array position
+   * before continuing, so a resumed/persisted run still has contiguous
+   * indices. Only meaningful when returned by a Tier-1 `plan_update` step;
+   * inserted steps still go through the full allowlist/tier/scope/budget
+   * pipeline when their own turn comes — this is not a guardrail bypass, just
+   * a way for an agent to grow its own remaining plan.
+   */
+  insertSteps?: AgentPlanStep[];
 }
 
 export interface Capability {
