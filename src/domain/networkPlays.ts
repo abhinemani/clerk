@@ -376,6 +376,8 @@ export function networkRoutingHint(aggregate: NetworkAggregate): NetworkRoutingH
   return {
     role: top.role,
     confidence,
-    basis: `${top.agencyCount} of ${aggregate.agencyCount} ${aggregate.stateCode} agencies route this to ${top.role} (${top.share}). ${aggregate.basis}`,
+    // Role symbols are snake_case platform codes; never print one raw at a
+    // human ("public_works (90%+)" reads as a leaked identifier).
+    basis: `${top.agencyCount} of ${aggregate.agencyCount} ${aggregate.stateCode} agencies route this to ${top.role.replace(/_/g, " ")} (${top.share}). ${aggregate.basis}`,
   };
 }

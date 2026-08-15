@@ -7,8 +7,8 @@ dated entries below run newest-first. Everything is verified working as of
 its own entry's date unless marked otherwise.
 
 Repo: <https://github.com/abhinemani/clerk> · branch `main` · everything pushed.
-**1087 tests pass (+5 skipped), typecheck clean** (counts as of the newest
-2026-08-15 network-plays-live entry). Migrations 0000–0018 applied. **4/4 e2e green as of the 2026-08-14
+**1092 tests pass (+5 skipped), typecheck clean** (counts as of the newest
+2026-08-15 network-plays-read-side entry). Migrations 0000–0018 applied. **4/4 e2e green as of the 2026-08-14
 staff-mobile-pass entry** — neither of the two 2026-08-15 build entries
 changed UI structure, so e2e wasn't re-run; a next session touching UI
 should confirm.
@@ -61,10 +61,12 @@ straight into a build):
    the weekly-rebuild job honors that rule). **Consent surface, migration
    0018 `network_aggregates`, and the weekly rebuild job all SHIPPED
    2026-08-15 — the feature is live end to end and OFF for every tenant
-   until an admin opts in. ONLY THE READ SIDE REMAINS:** surface benchmarks
-   to staff, routing hints first (clearest value, least sensitive),
-   comparative metrics second, exemption benchmarking LAST (highest
-   sensitivity — ship it only once the network is well past the floors).
+   until an admin opts in. The FIRST READ SURFACE shipped 2026-08-15 too —
+   routing hints on the request page, with a seed fixture (five consenting
+   CA peers) since the floors make it undemoable on one tenant.
+   **Remaining: comparative metrics on /app/reports, then exemption
+   benchmarking LAST** (highest sensitivity — ship only once the network is
+   well past the floors).
 2. **B4 third-party notice steward** (differentiator; needs notice rules
    added to state profiles as data). B2 shipped 2026-08-14; its forward
    version — redact-everywhere memory (big-ticket §4) — is the natural
@@ -101,7 +103,63 @@ HANDOFF entry appended, and `docs/laptop-setup.md` updated in the same
 commit if anything owner-facing changed (env vars, keys, services) — that
 file is copy/paste-only by design; keep it that way.
 
-**NEWEST (2026-08-15, cloud session, twenty-first build of the window):
+**NEWEST (2026-08-15, cloud session, twenty-second build of the window):
+NETWORK PLAYS — THE FIRST READ SURFACE (routing hints on the request page,
+plus the seed fixture that makes any of it demoable).**
+- **Two mappings the read side needed and the write side never did:**
+  `toTopicCodeFromText` (aggregates are keyed by TopicCode; a coordinator has
+  prose) and **`localDepartmentsForRole`**, which resolves a network role back
+  to THIS agency's department by running `toDepartmentRole` in REVERSE — so
+  the two directions can never disagree. The resolved department is
+  display-only; assembling it into anything `autoDispatchSuggestions` accepts
+  is the shortcut that would undo invariant 11's structural guarantee, and
+  the doc comment says so at the function.
+- **`networkHintForRequest`** + an "Across other agencies" card on the
+  request page, deliberately dashed-bordered and placed BELOW the office's
+  own "Similar past requests" — borrowed experience is weaker evidence than
+  your own and the UI should say which is which. Null (renders nothing, house
+  `{hint && …}` idiom) whenever consent is off, the ask doesn't map, or no
+  benchmark cleared the floors — all common, none an error. Read is in the
+  page's existing ONE parallel batch and `.catch`es to null: a benchmark must
+  never block the record.
+- **THE SEED BUG WORTH REMEMBERING — seeding an aggregate means seeding what
+  it aggregates.** The first fixture wrote peer rows straight into
+  `request_plays`, reasoning (in a comment I had to delete) that plays are a
+  rebuildable aggregate so seeding them directly was harmless. It is the
+  opposite: the nightly sweep runs `rebuildAgencyPlays` — a FULL REPLACE
+  derived from closed requests — BEFORE the network rebuild, so
+  directly-seeded plays are erased on the first boot after seeding and every
+  benchmark silently vanishes. Cost me a long debugging detour where the card
+  simply never rendered and nothing errored. Peers now carry real closed
+  requests each with a DONE TASK — the task is what makes a route, and
+  without it a benchmark can state timing but not routing.
+- **Seed fixture**: five consenting CA peers (Cedar Falls, Ashford,
+  Northgate, Presidio Bay, Marlin Cove) with resolved history on two topics
+  chosen to match requests Riverton actually has open, Riverton's own consent
+  on, and one real rebuild at the end. The floors make this feature
+  undemoable on a one-tenant deployment — five agencies is the minimum before
+  anything publishes at all.
+- **Browser-verified** (gotcha 11, screenshots delivered) AFTER the 15s boot
+  sweep, which is what previously wiped it: the card renders on both matching
+  requests with the LOCAL department named ("5 of 5 comparable offices route
+  inspections to Public Works", "…police incident reports to Police
+  Records"), and renders nothing on the janitorial-contract request whose
+  topic has no benchmark. No horizontal overflow at 1280 or 900.
+- **PRE-EXISTING 1px overflow found at 390 on this request's state, NOT from
+  this work** (recorded rather than silently fixed): the offenders are
+  `.btn-primary` "Close as no responsive records" at right=391.44 and a
+  `.muted` "1 message" span — the network card itself measures right=374 with
+  `scrollWidth === clientWidth`. The 2026-08-14 mobile pass missed this
+  particular workflow state. Sub-visual, but a future mobile pass should
+  catch it.
+- One copy fix while verifying: the basis line printed the raw snake_case
+  role (`public_works (90%+)`), which reads as a leaked identifier; humanized
+  and pinned by a test that asserts the raw symbol never reaches a human.
+- 1092 offline tests (+5), typecheck clean. No migration, no env vars, no
+  services → `docs/laptop-setup.md` untouched (said out loud per the push
+  contract).
+
+**PREVIOUS (2026-08-15, cloud session, twenty-first build of the window):
 NETWORK PLAYS — CONSENT SURFACE, TABLE, AND THE WEEKLY JOB (the feature is
 now live end to end and OFF for every tenant until an admin opts in; only
 the read side remains).**

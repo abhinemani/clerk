@@ -27,10 +27,12 @@
  * checkable.
  */
 import {
+  networkRoutingHint,
   publishableAggregates,
   toNetworkContribution,
   type NetworkAggregate,
 } from "@/domain/networkPlays";
+import { localDepartmentsForRole, toTopicCodeFromText } from "@/domain/networkVocabulary";
 import { getStateProfile } from "@/statute/profiles";
 import type { ServiceDeps } from "./deps";
 import type { NetworkAggregateEntity } from "./repository";
@@ -201,4 +203,73 @@ export async function listNetworkAggregatesFor(
   // Same-state comparisons only — statutes differ, so cross-state numbers
   // would compare offices operating under different clocks and exemptions.
   return all.filter((a) => a.stateCode === agency.stateCode);
+}
+
+/** What the request page renders. Display-only by construction: it carries
+ *  department NAMES for prose, and no dispatchable suggestion. */
+export interface NetworkRequestHint {
+  topic: string;
+  /** Network role, e.g. "public_works" — the platform symbol. */
+  role: string;
+  /** This agency's departments that match that role; [] when none do. */
+  localDepartments: { id: string; name: string }[];
+  agencyCount: number;
+  routeAgencyCount: number;
+  shareBucket: string;
+  daysToClose: string | null;
+  extensionRate: string | null;
+  /** Display-only ranking, capped below the local play cap. */
+  confidence: number;
+  basis: string;
+}
+
+/**
+ * The network's view of one request, or null.
+ *
+ * Null is the COMMON case and not an error: the agency hasn't consented, or
+ * the request's wording doesn't map to a topic, or no benchmark for that
+ * topic has cleared the floors yet. Callers render nothing at all in that
+ * case — the house idiom (`{hint && …}`), no empty state.
+ *
+ * Deliberately returns its own display type rather than anything the routing
+ * machinery accepts. See invariant 11: a network signal may never
+ * auto-dispatch, and that holds because there is no type-compatible path
+ * from here into `autoDispatchSuggestions`.
+ */
+export async function networkHintForRequest(
+  deps: ServiceDeps,
+  input: { agencyId: string; text: string },
+): Promise<NetworkRequestHint | null> {
+  const topic = toTopicCodeFromText(input.text);
+  if (!topic) return null;
+
+  const aggregates = await listNetworkAggregatesFor(deps, input.agencyId);
+  const match = aggregates.find((a) => a.topic === topic);
+  if (!match) return null;
+
+  const hint = networkRoutingHint(entityToAggregate(match));
+  if (!hint) return null;
+
+  const departments = await deps.repo.listDepartments(input.agencyId);
+  const top = match.routes[0]!;
+  return {
+    topic: humanizeTopic(match.topic),
+    role: hint.role,
+    localDepartments: localDepartmentsForRole(hint.role, departments).map((d) => ({
+      id: d.id,
+      name: d.name,
+    })),
+    agencyCount: match.agencyCount,
+    routeAgencyCount: top.agencyCount,
+    shareBucket: top.share,
+    daysToClose: match.daysToClose,
+    extensionRate: match.extensionRate,
+    confidence: hint.confidence,
+    basis: hint.basis,
+  };
+}
+
+/** "building_permits" → "building permits", for prose. */
+function humanizeTopic(topic: string): string {
+  return topic.replace(/_/g, " ");
 }

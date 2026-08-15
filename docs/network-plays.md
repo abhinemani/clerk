@@ -1,8 +1,18 @@
 # Network plays — cross-tenant learning without cross-tenant leakage
 
 Status: **LIVE END TO END, off for every tenant until an admin opts in**
-(design, functions, consent surface, table, and weekly job all 2026-08-15).
-Remaining: the read side — nothing yet renders a benchmark to staff.
+(design, functions, consent surface, table, weekly job, and the first read
+surface all 2026-08-15). Remaining: comparative metrics on /app/reports, and
+exemption benchmarking last of all.
+
+**Seeding an aggregate means seeding what it aggregates.** The demo fixture
+first wrote peer rows straight into `request_plays`, reasoning that plays are
+a rebuildable aggregate so seeding them directly was harmless. It is not: the
+nightly sweep runs `rebuildAgencyPlays` — a FULL REPLACE derived from closed
+requests — *before* the network rebuild, so directly-seeded plays are erased
+on the first boot after seeding and every benchmark silently vanishes. The
+peers now carry real closed requests with done tasks (a route needs a done
+task, or the benchmark can state timing but not routing).
 big-ticket §1's first move, deliberately taken while the network is small:
 the rules are cheap to get right now and expensive to retrofit once tenants
 have contributed data under a promise we later have to change.
@@ -353,10 +363,20 @@ than your own, and the code should say so rather than relying on a comment.
    attack subtracts across, and the aggregate is rebuildable from the record
    at any time, so retaining a series buys nothing and costs anonymity. The
    honest position is that the current aggregate IS the record.
-5. Read side, in this order: cold-start routing hints first (clearest value,
-   least sensitive), comparative metrics second, exemption benchmarking last
-   — it is the highest-sensitivity surface and should ship only once the
-   network is well past the floors.
+5. Read side, in this order: ~~cold-start routing hints first~~ **DONE
+   2026-08-15** (`networkHintForRequest` + the "Across other agencies" card
+   on the request page); comparative metrics second; exemption benchmarking
+   last — it is the highest-sensitivity surface and should ship only once
+   the network is well past the floors.
+
+   Two mappings the read side needed that the write side never did:
+   `toTopicCodeFromText` (aggregates are keyed by topic code; a coordinator
+   has prose) and `localDepartmentsForRole`, which resolves a network role
+   back to THIS agency's department for display by running
+   `toDepartmentRole` in reverse — so the two directions can never disagree.
+   The resolved department is display-only and must never be assembled into
+   anything `autoDispatchSuggestions` accepts; that shortcut is precisely
+   what would undo the structural guarantee.
 
 Note that nothing in steps 3–5 can leak anything on its own: every path to a
 tenant-readable number runs through the two functions built in step 1, and

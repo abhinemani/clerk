@@ -130,6 +130,10 @@ export default async function RequestDetail({
     samples: string[];
     matchedByMeaning: boolean;
   } | null = null;
+  // Network plays (docs/network-plays.md, invariant 11): how COMPARABLE
+  // OFFICES handle this kind of ask. Null is the common case — no consent,
+  // no topic match, or no benchmark past the floors — and renders nothing.
+  let networkVM: import("@/services/networkPlaysService").NetworkRequestHint | null = null;
   // Fulfillment agent v1 (spec §16.1): the button renders only when the
   // agency opted in (settings.fulfillmentAgent — demo tenant first).
   let fulfillmentEnabled = false;
@@ -139,15 +143,17 @@ export default async function RequestDetail({
     // The loader already read the raw request + events — reuse, don't re-query.
     const rawRequest = detail.raw.request;
     const events = detail.raw.events;
-    const [{ consultPlays }, { defaultDeps }, { searchArchive }] = await Promise.all([
-      import("@/services/learningService"),
-      import("@/services/deps"),
-      import("@/lib/archive"),
-    ]);
+    const [{ consultPlays }, { defaultDeps }, { searchArchive }, { networkHintForRequest }] =
+      await Promise.all([
+        import("@/services/learningService"),
+        import("@/services/deps"),
+        import("@/lib/archive"),
+        import("@/services/networkPlaysService"),
+      ]);
     // ONE parallel batch — every read here is independent, and the archive
     // match (which includes an embedding call) used to serialize behind six
     // other awaits before first paint.
-    const [agencyRow, docs, reviews, releases, msgs, staffUsers, directory, playMatch, archiveItems, requesterRow] =
+    const [agencyRow, docs, reviews, releases, msgs, staffUsers, directory, playMatch, archiveItems, requesterRow, networkHint] =
       await Promise.all([
         repo.getAgency(staff.agencyId),
         repo.listRequestDocuments(staff.agencyId, r.id),
@@ -174,7 +180,18 @@ export default async function RequestDetail({
         r.closedAt == null && rawRequest.requesterId
           ? repo.getRequester(staff.agencyId, rawRequest.requesterId)
           : Promise.resolve(null),
+        // Cross-agency benchmark. Consent-gated inside the service; a
+        // failure must never block the page (same posture as the archive
+        // match) — this is context, not the record.
+        networkHintForRequest(defaultDeps(repo), {
+          agencyId: staff.agencyId,
+          text: rawRequest.interpretedScope ?? rawRequest.rawText,
+        }).catch((e) => {
+          console.error("network hint for request detail failed", e);
+          return null;
+        }),
       ]);
+    networkVM = networkHint;
     const profile = agencyRow ? getStateProfile(agencyRow.stateCode) : null;
     exemptionOptions =
       profile?.exemptions.map((e) => ({ citation: e.statuteSection, label: e.shortLabel })) ?? [];
@@ -741,6 +758,48 @@ export default async function RequestDetail({
                   than repeating its words.
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Network plays (docs/network-plays.md, invariant 11): how OTHER
+              agencies handle this kind of ask. Deliberately rendered as its
+              own card, visually subordinate to the office's own history
+              above — borrowed experience is weaker evidence than your own,
+              and the copy says whose it is. Advisory only: there is no
+              accept/dispatch action here, and by design no type-compatible
+              path from this data into auto-dispatch. */}
+          {networkVM && (
+            <div className="card card-pad" style={{ borderStyle: "dashed" }}>
+              <div className="panel-title">
+                Across other agencies
+                <span className="muted" style={{ fontWeight: 400, fontSize: "0.72rem", marginLeft: 6 }}>
+                  · network benchmark
+                </span>
+              </div>
+              <p style={{ fontSize: "0.88rem", margin: "8px 0 0" }}>
+                {networkVM.routeAgencyCount} of {networkVM.agencyCount} comparable
+                offices route <span style={{ fontWeight: 600 }}>{networkVM.topic}</span> to{" "}
+                <span style={{ fontWeight: 600 }}>
+                  {networkVM.localDepartments.length > 0
+                    ? networkVM.localDepartments.map((d) => d.name).join(" / ")
+                    : networkVM.role.replace(/_/g, " ")}
+                </span>
+                {networkVM.localDepartments.length === 0 && (
+                  <span className="muted"> (no department here maps to that role)</span>
+                )}
+                .
+              </p>
+              <div className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+                {networkVM.daysToClose ? `Typically closed in ${networkVM.daysToClose} days. ` : ""}
+                {networkVM.extensionRate ? `Extensions on ${networkVM.extensionRate} of cases.` : ""}
+              </div>
+              <div className="muted" style={{ fontSize: "0.76rem", marginTop: 6 }}>
+                {networkVM.basis}
+              </div>
+              <div className="muted" style={{ fontSize: "0.76rem", marginTop: 6 }}>
+                This is other offices&apos; experience, not yours — weigh it below
+                your own history. Nothing here routes or decides anything on its own.
+              </div>
             </div>
           )}
 

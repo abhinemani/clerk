@@ -288,10 +288,14 @@ describe("invariant 11 — network signals are advisory and rank below local one
     expect("departmentId" in hint).toBe(false);
   });
 
-  it("states its own basis so a human can weigh it", () => {
+  it("states its own basis so a human can weigh it, without leaking a raw code", () => {
     const [agg] = publishableAggregates(evenGroup(MIN_AGENCIES, 10));
     expect(agg!.basis).toContain(`${MIN_AGENCIES} consenting CA agencies`);
-    expect(networkRoutingHint(agg!)!.basis).toContain("public_works");
+    const basis = networkRoutingHint(agg!)!.basis;
+    expect(basis).toContain("public works");
+    // The snake_case platform symbol must not reach a human — it reads as a
+    // leaked identifier, not a department.
+    expect(basis).not.toContain("public_works");
   });
 });
 

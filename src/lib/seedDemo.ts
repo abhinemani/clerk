@@ -502,9 +502,142 @@ export async function seedDemoTenants(): Promise<{ seeded: boolean }> {
     notes: `Neighboring city on this ${branding.productName} deployment — referrals forward directly.`,
   });
 
+  await seedNetworkPeers(deps);
+
   console.log("Seeded City of Riverton (/riverton) and City of Bellmar (/bellmar).");
   console.log(`Bellmar ingestion API key (shown once): ${bellmarIngestKey}`);
   return { seeded: true };
+}
+
+/**
+ * Network plays fixture (docs/network-plays.md, invariant 11).
+ *
+ * The floors are the point of that feature, which makes it undemoable on a
+ * one-tenant deployment: a benchmark needs FIVE consenting agencies before
+ * anything publishes. So the seed stands up five peer California offices
+ * with consent on and a little resolved history each, turns Riverton's
+ * consent on so it can read (contribute-to-read), and runs the real weekly
+ * rebuild once.
+ *
+ * These peers are deliberately thin — no staff, no archive, no portal
+ * content. They exist to make the network real, and they are roughly what a
+ * regional deployment looks like.
+ *
+ * THEY GET REAL CLOSED REQUESTS, and that is not incidental. The first cut
+ * wrote peer rows straight into `request_plays`, reasoning that plays are a
+ * rebuildable aggregate so seeding them directly was harmless. It is not:
+ * the nightly sweep runs `rebuildAgencyPlays` — a FULL REPLACE derived from
+ * closed requests — before the network rebuild, so directly-seeded plays are
+ * erased on the first boot after seeding and every benchmark silently
+ * vanishes. An aggregate can only be seeded by seeding what it aggregates.
+ *
+ * Topics chosen to match requests Riverton actually has open, so the
+ * benchmark card renders on a real page rather than needing a hand-built
+ * request: "inspection reports for 400 Main St" → inspections, and "the
+ * police incident report …" → police_incident_reports.
+ */
+async function seedNetworkPeers(deps: ServiceDeps): Promise<void> {
+  const { repo } = deps;
+  const riverton = await repo.getAgencyBySlug("riverton");
+  if (!riverton) return;
+
+  // Riverton opts in — otherwise it contributes nothing AND reads nothing.
+  await repo.updateAgency(riverton.id, {
+    settings: { ...(riverton.settings ?? {}), networkPlays: { enabled: true } },
+  });
+
+  const peers = [
+    { slug: "cedar-falls", name: "City of Cedar Falls" },
+    { slug: "ashford", name: "Town of Ashford" },
+    { slug: "northgate", name: "City of Northgate" },
+    { slug: "presidio-bay", name: "City of Presidio Bay" },
+    { slug: "marlin-cove", name: "City of Marlin Cove" },
+  ];
+
+  // Two recurring asks per peer, matching what Riverton has open.
+  const patterns = [
+    {
+      dept: "Public Works",
+      text: "Inspection reports and inspector compliance records for a property.",
+      days: 6,
+    },
+    {
+      dept: "Police Records",
+      text: "The police incident report and arrest record for an incident.",
+      days: 11,
+    },
+  ];
+
+  for (const [i, peer] of peers.entries()) {
+    if (await repo.getAgencyBySlug(peer.slug)) continue; // idempotent re-seed
+    const agencyId = deps.genId();
+    await repo.createAgency({
+      id: agencyId,
+      slug: peer.slug,
+      name: peer.name,
+      stateCode: "CA", // same state as Riverton — benchmarks never cross states
+      observedHolidays: [],
+      settings: { networkPlays: { enabled: true } },
+    });
+
+    for (const [pi, pattern] of patterns.entries()) {
+      const departmentId = deps.genId();
+      await repo.createDepartment({
+        id: departmentId,
+        agencyId,
+        name: pattern.dept,
+        defaultResponderEmails: [],
+      });
+      // Enough episodes that each peer clears the play-clustering bar and the
+      // network clears MIN_EPISODES once five peers are counted.
+      const episodes = 4 + i;
+      for (let n = 0; n < episodes; n++) {
+        const requestId = deps.genId();
+        const receivedAt = new Date(Date.UTC(2026, 3 + (n % 4), 3 + n));
+        const closedAt = new Date(receivedAt.getTime() + pattern.days * 86_400_000);
+        await repo.createRequest({
+          id: requestId,
+          agencyId,
+          publicId: `PR-2026-${String(1000 + i * 100 + pi * 20 + n)}`,
+          requesterId: null,
+          status: "fulfilled",
+          rawText: pattern.text,
+          interpretedScope: pattern.text,
+          recordTypes: [],
+          complexityScore: null,
+          receivedAt,
+          statutoryDueAt: null,
+          closedAt,
+          createdAt: receivedAt,
+        });
+        // The done task is what makes a ROUTE — without it the episode has no
+        // department and the benchmark can state timing but not routing.
+        await repo.createTask({
+          id: deps.genId(),
+          agencyId,
+          requestId,
+          departmentId,
+          scopeText: pattern.text,
+          status: "done",
+          token: deps.genToken(),
+          dueAt: null,
+          uploads: [],
+          pushbackNotes: null,
+        });
+      }
+    }
+
+    // Distill this peer's history the same way the nightly sweep will, so the
+    // seeded state is exactly what a rebuild reproduces.
+    const { rebuildAgencyPlays } = await import("@/services/learningService");
+    await rebuildAgencyPlays(deps, agencyId);
+  }
+
+  const { rebuildNetworkAggregates } = await import("@/services/networkPlaysService");
+  const summary = await rebuildNetworkAggregates(deps);
+  console.log(
+    `Network plays: ${summary.published} benchmark(s) across ${summary.consentingAgencies} consenting agencies.`,
+  );
 }
 
 export function printCredentials() {

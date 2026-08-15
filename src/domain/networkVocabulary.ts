@@ -16,6 +16,7 @@
  * Everything here is pure and data-driven — add a topic by adding an entry,
  * no code change (the §7 statute-profile pattern).
  */
+import { demandTerms } from "./demandPatterns";
 
 /** Platform-defined subject codes. Carries no requester wording by construction. */
 export type TopicCode =
@@ -172,6 +173,44 @@ export function toTopicCode(keywords: readonly string[]): TopicCode | null {
   }
   if (!best || best.score < MIN_TOPIC_SCORE) return null;
   return best.score > runnerUp ? best.code : null;
+}
+
+/**
+ * Map free text (a request's interpreted scope) onto a topic code.
+ *
+ * The read side's lookup key: aggregates are keyed by TopicCode, but a
+ * coordinator working a request has prose. Same conservative matcher as
+ * `toTopicCode` — this is deliberately COARSER than the local play matcher,
+ * which also compares embeddings and can match a paraphrase. 26 buckets and
+ * no vectors means the network stays quiet more often than local history
+ * does. That is correct: a benchmark drawn from the wrong topic is worse
+ * than no benchmark.
+ */
+export function toTopicCodeFromText(text: string | null | undefined): TopicCode | null {
+  if (!text?.trim()) return null;
+  return toTopicCode([...demandTerms(text)]);
+}
+
+/**
+ * Resolve a network role back to THIS agency's departments, for display.
+ *
+ * The network says "comparable offices route this to public_works"; a
+ * coordinator needs "→ your Public Works department". Reuses
+ * `toDepartmentRole` in reverse rather than introducing a second mapping, so
+ * the two directions can never disagree.
+ *
+ * DISPLAY ONLY. The returned departments must never be assembled into a
+ * routing suggestion that reaches `autoDispatchSuggestions` — a network
+ * signal may not auto-dispatch (invariant 11), and the reason that guarantee
+ * holds today is that `NetworkRoutingHint` is not a `LearnedRoutingSuggestion`.
+ * Resolving a local department here is exactly the shortcut that would undo
+ * it. Returns [] when nothing maps, which is a normal outcome, not an error.
+ */
+export function localDepartmentsForRole(
+  role: DepartmentRole,
+  departments: readonly { id: string; name: string }[],
+): { id: string; name: string }[] {
+  return departments.filter((d) => toDepartmentRole(d.name) === role);
 }
 
 /** Map a tenant's department NAME onto a platform role, or null. */

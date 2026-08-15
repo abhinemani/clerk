@@ -11,7 +11,11 @@ import { describe, expect, it } from "vitest";
 import { MIN_AGENCIES } from "@/domain/networkPlays";
 import type { ServiceDeps } from "./deps";
 import { InMemoryRepository, type Agency, type PlayEntity } from "./repository";
-import { listNetworkAggregatesFor, rebuildNetworkAggregates } from "./networkPlaysService";
+import {
+  listNetworkAggregatesFor,
+  networkHintForRequest,
+  rebuildNetworkAggregates,
+} from "./networkPlaysService";
 
 const NOW = new Date("2026-08-15T12:00:00Z");
 
@@ -176,6 +180,79 @@ describe("rebuildNetworkAggregates", () => {
     await rebuildNetworkAggregates(deps);
     const stored = await repo.listNetworkAggregates();
     expect(stored.map((r) => r.stateCode).sort()).toEqual(["CA", "TX"]);
+  });
+});
+
+describe("networkHintForRequest — the request page's lookup", () => {
+  async function seededNetwork() {
+    const { deps, repo } = makeDeps();
+    await seedNetwork(repo, MIN_AGENCIES);
+    // The reading agency needs departments for the role to resolve locally.
+    await repo.createDepartment({
+      id: "d-pw",
+      agencyId: "ag0",
+      name: "Public Works",
+      defaultResponderEmails: [],
+    });
+    await rebuildNetworkAggregates(deps);
+    return { deps, repo };
+  }
+
+  it("maps a request's own words to a benchmark and names the LOCAL department", async () => {
+    const { deps } = await seededNetwork();
+    const hint = await networkHintForRequest(deps, {
+      agencyId: "ag0",
+      text: "All building permit and construction records for 400 Main St.",
+    });
+    expect(hint).not.toBeNull();
+    expect(hint!.topic).toBe("building permits");
+    expect(hint!.role).toBe("public_works");
+    // The whole point of the reverse lookup: the coordinator sees their own
+    // department's name, not a platform symbol.
+    expect(hint!.localDepartments.map((d) => d.name)).toEqual(["Public Works"]);
+    expect(hint!.confidence).toBeLessThanOrEqual(0.6);
+  });
+
+  it("still returns the benchmark when no local department maps to the role", async () => {
+    const { deps, repo } = await seededNetwork();
+    // An office with no Public-Works-ish department still benefits from
+    // knowing where comparable offices send this.
+    await repo.updateAgency("ag1", { settings: { networkPlays: { enabled: true } } });
+    const hint = await networkHintForRequest(deps, {
+      agencyId: "ag1", // seeded with no departments
+      text: "All building permit and construction records.",
+    });
+    expect(hint).not.toBeNull();
+    expect(hint!.localDepartments).toEqual([]);
+  });
+
+  it("returns null — renders nothing — when the ask doesn't map to a topic", async () => {
+    const { deps } = await seededNetwork();
+    expect(
+      await networkHintForRequest(deps, { agencyId: "ag0", text: "Something entirely unrelated." }),
+    ).toBeNull();
+  });
+
+  it("returns null when the topic maps but no benchmark cleared the floors", async () => {
+    const { deps } = await seededNetwork();
+    // police_incident_reports has no aggregate in this fixture.
+    expect(
+      await networkHintForRequest(deps, {
+        agencyId: "ag0",
+        text: "The police incident report for the arrest on Main St.",
+      }),
+    ).toBeNull();
+  });
+
+  it("returns null for a non-consenting agency, however well the ask maps", async () => {
+    const { deps, repo } = await seededNetwork();
+    await repo.updateAgency("ag0", { settings: { networkPlays: { enabled: false } } });
+    expect(
+      await networkHintForRequest(deps, {
+        agencyId: "ag0",
+        text: "All building permit and construction records for 400 Main St.",
+      }),
+    ).toBeNull();
   });
 });
 
